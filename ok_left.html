@@ -836,6 +836,8 @@
         style="position:absolute;pointer-events:none;z-index:9999;font-size:18px;line-height:18px;transition:top .12s,left .12s,opacity .12s;opacity:0">
         ➔</div>
 
+    <div id="focusSink" tabindex="-1" style="position:fixed;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden">
+    </div>
     <script>
         // Minimal JS extracted from ok.py necessary for left UI rendering and process()
         // For full behavior we include key functions: getNumsFromLineObj, process, renderTable1, renderTable2 (renderTable2 writes into #right but it's hidden), copyLine, computePairs, applyPair, etc.
@@ -1458,6 +1460,7 @@
                 if (region === 'left') currentPhaseRow = null;
             } catch (e) { }
             toggleNumber(n);
+            try { window.parent.postMessage({ type: 'childFocus', region: 'left' }, '*'); } catch (e) { }
         }
 
         // Apply selection / idx-highlight / blocked classes in-place to avoid rerender flicker
@@ -3424,6 +3427,13 @@
         window.addEventListener('message', (ev) => {
             try {
                 const msg = ev.data || {};
+                if (msg && msg.type === 'requestFocus') {
+                    try { window.focus(); } catch (e) { }
+                    try { const sink = document.getElementById('focusSink'); if (sink && typeof sink.focus === 'function') sink.focus(); } catch (e) { }
+                    try { window.parent.postMessage({ type: 'childFocus', region: 'left' }, '*'); } catch (e) { }
+                    return;
+                }
+
                 if (msg.type === 'setLines' && Array.isArray(msg.lines)) {
                     if (typeof msg.submitAutoCircleEnabled === 'boolean') {
                         submitAutoCircleEnabled = msg.submitAutoCircleEnabled;

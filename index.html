@@ -796,10 +796,7 @@
             if (keyboardFocusTarget === 'left') {
                 try {
                     if (frame && frame.contentWindow) {
-                        frame.contentWindow.focus();
-                    }
-                    if (frame && typeof frame.focus === 'function') {
-                        frame.focus();
+                        frame.contentWindow.postMessage({ type: 'requestFocus' }, '*');
                     }
                 } catch (e) { }
                 return;
@@ -1256,6 +1253,8 @@
                 if (msg.type === 'submitStateChanged') {
                     iframeSubmitActive = !!msg.submitActive;
                     syncSubmitRingToolbarUi();
+                } else if (msg.type === 'childFocus' && msg.region === 'left') {
+                    rememberKeyboardFocusTarget('left');
                 }
             });
             // left controls live inside the iframe now; guard bindings in parent
