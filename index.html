@@ -1201,7 +1201,9 @@
                         lines: lines,
                         disableSubmit: false,
                         submitActive: iframeSubmitActive,
-                        focusRowId: String(detail.clickedRowId || '').trim()
+                        focusRowId: String(detail.clickedRowId || '').trim(),
+                        submitAutoCircleEnabled: submitRingEnabled,
+                        submitAutoCircleMode: submitRingMode
                     }, '*');
                 }
             });

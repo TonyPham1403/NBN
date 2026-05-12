@@ -3425,6 +3425,12 @@
             try {
                 const msg = ev.data || {};
                 if (msg.type === 'setLines' && Array.isArray(msg.lines)) {
+                    if (typeof msg.submitAutoCircleEnabled === 'boolean') {
+                        submitAutoCircleEnabled = msg.submitAutoCircleEnabled;
+                    }
+                    if (msg.submitAutoCircleMode === 'min' || msg.submitAutoCircleMode === 'max') {
+                        submitAutoCircleMode = msg.submitAutoCircleMode;
+                    }
                     disableSubmitForCurrentData = !!msg.disableSubmit;
                     syncSubmitButtonAvailability();
                     const input = document.getElementById('input');
