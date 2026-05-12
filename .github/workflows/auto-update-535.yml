@@ -21,27 +21,17 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
       - name: Install Python dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pandas openpyxl requests beautifulsoup4 curl-cffi
+          pip install requests beautifulsoup4 curl-cffi
 
-      - name: Update latest draw into 535.xlsm
-        run: python crawl_535.py --file "535.xlsm"
-
-      - name: Convert XLSM to data.json
-        run: |
-          npm install xlsx
-          node convert_data_to_json.js
+      - name: Sync new draws into data.json
+        run: python crawl_535.py --json "data.json"
 
       - name: Commit and push if changed
         run: |
-          git add 535.xlsm data.json
+          git add data.json
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
@@ -50,4 +40,3 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git commit -m "chore: auto update 535 draw data"
           git push
-
