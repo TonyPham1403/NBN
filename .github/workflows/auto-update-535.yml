@@ -1,0 +1,53 @@
+name: Auto update 535 data
+
+on:
+  schedule:
+    # 13:05 và 21:05 giờ Việt Nam (UTC+7) -> 06:05 và 14:05 UTC
+    - cron: "5 6,14 * * *"
+  workflow_dispatch:
+
+jobs:
+  update-data:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas openpyxl requests beautifulsoup4
+
+      - name: Update latest draw into 535.xlsm
+        run: python crawl_535.py --file "535.xlsm"
+
+      - name: Convert XLSM to data.json
+        run: |
+          npm install xlsx
+          node convert_data_to_json.js
+
+      - name: Commit and push if changed
+        run: |
+          git add 535.xlsm data.json
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git commit -m "chore: auto update 535 draw data"
+          git push
+
