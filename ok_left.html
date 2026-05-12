@@ -863,6 +863,11 @@
         let currentTailIndex = -1;
         let submitAutoCircleEnabled = false;
         let submitAutoCircleMode = 'max';
+        /** Track draw ids (right-pane focus row) that already received one-shot auto ring */
+        let autoRingVisitedIds = new Set();
+        /** Remember selection per focus id so revisiting a row restores user state */
+        let selectionMemoryByFocusId = new Map();
+        let lastAutoRingFocusKey = '';
 
         // pair/triple tracking (ported from ok.py)
         let firstPair = null, secondPair = null, thirdPair = null, fourthPair = null, fifthPair = null, firstTriple = null;
@@ -961,6 +966,167 @@
             });
             return out;
         }
+
+        function normalizeAutoRingFocusKey(s) {
+            var d = String(s || '').replace(/\D/g, '');
+            if (!d) return '';
+            var n = parseInt(d, 10);
+            if (isNaN(n)) return '';
+            return String(n).padStart(5, '0');
+        }
+
+        function snapshotSelectionState() {
+            return {
+                selected: Array.from(selected),
+                pickOrder: pickOrder ? pickOrder.slice() : [],
+                currentPairIndex: currentPairIndex,
+                currentTailIndex: currentTailIndex,
+                currentPhaseNumber: currentPhaseNumber,
+                currentPhaseRow: currentPhaseRow,
+                lastClickedRegion: lastClickedRegion,
+                lastClickedRow: lastClickedRow,
+                lastClickedNumber: lastClickedNumber,
+                phaseHistory: phaseHistory ? phaseHistory.slice() : []
+            };
+        }
+
+        function restoreSelectionStateSnapshot(snap) {
+            if (!snap) return;
+            try {
+                selected.clear();
+                transientSelected.clear();
+                simulatedSelected.clear();
+                (snap.selected || []).forEach(function (n) { if (!isNaN(n)) selected.add(n); });
+                pickOrder = snap.pickOrder ? snap.pickOrder.slice() : [];
+                currentPairIndex = typeof snap.currentPairIndex === 'number' ? snap.currentPairIndex : -1;
+                currentTailIndex = typeof snap.currentTailIndex === 'number' ? snap.currentTailIndex : -1;
+                currentPhaseNumber = snap.currentPhaseNumber != null ? snap.currentPhaseNumber : null;
+                currentPhaseRow = snap.currentPhaseRow != null ? snap.currentPhaseRow : null;
+                lastClickedRegion = snap.lastClickedRegion || 'left';
+                lastClickedRow = snap.lastClickedRow != null ? snap.lastClickedRow : null;
+                lastClickedNumber = snap.lastClickedNumber != null ? snap.lastClickedNumber : null;
+                phaseHistory = Array.isArray(snap.phaseHistory) ? snap.phaseHistory.slice() : [];
+                recomputePairsFromSelected();
+                updateBlocked();
+                try { updatePairList(); } catch (e) { }
+                try { refreshPairTailSelectionState(); } catch (e) { }
+                try { applySelectionAndBlockedInDOM(); } catch (e) { }
+                try { alignTableActionsAndCenter(); } catch (e) { }
+                try { updateFloatingCopyButtons(); } catch (e) { }
+                try { updateFocusIndicator(); } catch (e) { }
+            } catch (e) { console.error(e); }
+        }
+
+        function persistSelectionMemoryForFocus() {
+            try {
+                var fk = lastAutoRingFocusKey;
+                if (!fk || submitActive || disableSubmitForCurrentData) return;
+                selectionMemoryByFocusId.set(fk, snapshotSelectionState());
+            } catch (e) { /* non-fatal */ }
+        }
+
+        function syncModeFromAnswerNums(answerNums) {
+            try {
+                if (!answerNums || answerNums.length < 5 || !raw) return;
+                var linesLocal = raw.lines || [];
+                var pairLines = 0;
+                var tripleFound = false;
+                var singleLines = 0;
+                for (var i = 0; i < Math.min(linesLocal.length, 10); i++) {
+                    var nums = getNumsFromLineObj(linesLocal[i]);
+                    var matched = (answerNums || []).filter(function (n) { return nums.indexOf(n) !== -1; });
+                    if (matched.length >= 3) { tripleFound = true; break; }
+                    if (matched.length >= 2) pairLines++;
+                    if (matched.length >= 1) singleLines++;
+                }
+                var newMode = null;
+                if (tripleFound) newMode = 'triple1';
+                else if (pairLines >= 5) newMode = 'pair5';
+                else if (pairLines >= 4) newMode = 'pair4';
+                else if (pairLines >= 3) newMode = 'pair3';
+                else if (pairLines === 2) newMode = 'pair2';
+                else if (pairLines === 1) newMode = 'pair1';
+                else if (singleLines > 0) newMode = 'modeq';
+
+                var modeEl = document.getElementById('mode');
+                if (newMode && modeEl) {
+                    if (userModeBeforeSubmit === null) userModeBeforeSubmit = modeEl.value;
+                    modeEl.value = newMode;
+                    modeEl.classList.add('synced-mode');
+                    modeEl.disabled = true;
+                    modeSynced = true;
+                }
+            } catch (e) { /* non-fatal */ }
+        }
+
+        function maybeApplySubmitAutoRingAfterProcess(focusRowIdRaw) {
+            try {
+                if (!submitAutoCircleEnabled || submitActive || disableSubmitForCurrentData || !raw) return;
+
+                var fk = normalizeAutoRingFocusKey(focusRowIdRaw);
+                if (!fk) return;
+                if (autoRingVisitedIds.has(fk)) return;
+
+                var circleNums = Array.from(getSubmitAutoCircleSet()).filter(function (n) { return !isNaN(n); });
+                var ans = [];
+                if (raw.lines && raw.lines.length > 10) {
+                    var eleventh = raw.lines[10] || {};
+                    var ansLine = (eleventh.result || '').split('|')[0].trim();
+                    if (ansLine.length) {
+                        ans = ansLine.split(',').map(function (x) { return parseInt(x, 10); }).filter(function (n) { return !isNaN(n); });
+                    }
+                }
+                if (ans.length >= 5) {
+                    syncModeFromAnswerNums(ans);
+                }
+
+                if (!circleNums.length) {
+                    autoRingVisitedIds.add(fk);
+                    selected.clear();
+                    transientSelected.clear();
+                    simulatedSelected.clear();
+                    pickOrder = [];
+                    currentPairIndex = -1;
+                    currentTailIndex = -1;
+                    selectionCleared = false;
+                    recomputePairsFromSelected();
+                    updateBlocked();
+                    try { updatePairList(); } catch (e) { }
+                    try { refreshPairTailSelectionState(); } catch (e) { }
+                    try { applySelectionAndBlockedInDOM(); } catch (e) { }
+                    try { updateFocusIndicator(); } catch (e) { }
+                    return;
+                }
+
+                selected.clear();
+                transientSelected.clear();
+                simulatedSelected.clear();
+                pickOrder = [];
+                currentPairIndex = -1;
+                currentTailIndex = -1;
+                selectionCleared = false;
+
+                recomputePairsFromSelected();
+                updateBlocked();
+
+                circleNums.sort(function (a, b) { return a - b; });
+                for (var i = 0; i < circleNums.length; i++) {
+                    var n = circleNums[i];
+                    if (isBlocked(n)) continue;
+                    toggleNumber(n);
+                }
+
+                autoRingVisitedIds.add(fk);
+
+                try { updatePairList(); } catch (e) { }
+                try { refreshPairTailSelectionState(); } catch (e) { }
+                try { applySelectionAndBlockedInDOM(); } catch (e) { }
+                try { alignTableActionsAndCenter(); } catch (e) { }
+                try { updateFloatingCopyButtons(); } catch (e) { }
+                try { updateFocusIndicator(); } catch (e) { }
+            } catch (e) { console.error(e); }
+        }
+
         function syncSubmitButtonAvailability() {
             const sbEl = document.getElementById('submitBtn');
             if (sbEl) sbEl.disabled = !!disableSubmitForCurrentData;
@@ -1277,6 +1443,7 @@
             try { refreshPairTailSelectionState(); } catch (e) { }
             // Apply minimal in-place DOM updates to avoid full rerender (prevents flicker)
             try { applySelectionAndBlockedInDOM(n); updateFloatingCopyButtons(); alignTableActionsAndCenter(); updateFocusIndicator(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); try { updateFocusIndicator(); } catch (ee) { } }
+            try { persistSelectionMemoryForFocus(); } catch (e) { }
         }
 
         function onNumberCellClick(n, region, rowIdx) {
@@ -1333,6 +1500,11 @@
         function process() {
             let rawText = document.getElementById("input").value.trim();
             debugLog('process() called — input length:', rawText.length);
+            // Clear selections when new data is loaded (sheet/dataset change)
+            selected.clear();
+            simulatedSelected.clear();
+            blockedSet.clear();
+            transientSelected.clear();
             let rows = [];
             if (!rawText) { updateRender(); return; }
             if (rawText.indexOf('\n') !== -1 || rawText.indexOf('\r') !== -1) {
@@ -1577,6 +1749,7 @@
             if (currentPairs && currentPairs.length) { for (let i = 0; i < currentPairs.length; i++) { const p = currentPairs[i]; if (p && p[0] === a && p[1] === b) { currentPairIndex = i; break; } } }
             const useLightRender = !!(opts && opts.lightRender);
             recomputePairsFromSelected(); updateBlocked(); if (useLightRender) updateRenderLightweight(); else updateRender();
+            try { persistSelectionMemoryForFocus(); } catch (e) { }
         }
 
         function applyPairByIndex(idx, opts) {
@@ -3126,7 +3299,7 @@
                         numSpans.forEach(function (span) {
                             var val = parseInt(span.getAttribute('data-num'), 10);
                             var should = submitActive && answerSet.has(val);
-                            var shouldAutoCircle = autoCircleSet.has(val);
+                            var shouldAutoCircle = submitActive && autoCircleSet.has(val);
                             span.classList.toggle('submit-highlight', should);
                             span.classList.toggle('auto-circled', shouldAutoCircle);
                             span.classList.toggle('answer-neon', should);
@@ -3155,7 +3328,7 @@
                 leftSpans.forEach(function (span) {
                     var val = parseInt(span.getAttribute('data-num'), 10);
                     var should = submitActive && answerSet.has(val);
-                    var shouldAutoCircle = autoCircleSet.has(val);
+                    var shouldAutoCircle = submitActive && autoCircleSet.has(val);
                     span.classList.toggle('submit-highlight', should);
                     span.classList.toggle('auto-circled', shouldAutoCircle);
                     span.classList.toggle('answer-neon', should);
@@ -3259,6 +3432,12 @@
 
                     // Save the submit state before process() might reset it
                     const wasSubmitActive = submitActive || msg.submitActive;
+                    const focusRowId = (msg.focusRowId != null) ? String(msg.focusRowId) : '';
+                    const newFk = normalizeAutoRingFocusKey(focusRowId);
+
+                    if (lastAutoRingFocusKey && lastAutoRingFocusKey !== newFk) {
+                        try { selectionMemoryByFocusId.set(lastAutoRingFocusKey, snapshotSelectionState()); } catch (e) { }
+                    }
 
                     // process the new input
                     try {
@@ -3272,10 +3451,105 @@
                         if (sbEl) sbEl.classList.add('active');
                         try { syncSubmitStateForNewData(); } catch (e) { console.error(e); }
                         try { applySubmitState(); } catch (e) { console.error(e); }
+                        lastAutoRingFocusKey = newFk;
+                    } else {
+                        if (submitAutoCircleEnabled && newFk && autoRingVisitedIds.has(newFk) && selectionMemoryByFocusId.has(newFk)) {
+                            try { restoreSelectionStateSnapshot(selectionMemoryByFocusId.get(newFk)); } catch (e) { console.error(e); }
+                        } else {
+                            try { maybeApplySubmitAutoRingAfterProcess(focusRowId); } catch (e) { console.error(e); }
+                        }
+                        lastAutoRingFocusKey = newFk;
+                        try { persistSelectionMemoryForFocus(); } catch (e) { }
                     }
                 } else if (msg.type === 'submitAutoCircleChanged') {
+                    const wasEnabled = submitAutoCircleEnabled;
                     submitAutoCircleEnabled = !!msg.enabled;
                     submitAutoCircleMode = (msg.mode === 'min') ? 'min' : 'max';
+
+                    if (submitAutoCircleEnabled && !wasEnabled && raw) {
+                        // When autoring is turned ON, clear current selections and apply autoring immediately
+                        autoRingVisitedIds.clear();
+                        selectionMemoryByFocusId.clear();
+                        lastAutoRingFocusKey = '';
+                        selected.clear();
+                        transientSelected.clear();
+                        simulatedSelected.clear();
+                        pickOrder = [];
+                        currentPairIndex = -1;
+                        currentTailIndex = -1;
+                        selectionCleared = false;
+
+                        // Get autoring numbers and apply them
+                        var circleNums = Array.from(getSubmitAutoCircleSet()).filter(function (n) { return !isNaN(n); });
+                        if (circleNums.length > 0) {
+                            // Sync mode from answer numbers if available
+                            var ans = [];
+                            if (raw.lines && raw.lines.length > 10) {
+                                var eleventh = raw.lines[10] || {};
+                                var ansLine = (eleventh.result || '').split('|')[0].trim();
+                                if (ansLine.length) {
+                                    ans = ansLine.split(',').map(function (x) { return parseInt(x, 10); }).filter(function (n) { return !isNaN(n); });
+                                }
+                            }
+                            if (ans.length >= 5) {
+                                try { syncModeFromAnswerNums(ans); } catch (e) { }
+                            }
+
+                            // Apply autoring by toggling numbers
+                            recomputePairsFromSelected();
+                            updateBlocked();
+                            circleNums.sort(function (a, b) { return a - b; });
+                            for (var i = 0; i < circleNums.length; i++) {
+                                var n = circleNums[i];
+                                if (isBlocked(n)) continue;
+                                toggleNumber(n);
+                            }
+                        }
+
+                        try { updatePairList(); } catch (e) { }
+                        try { refreshPairTailSelectionState(); } catch (e) { }
+                        try { applySelectionAndBlockedInDOM(); } catch (e) { }
+                        try { alignTableActionsAndCenter(); } catch (e) { }
+                        try { updateFloatingCopyButtons(); } catch (e) { }
+                        try { updateFocusIndicator(); } catch (e) { }
+                    } else if (!submitAutoCircleEnabled && wasEnabled) {
+                        // When autoring is turned OFF, clear all selections and memory
+                        try { autoRingVisitedIds.clear(); } catch (e) { }
+                        try { selectionMemoryByFocusId.clear(); } catch (e) { }
+                        lastAutoRingFocusKey = '';
+
+                        // Clear all selections
+                        selected.clear();
+                        transientSelected.clear();
+                        simulatedSelected.clear();
+                        pickOrder = [];
+                        currentPairIndex = -1;
+                        currentTailIndex = -1;
+                        selectionCleared = false;
+
+                        try {
+                            if (!submitActive && modeSynced && userModeBeforeSubmit !== null) {
+                                var modeElRestore = document.getElementById('mode');
+                                if (modeElRestore) {
+                                    modeElRestore.value = userModeBeforeSubmit;
+                                    modeElRestore.classList.remove('synced-mode');
+                                    modeElRestore.disabled = false;
+                                }
+                                userModeBeforeSubmit = null;
+                                modeSynced = false;
+                            }
+                        } catch (e) { }
+
+                        // Update UI
+                        try { recomputePairsFromSelected(); } catch (e) { }
+                        try { updateBlocked(); } catch (e) { }
+                        try { updatePairList(); } catch (e) { }
+                        try { refreshPairTailSelectionState(); } catch (e) { }
+                        try { applySelectionAndBlockedInDOM(); } catch (e) { }
+                        try { alignTableActionsAndCenter(); } catch (e) { }
+                        try { updateFloatingCopyButtons(); } catch (e) { }
+                        try { updateFocusIndicator(); } catch (e) { }
+                    }
                     try { applySubmitState(); } catch (e) { }
                 } else if (msg.type === 'toggleSubmit') {
                     toggleSubmitOnSpace();

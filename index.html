@@ -1200,7 +1200,8 @@
                         type: 'setLines',
                         lines: lines,
                         disableSubmit: false,
-                        submitActive: iframeSubmitActive
+                        submitActive: iframeSubmitActive,
+                        focusRowId: String(detail.clickedRowId || '').trim()
                     }, '*');
                 }
             });
