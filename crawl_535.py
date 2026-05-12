@@ -41,18 +41,29 @@ def fetch_html(url: str):
     resp = requests.get(url, timeout=30, headers=headers)
     if resp.status_code == 403:
         try:
-            curl_requests = importlib.import_module("curl_cffi.requests")
-
-            resp = curl_requests.get(
-                url,
-                timeout=30,
-                headers=headers,
-                impersonate="chrome124",
-            )
+            playwright_sync = importlib.import_module("playwright.sync_api")
         except ImportError as exc:
             raise RuntimeError(
-                "Vietlott dang chan requests thuong. Hay cai curl_cffi de fake browser request."
+                "Vietlott dang chan requests thuong. Hay cai playwright de render trang bang browser."
             ) from exc
+
+        with playwright_sync.sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            try:
+                page = browser.new_page(
+                    user_agent=build_headers()["User-Agent"],
+                    extra_http_headers={
+                        "Accept-Language": headers["Accept-Language"],
+                        "Referer": headers["Referer"],
+                    },
+                )
+                page.goto(url, wait_until="domcontentloaded", timeout=60000)
+                page.wait_for_selector("#divResultContent table tbody tr", timeout=60000)
+                resp_text = page.content()
+            finally:
+                browser.close()
+
+        return resp_text
 
     resp.raise_for_status()
     return resp.text
