@@ -1,6 +1,8 @@
 import argparse
 import itertools
+import json
 import os
+import re
 from collections import Counter
 
 import pandas as pd
@@ -14,6 +16,13 @@ from openpyxl.styles import Alignment
 
 URL = "https://www.vietlott.vn/vi/trung-thuong/ket-qua-trung-thuong/winning-number-535#top"
 HOME = "https://www.vietlott.vn/vi/"
+AJAX_URL = (
+    "https://www.vietlott.vn/ajaxpro/Vietlott.PlugIn.WebParts.Game535CompareWebPart,"
+    "Vietlott.PlugIn.WebParts.ashx"
+)
+# Token in trang winning-number-535 (JS): ServerSideDrawResult(RenderInfo, '........', ...)
+DEFAULT_AJAX_KEY = "64bdd318"
+IMPERSONATE = "chrome124"
 
 
 def _headers(referer: str | None) -> dict[str, str]:
@@ -42,16 +51,145 @@ def _headers(referer: str | None) -> dict[str, str]:
     return h
 
 
+def _ajax_key_from_page_html(html: str) -> str | None:
+    m = re.search(
+        r"Game535CompareWebPart\.ServerSideDrawResult\([^,]+,\s*'([0-9a-f]{8})'",
+        html,
+        re.I,
+    )
+    return m.group(1) if m else None
+
+
+def _ajax_request_body(ajax_key: str, page_index: int = 0) -> dict:
+    return {
+        "ORenderInfo": {
+            "ExtraParam1": "",
+            "ExtraParam2": "",
+            "ExtraParam3": "",
+            "FullPageAlias": "",
+            "IsPageDesign": False,
+            "OrgPageAlias": "",
+            "PageAlias": "",
+            "RefKey": "",
+            "SiteAlias": "main.vi",
+            "SiteId": "main.frontend.vi",
+            "SiteLang": "vi",
+            "SiteName": "Vietlott",
+            "SiteURL": "",
+            "System": 1,
+            "UserSessionId": "",
+            "WebPage": "",
+        },
+        "Key": ajax_key,
+        "GameDrawId": "",
+        "ArrayNumbers": [["" for _ in range(35)] for _ in range(5)],
+        "CheckMulti": False,
+        "PageIndex": page_index,
+    }
+
+
+def _ajaxpro_headers() -> dict[str, str]:
+    return {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+        ),
+        "Accept": "*/*",
+        "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Content-Type": "text/plain; charset=utf-8",
+        "X-AjaxPro-Method": "ServerSideDrawResult",
+        "Origin": "https://www.vietlott.vn",
+        "Referer": "https://www.vietlott.vn/vi/trung-thuong/ket-qua-trung-thuong/winning-number-535",
+    }
+
+
+def _fetch_html_via_ajaxpro(page_url: str, ajax_key: str) -> str:
+    """Lay bang ket qua qua AjaxPro (thuong it bi chan hon GET trang day du tren IP datacenter)."""
+    page_url = page_url.split("#", 1)[0]
+    try:
+        from curl_cffi import requests as curl_requests
+
+        session = curl_requests.Session()
+        session.get(HOME, impersonate=IMPERSONATE, timeout=30, headers=_headers(None))
+        win_html = None
+        try:
+            win = session.get(
+                page_url,
+                impersonate=IMPERSONATE,
+                timeout=30,
+                headers=_headers(HOME),
+            )
+            if win.ok:
+                win_html = win.text
+        except Exception:
+            win_html = None
+        key = (
+            _ajax_key_from_page_html(win_html)
+            if win_html
+            else None
+        ) or ajax_key
+        body = _ajax_request_body(key)
+        resp = session.post(
+            AJAX_URL,
+            data=json.dumps(body, ensure_ascii=False),
+            headers=_ajaxpro_headers(),
+            impersonate=IMPERSONATE,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        val = data.get("value") or {}
+        if val.get("Error"):
+            msg = val.get("InfoMessage") or str(val)
+            raise RuntimeError(f"AjaxPro loi: {msg}")
+        html = val.get("HtmlContent") or ""
+        if not html.strip():
+            raise RuntimeError("AjaxPro tra ve HtmlContent rong.")
+        return html
+    except ImportError:
+        session = requests.Session()
+        session.get(HOME, timeout=30, headers=_headers(None))
+        win_html = None
+        try:
+            win = session.get(page_url, timeout=30, headers=_headers(HOME))
+            if win.ok:
+                win_html = win.text
+        except Exception:
+            win_html = None
+        key = (
+            _ajax_key_from_page_html(win_html)
+            if win_html
+            else None
+        ) or ajax_key
+        body = _ajax_request_body(key)
+        resp = session.post(
+            AJAX_URL,
+            data=json.dumps(body, ensure_ascii=False),
+            headers=_ajaxpro_headers(),
+            timeout=30,
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        val = data.get("value") or {}
+        if val.get("Error"):
+            msg = val.get("InfoMessage") or str(val)
+            raise RuntimeError(f"AjaxPro loi: {msg}")
+        html = val.get("HtmlContent") or ""
+        if not html.strip():
+            raise RuntimeError("AjaxPro tra ve HtmlContent rong.")
+        return html
+
+
 def _fetch_page_html(page_url: str) -> str:
     page_url = page_url.split("#", 1)[0]
     try:
         from curl_cffi import requests as curl_requests
 
         session = curl_requests.Session()
-        session.get(HOME, impersonate="chrome124", timeout=30, headers=_headers(None))
+        session.get(HOME, impersonate=IMPERSONATE, timeout=30, headers=_headers(None))
         resp = session.get(
             page_url,
-            impersonate="chrome124",
+            impersonate=IMPERSONATE,
             timeout=30,
             headers=_headers(HOME),
         )
@@ -69,15 +207,38 @@ def parse_args():
     parser = argparse.ArgumentParser(description="Auto update 535.xlsm from Vietlott latest draw.")
     parser.add_argument("--file", default="535.xlsm", help="Path to XLSM file (relative to repo root).")
     parser.add_argument("--url", default=URL, help="Vietlott URL.")
+    parser.add_argument(
+        "--ajax-key",
+        default=os.environ.get("VIETLOTT_535_AJAX_KEY", DEFAULT_AJAX_KEY),
+        help="Key trong JS AjaxPro (hoac dat bien VIETLOTT_535_AJAX_KEY).",
+    )
     return parser.parse_args()
 
 
-def fetch_latest_record(url: str):
-    html = _fetch_page_html(url)
-    soup = BeautifulSoup(html, "html.parser")
+def _first_result_table_row(soup: BeautifulSoup):
     row = soup.select_one("#divResultContent table tbody tr")
-    if row is None:
-        raise RuntimeError("Khong tim thay dong ket qua tren trang Vietlott.")
+    if row is not None:
+        return row
+    return soup.select_one("table.table-hover tbody tr") or soup.select_one("table tbody tr")
+
+
+def fetch_latest_record(url: str, ajax_key: str = DEFAULT_AJAX_KEY):
+    errors: list[str] = []
+    for name, getter in (
+        ("AjaxPro", lambda: _fetch_html_via_ajaxpro(url, ajax_key)),
+        ("GET trang", lambda: _fetch_page_html(url)),
+    ):
+        try:
+            html = getter()
+            soup = BeautifulSoup(html, "html.parser")
+            row = _first_result_table_row(soup)
+            if row is None:
+                raise RuntimeError("Khong tim thay dong ket qua trong HTML.")
+            break
+        except Exception as e:
+            errors.append(f"{name}: {e}")
+    else:
+        raise RuntimeError("Khong lay duoc du lieu Vietlott. " + " | ".join(errors))
 
     cols = row.select("td")
     if len(cols) < 3:
@@ -227,7 +388,7 @@ def rebuild_stats_sheets(wb, ws):
 def main():
     args = parse_args()
     wb, ws, existing_rows = load_existing_rows(args.file)
-    latest = fetch_latest_record(args.url)
+    latest = fetch_latest_record(args.url, ajax_key=args.ajax_key)
 
     existing_ids = {row["id"] for row in existing_rows}
     if latest["id"] in existing_ids:
