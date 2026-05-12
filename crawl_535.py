@@ -1,5 +1,6 @@
 import argparse
 import itertools
+import importlib
 import os
 from collections import Counter
 
@@ -15,6 +16,48 @@ from openpyxl.styles import Alignment
 URL = "https://www.vietlott.vn/vi/trung-thuong/ket-qua-trung-thuong/winning-number-535#top"
 
 
+def build_headers():
+    return {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/124.0.0.0 Safari/537.36"
+        ),
+        "Accept": (
+            "text/html,application/xhtml+xml,application/xml;"
+            "q=0.9,image/avif,image/webp,*/*;q=0.8"
+        ),
+        "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
+        "Cache-Control": "no-cache",
+        "Pragma": "no-cache",
+        "Referer": "https://www.vietlott.vn/",
+        "Upgrade-Insecure-Requests": "1",
+    }
+
+
+def fetch_html(url: str):
+    headers = build_headers()
+
+    resp = requests.get(url, timeout=30, headers=headers)
+    if resp.status_code == 403:
+        try:
+            curl_requests = importlib.import_module("curl_cffi.requests")
+
+            resp = curl_requests.get(
+                url,
+                timeout=30,
+                headers=headers,
+                impersonate="chrome124",
+            )
+        except ImportError as exc:
+            raise RuntimeError(
+                "Vietlott dang chan requests thuong. Hay cai curl_cffi de fake browser request."
+            ) from exc
+
+    resp.raise_for_status()
+    return resp.text
+
+
 def parse_args():
     parser = argparse.ArgumentParser(description="Auto update 535.xlsm from Vietlott latest draw.")
     parser.add_argument("--file", default="535.xlsm", help="Path to XLSM file (relative to repo root).")
@@ -23,17 +66,9 @@ def parse_args():
 
 
 def fetch_latest_record(url: str):
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
-        )
-    }
-    resp = requests.get(url, timeout=30, headers=headers)
-    resp.raise_for_status()
+    html = fetch_html(url)
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+    soup = BeautifulSoup(html, "html.parser")
     row = soup.select_one("#divResultContent table tbody tr")
     if row is None:
         raise RuntimeError("Khong tim thay dong ket qua tren trang Vietlott.")
