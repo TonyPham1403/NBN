@@ -423,13 +423,34 @@ def fetch_latest_record(url: str, ajax_key: str = DEFAULT_AJAX_KEY):
     return max(candidates, key=lambda r: r["id"])
 
 
+def _result_cell_nonempty(result_val) -> bool:
+    """Chi coi hang 'co data' khi cot result (C) co noi dung (sau khi strip)."""
+    if result_val is None:
+        return False
+    return bool(str(result_val).strip())
+
+
+def _merge_complete_and_drafts(complete: list[dict], drafts: list[dict]) -> list[dict]:
+    """Ghep hang da co result va hang nhap (date/id, result rong); uu tien ban co result."""
+    by_id: dict[int, dict] = {}
+    for row in complete:
+        by_id[row["id"]] = dict(row)
+    for d in drafts:
+        rid = d["id"]
+        if rid not in by_id:
+            by_id[rid] = {"date": d["date"], "id": rid, "result": ""}
+    return sorted(by_id.values(), key=lambda x: x["id"])
+
+
 def load_existing_rows(file_path: str):
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Khong tim thay file: {file_path}")
 
     wb = load_workbook(file_path, keep_vba=True)
     ws = wb.active
-    rows = []
+    complete: list[dict] = []
+    drafts: list[dict] = []
+    complete_ids: set[int] = set()
     for r in range(2, ws.max_row + 1):
         date_val = ws.cell(r, 1).value
         id_val = ws.cell(r, 2).value
@@ -439,19 +460,25 @@ def load_existing_rows(file_path: str):
         id_digits = "".join(ch for ch in str(id_val) if ch.isdigit())
         if not id_digits:
             continue
-        rows.append(
-            {
-                "date": str(date_val).strip() if date_val is not None else "",
-                "id": int(id_digits),
-                "result": str(result_val).strip() if result_val is not None else "",
+        rid = int(id_digits)
+        date_str = str(date_val).strip() if date_val is not None else ""
+        if _result_cell_nonempty(result_val):
+            rec = {
+                "date": date_str,
+                "id": rid,
+                "result": str(result_val).strip(),
             }
-        )
-    return wb, ws, rows
+            complete.append(rec)
+            complete_ids.add(rid)
+        else:
+            if rid not in complete_ids:
+                drafts.append({"date": date_str, "id": rid, "result": ""})
+    return wb, ws, complete, drafts
 
 
-def save_rows_to_workbook(wb, ws, rows, file_path: str):
+def save_rows_to_workbook(wb, ws, rows: list[dict], file_path: str):
     df = pd.DataFrame(rows, columns=["date", "id", "result"])
-    df = df.drop_duplicates(subset="id").sort_values(by="id")
+    df = df.drop_duplicates(subset="id", keep="last").sort_values(by="id")
     df["id"] = df["id"].astype(int).astype(str).str.zfill(5)
 
     for r in range(2, ws.max_row + 1):
@@ -543,7 +570,7 @@ def rebuild_stats_sheets(wb, ws):
 
 def main():
     args = parse_args()
-    wb, ws, existing_rows = load_existing_rows(args.file)
+    wb, ws, existing_rows, draft_rows = load_existing_rows(args.file)
     latest = fetch_latest_record(args.url, ajax_key=args.ajax_key)
 
     existing_ids = {row["id"] for row in existing_rows}
@@ -553,7 +580,8 @@ def main():
 
     print(f"Append new draw: {latest['date']} {latest['id']} {latest['result']}")
     existing_rows.append(latest)
-    save_rows_to_workbook(wb, ws, existing_rows, args.file)
+    merged = _merge_complete_and_drafts(existing_rows, draft_rows)
+    save_rows_to_workbook(wb, ws, merged, args.file)
     return 0
 
 
