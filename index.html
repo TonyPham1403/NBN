@@ -1,0 +1,1247 @@
+<!doctype html>
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Quick Lotto Helper</title>
+    <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --bg: #0f172a;
+            --panel: #0b1220;
+            --muted: #94a3b8;
+            --accent: #38ef7d;
+            --card: #111827;
+            --text: #e6eef8
+        }
+
+        body {
+            margin: 0;
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            font-family: Inter, Segoe UI, Arial;
+            background: var(--bg);
+            color: var(--text)
+        }
+
+        .wrap {
+            display: flex;
+            gap: 18px;
+            padding: 18px;
+            flex: 1;
+            min-height: 0;
+            box-sizing: border-box
+        }
+
+        .app-title {
+            font-weight: 700;
+        }
+
+        .zoom-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            color: #475569;
+            flex-shrink: 0;
+        }
+
+        .zoom-toolbar button {
+            width: 22px;
+            height: 22px;
+            padding: 0;
+            border-radius: 5px;
+            border: 1px solid #b8c2cc;
+            background: #ffffff;
+            color: #334155;
+            cursor: pointer;
+            line-height: 1;
+            font-size: 14px;
+        }
+
+        .zoom-toolbar button:hover {
+            background: #eef2f7;
+        }
+
+        .zoom-toolbar input[type=range] {
+            width: 112px;
+            accent-color: #38ef7d;
+            cursor: pointer;
+        }
+
+        .zoom-value {
+            min-width: 42px;
+            text-align: right;
+            font-size: 12px;
+            color: #475569;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .pane {
+            background: var(--panel);
+            border: 1px solid #1f2937;
+            border-radius: 8px;
+            padding: 12px;
+            min-height: 0;
+            overflow: auto
+        }
+
+        .left {
+            flex: 1;
+            min-width: 360px
+        }
+
+        /* Prevent left pane from showing an outer scrollbar; iframe handles internal scrolling */
+        .pane.left {
+            overflow: hidden;
+        }
+
+        .right {
+            flex: 1;
+            min-width: 420px;
+            background: #ffffff;
+            color: #111111;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .pane.right table,
+        .pane.right th,
+        .pane.right td {
+            background: #ffffff;
+            color: #111111;
+        }
+
+
+        .pane.right table {
+            margin-top: 0;
+        }
+
+        .pane.right table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            background: #ffffff;
+            border: 1px solid #94a3b8;
+            border-bottom: 2px solid #64748b;
+            box-shadow: 0 1px 0 #cbd5e1;
+        }
+
+        textarea#input {
+            width: 100%;
+            height: 160px;
+            padding: 10px;
+            font-size: 15px;
+            border-radius: 6px;
+            border: 1px solid #22303a;
+            background: #02101a;
+            color: var(--text);
+            resize: vertical
+        }
+
+        .controls {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-top: 8px
+        }
+
+        select,
+        button,
+        input[type=text] {
+            padding: 8px;
+            border-radius: 6px;
+            border: 1px solid #26343f;
+            background: #08121a;
+            color: var(--text)
+        }
+
+        .numbers {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 12px
+        }
+
+        .num {
+            width: 36px;
+            height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 6px;
+            background: #08121a;
+            border: 1px solid #16323a;
+            cursor: pointer
+        }
+
+        .num.selected {
+            background: var(--accent);
+            color: #05210a;
+            font-weight: 800
+        }
+
+        .num.blocked {
+            background: #000;
+            color: #777
+        }
+
+        .num.answer {
+            background: green;
+            color: white
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 8px
+        }
+
+        th,
+        td {
+            padding: 6px;
+            border: 1px solid #22303a;
+            font-size: 13px
+        }
+
+        .pane.right table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 3;
+            background: #ffffff;
+            border: 1px solid #94a3b8;
+            border-bottom: 2px solid #64748b;
+            box-shadow: 0 1px 0 #cbd5e1;
+        }
+
+        .row-actions button {
+            padding: 6px 8px
+        }
+
+        .small {
+            font-size: 13px;
+            color: var(--muted)
+        }
+
+        .file-row {
+            display: flex;
+            gap: 8px;
+            align-items: center
+        }
+
+        .selected-count {
+            margin-left: auto;
+            color: var(--muted)
+        }
+
+        .copy-selected {
+            background: #0b6d3a;
+            color: white;
+            border: none
+        }
+
+        /* Sheet tabs styling - inspired by Excel */
+        .sheet-tabs-container {
+            background: #f5f5f5;
+            border-top: 1px solid #d0d0d0;
+            overflow-x: auto;
+            padding: 0;
+            margin-top: auto;
+            flex-shrink: 0;
+            height: 36px;
+            display: flex;
+            align-items: center;
+        }
+
+        .sheet-tabs-bar {
+            display: flex;
+            gap: 4px;
+            padding: 2px 4px;
+            align-items: center;
+            height: 100%;
+        }
+
+        .sheet-tab {
+            background: #e0e0e0;
+            border: 1px solid #bbb;
+            color: #333;
+            padding: 4px 12px;
+            font-size: 13px;
+            cursor: pointer;
+            border-radius: 4px 4px 0 0;
+            transition: background 0.2s, color 0.2s;
+            white-space: nowrap;
+        }
+
+        .sheet-tab:hover {
+            background: #d4d4d4;
+        }
+
+        .sheet-tab.active {
+            background: #ffffff;
+            border-bottom: 2px solid #38ef7d;
+            color: #111;
+            font-weight: 600;
+        }
+
+        .sheet-tab-add {
+            background: #e0e0e0;
+            border: 1px solid #bbb;
+            color: #333;
+            padding: 4px 8px;
+            font-size: 14px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background 0.2s;
+            min-width: 24px;
+            height: 24px;
+        }
+
+        .sheet-tab-add:hover {
+            background: #d4d4d4;
+        }
+
+        /* Right pane container with flex layout for tabs */
+        .right-pane-wrapper {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            min-height: 0;
+            overflow: hidden;
+        }
+
+        .sheet-zoom-bar {
+            display: flex;
+            align-items: center;
+            justify-content: flex-end;
+            gap: 6px;
+            padding: 2px 8px 4px;
+            background: #f8fafc;
+            border-top: 1px solid #d7dde5;
+            border-bottom: 1px solid #d7dde5;
+            flex-shrink: 0;
+        }
+
+        .sheet-tools-bar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 8px;
+            background: #f8fafc;
+            border-top: 1px solid #d7dde5;
+            border-bottom: 1px solid #d7dde5;
+            flex-shrink: 0;
+        }
+
+        .sheet-tools-group {
+            display: inline-flex;
+            align-items: stretch;
+            background: #ffffff;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            overflow: hidden;
+            height: 24px;
+            flex: 0 0 auto;
+        }
+
+        .sheet-tools-bar button,
+        .sheet-tools-bar select {
+            color: #0f172a;
+            font-size: 12px;
+        }
+
+        .sheet-tools-toggle {
+            width: 28px;
+            height: 100%;
+            padding: 0;
+            position: relative;
+            font-size: 0;
+            line-height: 0;
+            border: 0;
+            border-right: 1px solid #cbd5e1;
+            border-radius: 0;
+            background: #ffffff;
+        }
+
+        .sheet-tools-toggle:hover {
+            background: #f8fafc;
+        }
+
+        .sheet-tools-toggle::before {
+            content: "";
+            position: absolute;
+            left: 7px;
+            top: 3px;
+            width: 11px;
+            height: 11px;
+            border: 2px solid #64748b;
+            border-radius: 2px;
+            transform: rotate(45deg);
+            background: #ffffff;
+            box-sizing: border-box;
+        }
+
+        .sheet-tools-toggle::after {
+            content: "";
+            position: absolute;
+            left: 5px;
+            bottom: 4px;
+            width: 18px;
+            height: 3px;
+            border-radius: 2px;
+            background: #94a3b8;
+        }
+
+        .sheet-tools-toggle.active {
+            background: #d1fae5;
+        }
+
+        .sheet-tools-toggle.active::before {
+            border-color: #047857;
+        }
+
+        .sheet-tools-toggle.active::after {
+            background: #10b981;
+        }
+
+        .sheet-tools-mode-wrap {
+            position: relative;
+            width: 42px;
+            height: 100%;
+            background: #ffffff;
+            flex: 0 0 auto;
+        }
+
+        .sheet-tools-mode-wrap.enabled {
+            background: #006400;
+        }
+
+        .sheet-tools-mode-wrap::after {
+            content: "▾";
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-52%);
+            font-size: 10px;
+            color: #334155;
+            pointer-events: none;
+        }
+
+        .sheet-tools-mode-wrap.enabled::after {
+            color: #ffffff;
+        }
+
+        .sheet-tools-mode-value {
+            position: absolute;
+            left: 6px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 1;
+            color: #475569;
+            text-transform: uppercase;
+            pointer-events: none;
+        }
+
+        .sheet-tools-mode-wrap.enabled .sheet-tools-mode-value {
+            color: #ffffff;
+            font-weight: 800;
+        }
+
+        #submitRingModeSelect {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: #ffffff;
+            color: #0f172a;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+
+        #submitRingModeSelect option {
+            background: #ffffff;
+            color: #0f172a;
+        }
+
+        #submitRingModeSelect:disabled {
+            cursor: not-allowed;
+            opacity: 1 !important;
+            filter: none !important;
+            -webkit-text-fill-color: inherit !important;
+        }
+
+        .sheet-tools-mode-wrap.disabled {
+            opacity: 1;
+        }
+
+        .sheet-data-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 0;
+            zoom: var(--right-table-zoom, 1);
+        }
+
+        .sheet-data-table thead th {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            background: #ffffff;
+            border: 1px solid #94a3b8;
+            border-bottom: 2px solid #64748b;
+            box-shadow: 0 1px 0 #cbd5e1;
+            font-weight: 700;
+        }
+
+        .sheet-data-table tbody tr.data-row {
+            transition: background 0.15s;
+        }
+
+        .sheet-data-table tbody tr.data-row:hover {
+            background: #f0f0f0;
+        }
+
+        .sheet-data-table tbody tr.empty-data-row {
+            background: #fafafa;
+            color: #aaa;
+        }
+
+        .sheet-data-table tbody tr.empty-data-row:hover {
+            background: #f5f5f5;
+        }
+
+        .sheet-data-table td {
+            padding: 6px;
+            border: 1px solid #e0e0e0;
+            font-size: 13px;
+        }
+
+        .combo-sheet-grid {
+            table-layout: fixed;
+        }
+
+        .combo-sheet-grid td {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .combo-sheet-grid .col-a,
+        .combo-sheet-grid .col-b,
+        .combo-sheet-grid .col-i {
+            width: 86px;
+        }
+
+        .combo-sheet-grid .col-c,
+        .combo-sheet-grid .col-f,
+        .combo-sheet-grid .col-g,
+        .combo-sheet-grid .col-h,
+        .combo-sheet-grid .col-j {
+            width: 54px;
+        }
+
+        .combo-sheet-grid .col-k {
+            width: 28px;
+        }
+
+        .combo-sheet-grid .col-d,
+        .combo-sheet-grid .col-e {
+            width: 22px;
+        }
+
+        .combo-sheet-grid .cell-col-a,
+        .combo-sheet-grid .cell-col-b,
+        .combo-sheet-grid .cell-col-c,
+        .combo-sheet-grid .cell-col-f,
+        .combo-sheet-grid .cell-col-i,
+        .combo-sheet-grid .cell-col-j,
+        .combo-sheet-grid .cell-col-k {
+            text-align: center;
+        }
+
+        .combo-sheet-grid .blank-cell {
+            background: #fff;
+        }
+
+        .combo-sheet-grid .combo-header-row td {
+            position: sticky;
+            top: 0;
+            z-index: 20;
+            font-weight: 700;
+            background: #fbfdff;
+            border-bottom: 2px solid #64748b;
+            box-shadow: 0 1px 0 #cbd5e1;
+        }
+
+        .combo-sheet-grid .combo-header-row td.combo-logic-focus-cell {
+            z-index: 21;
+            background: #f8fafc;
+            box-shadow: inset 0 0 0 3px #000, 0 1px 0 #cbd5e1;
+        }
+
+        .combo-sheet-grid .cell-col-f,
+        .combo-sheet-grid .cell-col-g,
+        .combo-sheet-grid .cell-col-h {
+            background: #f8fafc;
+        }
+
+        .combo-sheet-grid .cell-col-i,
+        .combo-sheet-grid .cell-col-j {
+            background: #fdfdfd;
+        }
+
+        .combo-sheet-grid .cell-col-k {
+            background: #fdfdfd;
+        }
+
+        .combo-sheet-grid .combo-cell-input,
+        .combo-sheet-grid .combo-cell-text {
+            width: 100%;
+            box-sizing: border-box;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            font: inherit;
+            text-align: inherit;
+            padding: 0;
+            outline: none;
+        }
+
+        .combo-sheet-grid .combo-cell-input[type=text] {
+            min-height: 20px;
+        }
+
+        .combo-sheet-grid .combo-cell-toggle {
+            width: 16px;
+            height: 16px;
+            vertical-align: middle;
+            accent-color: #38ef7d;
+        }
+
+        .sheet-data-table td.cell-result {
+            position: relative;
+            padding-right: 28px;
+            font-family: inherit;
+            font-weight: inherit;
+        }
+
+        .sheet-data-table td.cell-note {
+            position: relative;
+            padding-right: 28px;
+        }
+
+        .sheet-data-table td.cell-nonexist {
+            position: relative;
+            padding-right: 28px;
+        }
+
+        .win-label-inline {
+            position: absolute;
+            right: 4px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 18px;
+            height: 18px;
+            padding: 0;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #000;
+            background: rgb(255, 255, 153);
+            color: #000;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+            border-radius: 2px;
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .sheet-data-table td.window-selected {
+            border-color: transparent !important;
+        }
+
+        .sheet-data-table td.window-edge-top {
+            border-top: 4px solid #000 !important;
+        }
+
+        .sheet-data-table td.window-edge-bottom {
+            border-bottom: 4px solid #000 !important;
+        }
+
+        .sheet-data-table td.window-edge-left {
+            border-left: 4px solid #000 !important;
+        }
+
+        .sheet-data-table td.window-edge-right {
+            border-right: 4px solid #000 !important;
+        }
+
+        .sheet-data-table td.window-divider-left {
+            border-left: 4px solid #000 !important;
+        }
+
+        .sheet-data-table td.window-divider-right {
+            border-right: 4px solid #000 !important;
+        }
+
+        .sheet-data-table td.window-focus {
+            border: 4px solid #000 !important;
+        }
+
+        .sheet-empty {
+            padding: 20px;
+            text-align: center;
+            color: #aaa;
+            font-style: italic;
+        }
+
+        #tableWrap {
+            flex: 1;
+            min-height: 0;
+            overflow: auto;
+            margin-top: 0;
+            background: #ffffff;
+            --right-table-zoom: 1;
+            /* Ensure the final table row can scroll above the tabs/zoom bar */
+            padding-bottom: 80px;
+            box-sizing: border-box;
+            /* help programmatic scrollIntoView honor bottom offset */
+            scroll-padding-bottom: 72px;
+        }
+    </style>
+</head>
+
+<body>
+    <header style="padding:10px 18px;border-bottom:1px solid #14202a;background:rgba(0,0,0,0.2)">
+        <strong>Quick Lotto Helper</strong> — trang đơn để paste 10-11 chuỗi và quickcopy data
+    </header>
+    <main class="wrap">
+        <section class="pane left">
+            <iframe id="okFrame" src="ok_left.html" style="width:100%;height:100%;border:0"></iframe>
+        </section>
+
+        <section class="pane right">
+            <div class="right-pane-wrapper">
+                <div class="sheet-tools-bar">
+                    <div class="sheet-tools-group">
+                        <button type="button" id="autoringToggleBtn" class="sheet-tools-toggle"
+                            title="Bật/tắt khoanh tự động cho 5 số submit"
+                            aria-label="Toggle auto circle submit numbers"></button>
+                        <div id="submitRingModeWrap" class="sheet-tools-mode-wrap"
+                            title="Chọn kiểu khoanh: max hoặc min">
+                            <span id="submitRingModeValue" class="sheet-tools-mode-value">MAX</span>
+                            <select id="submitRingModeSelect" title="Chọn kiểu khoanh: max hoặc min"
+                                aria-label="Submit auto circle mode">
+                                <option value="max">max</option>
+                                <option value="min">min</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div id="tableWrap" style="flex:1;overflow:auto;margin-top:0"></div>
+                <div id="sheetTabsContainer" class="sheet-tabs-container"></div>
+                <div class="sheet-zoom-bar">
+                    <div class="zoom-toolbar" aria-label="Zoom controls">
+                        <button type="button" id="zoomOutBtn" title="Zoom out">−</button>
+                        <input id="zoomSlider" type="range" min="50" max="150" step="5" value="100"
+                            aria-label="Zoom slider" />
+                        <button type="button" id="zoomInBtn" title="Zoom in">+</button>
+                        <span id="zoomValue" class="zoom-value">100%</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script src="right-pane-sheets.js"></script>
+    <script src="right-pane-sheets.js"></script>
+    <script>
+        // Basic app: load data.json, render table, allow quick copy to left textarea
+        const MAX_NUM = 35; // support up to 35
+        const RIGHT_ZOOM_KEY = 'rightPaneZoom';
+        const RIGHT_ZOOM_MIN = 0.5;
+        const RIGHT_ZOOM_MAX = 1.5;
+        const RIGHT_ZOOM_STEP = 0.05;
+        const SUBMIT_RING_ENABLED_KEY = 'submitRingEnabled';
+        const SUBMIT_RING_MODE_KEY = 'submitRingMode';
+        let sheetManager = null;
+        let selectedNums = new Set(); // numbers from the 'primary' selected row
+        let selectedLines = []; // current 11-line selection (array of full row objects)
+        let iframeSubmitActive = false;
+        let rightPaneZoom = 1;
+        let submitRingEnabled = false;
+        let submitRingMode = 'max';
+
+        function syncComboLogicUi() {
+            if (!sheetManager) return;
+
+            const wrap = el('tableWrap');
+            if (!wrap || sheetManager.activeSheet !== 'combo_1') {
+                return;
+            }
+
+            const f1Input = wrap.querySelector('#comboF1CellInput');
+            const g1Toggle = wrap.querySelector('#comboG1CellToggle');
+            const h1Input = wrap.querySelector('#comboH1CellInput');
+
+            if (f1Input && f1Input.value !== (sheetManager.comboFocusRowId || '')) {
+                f1Input.value = sheetManager.comboFocusRowId || '';
+            }
+
+            if (g1Toggle) {
+                g1Toggle.checked = !!sheetManager.comboG1Enabled;
+            }
+
+            if (h1Input && h1Input.value !== sheetManager.comboH1Text) {
+                h1Input.value = sheetManager.comboH1Text || '';
+            }
+        }
+
+        function el(id) { return document.getElementById(id) }
+
+        function clampZoom(value) {
+            return Math.min(RIGHT_ZOOM_MAX, Math.max(RIGHT_ZOOM_MIN, value));
+        }
+
+        function syncZoomUi() {
+            const slider = el('zoomSlider');
+            const valueLabel = el('zoomValue');
+            const pct = Math.round(rightPaneZoom * 100);
+
+            if (slider) {
+                slider.value = String(pct);
+            }
+
+            if (valueLabel) {
+                valueLabel.textContent = `${pct}%`;
+            }
+        }
+
+        function applyRightPaneZoom(value, persist = true) {
+            rightPaneZoom = clampZoom(value);
+
+            const wrap = el('tableWrap');
+            if (wrap) {
+                wrap.style.setProperty('--right-table-zoom', String(rightPaneZoom));
+            }
+
+            const table = wrap ? wrap.querySelector('.sheet-data-table') : null;
+            if (table) {
+                table.style.zoom = String(rightPaneZoom);
+            }
+
+            syncZoomUi();
+
+            if (persist) {
+                try {
+                    localStorage.setItem(RIGHT_ZOOM_KEY, String(rightPaneZoom));
+                } catch (e) {
+                    console.warn('Zoom save failed:', e);
+                }
+            }
+        }
+
+        function initZoomControls() {
+            const saved = parseFloat(localStorage.getItem(RIGHT_ZOOM_KEY));
+            if (!Number.isNaN(saved)) {
+                rightPaneZoom = clampZoom(saved);
+            }
+
+            const slider = el('zoomSlider');
+            const zoomOutBtn = el('zoomOutBtn');
+            const zoomInBtn = el('zoomInBtn');
+
+            if (slider) {
+                slider.addEventListener('input', () => {
+                    applyRightPaneZoom(Number(slider.value) / 100);
+                });
+            }
+
+            if (zoomOutBtn) {
+                zoomOutBtn.addEventListener('click', () => {
+                    applyRightPaneZoom(rightPaneZoom - RIGHT_ZOOM_STEP);
+                });
+            }
+
+            if (zoomInBtn) {
+                zoomInBtn.addEventListener('click', () => {
+                    applyRightPaneZoom(rightPaneZoom + RIGHT_ZOOM_STEP);
+                });
+            }
+
+            applyRightPaneZoom(rightPaneZoom, false);
+        }
+
+        function sendSubmitRingConfigToIframe() {
+            const frame = el('okFrame');
+            if (!frame || !frame.contentWindow) {
+                return;
+            }
+            frame.contentWindow.postMessage({
+                type: 'submitAutoCircleChanged',
+                enabled: !!submitRingEnabled,
+                mode: submitRingMode === 'min' ? 'min' : 'max'
+            }, '*');
+        }
+
+        function syncSubmitRingToolbarUi() {
+            const toggleBtn = el('autoringToggleBtn');
+            const modeSelect = el('submitRingModeSelect');
+            const modeWrap = el('submitRingModeWrap');
+            const modeValue = el('submitRingModeValue');
+            const modeHighlighted = submitRingEnabled || iframeSubmitActive;
+            if (toggleBtn) {
+                toggleBtn.classList.toggle('active', submitRingEnabled);
+                toggleBtn.setAttribute(
+                    'title',
+                    submitRingEnabled
+                        ? `Đang bật khoanh tự động (${submitRingMode}). Bấm để tắt`
+                        : 'Đang tắt khoanh tự động. Bấm để bật'
+                );
+            }
+            if (modeSelect) {
+                modeSelect.value = submitRingMode;
+                modeSelect.disabled = !submitRingEnabled;
+                modeSelect.setAttribute('title', `Chế độ hiện tại: ${submitRingMode}`);
+            }
+            if (modeValue) {
+                modeValue.textContent = (submitRingMode || 'max').toUpperCase();
+            }
+            if (modeWrap) {
+                modeWrap.classList.toggle('disabled', !submitRingEnabled);
+                modeWrap.classList.toggle('enabled', modeHighlighted);
+                modeWrap.setAttribute('title', `Chế độ khoanh: ${submitRingMode}`);
+            }
+        }
+
+        function initSubmitRingToolbar() {
+            try {
+                const savedEnabled = localStorage.getItem(SUBMIT_RING_ENABLED_KEY);
+                const savedMode = localStorage.getItem(SUBMIT_RING_MODE_KEY);
+                submitRingEnabled = savedEnabled === '1';
+                submitRingMode = (savedMode === 'min' || savedMode === 'max') ? savedMode : 'max';
+            } catch (e) {
+                submitRingEnabled = false;
+                submitRingMode = 'max';
+            }
+
+            const toggleBtn = el('autoringToggleBtn');
+            const modeSelect = el('submitRingModeSelect');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('click', () => {
+                    submitRingEnabled = !submitRingEnabled;
+                    try { localStorage.setItem(SUBMIT_RING_ENABLED_KEY, submitRingEnabled ? '1' : '0'); } catch (e) { }
+                    syncSubmitRingToolbarUi();
+                    sendSubmitRingConfigToIframe();
+                });
+            }
+            if (modeSelect) {
+                modeSelect.addEventListener('change', () => {
+                    submitRingMode = modeSelect.value === 'min' ? 'min' : 'max';
+                    try { localStorage.setItem(SUBMIT_RING_MODE_KEY, submitRingMode); } catch (e) { }
+                    syncSubmitRingToolbarUi();
+                    sendSubmitRingConfigToIframe();
+                });
+            }
+
+            const frame = el('okFrame');
+            if (frame) {
+                frame.addEventListener('load', () => {
+                    sendSubmitRingConfigToIframe();
+                });
+            }
+
+            syncSubmitRingToolbarUi();
+            sendSubmitRingConfigToIframe();
+        }
+
+        // Right table - using new sheet manager
+        function loadData() {
+            fetch('data.json').then(r => r.json()).then(j => {
+                if (!sheetManager) {
+                    sheetManager = new RightPaneSheetManager();
+                }
+                sheetManager.loadData(j);
+                syncComboLogicUi();
+                renderTable();
+                renderSheetTabs();
+            }).catch(e => {
+                if (!sheetManager) {
+                    sheetManager = new RightPaneSheetManager();
+                }
+                sheetManager.loadData([]);
+                syncComboLogicUi();
+                renderTable();
+                renderSheetTabs();
+            });
+        }
+
+        function renderTable() {
+            const wrap = el('tableWrap');
+            if (sheetManager) {
+                sheetManager.renderTable(wrap);
+                if (sheetManager.activeSheet === 'combo_1') {
+                    sheetManager.wireCombo1HeaderControls();
+                }
+                applyRightPaneZoom(rightPaneZoom, false);
+                syncComboLogicUi();
+
+                const savedScroll = sheetManager.getScrollPosition(sheetManager.activeSheet);
+                if (wrap) {
+                    wrap.scrollTop = savedScroll.top || 0;
+                    wrap.scrollLeft = savedScroll.left || 0;
+                }
+                // Reapply any active window selection after a short delay to handle
+                // cases where rows (like the synthetic final row) are added/updated
+                // by logic that runs after the initial render. This avoids losing
+                // the black border when the DOM is updated asynchronously.
+                if (sheetManager.activeWindowRange) {
+                    setTimeout(() => {
+                        try {
+                            const r = sheetManager.activeWindowRange;
+                            sheetManager.applyWindowSelection(r.start, r.end, r.target);
+                        } catch (err) {
+                            // ignore
+                        }
+                    }, 20);
+                }
+            }
+        }
+
+        function renderSheetTabs() {
+            const container = el('sheetTabsContainer');
+            if (sheetManager) {
+                sheetManager.renderSheetTabs(container);
+            }
+        }
+
+        function captureCurrentScrollPosition() {
+            if (!sheetManager) {
+                return;
+            }
+
+            const wrap = el('tableWrap');
+            if (!wrap) {
+                return;
+            }
+
+            sheetManager.setScrollPosition(sheetManager.activeSheet, wrap.scrollTop, wrap.scrollLeft);
+        }
+
+        function parseNums(s) {
+            if (!s) return [];
+            return String(s).split(/[\|,;\s]+/).map(x => parseInt(x, 10)).filter(n => !isNaN(n));
+        }
+
+        function escapeHtml(text) {
+            return String(text)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function shouldHighlightNote(noteText) {
+            if (!noteText || noteText === '?') return false;
+            const noteParts = String(noteText).split('   ');
+            for (const part of noteParts) {
+                const openBrace = part.indexOf('{');
+                const closeBrace = part.indexOf('}', openBrace + 1);
+                if (openBrace >= 0 && closeBrace > openBrace) {
+                    const inside = part.substring(openBrace + 1, closeBrace);
+                    const nums = inside.split(',').map(x => x.trim()).filter(Boolean);
+                    if (nums.length >= 3) return true;
+                }
+            }
+            return false;
+        }
+
+        function renderGeneratedNoteHtml(noteText) {
+            const escaped = escapeHtml(noteText || '');
+            return escaped.replace(/\|([^|]*)\|/g, (match, inner) => {
+                const highlightedInner = inner.replace(/\b\d+\b/g, (num) => {
+                    return `<span style="color:rgb(0,80,0);font-weight:bold">${num}</span>`;
+                });
+                return `|${highlightedInner}|`;
+            });
+        }
+
+        function renderSelectedLines() {
+            const wrap = el('selectedWrap');
+            if (!wrap) return;
+            if (!selectedLines || selectedLines.length === 0) { wrap.innerHTML = '<div class="small">Chưa chọn hàng. Click 1 hàng bên phải để lấy 11 dòng.</div>'; return; }
+            let html = '<table><thead><tr><th>date</th><th>id</th><th>result</th><th>note</th><th>nonexist</th></tr></thead><tbody>';
+            for (let i = 0; i < selectedLines.length; i++) {
+                const s = selectedLines[i];
+                const date = s.date || s.Date || '';
+                const id = s.id || s.ID || '';
+                const result = s.result || s.Result || '';
+                const note = s.note || s.Note || '';
+                const nonexist = s.nonexist || s.Nonexist || '';
+                const noteHtml = renderGeneratedNoteHtml(note);
+                const noteStyle = shouldHighlightNote(note) ? ' style="background:#ff0;"' : '';
+                html += `<tr data-i="${i}" style="cursor:pointer"><td>${date}</td><td>${id}</td><td>${result}</td><td class="cell-note"${noteStyle}>${noteHtml}</td><td>${nonexist}</td></tr>`;
+            }
+            html += '</tbody></table>';
+            wrap.innerHTML = html;
+            // clicking a row in the selected table makes it the 'primary' row (highlight numbers in summary)
+            wrap.querySelectorAll('tbody tr').forEach(tr => tr.addEventListener('click', () => {
+                const i = Number(tr.dataset.i);
+                const s = selectedLines[i];
+                const nums = parseNums(s.result || s.Result || '');
+                selectedNums.clear(); nums.forEach(n => selectedNums.add(n));
+                renderSummaryTable();
+            }));
+        }
+
+        function renderSummaryTable() {
+            const wrap = el('summaryWrap');
+            if (!wrap) return;
+            if (!selectedLines || selectedLines.length === 0) { wrap.innerHTML = '<div class="small">No selection</div>'; return; }
+            const counts = {};
+            for (const r of selectedLines) {
+                const nums = parseNums(r.result || r.Result || '');
+                for (const n of nums) counts[n] = (counts[n] || 0) + 1;
+            }
+            let html = '<table><thead><tr><th>num</th><th>count</th></tr></thead><tbody>';
+            for (let n = 1; n <= MAX_NUM; n++) {
+                const c = counts[n] || 0;
+                const highlight = selectedNums.has(n) ? 'background:var(--accent);color:#05210a;font-weight:800' : '';
+                html += `<tr data-num="${n}" style="${highlight}"><td>${n}</td><td>${c}</td></tr>`;
+            }
+            html += '</tbody></table>';
+            wrap.innerHTML = html;
+        }
+
+        // file input, convert and row-copy utilities removed — right pane shows only data table
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initZoomControls();
+            initSubmitRingToolbar();
+            loadData();
+
+            // Listen for sheet changes
+            window.addEventListener('sheetChanged', (e) => {
+                renderTable();
+                renderSheetTabs();
+                // Clear selection when switching sheets
+                selectedLines = [];
+                selectedNums.clear();
+                renderSelectedLines();
+                renderSummaryTable();
+
+                // Reapply the saved window selection (if any) after a short delay to
+                // avoid races with table rendering when switching sheets. This fixes
+                // the issue where the black border for the last-row window disappears
+                // after switching away and back to `sheet1`.
+                if (sheetManager && sheetManager.activeWindowRange && sheetManager.activeSheet === 'sheet1') {
+                    const r = sheetManager.activeWindowRange;
+                    setTimeout(() => {
+                        try {
+                            sheetManager.applyWindowSelection(r.start, r.end, r.target);
+                        } catch (err) {
+                            // ignore
+                        }
+                    }, 10);
+                }
+            });
+
+            window.addEventListener('comboControlsChanged', () => {
+                renderTable();
+                syncComboLogicUi();
+            });
+
+            const tableWrap = el('tableWrap');
+            if (tableWrap) {
+                tableWrap.addEventListener('scroll', () => {
+                    captureCurrentScrollPosition();
+                }, { passive: true });
+            }
+
+            // Listen for row clicks from sheet manager
+            window.addEventListener('rowClicked', (e) => {
+                const detail = e.detail || {};
+                selectedLines = detail.selectedLines || [];
+                selectedNums.clear();
+                detail.selectedNums.forEach(n => selectedNums.add(n));
+                syncComboLogicUi();
+                renderSelectedLines();
+                renderSummaryTable();
+
+                // Send selected lines to iframe for updating submit state
+                const frame = el('okFrame');
+                if (frame && frame.contentWindow && selectedLines.length > 0) {
+                    // ok_left process() expects tab-separated columns (same as iframe copyLine):
+                    // result, optional note, optional nonexist. Pipe-only lines leave note/nonexist empty
+                    // and break cyan/yellow highlights on freq==1 numbers.
+                    const lines = selectedLines.map(row => {
+                        const result = row.result || row.Result || '';
+                        const note = row.note || row.Note || '';
+                        const nonexist = row.nonexist || row.Nonexist || '';
+                        let line = result;
+                        if (note) line += '\t' + note;
+                        if (nonexist) line += '\t' + nonexist;
+                        return line;
+                    });
+                    frame.contentWindow.postMessage({
+                        type: 'setLines',
+                        lines: lines,
+                        disableSubmit: false,
+                        submitActive: iframeSubmitActive
+                    }, '*');
+                }
+            });
+
+            window.addEventListener('message', (ev) => {
+                const msg = ev.data || {};
+                if (msg.type === 'submitStateChanged') {
+                    iframeSubmitActive = !!msg.submitActive;
+                    syncSubmitRingToolbarUi();
+                }
+            });
+            // left controls live inside the iframe now; guard bindings in parent
+            const pickBtn = el('pickBtn'); if (pickBtn) pickBtn.addEventListener('click', () => {
+                if (!selectedLines || selectedLines.length === 0) return alert('Chọn 1 hàng ở bên phải trước');
+                const last = selectedLines[selectedLines.length - 1];
+                const nums = parseNums(last.result || last.Result || '').slice(0, 5);
+                selectedNums.clear(); nums.forEach(n => selectedNums.add(n));
+                renderSummaryTable();
+            });
+            const resetBtn = el('resetBtn'); if (resetBtn) resetBtn.addEventListener('click', () => { selectedLines = []; selectedNums.clear(); renderSelectedLines(); renderSummaryTable(); });
+            const submitBtn = el('submitBtn'); if (submitBtn) submitBtn.addEventListener('click', () => { alert('Submit clicked — trang web chỉ mô phỏng giao diện.'); });
+            const copyBtn = el('copySelectionBtn'); if (copyBtn) copyBtn.addEventListener('click', () => {
+                if (!selectedLines || selectedLines.length === 0) return alert('Chưa có selection');
+                const txt = selectedLines.map(s => (s.result || s.Result || '') + (s.note ? '\t' + (s.note || s.Note || '') : '')).join('\n');
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(txt).catch(() => { });
+                } else {
+                    const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+                }
+            });
+            const searchBox = el('searchBox'); if (searchBox) searchBox.addEventListener('input', () => {
+                const v = searchBox.value.replace(/[^0-9]/g, '');
+                const rows = document.querySelectorAll('#summaryWrap tbody tr');
+                if (!v) { rows.forEach(r => r.style.fontWeight = ''); return; }
+                rows.forEach(r => {
+                    const num = r.dataset.num || r.querySelector('td')?.textContent || '';
+                    if (String(num).includes(v)) r.style.fontWeight = '900'; else r.style.fontWeight = '';
+                });
+            });
+        });
+    </script>
+</body>
+
+</html>

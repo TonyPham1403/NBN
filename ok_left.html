@@ -1,0 +1,3361 @@
+<!doctype html>
+<html lang="vi">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Quick Lotto Left UI</title>
+    <style>
+        /* Copied and scoped ok.py left UI styles. Minor adjustments: hide right column. */
+        :root {
+            --blocked-default: #ffffff;
+            --blocked-note: #00d9f2;
+            --blocked-nonexist: #f0c840;
+            --submit-answer-color: #ffffff;
+            --submit-note-color: #00e2d2;
+            --submit-nonexist-color: #e0ca42;
+        }
+
+        body,
+        table {
+            font-family: Arial;
+            font-size: 12px;
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            color: #111;
+        }
+
+        /* container is a flex row; right column defines height, children stretch to match */
+        .container {
+            display: flex;
+            justify-content: flex-start;
+            align-items: stretch;
+            gap: 36px;
+            position: relative;
+            margin-top: 6px;
+            height: 100%;
+            overflow-y: hidden;
+            box-sizing: border-box;
+        }
+
+        table {
+            border-collapse: collapse
+        }
+
+        html,
+        body {
+            height: 100vh;
+        }
+
+        body {
+            overflow: hidden;
+        }
+
+        td,
+        th {
+            border: 1px solid black;
+            padding: 6px 10px;
+            text-align: center
+        }
+
+        .left td:nth-child(2) {
+            text-align: left
+        }
+
+        .cell {
+            display: inline-block;
+            box-sizing: border-box;
+            width: 20px;
+            min-width: 20px;
+            line-height: 18px;
+            text-align: center;
+            cursor: pointer;
+            font-variant-numeric: tabular-nums;
+            font-size: 12px;
+            position: relative;
+            --selected-ring-size: 18px;
+            --selected-ring-border: 4px;
+            transition: background-color .08s linear, color .08s linear;
+        }
+
+        /* Placeholder scaffold styling for empty state */
+        .cell.placeholder {
+            background: #eee;
+            color: transparent;
+            border-radius: 3px;
+            display: inline-block;
+            height: 18px;
+            line-height: 18px;
+        }
+
+        .skeleton-label {
+            display: inline-block;
+            background: #f3f3f3;
+            color: transparent;
+            border-radius: 3px;
+            padding: 4px 8px;
+        }
+
+        /* draw a circular ring using a pseudo-element so layout doesn't change
+           Only sequence-number cells (have class `num`) show the ring. Use opacity/transform
+           transitions and promote to its own composite layer to avoid repaint flicker. */
+        .cell.num {
+            -webkit-transform: translateZ(0);
+            transform: translateZ(0);
+            will-change: transform, opacity;
+            width: 20px;
+            min-width: 20px;
+            height: 20px;
+            min-height: 20px;
+            line-height: 20px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            vertical-align: middle;
+        }
+
+        .cell.num::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%) scale(0.98);
+            width: var(--selected-ring-size);
+            height: var(--selected-ring-size);
+            border-radius: 50%;
+            border: var(--selected-ring-border) solid rgba(255, 0, 0, 0);
+            box-shadow: 0 0 0 rgba(255, 0, 0, 0);
+            pointer-events: none;
+            opacity: 0;
+            transition: box-shadow .12s ease, transform .08s ease, opacity .12s ease, border-color .12s ease;
+            will-change: transform, opacity;
+            backface-visibility: hidden;
+        }
+
+        .cell.num.selected::after {
+            border-color: rgba(255, 0, 0, 0.95);
+            box-shadow: 0 0 6px rgba(255, 0, 0, 0.12);
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+        }
+
+        .cell.num.auto-circled::after {
+            border-color: rgba(255, 0, 0, 0.95);
+            box-shadow: 0 0 6px rgba(255, 0, 0, 0.12);
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+        }
+
+        /* Submitted numbers highlight (used when Space toggles submit preview).
+           The submit state applies a green background; text color is mapped
+           by semantic classes so submitted numbers keep their semantic hue.
+           Mapping:
+             - default (black text) -> white
+             - .note-highlight (cyan) -> #00e2d2
+             - .nonexist-intersect (yellow) -> #e0ca42
+        */
+        .cell.submit-highlight {
+            background-color: green !important;
+            color: var(--submit-answer-color) !important;
+            font-weight: bold !important;
+            transition: background-color .12s ease, color .12s ease;
+        }
+
+        .cell.submit-highlight.note-highlight {
+            color: var(--submit-note-color) !important;
+        }
+
+        .cell.submit-highlight.nonexist-intersect {
+            color: var(--submit-nonexist-color) !important;
+        }
+
+        .red {
+            color: inherit;
+            text-decoration: underline;
+            text-decoration-color: red;
+            text-decoration-thickness: 2px;
+            text-decoration-style: solid
+        }
+
+        .idx-highlight {
+            color: red !important;
+            font-weight: bold !important
+        }
+
+        .blocked {
+            background: black !important;
+            color: var(--blocked-default) !important;
+            font-weight: normal !important;
+            pointer-events: none;
+            cursor: default;
+        }
+
+        .cell.num.blocked {
+            border-radius: 0;
+        }
+
+        #right td span.cell.num.blocked {
+            border-radius: 0;
+        }
+
+        /* Preserve semantic submit-color mapping for blocked numbers:
+           - default blocked text -> white (submit answer color)
+           - blocked + note -> cyan (submit note color)
+           - blocked + nonexist -> yellow (submit nonexist color)
+        */
+        .cell.blocked.note-highlight {
+            color: var(--submit-note-color) !important;
+            font-weight: bold !important;
+        }
+
+        .cell.blocked.nonexist-intersect {
+            color: var(--submit-nonexist-color) !important;
+            font-weight: bold !important;
+        }
+
+        .cell.blocked:not(.note-highlight):not(.nonexist-intersect) {
+            color: var(--submit-answer-color) !important;
+        }
+
+        .bold {
+            font-weight: bold;
+            color: green
+        }
+
+        .chuoi-selected {
+            background: green;
+            color: white;
+            font-weight: bold
+        }
+
+        .chuoi-toggled-td {
+            background: black !important;
+            color: #ffffff !important;
+            font-weight: bold
+        }
+
+        /* Keep Chuoi label readable on neon submit rows */
+        td.answer-neon>span {
+            color: #000000 !important;
+            font-weight: bold;
+            text-shadow: none;
+        }
+
+        /* Neon glow for submitted answers (table 2) — stronger and faster animations */
+        :root {
+            --neon-color: #00ff66;
+            --neon-mid: rgba(0, 255, 102, 0.75);
+            --neon-outer: rgba(0, 255, 102, 0.6);
+            --neon-inner: rgba(0, 255, 102, 1);
+            --neon-dark: rgba(0, 0, 0, 0.75)
+        }
+
+        .answer-neon {
+            position: relative;
+            z-index: 0;
+            border-radius: 0;
+            overflow: visible
+        }
+
+        /* label sheen (SVG streak used for Chuỗi label background) */
+        .neon-streak {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            overflow: visible
+        }
+
+        .neon-streak svg {
+            width: 100%;
+            height: 100%;
+            display: block
+        }
+
+        .neon-streak .halo {
+            stroke: var(--neon-color);
+            stroke-width: 12;
+            stroke-opacity: 0.28;
+            fill: none;
+            stroke-linecap: round;
+            filter: drop-shadow(0 0 12px var(--neon-dark))
+        }
+
+        .neon-streak .trail {
+            stroke: var(--neon-color);
+            stroke-width: 7;
+            fill: none;
+            stroke-linecap: round;
+            stroke-dasharray: 120 320;
+            stroke-dashoffset: 0;
+            filter: drop-shadow(0 0 8px var(--neon-dark))
+        }
+
+        .neon-streak .core {
+            stroke: var(--neon-color);
+            stroke-width: 4;
+            fill: none;
+            stroke-linecap: round;
+            stroke-dasharray: 48 368;
+            stroke-dashoffset: 0;
+            filter: drop-shadow(0 0 10px var(--neon-dark)) drop-shadow(0 0 12px var(--neon-color)) drop-shadow(0 0 26px var(--neon-mid))
+        }
+
+        .answer-neon.animate .neon-streak .core,
+        .answer-neon.animate .neon-streak .trail {
+            animation: neonStroke 2.4s linear infinite
+        }
+
+        @keyframes neonStroke {
+            from {
+                stroke-dashoffset: 0
+            }
+
+            to {
+                stroke-dashoffset: -416
+            }
+        }
+
+        /* Per-number neon (strong pulsing glow for individual number cells) */
+        .cell.answer-neon {
+            border-radius: 6px;
+            box-shadow: 0 0 0 3px var(--neon-dark), 0 0 20px var(--neon-color), 0 0 60px var(--neon-mid), 0 0 150px var(--neon-outer), inset 0 0 12px var(--neon-inner);
+            transition: box-shadow .12s ease, transform .08s ease;
+            will-change: box-shadow
+        }
+
+        @keyframes neonPulse {
+            0% {
+                box-shadow: 0 0 16px var(--neon-color), 0 0 48px var(--neon-mid), 0 0 120px var(--neon-outer)
+            }
+
+            50% {
+                box-shadow: 0 0 48px var(--neon-color), 0 0 120px var(--neon-mid), 0 0 300px var(--neon-outer)
+            }
+
+            100% {
+                box-shadow: 0 0 16px var(--neon-color), 0 0 48px var(--neon-mid), 0 0 120px var(--neon-outer)
+            }
+        }
+
+        .cell.answer-neon.animate {
+            animation: neonPulse 0.9s ease-in-out infinite
+        }
+
+        /* Keep red ring when an item is both selected and answer-neon (stronger) */
+        .selected.answer-neon {
+            border-radius: 50%;
+            box-shadow: 0 0 0 4px red, 0 0 0 6px var(--neon-dark), 0 0 20px var(--neon-color), 0 0 60px var(--neon-mid), 0 0 150px var(--neon-outer), inset 0 0 12px var(--neon-inner);
+            transition: box-shadow .12s ease, transform .08s ease
+        }
+
+        @keyframes neonPulseSelected {
+            0% {
+                box-shadow: 0 0 0 4px red, 0 0 16px var(--neon-color), 0 0 48px var(--neon-mid), 0 0 120px var(--neon-outer)
+            }
+
+            50% {
+                box-shadow: 0 0 0 4px red, 0 0 48px var(--neon-color), 0 0 120px var(--neon-mid), 0 0 300px var(--neon-outer)
+            }
+
+            100% {
+                box-shadow: 0 0 0 4px red, 0 0 16px var(--neon-color), 0 0 48px var(--neon-mid), 0 0 120px var(--neon-outer)
+            }
+        }
+
+        .selected.answer-neon.animate {
+            animation: neonPulseSelected 0.9s ease-in-out infinite
+        }
+
+        /* Hide right area inside iframe */
+        #right {
+            display: block
+        }
+
+        /* Adjust left container sizing to fit iframe area */
+        .left-container {
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-self: stretch;
+            /* fill height set by right column */
+            height: auto;
+            flex: 0 0 auto;
+            width: auto;
+            box-sizing: border-box;
+            padding-right: 8px;
+            min-height: 0;
+            overflow-y: hidden;
+            /* prevent meaningless vertical scrollbar in left half */
+            --left-table-scale: 0.81;
+            transform-origin: left center;
+            transform: scale(var(--left-table-scale));
+        }
+
+        .tableWrapper {
+            display: flex;
+            flex: 1 1 auto;
+            flex-direction: column;
+            justify-content: center;
+            /* center table vertically within left column */
+            align-items: flex-start;
+            /* anchor table to left edge so it grows rightwards */
+            overflow-x: visible;
+            overflow-y: hidden;
+            max-width: none;
+            width: auto;
+            box-sizing: border-box;
+        }
+
+        /* ensure the left output area itself doesn't show a vertical scrollbar */
+        #left {
+            overflow-y: hidden;
+        }
+
+        /* Hide scrollbar visuals for left area across browsers */
+        .left-container,
+        .tableWrapper,
+        #left {
+            -ms-overflow-style: none;
+            /* IE and Edge */
+            scrollbar-width: none;
+            /* Firefox */
+        }
+
+        .left-container::-webkit-scrollbar,
+        .tableWrapper::-webkit-scrollbar,
+        #left::-webkit-scrollbar {
+            width: 0;
+            height: 0;
+            background: transparent;
+        }
+
+        /* Left compact sizing (match ok.py) */
+        #left table {
+            font-size: 13px;
+        }
+
+        /* tableWrapper layout only; scale moved to .left-container */
+
+        #left td,
+        #left th {
+            padding: 3px 6px;
+            vertical-align: top;
+            white-space: nowrap;
+        }
+
+        #left td .cell {
+            width: 20px;
+            min-width: 20px;
+            height: 20px;
+            min-height: 20px;
+            line-height: 20px;
+            font-size: 13px;
+            margin-right: 0;
+            padding: 0;
+        }
+
+        /* midwrap centers the inline-flex .container inside iframe */
+        .midwrap {
+            display: flex;
+            justify-content: center;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        /* anchor left table to left edge so it expands rightwards */
+        #left table {
+            margin-left: 0;
+            margin-right: auto;
+            display: table;
+        }
+
+        /* small copy button positioned to the right; visually place it outside without widening the table */
+        #right tr>td:nth-child(2) {
+            position: relative;
+            overflow: visible;
+        }
+
+        /* Right column height control to avoid page scrolling in iframe */
+        /* slightly reduce full-viewport height so external left-side scrollbar doesn't appear */
+        .midwrap {
+            height: calc(100vh - 10px);
+            overflow: hidden;
+        }
+
+        /* CSS vars let JS tune row padding, font-size and line-height to fit vertically */
+        #right {
+            --right-row-padding: 8px;
+            --right-font-size: 11px;
+            --right-line-height: 16px;
+            /* visual scale for the 5 number cells (does not affect layout) */
+            --right-cell-scale: 1.35;
+            /* increase vertical space for table 2 (slightly reduced to avoid outer scrollbar) */
+            max-height: calc(100vh - 14px);
+            overflow-y: auto;
+            overflow-x: hidden;
+            /* avoid horizontal scrollbar */
+            box-sizing: border-box;
+            padding-left: 8px;
+            flex: 1 1 0;
+            min-width: 0;
+            margin-left: 0;
+        }
+
+        #right td,
+        #right th {
+            padding: var(--right-row-padding) 6px;
+            vertical-align: middle;
+        }
+
+        /* Separate spacing for the alternating rows in table 2.
+           Chuỗi rows get a little more room; index/pattern rows are compact. */
+        #right tr.chuoi-main-row>td {
+            padding-top: calc(var(--right-row-padding) + 1px);
+            padding-bottom: calc(var(--right-row-padding) + 1px);
+        }
+
+        #right tr.chuoi-pattern-row>td {
+            padding-top: calc(var(--right-row-padding) - 5px);
+            padding-bottom: calc(var(--right-row-padding) - 5px);
+            font-size: calc(var(--right-font-size) * 0.82);
+            line-height: calc(var(--right-line-height) * var(--right-cell-scale) * 0.82);
+            overflow: hidden;
+        }
+
+        /* Spacer row between Chuỗi blocks, matching ok.py's blank separator row. */
+        #right tr.chuoi-gap-row>td {
+            border: none;
+            padding: 0;
+            height: 5px;
+            line-height: 5px;
+            background: #ffffff !important;
+            position: relative;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* Make Chuỗi rows feel taller by enlarging the visible label and numbers slightly.
+           Use font-size/line-height instead of transform so the content does not spill into
+           the next row and get covered by the black pattern row. */
+        #right tr.chuoi-main-row td:first-child span,
+        #right tr.chuoi-main-row td:nth-child(2) .cell.num {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        #right tr.chuoi-main-row td:first-child span {
+            font-size: calc(var(--right-font-size) * 1.1);
+            line-height: 1.15;
+            transform-origin: left center;
+        }
+
+        #right tr.chuoi-main-row td:nth-child(2) .cell.num {
+            font-size: calc(var(--right-font-size) * var(--right-cell-scale) * 1.14);
+            line-height: calc(var(--right-line-height) * var(--right-cell-scale) * 1.1);
+        }
+
+        /* For right-side numbers, use font-size/line-height scaling instead of transform so the
+           selection pseudo-element stays centered on the glyph. Also adjust ring size to match. */
+        #right td span.cell {
+            width: auto;
+            min-width: 18px;
+            line-height: calc(var(--right-line-height) * var(--right-cell-scale));
+            font-size: calc(var(--right-font-size) * var(--right-cell-scale));
+            display: inline-block;
+            margin-right: 0;
+            /* scale the selection ring proportionally for right table */
+            --selected-ring-size: calc(15px * var(--right-cell-scale));
+            --selected-ring-border: calc(3px * var(--right-cell-scale));
+        }
+
+        #right td span.cell.num {
+            width: calc(var(--right-line-height) * var(--right-cell-scale));
+            min-width: calc(var(--right-line-height) * var(--right-cell-scale));
+            height: calc(var(--right-line-height) * var(--right-cell-scale));
+            min-height: calc(var(--right-line-height) * var(--right-cell-scale));
+            line-height: calc(var(--right-line-height) * var(--right-cell-scale));
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            vertical-align: middle;
+        }
+
+        /* Slightly smaller text for index/frequency cells in right table */
+        #right .cell.index {
+            font-size: calc(var(--right-font-size) * 0.85);
+            line-height: calc(var(--right-line-height) * var(--right-cell-scale) * 0.85);
+            width: calc(var(--right-line-height) * var(--right-cell-scale));
+            min-width: calc(var(--right-line-height) * var(--right-cell-scale));
+            height: calc(var(--right-line-height) * var(--right-cell-scale));
+            min-height: calc(var(--right-line-height) * var(--right-cell-scale));
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            vertical-align: middle;
+            margin-right: 0;
+        }
+
+        /* Make the 5-number submit blocks in the right table appear square like table 1 */
+        /* Use the right-row line-height * scale so width matches computed height and stays square */
+        #right td span.cell.submit-highlight {
+            box-sizing: border-box;
+            /* remove any extra padding so internal content doesn't enlarge the box */
+            padding: 0;
+            text-align: center;
+            border-radius: 4px !important;
+        }
+
+        /* Preserve semantic text colors when submit-highlight is active */
+        #right td span.cell.submit-highlight.note-highlight {
+            color: var(--submit-note-color) !important;
+            font-weight: bold !important;
+        }
+
+        #right td span.cell.submit-highlight.nonexist-intersect {
+            color: var(--submit-nonexist-color) !important;
+            font-weight: bold !important;
+        }
+
+        #right td span.cell.submit-highlight.idx-highlight {
+            color: red !important;
+            font-weight: bold !important;
+        }
+
+        /* hide inline copy buttons in the table; we'll render floating buttons instead */
+        .copyBtn {
+            display: none;
+        }
+
+        /* floating container covering the full viewport (buttons positioned via JS) */
+        .floatingCopyContainer {
+            position: fixed;
+            left: 0;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            pointer-events: none;
+            /* allow clicks only on the buttons */
+            z-index: 9999;
+        }
+
+        .copyBtnFloating {
+            position: absolute;
+            pointer-events: auto;
+            width: 24px;
+            height: 24px;
+            font-size: 11px;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+            background: #f7f7f7;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+            cursor: pointer;
+        }
+
+        /* highlights for note / nonexist */
+        .note-highlight {
+            color: #0097a7;
+            font-weight: bold
+        }
+
+        .nonexist-intersect {
+            color: #e6b800;
+            font-weight: bold
+        }
+
+        #resetBtn,
+        #submitBtn {
+            font-size: 12px;
+            padding: 4px 8px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 0;
+            background: none;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+        }
+
+        #mode {
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 4px 8px;
+            height: 24px;
+            line-height: 1;
+            background-color: #ffffff;
+            color: #111111;
+            font-weight: bold;
+        }
+
+        select#mode.synced-mode,
+        #mode.synced-mode {
+            background-color: #006400 !important;
+            color: #ffffff !important;
+            font-weight: bold;
+            border-color: #006400 !important;
+        }
+
+        select#mode:disabled,
+        select#mode.synced-mode:disabled,
+        #mode:disabled,
+        #mode.synced-mode:disabled {
+            opacity: 1 !important;
+            filter: none !important;
+            background-color: #006400 !important;
+            color: #ffffff !important;
+            -webkit-text-fill-color: #ffffff !important;
+        }
+
+        /* Submit button active state: dark green background when submit preview is ON */
+        #submitBtn.active {
+            background: #2e7d32;
+            color: #ffffff;
+            border-color: #1b5e20;
+        }
+
+        /* Actions row directly above the left table (hidden until we align after scaling) */
+        .tableActions {
+            display: none;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            width: 100%;
+            box-sizing: border-box;
+            padding: 4px 0 6px 0;
+            align-self: stretch;
+            /* make it span full width inside .tableWrapper */
+        }
+
+        .tableActions .actions-right {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
+        #searchBox {
+            width: calc(6ch + 16px);
+            box-sizing: border-box;
+            text-align: center;
+            font-size: 12px;
+            padding: 6px 8px;
+            margin-left: 6px;
+            border: none;
+            border-radius: 6px;
+            background: #ffffff;
+            box-shadow: inset 0 0 0 1px #ccc;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            appearance: none;
+            position: relative;
+            z-index: 2;
+            transform: translateZ(0);
+        }
+
+        #searchBox:focus {
+            outline: none;
+            box-shadow: inset 0 0 0 1px #1e88e5, 0 0 4px rgba(30, 136, 229, 0.15);
+        }
+
+        .pair-btn {
+            background: none;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            padding: 3px 6px;
+            margin: 2px;
+            cursor: pointer;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            height: 24px
+        }
+
+        .pair-btn.pair-selected {
+            background: #2e7d32;
+            color: #ffffff;
+            border-color: #1b5e20
+        }
+    </style>
+</head>
+
+<body>
+    <div class="midwrap">
+        <div class="container">
+            <div class="left-container">
+                <div class="controls">
+                    <textarea id="input" rows="1"
+                        placeholder="Paste tối đa 11 chuỗi, cách nhau bằng khoảng trắng"></textarea>
+                    <br>
+                    <div class="mode-row">
+                        <select id="mode">
+                            <option value="modeq">?</option>
+                            <option value="pair1">1 bộ 2</option>
+                            <option value="pair2">2 bộ 2</option>
+                            <option value="pair3">3 bộ 2</option>
+                            <option value="pair4">4 bộ 2</option>
+                            <option value="pair5">5 bộ 2</option>
+                            <option value="triple1">1 bộ 3</option>
+                        </select>
+                        <button id="pickBtn">Pick</button>
+                        <span id="pickPreview" style="font-weight:normal;color:#333"></span>
+                    </div>
+                    <div id="pairList"
+                        style="margin-top:6px;font-size:13px;color:#333;white-space:normal;word-break:break-word;overflow-wrap:anywhere;display:flex;align-items:center;flex-wrap:wrap;gap:6px;max-width:100%;box-sizing:border-box">
+                    </div>
+                    <div id="debug" style="margin-top:8px;font-size:13px;color:#333"></div>
+                </div>
+                <div class="tableWrapper">
+                    <div class="tableActions">
+                        <div class="actions-left">
+                            <button id="submitBtn">Submit</button>
+                        </div>
+                        <div class="actions-right">
+                            <input id="searchBox" maxlength="5" placeholder="search">
+                            <button id="resetBtn">Reset</button>
+                        </div>
+                    </div>
+                    <div id="left" class="left"></div>
+                </div>
+            </div>
+            <div id="right"></div>
+        </div>
+    </div>
+    <div id="focusIndicator"
+        style="position:absolute;pointer-events:none;z-index:9999;font-size:18px;line-height:18px;transition:top .12s,left .12s,opacity .12s;opacity:0">
+        ➔</div>
+
+    <script>
+        // Minimal JS extracted from ok.py necessary for left UI rendering and process()
+        // For full behavior we include key functions: getNumsFromLineObj, process, renderTable1, renderTable2 (renderTable2 writes into #right but it's hidden), copyLine, computePairs, applyPair, etc.
+        // To keep this manageable, we include the core process/renderTable1/renderTable2 implementations copied from ok.py (compact).
+
+        function getNumsFromLineObj(line) {
+            if (!line) return [];
+            let s = typeof line === 'string' ? line : (line.result || '');
+            s = s.split("|")[0].trim();
+            if (!s) return [];
+            return s.split(",").map(x => parseInt(x, 10)).filter(n => !isNaN(n));
+        }
+
+        let raw = null; // structure { lines: [...], freq: {...}, firstNums: [...] }
+        let selected = new Set();
+        let blockedSet = new Set();
+        let simulatedSelected = new Set();
+        let submitActive = false;
+        let answerNums = [];
+        let pickOrder = [];
+        let disableSubmitForCurrentData = false;
+        let currentPairs = []; // computed pairs
+        let currentPairIndex = -1;
+        let currentTails = [];
+        let currentTailIndex = -1;
+        let submitAutoCircleEnabled = false;
+        let submitAutoCircleMode = 'max';
+
+        // pair/triple tracking (ported from ok.py)
+        let firstPair = null, secondPair = null, thirdPair = null, fourthPair = null, fifthPair = null, firstTriple = null;
+        let preSubmitSelected = null, preSubmitOrder = null;
+        let userModeBeforeSubmit = null, modeSynced = false;
+
+        // navigation / transient selection state
+        let transientSelected = new Set();
+        let currentPhaseNumber = null;
+        let currentPhaseRow = null;
+        let lastClickedRegion = 'left';
+        let lastClickedRow = null;
+        let lastClickedNumber = null;
+
+        // Phase history: remember recent mouse phase selections (region, number, row)
+        // so the focus arrow can revert to the last phase target when the current phase is cleared.
+        let phaseHistory = []; // newest at end, keep max length 5
+
+        function pushPhaseHistory(region, number, row) {
+            try {
+                if (!number && number !== 0) return;
+                // Remove any existing entries with same number to keep history unique
+                phaseHistory = phaseHistory.filter(function (e) { return e.number !== number; });
+                phaseHistory.push({ region: region || 'left', number: number, row: (typeof row === 'number') ? row : null });
+                if (phaseHistory.length > 5) phaseHistory.shift();
+            } catch (e) { }
+        }
+
+        function restorePreviousPhase(excludeNumber) {
+            try {
+                for (let i = phaseHistory.length - 1; i >= 0; i--) {
+                    const e = phaseHistory[i];
+                    if (!e || e.number == null) continue;
+                    if (e.number === excludeNumber) continue;
+                    // Only restore to a history entry whose number is still present in selection/simulated/transient
+                    if (selected.has(e.number) || simulatedSelected.has(e.number) || transientSelected.has(e.number)) {
+                        lastClickedRegion = e.region || 'left';
+                        lastClickedNumber = e.number;
+                        currentPhaseNumber = e.number;
+                        currentPhaseRow = (typeof e.row === 'number') ? e.row : null;
+                        return true;
+                    }
+                }
+            } catch (err) { }
+            lastClickedRegion = 'left';
+            lastClickedNumber = null;
+            currentPhaseNumber = null;
+            currentPhaseRow = null;
+            return false;
+        }
+
+        // Clear/restore toggle state for Reset / 'q' behavior
+        let clearedSelectionBackup = null;
+        let clearedPickOrderBackup = null;
+        let clearedFocusBackup = null;
+        let selectionCleared = false;
+
+        // quick-undo state for applyPair / quick clear
+        let undoPrevSelected = null;
+        let undoPrevPickOrder = null;
+        let undoPrevSimulated = null;
+        let undoEnabled = false;
+        let undoWasCleared = false;
+
+        // Helper: detect pair-mode and extract pair count (e.g., 'pair3' -> 3)
+        function isPairMode(mode) { return typeof mode === 'string' && mode.startsWith('pair'); }
+        function pairModeCount(mode) { if (!isPairMode(mode)) return 0; const v = parseInt(mode.slice(4), 10); return isNaN(v) ? 0 : v; }
+        function getSubmitAutoCircleSet() {
+            const out = new Set();
+            if (!submitAutoCircleEnabled || !raw || !raw.freq || !Array.isArray(answerNums) || answerNums.length === 0) {
+                return out;
+            }
+
+            const candidates = answerNums
+                .map(function (n) { return parseInt(n, 10); })
+                .filter(function (n) { return !isNaN(n); })
+                .map(function (n) { return { num: n, freq: parseInt(raw.freq[n], 10) || 0 }; });
+
+            if (candidates.length === 0) {
+                return out;
+            }
+
+            if (submitAutoCircleMode === 'min') {
+                candidates.forEach(function (item) {
+                    if (item.freq === 1) out.add(item.num);
+                });
+                return out;
+            }
+
+            let maxFreq = -Infinity;
+            candidates.forEach(function (item) {
+                if (item.freq > maxFreq) maxFreq = item.freq;
+            });
+            candidates.forEach(function (item) {
+                if (item.freq === maxFreq) out.add(item.num);
+            });
+            return out;
+        }
+        function syncSubmitButtonAvailability() {
+            const sbEl = document.getElementById('submitBtn');
+            if (sbEl) sbEl.disabled = !!disableSubmitForCurrentData;
+        }
+
+        // Recompute firstPair/secondPair/... and firstTriple from current selection sets
+        function recomputePairsFromSelected() {
+            firstPair = null; secondPair = null; thirdPair = null; fourthPair = null; fifthPair = null; firstTriple = null;
+            if (!raw) return;
+            // effective selection: when Submit is active, use simulated picks only
+            let effective = new Set();
+            if (submitActive) { simulatedSelected.forEach(n => effective.add(n)); }
+            else { selected.forEach(n => effective.add(n)); simulatedSelected.forEach(n => effective.add(n)); }
+            // find triple first
+            for (let i = 0; i < Math.min(raw.lines.length, 10); i++) {
+                let nums = getNumsFromLineObj(raw.lines[i]);
+                let selInLine = nums.filter(x => effective.has(x));
+                if (selInLine.length >= 3) { firstTriple = selInLine.slice(0, 3); break; }
+            }
+            // find pairs in order
+            let pairs = [];
+            raw.lines.slice(0, 10).forEach(line => {
+                let nums = getNumsFromLineObj(line);
+                let selInLine = nums.filter(x => effective.has(x));
+                if (selInLine.length >= 2) pairs.push(selInLine.slice(0, 2));
+            });
+            firstPair = pairs[0] || null; secondPair = pairs[1] || null; thirdPair = pairs[2] || null; fourthPair = pairs[3] || null; fifthPair = pairs[4] || null;
+        }
+
+        function updateBlocked() {
+            blockedSet.clear();
+            let mode = document.getElementById("mode") ? document.getElementById("mode").value : null;
+            if (!raw) return;
+
+            if (mode === "pair1" || mode === "triple1") {
+                let p = mode === "pair1" ? firstPair : firstTriple;
+                if (p) {
+                    raw.lines.slice(0, 10).forEach(line => {
+                        let nums = getNumsFromLineObj(line);
+                        if (nums.some(n => p.includes(n))) nums.forEach(n => { if (!p.includes(n)) blockedSet.add(n) });
+                        if (nums.some(n => (selected.has(n) || simulatedSelected.has(n)) && (!p || !p.includes(n)))) nums.forEach(n => blockedSet.add(n));
+                    });
+                }
+            } else if (mode === "modeq") {
+                raw.lines.slice(0, 10).forEach(line => {
+                    let nums = getNumsFromLineObj(line);
+                    let selInLine = nums.filter(n => selected.has(n) || simulatedSelected.has(n));
+                    if (selInLine.length > 0) {
+                        nums.forEach(n => { if (!selInLine.includes(n)) blockedSet.add(n); });
+                    }
+                });
+            } else if (isPairMode(mode)) {
+                let maxPairs = pairModeCount(mode);
+                let pairs = [];
+                if (firstPair) pairs.push(firstPair);
+                if (secondPair) pairs.push(secondPair);
+                if (thirdPair) pairs.push(thirdPair);
+                if (fourthPair) pairs.push(fourthPair);
+                if (fifthPair) pairs.push(fifthPair);
+                let completePairs = pairs.filter(p => p && p.length === 2);
+                let numsInCompletePairs = completePairs.length ? [].concat(...completePairs) : [];
+
+                raw.lines.slice(0, 10).forEach(line => {
+                    let nums = getNumsFromLineObj(line);
+                    let selectedInLine = nums.filter(n => selected.has(n) || simulatedSelected.has(n));
+                    if (selectedInLine.length === 0) return;
+                    let pairsInLine = completePairs.filter(p => p.every(n => nums.includes(n)));
+                    if (pairsInLine.length >= 1) nums.forEach(n => { if (!pairsInLine.some(p => p.includes(n))) blockedSet.add(n) });
+                    if (completePairs.length === maxPairs) {
+                        let remaining = nums.filter(n => !numsInCompletePairs.includes(n));
+                        if (remaining.length > 0) remaining.forEach(n => blockedSet.add(n));
+                    }
+                    let extraSelected = nums.filter(n => (selected.has(n) || simulatedSelected.has(n)) && !pairs.some(p => p && p.includes(n)));
+                    if (extraSelected.length > 0 && pairsInLine.length >= 1) nums.forEach(n => blockedSet.add(n));
+                });
+            }
+
+            // compute simulated-only blocks and union
+            let simBlocked = new Set();
+            if (raw) {
+                if (mode === "pair1" || mode === "triple1") {
+                    let p = null;
+                    if (mode === "pair1") {
+                        raw.lines.slice(0, 10).forEach(line => {
+                            if (p) return;
+                            let nums = getNumsFromLineObj(line);
+                            let selInLine = nums.filter(x => simulatedSelected.has(x));
+                            if (selInLine.length >= 2) p = selInLine.slice(0, 2);
+                        });
+                    } else {
+                        raw.lines.slice(0, 10).forEach(line => {
+                            if (p) return;
+                            let nums = getNumsFromLineObj(line);
+                            let selInLine = nums.filter(x => simulatedSelected.has(x));
+                            if (selInLine.length >= 3) p = selInLine.slice(0, 3);
+                        });
+                    }
+                    if (p) {
+                        raw.lines.slice(0, 10).forEach(line => {
+                            let nums = getNumsFromLineObj(line);
+                            if (nums.some(n => p.includes(n))) nums.forEach(n => { if (!p.includes(n)) simBlocked.add(n); });
+                            if (nums.some(n => simulatedSelected.has(n) && (!p || !p.includes(n)))) nums.forEach(n => simBlocked.add(n));
+                        });
+                    }
+                } else if (isPairMode(mode)) {
+                    let maxPairs = pairModeCount(mode);
+                    let pairs = [];
+                    raw.lines.slice(0, 10).forEach(line => {
+                        let nums = getNumsFromLineObj(line);
+                        let selInLine = nums.filter(n => simulatedSelected.has(n));
+                        if (selInLine.length >= 2) pairs.push(selInLine.slice(0, 2));
+                    });
+                    let completePairs = pairs.filter(p => p && p.length === 2);
+                    let numsInCompletePairs = completePairs.length ? [].concat(...completePairs) : [];
+                    raw.lines.slice(0, 10).forEach(line => {
+                        let nums = getNumsFromLineObj(line);
+                        let selectedInLine = nums.filter(n => simulatedSelected.has(n));
+                        if (selectedInLine.length === 0) return;
+                        let pairsInLine = completePairs.filter(p => p.every(n => nums.includes(n)));
+                        if (pairsInLine.length >= 1) nums.forEach(n => { if (!pairsInLine.some(p => p.includes(n))) simBlocked.add(n); });
+                        if (completePairs.length === maxPairs) {
+                            let remaining = nums.filter(n => !numsInCompletePairs.includes(n));
+                            if (remaining.length > 0) remaining.forEach(n => simBlocked.add(n));
+                        }
+                        let extraSelected = nums.filter(n => simulatedSelected.has(n) && !pairs.some(p => p && p.includes(n)));
+                        if (extraSelected.length > 0 && pairsInLine.length >= 1) nums.forEach(n => simBlocked.add(n));
+                    });
+                }
+            }
+
+            simBlocked.forEach(n => blockedSet.add(n));
+            simulatedSelected.forEach(n => blockedSet.delete(n));
+        }
+
+        // Compute blocked set given an arbitrary selection set (does not mutate globals)
+        function computeBlockedForSelected(selSet) {
+            let b = new Set();
+            if (!raw) return b;
+            let mode = document.getElementById("mode") ? document.getElementById("mode").value : null;
+
+            let localFirstPair = null, localSecondPair = null, localThirdPair = null, localFourthPair = null, localFifthPair = null, localFirstTriple = null;
+            if (mode === "pair1" || mode === "triple1") {
+                if (mode === "pair1") {
+                    for (let i = 0; i < Math.min(raw.lines.length, 10); i++) {
+                        let nums = getNumsFromLineObj(raw.lines[i]);
+                        let selInLine = nums.filter(x => selSet.has(x));
+                        if (selInLine.length >= 2) { localFirstPair = selInLine.slice(0, 2); break; }
+                    }
+                } else {
+                    for (let i = 0; i < Math.min(raw.lines.length, 10); i++) {
+                        let nums = getNumsFromLineObj(raw.lines[i]);
+                        let selInLine = nums.filter(x => selSet.has(x));
+                        if (selInLine.length >= 3) { localFirstTriple = selInLine.slice(0, 3); break; }
+                    }
+                }
+            }
+
+            if (isPairMode(mode)) {
+                let pairs = [];
+                raw.lines.slice(0, 10).forEach(line => {
+                    let nums = getNumsFromLineObj(line);
+                    let selInLine = nums.filter(n => selSet.has(n));
+                    if (selInLine.length >= 2) pairs.push(selInLine.slice(0, 2));
+                });
+                localFirstPair = pairs[0] || null; localSecondPair = pairs[1] || null; localThirdPair = pairs[2] || null; localFourthPair = pairs[3] || null; localFifthPair = pairs[4] || null;
+            }
+
+            if (mode === "pair1" || mode === "triple1") {
+                let p = mode === "pair1" ? localFirstPair : localFirstTriple;
+                if (p) {
+                    raw.lines.slice(0, 10).forEach(line => {
+                        let nums = getNumsFromLineObj(line);
+                        if (nums.some(n => p.includes(n))) nums.forEach(n => { if (!p.includes(n)) b.add(n) });
+                        if (nums.some(n => (selSet.has(n) || simulatedSelected.has(n)) && (!p || !p.includes(n)))) nums.forEach(n => b.add(n));
+                    });
+                }
+            } else if (mode === "modeq") {
+                raw.lines.slice(0, 10).forEach(line => {
+                    let nums = getNumsFromLineObj(line);
+                    let selInLine = nums.filter(n => selSet.has(n) || simulatedSelected.has(n));
+                    if (selInLine.length > 0) {
+                        nums.forEach(n => { if (!selInLine.includes(n)) b.add(n); });
+                    }
+                });
+            } else if (isPairMode(mode)) {
+                let maxPairs = pairModeCount(mode);
+                let pairs = [];
+                if (localFirstPair) pairs.push(localFirstPair);
+                if (localSecondPair) pairs.push(localSecondPair);
+                if (localThirdPair) pairs.push(localThirdPair);
+                if (localFourthPair) pairs.push(localFourthPair);
+                if (localFifthPair) pairs.push(localFifthPair);
+                let completePairs = pairs.filter(p => p && p.length === 2);
+                let numsInCompletePairs = completePairs.length ? [].concat(...completePairs) : [];
+
+                raw.lines.slice(0, 10).forEach(line => {
+                    let nums = getNumsFromLineObj(line);
+                    let selectedInLine = nums.filter(n => selSet.has(n) || simulatedSelected.has(n));
+                    if (selectedInLine.length === 0) return;
+                    let pairsInLine = completePairs.filter(p => p.every(n => nums.includes(n)));
+                    if (pairsInLine.length >= 1) nums.forEach(n => { if (!pairsInLine.some(p => p.includes(n))) b.add(n) });
+                    if (completePairs.length === maxPairs) {
+                        let remaining = nums.filter(n => !numsInCompletePairs.includes(n));
+                        if (remaining.length > 0) remaining.forEach(n => b.add(n));
+                    }
+                    let extraSelected = nums.filter(n => (selSet.has(n) || simulatedSelected.has(n)) && !pairs.some(p => p && p.includes(n)));
+                    if (extraSelected.length > 0 && pairsInLine.length >= 1) nums.forEach(n => b.add(n));
+                });
+            }
+
+            // union simBlocked
+            let simBlocked = new Set();
+            if (raw) {
+                if (mode === "pair1" || mode === "triple1") {
+                    let p = null;
+                    if (mode === "pair1") {
+                        raw.lines.slice(0, 10).forEach(line => {
+                            if (p) return;
+                            let nums = getNumsFromLineObj(line);
+                            let selInLine = nums.filter(x => simulatedSelected.has(x));
+                            if (selInLine.length >= 2) p = selInLine.slice(0, 2);
+                        });
+                    } else {
+                        raw.lines.slice(0, 10).forEach(line => {
+                            if (p) return;
+                            let nums = getNumsFromLineObj(line);
+                            let selInLine = nums.filter(x => simulatedSelected.has(x));
+                            if (selInLine.length >= 3) p = selInLine.slice(0, 3);
+                        });
+                    }
+                    if (p) {
+                        raw.lines.slice(0, 10).forEach(line => {
+                            let nums = getNumsFromLineObj(line);
+                            if (nums.some(n => p.includes(n))) nums.forEach(n => { if (!p.includes(n)) simBlocked.add(n); });
+                            if (nums.some(n => simulatedSelected.has(n) && (!p || !p.includes(n)))) nums.forEach(n => simBlocked.add(n));
+                        });
+                    }
+                } else if (isPairMode(mode)) {
+                    let maxPairs = pairModeCount(mode);
+                    let pairs = [];
+                    raw.lines.slice(0, 10).forEach(line => {
+                        let nums = getNumsFromLineObj(line);
+                        let selInLine = nums.filter(n => simulatedSelected.has(n));
+                        if (selInLine.length >= 2) pairs.push(selInLine.slice(0, 2));
+                    });
+                    let completePairs = pairs.filter(p => p && p.length === 2);
+                    let numsInCompletePairs = completePairs.length ? [].concat(...completePairs) : [];
+                    raw.lines.slice(0, 10).forEach(line => {
+                        let nums = getNumsFromLineObj(line);
+                        let selectedInLine = nums.filter(n => simulatedSelected.has(n));
+                        if (selectedInLine.length === 0) return;
+                        let pairsInLine = completePairs.filter(p => p.every(n => nums.includes(n)));
+                        if (pairsInLine.length >= 1) nums.forEach(n => { if (!pairsInLine.some(p => p.includes(n))) simBlocked.add(n); });
+                        if (completePairs.length === maxPairs) {
+                            let remaining = nums.filter(n => !numsInCompletePairs.includes(n));
+                            if (remaining.length > 0) remaining.forEach(n => simBlocked.add(n));
+                        }
+                        let extraSelected = nums.filter(n => simulatedSelected.has(n) && !pairs.some(p => p && p.includes(n)));
+                        if (extraSelected.length > 0 && pairsInLine.length >= 1) nums.forEach(n => simBlocked.add(n));
+                    });
+                }
+            }
+
+            simBlocked.forEach(n => b.add(n));
+            simulatedSelected.forEach(n => b.delete(n));
+            return b;
+        }
+
+        function toggleNumber(n) {
+            // Disallow toggles while Submit is active
+            if (submitActive) return;
+            // Disallow toggles on blocked numbers
+            try { if (isBlocked(n)) return; } catch (e) { }
+            // If selection was previously cleared via Reset/q toggle, clear its backup now
+            if (selectionCleared) {
+                selectionCleared = false;
+                clearedSelectionBackup = null;
+                clearedPickOrderBackup = null;
+                clearedFocusBackup = null;
+            }
+            // Toggle state
+            if (selected.has(n)) {
+                // remove any history entries that point to a number the user just deselected
+                try { phaseHistory = phaseHistory.filter(function (e) { return e && e.number !== n; }); } catch (ee) { }
+                selected.delete(n);
+                // ensure any transient or simulated state for this number is cleared
+                try { transientSelected.delete(n); simulatedSelected.delete(n); } catch (e) { }
+                if (currentPhaseNumber === n) {
+                    // restore arrow to previous phase selection if available
+                    restorePreviousPhase(n);
+                    if (lastClickedRegion === 'right' && currentPhaseNumber === null) currentPhaseRow = null;
+                }
+            } else {
+                selected.add(n);
+                currentPhaseNumber = n;
+                // record mouse-driven phase selection so arrow can return here later
+                try { pushPhaseHistory(lastClickedRegion || 'left', n, currentPhaseRow); } catch (e) { }
+            }
+            if (!pickOrder) pickOrder = [];
+            const idx = pickOrder.indexOf(n);
+            if (idx === -1) pickOrder.push(n); else pickOrder.splice(idx, 1);
+
+            // Update only sequence-number cells in-place (have class `num`) to avoid repaint of index/footer cells
+            try {
+                var numCells = document.querySelectorAll('.cell.num[data-num="' + n + '"]');
+                if (numCells && numCells.length) {
+                    numCells.forEach(function (el) { el.classList.toggle('selected', selected.has(n)); });
+                }
+            } catch (e) { console.error(e); }
+
+            // Recompute pairs/blocked and refresh UI
+            try { recomputePairsFromSelected(); } catch (e) { }
+            try { updateBlocked(); } catch (e) { }
+            try { refreshPairTailSelectionState(); } catch (e) { }
+            // Apply minimal in-place DOM updates to avoid full rerender (prevents flicker)
+            try { applySelectionAndBlockedInDOM(n); updateFloatingCopyButtons(); alignTableActionsAndCenter(); updateFocusIndicator(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); try { updateFocusIndicator(); } catch (ee) { } }
+        }
+
+        function onNumberCellClick(n, region, rowIdx) {
+            try {
+                lastClickedRegion = region || 'left';
+                if (typeof rowIdx === 'number') {
+                    lastClickedRow = rowIdx;
+                    if (region === 'right') currentPhaseRow = rowIdx;
+                }
+                lastClickedNumber = n;
+                currentPhaseNumber = n;
+                if (region === 'left') currentPhaseRow = null;
+            } catch (e) { }
+            toggleNumber(n);
+        }
+
+        // Apply selection / idx-highlight / blocked classes in-place to avoid rerender flicker
+        function applySelectionAndBlockedInDOM(changedNum) {
+            try {
+                // update selection and blocked state for number cells only; keep index cells free of blocked styling
+                var allEls = document.querySelectorAll('.cell[data-num]');
+                allEls.forEach(function (el) {
+                    try {
+                        var v = parseInt(el.getAttribute('data-num'), 10);
+                        if (isNaN(v)) return;
+                        if (el.classList.contains('num')) {
+                            // number cells: show selected ring and blocked state
+                            el.classList.toggle('selected', selected.has(v));
+                            el.classList.toggle('blocked', isBlocked(v));
+                            if (!submitActive) el.classList.remove('submit-highlight');
+                        } else if (el.classList.contains('index')) {
+                            // index cells: do not apply blocked; only show idx-highlight for left table entries
+                            el.classList.remove('blocked');
+                            try {
+                                if (el.closest && el.closest('#right')) {
+                                    el.classList.remove('idx-highlight');
+                                } else {
+                                    el.classList.toggle('idx-highlight', (selected.has(v) && !submitActive) || (submitActive && Array.isArray(answerNums) && answerNums.indexOf(v) !== -1));
+                                }
+                            } catch (ee) { el.classList.remove('idx-highlight'); }
+                            if (!submitActive) el.classList.remove('submit-highlight');
+                        } else {
+                            // fallback: ensure no blocked/submit highlight
+                            el.classList.remove('blocked');
+                            if (!submitActive) el.classList.remove('submit-highlight');
+                        }
+                    } catch (ee) { }
+                });
+                // Update pair/tail styling to match new selection state
+                try { refreshPairTailSelectionState(); } catch (e) { }
+            } catch (e) { console.error(e); }
+        }
+
+        function process() {
+            let rawText = document.getElementById("input").value.trim();
+            debugLog('process() called — input length:', rawText.length);
+            let rows = [];
+            if (!rawText) { updateRender(); return; }
+            if (rawText.indexOf('\n') !== -1 || rawText.indexOf('\r') !== -1) {
+                let linesRaw = rawText.split(/\r?\n/).filter(s => s.length > 0);
+                linesRaw.forEach(line => {
+                    if (line.indexOf('\t') !== -1) {
+                        let parts = line.split(/\t+/).map(s => s.trim());
+                        rows.push({ result: parts[0] || '', note: parts[1] || '', nonexist: parts[2] || '' });
+                    } else {
+                        const trimmed = line.trim();
+                        const pipeIdx = trimmed.indexOf('|');
+                        if (pipeIdx !== -1) {
+                            rows.push({
+                                result: trimmed.slice(0, pipeIdx).trim(),
+                                note: trimmed.slice(pipeIdx + 1).trim(),
+                                nonexist: ''
+                            });
+                        } else {
+                            rows.push({ result: trimmed, note: '', nonexist: '' });
+                        }
+                    }
+                });
+            } else {
+                let tokens = rawText.split(/\s+/).filter(s => s.length > 0);
+                tokens.forEach(t => rows.push({ result: t, note: '', nonexist: '' }));
+            }
+            let rowsUsed = rows.slice(0);
+            if (rowsUsed.length >= 11) {
+                let r11 = rowsUsed[10] || {};
+                let res11 = (r11.result || '').trim();
+                if (!(res11.length > 0)) rowsUsed = rowsUsed.slice(0, 10);
+            }
+            debugLog('process() rowsUsed length:', rowsUsed.length);
+            if (rowsUsed.length < 10) { raw = null; updateRender(); return; }
+            // compute simple freq and firstNums
+            let linesSimple = rowsUsed.slice(0, 11).map(r => (r.result || '').split("|")[0]);
+            let firstNums = linesSimple[0].split(",").map(x => parseInt(x, 10)).filter(n => !isNaN(n));
+            let all = [];
+            linesSimple.slice(0, 10).forEach(l => { l.split(",").forEach(n => { let v = parseInt(n, 10); if (!isNaN(v)) all.push(v); }); });
+            let freq = {};
+            for (let i = 1; i <= MAX_NUM; i++) freq[i] = 0;
+            all.forEach(n => freq[n]++);
+            raw = { lines: rowsUsed, freq: freq, firstNums: firstNums };
+            // extract answerNums from 11th line if present
+            if (linesSimple.length === 11) {
+                let eleventh = rowsUsed[10] || {};
+                let ansLine = (eleventh.result || '').split("|")[0].trim();
+                answerNums = ansLine.length ? ansLine.split(",").map(x => parseInt(x, 10)).filter(n => !isNaN(n)) : [];
+            } else answerNums = [];
+
+            debugLog('process() answerNums:', answerNums);
+            syncSubmitButtonAvailability();
+
+            if (disableSubmitForCurrentData) {
+                submitActive = false;
+                simulatedSelected.clear();
+                answerNums = [];
+                pickOrder = [];
+                const sbEl = document.getElementById('submitBtn');
+                if (sbEl) sbEl.classList.remove('active');
+                const modeEl = document.getElementById('mode');
+                if (modeEl) {
+                    modeEl.classList.remove('synced-mode');
+                    modeEl.disabled = false;
+                }
+            }
+
+            // Match ok.py: if fewer than 11 meaningful rows, force Submit OFF and
+            // restore manual mode if it was auto-synced before.
+            if (rowsUsed.length < 11) {
+                const sbEl = document.getElementById('submitBtn');
+                submitActive = false;
+                if (sbEl) sbEl.classList.remove('active');
+                simulatedSelected.clear();
+                preSubmitSelected = null;
+                preSubmitOrder = null;
+                answerNums = [];
+                const modeEl = document.getElementById('mode');
+                if (modeEl) {
+                    if (modeSynced) {
+                        if (userModeBeforeSubmit !== null) modeEl.value = userModeBeforeSubmit;
+                        modeEl.classList.remove('synced-mode');
+                    }
+                    modeEl.classList.remove('synced-mode');
+                    modeEl.disabled = false;
+                }
+                userModeBeforeSubmit = null;
+                modeSynced = false;
+            }
+
+            // Match ok.py: do NOT auto-sync mode on each new dataset while Submit ON.
+            // Only rebuild simulated picks from answer numbers.
+            if (submitActive) {
+                simulatedSelected.clear();
+                (answerNums || []).forEach(n => simulatedSelected.add(n));
+            }
+
+            recomputePairsFromSelected();
+            updateBlocked();
+            updateRender();
+        }
+
+        function updateRender() {
+            renderTable1();
+            renderTable2();
+            try { updatePairList(); } catch (e) { /* ignore if pairList not ready */ }
+            try { applySubmitState(); } catch (e) { }
+            try { updateFocusIndicator(); } catch (e) { }
+            try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
+            setTimeout(function () { try { updateFocusIndicator(); } catch (e) { } }, 40);
+        }
+
+        function updateRenderLightweight() {
+            try { applySelectionAndBlockedInDOM(); } catch (e) { }
+            try { applySubmitState(); } catch (e) { }
+            try { updatePairList(); } catch (e) { }
+            try { refreshPairTailSelectionState(); } catch (e) { }
+            try { updateFocusIndicator(); } catch (e) { }
+            try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
+        }
+
+        // Helper utilities used by renderTable1/renderTable2
+        const clickedChuoi = new Set();
+        function toggleChuoi(i) { if (clickedChuoi.has(i)) clickedChuoi.delete(i); else clickedChuoi.add(i); renderTable2(); }
+        function matchSearchPattern(pattern) {
+            try {
+                let val = document.getElementById('searchBox')?.value.trim().replace(/[^0-9]/g, '').slice(0, 5) || '';
+                if (!val) return false;
+                const need = {};
+                for (const c of val) need[c] = (need[c] || 0) + 1;
+                const have = {};
+                for (const ch of pattern) have[ch] = (have[ch] || 0) + 1;
+                for (const k in need) if (!have[k] || have[k] < need[k]) return false;
+                return true;
+            } catch (e) { return false; }
+        }
+        function isBlocked(n) {
+            try {
+                if (typeof blockedSet === 'undefined' || !blockedSet || !blockedSet.has(n)) return false;
+                if (submitActive) return !simulatedSelected.has(n);
+                return !selected.has(n) && !simulatedSelected.has(n);
+            } catch (e) { }
+            return false;
+        }
+        function computeTails() {
+            // Lightweight tails computation: return empty array when insufficient data
+            if (!raw || !raw.lines || raw.lines.length < 10) return [];
+            // Use a simplified adjacent-occurrence heuristic
+            const display = raw.lines.slice(0, 10);
+            const sets = display.map(l => new Set(getNumsFromLineObj(l)));
+            const adjMap = {};
+            for (let i = 0; i < sets.length - 1; i++) {
+                const top = sets[i], bottom = sets[i + 1];
+                top.forEach(a => { bottom.forEach(b => { if (a === b) return; const key = a + ',' + b; if (!adjMap[key]) adjMap[key] = []; adjMap[key].push(i); }); });
+            }
+            const tails = [];
+            for (const key in adjMap) { const idxs = adjMap[key].slice().sort((a, b) => a - b); const parts = key.split(',').map(x => parseInt(x, 10)); const a = parts[0], b = parts[1]; let last = -3, count = 0; for (const ii of idxs) { if (ii > last + 1) { count++; last = ii; } } if (count >= 2) tails.push({ a: a, b: b, idxs: idxs, main: Math.min(...idxs), count: count }); }
+            return tails.sort((x, y) => { const ix = x.idxs.length ? Math.min(...x.idxs) : Infinity; const iy = y.idxs.length ? Math.min(...y.idxs) : Infinity; if (ix !== iy) return ix - iy; if (x.a !== y.a) return x.a - y.a; return x.b - y.b; });
+        }
+
+        // Compute pairs according to user's rules (copied from ok.py)
+        function computePairs() {
+            if (!raw || !raw.lines || raw.lines.length < 10) return [];
+            const display = raw.lines.slice(0, 10);
+            const sets = display.map(l => new Set(getNumsFromLineObj(l)));
+            const allNums = new Set();
+            sets.forEach(s => s.forEach(n => allNums.add(n)));
+            const nums = Array.from(allNums).sort((a, b) => a - b);
+            const out = [];
+            const adjPairs = [];
+            for (let topIdx = 0; topIdx < sets.length - 1; topIdx++) adjPairs.push({ top: topIdx, bottom: topIdx + 1 });
+
+            for (let i = 0; i < nums.length; i++) {
+                for (let j = i + 1; j < nums.length; j++) {
+                    const a = nums[i], b = nums[j];
+                    const mains = [];
+                    for (let idx = 0; idx < sets.length; idx++) { if (sets[idx].has(a) && sets[idx].has(b)) mains.push(idx); }
+                    if (mains.length === 0) continue;
+                    let allMainsOk = true;
+                    for (const mainIdx of mains) {
+                        let aboveFound = false;
+                        for (const p of adjPairs) {
+                            if (p.bottom < mainIdx) {
+                                if ((sets[p.top].has(a) && sets[p.bottom].has(b)) || (sets[p.top].has(b) && sets[p.bottom].has(a))) {
+                                    if (!((sets[p.top].has(a) && sets[p.top].has(b)) || (sets[p.bottom].has(a) && sets[p.bottom].has(b)))) {
+                                        const allowAboveIfFreq2 = (raw && raw.freq && (
+                                            (raw.freq[a] >= 2 && raw.freq[b] >= 2 && mainIdx === sets.length - 1) ||
+                                            ((raw.freq[a] === 3 && raw.freq[b] === 2) || (raw.freq[a] === 2 && raw.freq[b] === 3))
+                                        ));
+                                        if (!allowAboveIfFreq2) { aboveFound = true; break; }
+                                    }
+                                }
+                            }
+                        }
+                        if (aboveFound) { allMainsOk = false; break; }
+
+                        let foundForThisMain = false;
+                        for (const p of adjPairs) {
+                            if (!(p.top > mainIdx && p.bottom > mainIdx)) continue;
+                            if ((sets[p.top].has(a) && sets[p.bottom].has(b)) || (sets[p.top].has(b) && sets[p.bottom].has(a))) {
+                                if ((sets[p.top].has(a) && sets[p.top].has(b)) || (sets[p.bottom].has(a) && sets[p.bottom].has(b))) continue;
+                                foundForThisMain = true; break;
+                            }
+                        }
+                        if (!foundForThisMain) {
+                            const allowAboveIfFreq2 = (raw && raw.freq && (
+                                (raw.freq[a] >= 2 && raw.freq[b] >= 2 && mainIdx === sets.length - 1) ||
+                                ((raw.freq[a] === 3 && raw.freq[b] === 2) || (raw.freq[a] === 2 && raw.freq[b] === 3))
+                            ));
+                            if (allowAboveIfFreq2) {
+                                for (const p of adjPairs) {
+                                    if (!(p.bottom < mainIdx)) continue;
+                                    if ((sets[p.top].has(a) && sets[p.bottom].has(b)) || (sets[p.top].has(b) && sets[p.bottom].has(a))) {
+                                        if ((sets[p.top].has(a) && sets[p.top].has(b)) || (sets[p.bottom].has(a) && sets[p.bottom].has(b))) continue;
+                                        foundForThisMain = true; break;
+                                    }
+                                }
+                            }
+                        }
+                        if (!foundForThisMain) { allMainsOk = false; break; }
+                    }
+                    if (allMainsOk) out.push([a, b]);
+                }
+            }
+            const seen = new Set(); const uniq = [];
+            out.forEach(p => { const k = p[0] + ',' + p[1]; if (!seen.has(k)) { seen.add(k); uniq.push(p); } });
+            return uniq;
+        }
+
+        function applyPair(a, b, opts) {
+            if (!raw) return;
+            selected = new Set(); pickOrder = []; transientSelected.clear();
+            selected.add(a); selected.add(b); pickOrder.push(a); pickOrder.push(b);
+            // save quick undo snapshot
+            undoPrevSelected = new Set(selected);
+            undoPrevPickOrder = pickOrder.slice();
+            undoPrevSimulated = new Set(simulatedSelected);
+            undoEnabled = true; undoWasCleared = false;
+            currentPhaseNumber = b; currentPhaseRow = null;
+            try { pushPhaseHistory('pairAction', b, null); } catch (e) { }
+            currentPairIndex = -1;
+            if (currentPairs && currentPairs.length) { for (let i = 0; i < currentPairs.length; i++) { const p = currentPairs[i]; if (p && p[0] === a && p[1] === b) { currentPairIndex = i; break; } } }
+            const useLightRender = !!(opts && opts.lightRender);
+            recomputePairsFromSelected(); updateBlocked(); if (useLightRender) updateRenderLightweight(); else updateRender();
+        }
+
+        function applyPairByIndex(idx, opts) {
+            if (!currentPairs || idx < 0 || idx >= currentPairs.length) return;
+            const p = currentPairs[idx];
+            if (!p) return;
+            currentPairIndex = idx;
+            applyPair(p[0], p[1], opts);
+            if (!(opts && opts.skipFocus)) {
+                setTimeout(() => { const btn = document.querySelector('.pair-btn[data-idx="' + idx + '"]'); if (btn) btn.focus(); }, 40);
+            }
+        }
+
+        function applyTailByIndex(idx, opts) {
+            if (!currentTails || idx < 0 || idx >= currentTails.length) return;
+            const t = currentTails[idx];
+            if (!t) return;
+            currentTailIndex = idx;
+            applyPair(t.a, t.b, opts);
+            if (!(opts && opts.skipFocus)) {
+                setTimeout(() => { const btn = document.querySelector('.tail-btn[data-tail-idx="' + idx + '"]'); if (btn) btn.focus(); }, 40);
+            }
+        }
+
+        function updatePairButtonsSelection(effective) { const el = document.getElementById('pairList'); if (!el) return; const btns = Array.from(el.querySelectorAll('.pair-btn')); btns.forEach((btn, i) => { const a = parseInt(btn.getAttribute('data-a'), 10); const b = parseInt(btn.getAttribute('data-b'), 10); if (effective && effective.has(a) && effective.has(b)) btn.classList.add('pair-selected'); else btn.classList.remove('pair-selected'); }); }
+
+        function syncPairTailWrapWidths() {
+            const left = document.getElementById('left');
+            if (!left) return;
+            const leftTable = left.querySelector('table');
+            if (!leftTable) return;
+
+            const tableWidth = Math.max(0, Math.round(leftTable.offsetWidth || leftTable.getBoundingClientRect().width || 0));
+            if (!tableWidth) return;
+
+            const pairList = document.getElementById('pairList');
+            if (pairList) {
+                pairList.style.width = tableWidth + 'px';
+                pairList.style.maxWidth = tableWidth + 'px';
+                pairList.style.boxSizing = 'border-box';
+            }
+
+            const tailList = document.getElementById('tailList');
+            if (tailList) {
+                tailList.style.width = tableWidth + 'px';
+                tailList.style.maxWidth = tableWidth + 'px';
+                tailList.style.boxSizing = 'border-box';
+            }
+        }
+
+        function refreshPairTailSelectionState() {
+            const effective = new Set();
+            if (submitActive) { simulatedSelected.forEach(n => effective.add(n)); }
+            else { selected.forEach(n => effective.add(n)); }
+
+            updatePairButtonsSelection(effective);
+
+            const tailEl = document.getElementById('tailList');
+            if (tailEl) {
+                const tbtns = Array.from(tailEl.querySelectorAll('.pair-btn'));
+                tbtns.forEach(btn => {
+                    const a = parseInt(btn.getAttribute('data-a'), 10);
+                    const b = parseInt(btn.getAttribute('data-b'), 10);
+                    if (effective.has(a) && effective.has(b)) btn.classList.add('pair-selected');
+                    else btn.classList.remove('pair-selected');
+                });
+            }
+        }
+
+        function updatePairList() {
+            const el = document.getElementById('pairList'); if (!el) return;
+            const pairs = computePairs() || [];
+            currentPairs = pairs;
+            if (pairs.length === 0) { el.textContent = 'pair[0]:'; currentPairIndex = -1; return; }
+            const effective = new Set(); if (submitActive) { simulatedSelected.forEach(n => effective.add(n)); } else { selected.forEach(n => effective.add(n)); }
+            const displayLines = raw.lines.slice(0, 10);
+            const pairsWithMain = pairs.map(p => { const a = p[0], b = p[1]; const mains = []; for (let idx = 0; idx < displayLines.length; idx++) { const nums = getNumsFromLineObj(displayLines[idx]); if (nums.indexOf(a) !== -1 && nums.indexOf(b) !== -1) { mains.push(displayLines.length - idx); } } const main = (mains.length > 0) ? Math.min(...mains) : Infinity; return { pair: p, main }; });
+            pairsWithMain.sort((x, y) => { if (x.main !== y.main) return x.main - y.main; if (x.pair[0] !== y.pair[0]) return x.pair[0] - y.pair[0]; return x.pair[1] - y.pair[1]; });
+            const sortedPairs = pairsWithMain.map(x => x.pair); currentPairs = sortedPairs;
+            let firstMatch = -1;
+            for (let i = 0; i < sortedPairs.length; i++) { const p = sortedPairs[i]; if (effective.has(p[0]) && effective.has(p[1])) { firstMatch = i; break; } }
+            if (firstMatch >= 0) { if (currentPairIndex < 0) currentPairIndex = firstMatch; else { const cp = currentPairs[currentPairIndex]; if (!cp || !(effective.has(cp[0]) && effective.has(cp[1]))) currentPairIndex = firstMatch; } } else if (currentPairIndex >= 0) { const cp = currentPairs[currentPairIndex]; if (!cp || !(effective.has(cp[0]) && effective.has(cp[1]))) currentPairIndex = -1; }
+            el.innerHTML = 'pair[' + sortedPairs.length + ']: ' + pairsWithMain.map((o, i) => { const p = o.pair; const a = p[0], b = p[1]; const main = isFinite(o.main) ? o.main : '-'; return `<button type="button" class="pair-btn" data-idx="${i}" data-a="${a}" data-b="${b}" data-main="${main}">${main}:{${a},${b}}</button>`; }).join(' ');
+            const buttons = Array.from(el.querySelectorAll('.pair-btn'));
+            buttons.forEach((btn, idx) => { btn.addEventListener('click', function (ev) { ev.preventDefault(); const a = parseInt(btn.getAttribute('data-a'), 10); const b = parseInt(btn.getAttribute('data-b'), 10); try { lastClickedRegion = 'pairList'; lastClickedNumber = b; pushPhaseHistory('pairList', b, null); } catch (e) { } if (selected.has(a) && selected.has(b)) { toggleNumber(a); toggleNumber(b); currentPairIndex = -1; } else { applyPairByIndex(idx); } }); });
+            updatePairButtonsSelection(effective);
+            syncPairTailWrapWidths();
+        }
+
+        function renderTable1() {
+            const left = document.getElementById('left');
+            if (!raw) {
+                // scaffold left table when no data yet
+                let html = '<table><tr><th>Số lần</th><th>Các số</th><th>Tổng</th></tr>';
+                // show a few placeholder frequency rows
+                for (let f = 5; f >= 1; f--) {
+                    html += '<tr>';
+                    html += '<td>' + f + '</td>';
+                    html += '<td>';
+                    for (let k = 0; k < 8; k++) html += '<span class="cell placeholder">&nbsp;</span>';
+                    html += '</td>';
+                    html += '<td>--</td>';
+                    html += '</tr>';
+                }
+                html += '</table>';
+                left.innerHTML = html;
+                return;
+            }
+            let { freq, firstNums } = raw;
+            // aggregate note/nonexist from the first 10 rows (to enable left-table highlights for freq==1)
+            let aggregatedNoteSet = [];
+            let aggregatedNonexistSet = [];
+            raw.lines.slice(0, 10).forEach(lineObj => {
+                if (lineObj && typeof lineObj !== 'string') {
+                    if (lineObj.note) {
+                        let all = lineObj.note.matchAll(/\{([^}]*)\}/g);
+                        for (const m of all) { if (m && m[1]) { let nums = m[1].split(',').map(x => parseInt(x.trim(), 10)).filter(n => !isNaN(n)); aggregatedNoteSet.push(...nums); } }
+                    }
+                    if (lineObj.nonexist) {
+                        let nums = (lineObj.nonexist || "").split(',').map(x => parseInt(x.trim(), 10)).filter(n => !isNaN(n));
+                        aggregatedNonexistSet.push(...nums);
+                    }
+                }
+            });
+            aggregatedNoteSet = Array.from(new Set(aggregatedNoteSet));
+            aggregatedNonexistSet = Array.from(new Set(aggregatedNonexistSet));
+
+            let blockCount = blockedSet.size;
+            let blockLabel = `<div style="display:flex;justify-content:space-between;align-items:center;"><span>Các số</span><span style="font-weight:bold;text-align:right;">${blockCount}</span></div>`;
+            let html = `<table><tr><th>Số lần</th><th>${blockLabel}</th><th>Tổng</th></tr>`;
+            let groups = {};
+            Object.entries(freq).forEach(([n, f]) => { if (!groups[f]) groups[f] = []; groups[f].push(parseInt(n)); });
+            Object.keys(groups).sort((a, b) => b - a).forEach(f => {
+                let arr = groups[f];
+                html += "<tr>";
+                html += "<td>" + f + "</td>";
+                // convert frequency key to int for comparisons
+                let freqInt = parseInt(f, 10);
+                html += "<td>" + arr.map(n => {
+                    let cls = "";
+                    // do NOT apply red underline to submitted answer numbers
+                    if (!(submitActive && answerNums.includes(n)) && firstNums.includes(n)) cls += " red";
+                    if (selected.has(n)) cls += " selected";
+                    if (isBlocked(n)) cls += " blocked";
+                    // apply aggregated note/nonexist highlights only for freq==1
+                    if (freqInt === 1) {
+                        if (aggregatedNoteSet.indexOf(n) !== -1) cls += ' note-highlight';
+                        if (aggregatedNonexistSet.indexOf(n) !== -1) cls += ' nonexist-intersect';
+                    }
+                    // allow click only when submit is OFF and the number is not blocked
+                    let clickAttr = (!submitActive && !isBlocked(n)) ? `onclick="onNumberCellClick(${n},'left')"` : "";
+                    let style = "";
+                    // determine submit-time text color if submitActive (only when freq==1)
+                    let submitTextColor = null;
+                    if (submitActive && freqInt === 1) {
+                        if (aggregatedNoteSet.indexOf(n) !== -1) submitTextColor = '#00d9f2';
+                        else if (aggregatedNonexistSet.indexOf(n) !== -1) submitTextColor = '#f0c840';
+                    }
+                    if (isBlocked(n)) {
+                        // Use class-based blocked styling (match ok.py): .blocked{background:black;color:var(--blocked-default)}
+                        // cls already includes 'blocked' earlier; avoid inline styles here so the CSS rule applies uniformly.
+                    } else if (submitActive && answerNums.includes(n)) {
+                        // mark submitted numbers with a class — CSS maps their text color by semantic class
+                        cls += ' submit-highlight';
+                    } else if (submitActive && submitTextColor) {
+                        style = `color:${submitTextColor};font-weight:bold;`;
+                    }
+                    return `<span class="cell num${cls}" data-num="${n}" ${clickAttr} style='${style}'>${n}</span>`;
+                }).join("") + "</td>";
+                html += "<td>" + arr.length + "</td>";
+                html += "</tr>";
+            });
+            html += "</table>";
+            // append tail buttons under the table (same behavior as ok.py)
+            try {
+                const tails = computeTails();
+                if (tails && tails.length) {
+                    html += '<div id="tailList" style="margin-top:8px;font-size:13px;font-weight:bold;display:flex;align-items:center;flex-wrap:wrap;gap:6px;box-sizing:border-box;">';
+                    html += 'tail[' + tails.length + ']: ';
+                    for (let ti = 0; ti < tails.length; ti++) {
+                        const t = tails[ti]; const a = t.a, b = t.b, main = (t.main === Infinity) ? '-' : t.main;
+                        html += '<button type="button" class="pair-btn tail-btn" data-tail-idx="' + ti + '" data-a="' + a + '" data-b="' + b + '" data-main="' + main + '">' + main + ':{' + a + ',' + b + '}</button>';
+                    }
+                    html += '</div>';
+                }
+            } catch (e) { console.error(e); }
+
+            left.innerHTML = html;
+
+            // Attach click handlers for tail buttons and set selection state
+            try {
+                currentTails = computeTails() || [];
+                const tailEl = document.getElementById('tailList');
+                if (tailEl) {
+                    const tbtns = Array.from(tailEl.querySelectorAll('.pair-btn'));
+                    tbtns.forEach((btn, idx) => {
+                        btn.addEventListener('click', function (ev) {
+                            ev.preventDefault();
+                            const a = parseInt(btn.getAttribute('data-a'), 10);
+                            const b = parseInt(btn.getAttribute('data-b'), 10);
+                            try { lastClickedRegion = 'tailList'; lastClickedNumber = b; currentTailIndex = idx; pushPhaseHistory('tailList', b, null); } catch (e) { }
+                            if (selected.has(a) && selected.has(b)) {
+                                toggleNumber(a); toggleNumber(b); currentTailIndex = -1;
+                            } else {
+                                applyPair(a, b);
+                            }
+                        });
+                    });
+
+                    const effective = new Set();
+                    if (submitActive) { simulatedSelected.forEach(n => effective.add(n)); }
+                    else { selected.forEach(n => effective.add(n)); }
+
+                    let firstMatch = -1;
+                    for (let i = 0; i < currentTails.length; i++) { const t = currentTails[i]; if (!t) continue; if (effective.has(t.a) && effective.has(t.b)) { firstMatch = i; break; } }
+                    if (firstMatch >= 0) { if (currentTailIndex < 0) currentTailIndex = firstMatch; else { const ct = currentTails[currentTailIndex]; if (!ct || !(effective.has(ct.a) && effective.has(ct.b))) currentTailIndex = firstMatch; } } else if (currentTailIndex >= 0) { const ct = currentTails[currentTailIndex]; if (!ct || !(effective.has(ct.a) && effective.has(ct.b))) currentTailIndex = -1; }
+
+                    tbtns.forEach(btn => {
+                        const a = parseInt(btn.getAttribute('data-a'), 10);
+                        const b = parseInt(btn.getAttribute('data-b'), 10);
+                        if (effective && effective.has(a) && effective.has(b)) btn.classList.add('pair-selected'); else btn.classList.remove('pair-selected');
+                    });
+                }
+            } catch (e) { }
+        }
+
+        function renderTable2() {
+            const right = document.getElementById('right');
+            if (!raw) {
+                // scaffold right table (10 placeholder rows)
+                let html = '<table style="width:100%">';
+                for (let i = 0; i < 10; i++) {
+                    html += '<tr>';
+                    html += '<td style="position:relative"><span class="skeleton-label">Chuỗi ' + (10 - i) + '</span></td>';
+                    html += '<td style="font-size:13px;position:relative;">';
+                    for (let j = 0; j < 5; j++) html += '<span class="cell placeholder">&nbsp;</span>';
+                    html += '<button id="copyBtn-' + i + '" class="copyBtn">📑</button>';
+                    html += '</td>';
+                    html += '</tr>';
+                    // pattern / freq placeholder row
+                    html += '<tr><td style="font-size:12px;">----</td><td style="font-size:12px;">';
+                    for (let j = 0; j < 5; j++) html += '<span class="cell placeholder">&nbsp;</span>';
+                    html += '</td></tr>';
+                }
+                html += '</table>';
+                right.innerHTML = html;
+                // compute layout for scaffold
+                setTimeout(function () { computeAndApplyHeights(); }, 0);
+                return;
+            }
+            let { lines, freq } = raw;
+            let displayLines = lines.slice(0, 10);
+
+            // Pattern counting
+            const patternCount = {};
+            displayLines.forEach(lineObj => { const nums = getNumsFromLineObj(lineObj); const freqArr = nums.map(n => freq[n] || 0); const sortedFreq = [...freqArr].sort((a, b) => a - b); const pattern = sortedFreq.join(''); patternCount[pattern] = (patternCount[pattern] || 0) + 1; });
+            const colorList = ["#ff4444", "#44aa44", "#4466ff", "#ffaa00", "#aa44ff", "#00aaaa", "#ff66aa", "#8888ff"]; let colorIndex = 0; const patternColorMap = {}; Object.keys(patternCount).forEach(p => { if (patternCount[p] >= 2) patternColorMap[p] = colorList[(colorIndex++) % colorList.length]; });
+
+            // Build id->index map for reference highlighting
+            let idToIndex = {}; let baseFound = false, baseId = null, baseIndex = null;
+            displayLines.forEach((lineObj, idx) => { let noteText = (lineObj && lineObj.note) ? String(lineObj.note) : ''; let idMatch = noteText.match(/([0-9]+)\s*-/); if (idMatch) { const idNum = parseInt(idMatch[1], 10); if (!isNaN(idNum)) { idToIndex[idNum] = idx; if (!baseFound) { baseFound = true; baseId = idNum; baseIndex = idx; } } } });
+            let inferredStep = null; if (baseFound) { for (const k in idToIndex) { const idNum = parseInt(k, 10); const idx = idToIndex[k]; if (idNum === baseId) continue; const deltaId = idNum - baseId; const deltaIdx = idx - baseIndex; if (deltaIdx !== 0) { const step = Math.round(deltaId / deltaIdx); if (step !== 0) { inferredStep = step; break; } } } } if (inferredStep === null) inferredStep = -1;
+            const highlightRefs = new Array(displayLines.length).fill(0); const highlightRefs11 = new Array(displayLines.length).fill(0); const supMap = { '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁰': '0' };
+            displayLines.forEach((lineObj, idx) => { if (!lineObj || !lineObj.note) return; let noteText = String(lineObj.note || ''); const reRef = /([0-9]+)-([0-9]+)([¹²³⁴⁵⁶⁷⁸⁹⁰]*)/g; let m; while ((m = reRef.exec(noteText)) !== null) { const refId = parseInt(m[2], 10); const supStr = m[3] || ''; let exp = 1; if (supStr.length) { let digits = ''; for (const ch of supStr) digits += (supMap[ch] || ''); if (digits.length) { let v = parseInt(digits, 10); if (!isNaN(v)) exp = v; } } let j = null; if (idToIndex.hasOwnProperty(refId)) { j = idToIndex[refId]; highlightRefs[j] = Math.max(highlightRefs[j], exp); } else if (baseFound) { j = baseIndex + Math.round((refId - baseId) / inferredStep); if (j >= 0 && j < displayLines.length) highlightRefs[j] = Math.max(highlightRefs[j], exp); else j = null; } } });
+            if (submitActive && raw && Array.isArray(raw.lines) && raw.lines.length > 10) { const eleventh = raw.lines[10]; if (eleventh && eleventh.note) { let noteText = String(eleventh.note || ''); const reRef11 = /([0-9]+)-([0-9]+)([¹²³⁴⁵⁶⁷⁸⁹⁰]*)/g; let mm; while ((mm = reRef11.exec(noteText)) !== null) { const refId = parseInt(mm[2], 10); const supStr = mm[3] || ''; let exp = 1; if (supStr.length) { let digits = ''; for (const ch of supStr) digits += (supMap[ch] || ''); if (digits.length) { let v = parseInt(digits, 10); if (!isNaN(v)) exp = v; } } let j = null; if (idToIndex.hasOwnProperty(refId)) { j = idToIndex[refId]; highlightRefs11[j] = Math.max(highlightRefs11[j], exp); highlightRefs[j] = Math.max(highlightRefs[j], exp); } else if (baseFound) { j = baseIndex + Math.round((refId - baseId) / inferredStep); if (j >= 0 && j < displayLines.length) { highlightRefs11[j] = Math.max(highlightRefs11[j], exp); highlightRefs[j] = Math.max(highlightRefs[j], exp); } else j = null; } } } }
+
+            let html = '<table style="width:100%">';
+            displayLines.forEach((lineObj, i) => {
+                const nums = getNumsFromLineObj(lineObj);
+                // note/nonexist parsing
+                let noteSet = []; let nonexistSet = [];
+                if (lineObj && typeof lineObj !== 'string') {
+                    if (lineObj.note) { let all = lineObj.note.matchAll(/\{([^}]*)\}/g); for (const m of all) { if (m && m[1]) { let nums2 = m[1].split(',').map(x => parseInt(x.trim(), 10)).filter(n => !isNaN(n)); noteSet.push(...nums2); } } noteSet = Array.from(new Set(noteSet)); }
+                    if (lineObj.nonexist) { nonexistSet = (lineObj.nonexist || "").split(',').map(x => parseInt(x.trim(), 10)).filter(n => !isNaN(n)); }
+                }
+                // count how many answerNums this row contains so we can promote base color when >=2
+                let rowAnswerCount = 0;
+                if (Array.isArray(answerNums)) {
+                    for (let ai = 0; ai < answerNums.length; ai++) {
+                        if (nums.indexOf(answerNums[ai]) !== -1) rowAnswerCount++;
+                    }
+                }
+                let rowHasTwoOrMoreAnswers = rowAnswerCount >= 2;
+
+                // determine base reference exponent (from explicit refs)
+                let labelStyle = "";
+                const refExp = highlightRefs[i] || 0;
+                // If submit is active and the row contains >=2 answer numbers, elevate the base color
+                let effectiveRefExp = refExp;
+                if (submitActive && rowHasTwoOrMoreAnswers) {
+                    // promote by one level to make the base color stronger; cap at 4
+                    effectiveRefExp = Math.min(4, Math.max(effectiveRefExp, 0) + 1);
+                }
+                if (effectiveRefExp === 1) labelStyle = 'background-color:#EBFFEB;color:black;font-weight:bold;';
+                else if (effectiveRefExp === 2) labelStyle = 'background-color:#C8FFC8;color:black;font-weight:bold;';
+                else if (effectiveRefExp === 3) labelStyle = 'background-color:#78E678;color:black;font-weight:bold;';
+                else if (effectiveRefExp >= 4) labelStyle = 'background-color:#00B400;color:black;font-weight:bold;';
+                let chuoiTdClass = clickedChuoi.has(i) ? 'chuoi-toggled-td' : '';
+                // detect neon
+                // A chuỗi should go neon immediately when it contains at least 2 submit numbers.
+                let isNeon = submitActive && rowHasTwoOrMoreAnswers;
+                // when neon is active, mark the label cell so CSS animations apply
+                if (isNeon) chuoiTdClass = (chuoiTdClass ? chuoiTdClass + ' ' : '') + 'answer-neon animate';
+                let labelVars = '';
+                if (isNeon) labelVars = '--neon-color:#00ff66;--neon-mid:rgba(0,255,102,0.85);--neon-outer:rgba(0,255,102,0.7);--neon-inner:rgba(0,255,102,1);';
+                // NOTE: Inline SVG generation removed here to avoid being overwritten by
+                // renderTable2's innerHTML later. Neon SVGs are created programmatically
+                // by applySubmitState() via createNeonSvgElement(i) so we intentionally
+                // do not emit the SVG markup here.
+
+                // Main row
+                html += `<tr class="chuoi-main-row">`;
+                html += `<td style="${labelStyle};${labelVars}position:relative" class="${chuoiTdClass}"><span onclick="toggleChuoi(${i})" style="cursor:pointer;position:relative;z-index:2">Chuỗi ${displayLines.length - i}</span></td>`;
+                html += `<td style='font-size:13px;position:relative;'>` + nums.map(n => {
+                    let cls = selected.has(n) ? ' selected' : '';
+                    if (noteSet.indexOf(n) !== -1) cls += ' note-highlight';
+                    if (nonexistSet.indexOf(n) !== -1) cls += ' nonexist-intersect';
+                    let clickAttr = (!submitActive && !isBlocked(n)) ? `onclick="onNumberCellClick(${n},'right',${i})"` : "";
+                    // Prefer class-based blocked styling (no inline black background)
+                    if (isBlocked(n)) cls += ' blocked';
+                    let style = '';
+                    if (submitActive && answerNums.indexOf(n) !== -1) cls += ' submit-highlight';
+                    return `<span class="cell num${cls}" data-num="${n}" ${clickAttr} style='${style}'>${n}</span>`;
+                }).join('') + `<button id="copyBtn-${i}" class="copyBtn" onclick="copyLine(${i})">📑</button></td>`;
+                html += `</tr>`;
+
+                // pattern / freq row
+                const freqArr = nums.map(n => freq[n] || 0);
+                const sortedFreq = [...freqArr].sort((a, b) => a - b);
+                const pattern = sortedFreq.join('');
+                const color = patternColorMap[pattern];
+                const searchClass = matchSearchPattern(pattern) ? 'search-hit' : '';
+                if (color) html += `<tr class="chuoi-pattern-row"><td class='${searchClass}' style='font-size:12px;font-weight:bold;color:${color}'>${pattern}</td>`;
+                else html += `<tr class="chuoi-pattern-row"><td class='${searchClass}' style='font-size:12px;'>${pattern}</td>`;
+                html += `<td class='${clickedChuoi.has(i) ? "chuoi-toggled-td" : ""}' style='font-size:12px;'>` + freqArr.map((f, idx) => { const n = nums[idx]; const clickAttr = (!submitActive && !isBlocked(n)) ? `onclick="onNumberCellClick(${n},'right',${i})"` : ''; const idxClass = 'cell index'; return `<span class="${idxClass}" data-num="${n}" ${clickAttr}>${f}</span>`; }).join('') + `</td></tr>`;
+                html += `<tr class="chuoi-gap-row"><td colspan="2"></td></tr>`;
+            });
+            html += '</table>';
+            right.innerHTML = html;
+            // compute heights/widths and position floating buttons after DOM updated
+            setTimeout(function () { computeAndApplyHeights(); }, 0);
+        }
+
+        // Create/update floating copy buttons in the right-half fixed container
+        function updateFloatingCopyButtons() {
+            var container = document.getElementById('floatingCopyContainer');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'floatingCopyContainer';
+                container.className = 'floatingCopyContainer';
+                document.body.appendChild(container);
+            }
+            // remove old buttons
+            container.innerHTML = '';
+
+            if (!raw) return;
+            var right = document.getElementById('right');
+            if (!right) return;
+            var table = right.querySelector('table');
+            if (!table) return;
+
+            var mainRows = table.querySelectorAll('tr.chuoi-main-row');
+            var numLines = mainRows.length;
+            var btnH = 24;
+            for (var i = 0; i < numLines; i++) {
+                var mainRow = mainRows[i];
+                if (!mainRow) continue;
+                var td = mainRow.children[1];
+                if (!td) continue;
+                var rect = td.getBoundingClientRect();
+                var btn = document.createElement('button');
+                btn.className = 'copyBtnFloating';
+                btn.id = 'floatingCopyBtn-' + i;
+                btn.textContent = '📑';
+                // compute top in viewport coordinates (container.top == 0)
+                var top = rect.top + rect.height / 2 - btnH / 2;
+                top = Math.max(4, Math.min(window.innerHeight - btnH - 4, top));
+                btn.style.top = top + 'px';
+                // place the button just to the right of the numbers cell
+                var btnW = 24;
+                var leftX = Math.round(rect.right + 6); // 6px gap
+                // clamp to viewport so it doesn't go off-screen
+                if (leftX + btnW > window.innerWidth - 4) leftX = window.innerWidth - btnW - 4;
+                if (leftX < 4) leftX = 4;
+                btn.style.left = leftX + 'px';
+                (function (idx) { btn.addEventListener('click', function (e) { e.stopPropagation(); copyLine(idx); }); })(i);
+                container.appendChild(btn);
+            }
+        }
+
+        // Compute available iframe/container height, apply it to #right and .tableWrapper,
+        // center the table when it fits, and toggle overflow so no internal scrollbar appears.
+        // After sizing, align the actions row to the left table and center the whole group
+        // (left table + right table) inside the left-half of the viewport.
+        function alignTableActionsAndCenter() {
+            try {
+                var container = document.querySelector('.container');
+                var leftContainer = document.querySelector('.left-container');
+                var wrapper = document.querySelector('.tableWrapper');
+                var left = document.getElementById('left');
+                var right = document.getElementById('right');
+                var actions = document.querySelector('.tableActions');
+                var midwrap = document.querySelector('.midwrap') || container.parentElement;
+                if (!container || !leftContainer || !left || !actions) return;
+                var leftTable = left.querySelector('table') || (wrapper && wrapper.querySelector('table'));
+                var rightTable = right ? right.querySelector('table') : null;
+                if (!leftTable) { actions.style.display = 'none'; return; }
+
+                // Ensure the left-container has the scale applied (read CSS var from .left-container)
+                var csLeftCont = window.getComputedStyle(leftContainer);
+                var currentTransform = csLeftCont.transform;
+                if (!currentTransform || currentTransform === 'none') {
+                    var scaleVar = csLeftCont.getPropertyValue('--left-table-scale') || '';
+                    var scaleVal = parseFloat(scaleVar) || 1;
+                    leftContainer.style.transform = 'scale(' + scaleVal + ')';
+                    leftContainer.style.transformOrigin = 'left center';
+                }
+
+                // Force layout so boundingClientRect reflects the applied scale
+                leftContainer.getBoundingClientRect();
+
+                // Measure widths: scaled (getBoundingClientRect) and unscaled (offsetWidth)
+                var scaledLeftWidth = leftTable.getBoundingClientRect().width;
+                var unscaledLeftWidth = leftTable.offsetWidth;
+                var rightW = rightTable ? rightTable.getBoundingClientRect().width : 0;
+                var gapPx = parseFloat(getComputedStyle(container).gap) || 0;
+
+                // Make actions match left table width in unscaled px so after left-container transform it matches visually
+                actions.style.width = Math.round(unscaledLeftWidth) + 'px';
+                actions.style.marginLeft = '0';
+                actions.style.display = 'flex';
+
+                // Compute desired left coordinate so the combined group is centered in the left half
+                var totalW = scaledLeftWidth + rightW + gapPx;
+                var leftHalf = (window.innerWidth || document.documentElement.clientWidth) / 2;
+                var marginLeftToSet = Math.max(0, Math.round((leftHalf - totalW) / 2));
+                container.style.marginLeft = marginLeftToSet + 'px';
+
+                // Since .left-container is absolutely positioned (out of flow), push the right column
+                // to start after the visual width of the left pane so it can occupy the freed space.
+                try {
+                    if (right) {
+                        right.style.marginLeft = Math.round(scaledLeftWidth + gapPx) + 'px';
+                    }
+                } catch (e) { /* ignore */ }
+
+                syncPairTailWrapWidths();
+            } catch (e) { console.error(e); }
+        }
+        function computeAndApplyHeights() {
+            var container = document.querySelector('.container');
+            var right = document.getElementById('right');
+            var tableWrapper = document.querySelector('.tableWrapper');
+            var left = document.getElementById('left');
+            if (!right || !container) return;
+
+            // Compute available height inside the viewport below the container's top edge.
+            var containerRect = container.getBoundingClientRect();
+            var viewportH = window.innerHeight || document.documentElement.clientHeight;
+            var bottomGap = 8; // small breathing room from bottom edge
+            var availableH = Math.max(0, Math.floor(viewportH - containerRect.top - bottomGap));
+
+            // Apply computed height to the right column and left table wrapper so they match.
+            right.style.height = availableH + 'px';
+            right.style.maxHeight = availableH + 'px';
+            if (tableWrapper) tableWrapper.style.height = availableH + 'px';
+
+            var table = right.querySelector('table');
+            var leftTable = left ? left.querySelector('table') : null;
+            if (!table) return;
+
+            // Reset any previous transforms / CSS var overrides
+            table.style.transform = '';
+            table.style.transformOrigin = '';
+            var leftContainer = document.querySelector('.left-container');
+            if (leftContainer) {
+                leftContainer.style.transform = '';
+                leftContainer.style.transformOrigin = '';
+                // reset right margin when clearing transforms
+                try { var rightEl = document.getElementById('right'); if (rightEl) rightEl.style.marginLeft = ''; } catch (e) { }
+            }
+            if (leftTable) {
+                leftTable.style.transform = '';
+                leftTable.style.transformOrigin = '';
+            }
+            right.style.removeProperty('--right-row-padding');
+            right.style.removeProperty('--right-font-size');
+            right.style.removeProperty('--right-line-height');
+
+            // Measure helper
+            function measureTableHeight() { return table.offsetHeight; }
+
+            var tableH = measureTableHeight();
+
+            // If it already fits, center and exit
+            if (tableH <= availableH) {
+                var top = Math.max(0, Math.floor((availableH - tableH) / 2));
+                table.style.marginTop = top + 'px';
+                if (leftTable) leftTable.style.marginTop = top + 'px';
+                right.style.overflowY = 'hidden';
+                // align actions and center group, then position floating buttons
+                alignTableActionsAndCenter();
+                updateFloatingCopyButtons();
+                try { updateFocusIndicator(); } catch (e) { }
+                return;
+            }
+
+            // Try progressively reducing row padding
+            var fitted = false;
+            var startPad = 8, minPad = 2;
+            for (var p = startPad; p >= minPad; p--) {
+                right.style.setProperty('--right-row-padding', p + 'px');
+                tableH = measureTableHeight();
+                if (tableH <= availableH) { fitted = true; break; }
+            }
+
+            // If still too tall, reduce font-size and line-height
+            if (!fitted) {
+                var startFont = 11, minFont = 9;
+                for (var f = startFont; f >= minFont; f--) {
+                    right.style.setProperty('--right-font-size', f + 'px');
+                    // set a reasonable line-height for the font
+                    var lh = Math.max(12, Math.round(f * 1.45));
+                    right.style.setProperty('--right-line-height', lh + 'px');
+                    tableH = measureTableHeight();
+                    if (tableH <= availableH) { fitted = true; break; }
+                }
+            }
+
+            // If still doesn't fit, apply a last-resort scale so it visually fits
+            if (!fitted) {
+                tableH = measureTableHeight();
+                var scale = availableH / tableH;
+                // constrain scale to avoid unreadably small layout
+                var minScale = 0.7;
+                if (scale < 1) {
+                    var appliedScale = Math.max(scale, minScale);
+                    table.style.transform = 'scale(' + appliedScale + ')';
+                    table.style.transformOrigin = 'top left';
+                    var leftContainer = document.querySelector('.left-container');
+                    if (leftContainer) {
+                        leftContainer.style.transform = table.style.transform;
+                        leftContainer.style.transformOrigin = 'left center';
+                    }
+                    // after scaling, compute scaled height using getBoundingClientRect
+                    var scaledH = table.getBoundingClientRect().height;
+                    var top = Math.max(0, Math.floor((availableH - scaledH) / 2));
+                    table.style.marginTop = top + 'px';
+                    if (leftTable) leftTable.style.marginTop = top + 'px';
+                    right.style.overflowY = 'hidden';
+                    // align actions and center group, then position floating buttons
+                    alignTableActionsAndCenter();
+                    updateFloatingCopyButtons();
+                    try { updateFocusIndicator(); } catch (e) { }
+                    return;
+                }
+            }
+
+            // Final measurement: center if it fits, otherwise allow scroll
+            tableH = measureTableHeight();
+            if (tableH <= availableH) {
+                var top2 = Math.max(0, Math.floor((availableH - tableH) / 2));
+                table.style.marginTop = top2 + 'px';
+                if (leftTable) leftTable.style.marginTop = top2 + 'px';
+                right.style.overflowY = 'hidden';
+            } else {
+                table.style.marginTop = '0px';
+                if (leftTable) leftTable.style.marginTop = '0px';
+                right.style.overflowY = 'auto';
+            }
+
+            // align actions and center group, then position floating buttons
+            alignTableActionsAndCenter();
+            updateFloatingCopyButtons();
+            try { updateFocusIndicator(); } catch (e) { }
+        }
+
+        // keep floating buttons and layout updated on resize and when right column scrolls
+        window.addEventListener('resize', computeAndApplyHeights);
+        window.addEventListener('resize', function () { try { updateFocusIndicator(); } catch (e) { } });
+        window.addEventListener('scroll', function () { try { updateFocusIndicator(); } catch (e) { } });
+        // also attach immediately (script is near end of body) in case DOMContentLoaded already fired
+        function bindRightScrollHandlers() {
+            var r = document.getElementById('right');
+            if (!r) return;
+            if (r.dataset && r.dataset.focusScrollBound === '1') return;
+            if (r.dataset) r.dataset.focusScrollBound = '1';
+            r.addEventListener('scroll', function () { updateFloatingCopyButtons(); try { updateFocusIndicator(); } catch (e) { } });
+        }
+        (function () { bindRightScrollHandlers(); })();
+        document.addEventListener('DOMContentLoaded', function () {
+            updateRender();
+            computeAndApplyHeights();
+            try { updateFocusIndicator(); } catch (e) { }
+            bindRightScrollHandlers();
+        });
+
+        // copyLine helper
+        function copyLine(idx) { if (!raw) return; const row = raw.lines[idx] || {}; const txt = (row.result || '') + (row.note ? '\t' + row.note : '') + (row.nonexist ? '\t' + row.nonexist : ''); try { navigator.clipboard.writeText(txt); } catch (e) { } }
+
+        // Keyboard helpers: 'q' undo last selected number, Space toggles submit preview (5 numbers)
+        function undoLastSelection() {
+            try {
+                // Do not allow undo while submit preview is active
+                if (submitActive) return;
+                if (pickOrder && pickOrder.length) {
+                    var last = pickOrder.pop();
+                    selected.delete(last);
+                    try { transientSelected.delete(last); simulatedSelected.delete(last); } catch (e) { }
+                    try {
+                        var els = document.querySelectorAll('.cell.num[data-num="' + last + '"]');
+                        els.forEach(function (el) {
+                            el.classList.remove('selected');
+                            el.classList.remove('answer-neon');
+                            el.classList.remove('submit-highlight');
+                            el.classList.remove('animate');
+                            // blocked will be recalculated below; remove to avoid stale visuals
+                            el.classList.remove('blocked');
+                        });
+                        var idxEls = document.querySelectorAll('.cell.index[data-num="' + last + '"]');
+                        idxEls.forEach(function (el) {
+                            el.classList.remove('idx-highlight');
+                            el.classList.remove('blocked');
+                        });
+                    } catch (ee) { }
+
+                    // Recompute derived state and apply minimal DOM updates
+                    try {
+                        recomputePairsFromSelected();
+                        updateBlocked();
+                        try { refreshPairTailSelectionState(); } catch (e) { }
+                        // applySelectionAndBlockedInDOM updates number/index blocks and selection ring in-place
+                        try { applySelectionAndBlockedInDOM(last); } catch (e) { /* fallback below */ }
+                        updateFloatingCopyButtons();
+                        alignTableActionsAndCenter();
+                    } catch (err) {
+                        // Fallback to full rerender if incremental update fails
+                        try { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); } catch (ee) { }
+                    }
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        // Toggle clear/restore all selected numbers (used by Reset button and 'q' key)
+        function toggleClearSelection() {
+            try {
+                if (submitActive) return; // do nothing during submit preview
+                if (!selectionCleared) {
+                    // backup current selection and order
+                    clearedSelectionBackup = new Set(selected);
+                    clearedPickOrderBackup = pickOrder ? pickOrder.slice() : [];
+                    // backup current focus/phase state so q->q can restore exact arrow position
+                    clearedFocusBackup = {
+                        lastClickedRegion: lastClickedRegion,
+                        lastClickedRow: lastClickedRow,
+                        lastClickedNumber: lastClickedNumber,
+                        currentPhaseNumber: currentPhaseNumber,
+                        currentPhaseRow: currentPhaseRow
+                    };
+                    // clear current selection
+                    selected = new Set();
+                    // also clear transient and simulated selections so focus indicator hides
+                    transientSelected.clear();
+                    simulatedSelected.clear();
+                    pickOrder = [];
+                    selectionCleared = true;
+                    // clear focus/phase state so arrow hides and nav doesn't auto-reselect
+                    try {
+                        currentPhaseNumber = null;
+                        currentPhaseRow = null;
+                        lastClickedNumber = null;
+                        lastClickedRow = null;
+                        lastClickedRegion = null;
+                        // keep phaseHistory so undo (q again) can restore previous phase targets
+                    } catch (ee) { }
+                } else {
+                    // restore
+                    if (clearedSelectionBackup) selected = new Set(clearedSelectionBackup);
+                    else selected = new Set();
+                    pickOrder = clearedPickOrderBackup ? clearedPickOrderBackup.slice() : [];
+                    clearedSelectionBackup = null;
+                    clearedPickOrderBackup = null;
+                    selectionCleared = false;
+                    // restore exact pre-clear focus first, then fallback to history/pickOrder
+                    try {
+                        var restored = false;
+                        if (clearedFocusBackup) {
+                            var focusNum = (clearedFocusBackup.currentPhaseNumber != null)
+                                ? clearedFocusBackup.currentPhaseNumber
+                                : clearedFocusBackup.lastClickedNumber;
+                            if (focusNum != null && selected.has(focusNum)) {
+                                lastClickedRegion = clearedFocusBackup.lastClickedRegion || 'left';
+                                lastClickedRow = (typeof clearedFocusBackup.lastClickedRow === 'number') ? clearedFocusBackup.lastClickedRow : null;
+                                lastClickedNumber = focusNum;
+                                currentPhaseNumber = focusNum;
+                                currentPhaseRow = (typeof clearedFocusBackup.currentPhaseRow === 'number') ? clearedFocusBackup.currentPhaseRow : null;
+                                restored = true;
+                                try { pushPhaseHistory(lastClickedRegion, focusNum, currentPhaseRow); } catch (e) { }
+                            }
+                        }
+                        if (!restored) {
+                            try { restored = restorePreviousPhase(); } catch (e) { restored = false; }
+                        }
+                        if (!restored) {
+                            if (pickOrder && pickOrder.length) {
+                                lastClickedRegion = 'left';
+                                lastClickedNumber = pickOrder[pickOrder.length - 1];
+                                currentPhaseNumber = lastClickedNumber;
+                                try { pushPhaseHistory(lastClickedRegion, lastClickedNumber, currentPhaseRow); } catch (e) { }
+                            } else {
+                                lastClickedRegion = 'left';
+                                lastClickedNumber = null;
+                                currentPhaseNumber = null;
+                            }
+                        }
+                    } catch (ee) { }
+                    clearedFocusBackup = null;
+                }
+
+                // recompute derived state and update DOM in-place
+                try { recomputePairsFromSelected(); } catch (e) { }
+                try { updateBlocked(); } catch (e) { }
+                try { refreshPairTailSelectionState(); } catch (e) { }
+                try { applySelectionAndBlockedInDOM(); updateFloatingCopyButtons(); alignTableActionsAndCenter(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); }
+                try { updateFocusIndicator(); } catch (e) { }
+            } catch (e) { console.error(e); }
+        }
+
+        function toggleSubmitOnSpace() {
+            try {
+                if (disableSubmitForCurrentData) return;
+                if (!answerNums || !answerNums.length) return;
+                submitActive = !submitActive;
+                var modeEl = document.getElementById('mode');
+                if (modeEl) {
+                    modeEl.disabled = submitActive;
+                    modeEl.classList.toggle('synced-mode', submitActive);
+                }
+                // keep submit button appearance in sync with preview state
+                try { var sb = document.getElementById('submitBtn'); if (sb) sb.classList.toggle('active', submitActive); } catch (e) { }
+                if (submitActive) {
+                    preSubmitSelected = new Set(selected);
+                    preSubmitOrder = pickOrder ? pickOrder.slice() : [];
+                    try {
+                        pickOrder = answerNums ? answerNums.slice(0, 5) : [];
+                    } catch (e) {
+                        pickOrder = [];
+                    }
+
+                    // set simulated picks for preview
+                    simulatedSelected.clear();
+                    (answerNums || []).forEach(n => simulatedSelected.add(n));
+
+                    // Sync mode only when user explicitly toggles Submit ON (same as ok.py)
+                    if (raw && answerNums && answerNums.length) {
+                        var linesLocal = raw.lines || [];
+                        var pairLines = 0;
+                        var tripleFound = false;
+                        var singleLines = 0;
+                        for (var i = 0; i < Math.min(linesLocal.length, 10); i++) {
+                            var nums = getNumsFromLineObj(linesLocal[i]);
+                            var matched = answerNums.filter(function (n) { return nums.includes(n); });
+                            if (matched.length >= 3) { tripleFound = true; break; }
+                            if (matched.length >= 2) pairLines++;
+                        }
+                        for (var j = 0; j < Math.min(linesLocal.length, 10); j++) {
+                            var numsSingle = getNumsFromLineObj(linesLocal[j]);
+                            var matchedSingle = answerNums.filter(function (n) { return numsSingle.includes(n); });
+                            if (matchedSingle.length >= 1) singleLines++;
+                        }
+
+                        var newMode = null;
+                        if (tripleFound) newMode = 'triple1';
+                        else if (pairLines >= 5) newMode = 'pair5';
+                        else if (pairLines >= 4) newMode = 'pair4';
+                        else if (pairLines >= 3) newMode = 'pair3';
+                        else if (pairLines === 2) newMode = 'pair2';
+                        else if (pairLines === 1) newMode = 'pair1';
+                        else if (singleLines > 0) newMode = 'modeq';
+
+                        if (newMode && modeEl) {
+                            if (userModeBeforeSubmit === null) userModeBeforeSubmit = modeEl.value;
+                            modeEl.value = newMode;
+                            modeEl.classList.add('synced-mode');
+                            modeSynced = true;
+                        } else {
+                            modeSynced = false;
+                        }
+                    }
+
+                    recomputePairsFromSelected();
+                    updateBlocked();
+                } else {
+                    // Restore previous manual picks/order when Submit is turned OFF
+                    try {
+                        if (preSubmitOrder && preSubmitOrder.length) pickOrder = preSubmitOrder.slice();
+                        else pickOrder = [];
+                        if (preSubmitSelected) selected = new Set(preSubmitSelected);
+                    } catch (e) { }
+
+                    // clear preview simulated picks
+                    simulatedSelected.clear();
+                    if (modeSynced && userModeBeforeSubmit !== null && modeEl) {
+                        modeEl.value = userModeBeforeSubmit;
+                        modeEl.classList.remove('synced-mode');
+                    }
+                    if (modeEl) modeEl.classList.remove('synced-mode');
+                    userModeBeforeSubmit = null;
+                    modeSynced = false;
+                    preSubmitSelected = null;
+                    preSubmitOrder = null;
+                    recomputePairsFromSelected();
+                    updateBlocked();
+                }
+                // Try to apply submit state in-place to avoid full rerender and visual tearing
+                try {
+                    if (raw && document.getElementById('right') && document.getElementById('left')) {
+                        applySubmitState();
+                        try { updatePairList(); } catch (e) { }
+                        refreshPairTailSelectionState();
+                        return;
+                    }
+                } catch (e) { /* fallback below */ }
+                // fallback: full rerender when DOM not present
+                renderTable1(); renderTable2(); try { updatePairList(); } catch (e) { } try { refreshPairTailSelectionState(); } catch (e) { } alignTableActionsAndCenter(); updateFloatingCopyButtons();
+            } catch (e) { console.error(e); }
+        }
+
+        // Rebuild submit-preview state for the current raw dataset without manual submit toggling.
+        function syncSubmitStateForNewData() {
+            try {
+                debugLog('syncSubmitStateForNewData() start', { submitActive: submitActive, hasRaw: !!raw, answerNums: answerNums, pickOrder: pickOrder });
+                if (!submitActive || !raw) return;
+
+                var derivedAnswers = [];
+
+                // Prefer explicit answers from the 11th row of current dataset.
+                if (Array.isArray(raw.lines) && raw.lines.length > 10) {
+                    var eleventh = raw.lines[10] || {};
+                    var ansLine = (eleventh.result || '').split('|')[0].trim();
+                    if (ansLine.length) {
+                        derivedAnswers = ansLine.split(',').map(function (x) { return parseInt(x, 10); }).filter(function (n) { return !isNaN(n); });
+                        debugLog('syncSubmitStateForNewData: derived from 11th-line', derivedAnswers);
+                    }
+                }
+
+                // Fallbacks must be derived from the NEW data, not previous submit cache.
+                if (!derivedAnswers || derivedAnswers.length < 5) {
+                    if (pickOrder && pickOrder.length >= 5) {
+                        derivedAnswers = pickOrder.slice(-5);
+                        debugLog('syncSubmitStateForNewData: fallback to pickOrder', derivedAnswers);
+                    } else if (raw && Array.isArray(raw.firstNums) && raw.firstNums.length >= 5) {
+                        derivedAnswers = raw.firstNums.slice(0, 5);
+                        debugLog('syncSubmitStateForNewData: fallback to raw.firstNums', derivedAnswers);
+                    } else if (raw && raw.freq) {
+                        var entries = Object.entries(raw.freq || {});
+                        entries.sort(function (a, b) {
+                            if (b[1] !== a[1]) return b[1] - a[1];
+                            return parseInt(a[0], 10) - parseInt(b[0], 10);
+                        });
+                        derivedAnswers = entries.slice(0, 5).map(function (e) { return parseInt(e[0], 10); });
+                        debugLog('syncSubmitStateForNewData: fallback to freq top', derivedAnswers);
+                    } else {
+                        derivedAnswers = [];
+                        debugLog('syncSubmitStateForNewData: no fallback available');
+                    }
+                }
+
+                answerNums = derivedAnswers;
+                simulatedSelected.clear();
+                (answerNums || []).forEach(function (n) { simulatedSelected.add(n); });
+
+                preSubmitSelected = new Set(selected);
+                preSubmitOrder = pickOrder ? pickOrder.slice() : [];
+
+                try {
+                    if (answerNums && answerNums.length) {
+                        pickOrder = answerNums.slice(0, 5);
+                    } else {
+                        pickOrder = [];
+                    }
+                } catch (e) {
+                    pickOrder = [];
+                }
+
+                // infer a reasonable mode from derived answers
+                try {
+                    var linesLocal = raw ? raw.lines : [];
+                    var pairLines = 0;
+                    var tripleFound = false;
+                    var singleLines = 0;
+                    for (var i = 0; i < Math.min(linesLocal.length, 10); i++) {
+                        var nums = getNumsFromLineObj(linesLocal[i]);
+                        var matched = (answerNums || []).filter(function (n) { return nums.indexOf(n) !== -1; });
+                        if (matched.length >= 3) { tripleFound = true; break; }
+                        if (matched.length >= 2) pairLines++;
+                        if (matched.length >= 1) singleLines++;
+                    }
+                    var newMode = null;
+                    if (tripleFound) newMode = 'triple1';
+                    else if (pairLines >= 5) newMode = 'pair5';
+                    else if (pairLines >= 4) newMode = 'pair4';
+                    else if (pairLines >= 3) newMode = 'pair3';
+                    else if (pairLines === 2) newMode = 'pair2';
+                    else if (pairLines === 1) newMode = 'pair1';
+                    else if (singleLines > 0) newMode = 'modeq';
+
+                    var modeEl = document.getElementById('mode');
+                    if (modeEl) {
+                        modeEl.classList.add('synced-mode');
+                        modeEl.disabled = true;
+                    }
+                    if (newMode && modeEl) {
+                        if (userModeBeforeSubmit === null) userModeBeforeSubmit = modeEl.value;
+                        modeEl.value = newMode;
+                        modeEl.classList.add('synced-mode');
+                        modeSynced = true;
+                        debugLog('syncSubmitStateForNewData: mode synced to', newMode);
+                    } else {
+                        modeSynced = false;
+                    }
+                } catch (e) { debugLog('syncSubmitStateForNewData: mode inference error', String(e)); }
+
+                recomputePairsFromSelected();
+                updateBlocked();
+                // Render then apply submit state deterministically, with an extra deferred pass
+                debugLog('syncSubmitStateForNewData: before render/apply', { answerNums: answerNums, pickOrder: pickOrder });
+                updateRender();
+                // First pass: immediate in-place application
+                try { applySubmitState(); restartNeonAnimationsInDOM(); } catch (e) { debugLog('syncSubmitStateForNewData: first apply error', String(e)); }
+                // Defer a second pass across rAF + setTimeout to survive layout/paint ordering
+                requestAnimationFrame(function () {
+                    setTimeout(function () {
+                        debugLog('syncSubmitStateForNewData: deferred second pass');
+                        try { applySubmitState(); restartNeonAnimationsInDOM(); } catch (e) { debugLog('syncSubmitStateForNewData: deferred apply error', String(e)); }
+                    }, 0);
+                });
+
+                var sb = document.getElementById('submitBtn');
+                if (sb) sb.classList.add('active');
+
+                try {
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage({ type: 'submitStateChanged', submitActive: true }, '*');
+                        debugLog('syncSubmitStateForNewData: posted submitStateChanged to parent');
+                    }
+                } catch (e) { debugLog('syncSubmitStateForNewData: postMessage error', String(e)); }
+            } catch (e) { console.error(e); debugLog('syncSubmitStateForNewData: unexpected error', String(e)); }
+        }
+
+        document.addEventListener('keydown', function (e) {
+            try {
+                var active = document.activeElement;
+                var activeTag = active ? active.tagName : '';
+                if (active && active.id !== 'searchBox' && (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || active.isContentEditable)) return;
+
+                if (e.key === 'q' || e.key === 'Q') {
+                    toggleClearSelection();
+                    e.preventDefault();
+                    return;
+                }
+
+                if (e.code === 'Space') {
+                    toggleSubmitOnSpace();
+                    e.preventDefault();
+                    return;
+                }
+
+                if (e.key === 'w' || e.key === 'W' || e.key === 's' || e.key === 'S' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    if (!raw) return;
+                    if (submitActive) return;
+
+                    // If there are no selected/simulated/transient numbers, do not perform vertical navigation
+                    if ((selected.size === 0) && (simulatedSelected.size === 0) && (transientSelected.size === 0)) {
+                        // ensure focus indicator is hidden
+                        try { updateFocusIndicator(); } catch (e) { }
+                        return;
+                    }
+
+                    var regionWS = lastClickedRegion || 'right';
+                    var dirWS = (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') ? 1 : -1;
+
+                    if (regionWS === 'right') {
+                        var maxRow = Math.min(raw.lines.length, 10) - 1;
+                        var prevRow = 0;
+                        if (currentPhaseRow != null) {
+                            prevRow = currentPhaseRow;
+                        } else if (currentPhaseNumber != null) {
+                            var occurrences = 0; var foundRow = null;
+                            for (var r = 0; r <= maxRow; r++) {
+                                var arr = getNumsFromLineObj(raw.lines[r]);
+                                if (arr.indexOf(currentPhaseNumber) !== -1) { occurrences++; foundRow = r; }
+                            }
+                            if (occurrences === 1) prevRow = foundRow;
+                        } else if (lastClickedRow != null) {
+                            prevRow = lastClickedRow;
+                        } else if (lastClickedNumber != null) {
+                            for (var rr = 0; rr <= maxRow; rr++) {
+                                var arrR = getNumsFromLineObj(raw.lines[rr]);
+                                if (arrR.indexOf(lastClickedNumber) !== -1) { prevRow = rr; break; }
+                            }
+                        } else {
+                            for (var pi = pickOrder.length - 1; pi >= 0; pi--) {
+                                var numP = pickOrder[pi];
+                                for (var r2 = 0; r2 <= maxRow; r2++) {
+                                    var arr2 = getNumsFromLineObj(raw.lines[r2]);
+                                    if (arr2.indexOf(numP) !== -1) { prevRow = r2; break; }
+                                }
+                                if (prevRow !== 0) break;
+                            }
+                        }
+
+                        var targetRow = ((prevRow + dirWS) % (maxRow + 1) + (maxRow + 1)) % (maxRow + 1);
+                        var removedNumber = currentPhaseNumber;
+                        var removedRow = currentPhaseRow;
+                        var cand = null;
+                        var finalTargetRow = null;
+                        var rowCount = maxRow + 1;
+                        for (var off = 0; off < rowCount; off++) {
+                            var idxTry = ((targetRow + off * dirWS) % rowCount + rowCount) % rowCount;
+                            var numsTry = getNumsFromLineObj(raw.lines[idxTry]);
+                            var tempSelBase = new Set(selected);
+                            if (removedNumber != null) tempSelBase.delete(removedNumber);
+                            var localCand = null;
+                            for (var ni = 0; ni < numsTry.length; ni++) {
+                                var nTry = numsTry[ni];
+                                if (removedNumber != null && nTry === removedNumber && idxTry === removedRow) continue;
+                                if (tempSelBase.has(nTry)) continue;
+                                var tempBlocked = computeBlockedForSelected(tempSelBase);
+                                if (tempBlocked.has(nTry)) continue;
+                                localCand = nTry; break;
+                            }
+                            if (localCand !== null) { cand = localCand; finalTargetRow = idxTry; break; }
+                        }
+                        if (cand === null) return;
+
+                        if (currentPhaseNumber != null) {
+                            var oldN = currentPhaseNumber;
+                            if (selected.has(oldN)) selected.delete(oldN);
+                            if (transientSelected.has(oldN)) transientSelected.delete(oldN);
+                            var oidx = pickOrder.indexOf(oldN);
+                            if (oidx !== -1) pickOrder.splice(oidx, 1);
+                            currentPhaseNumber = null;
+                        }
+
+                        var numsFinal = getNumsFromLineObj(raw.lines[finalTargetRow]);
+                        for (var nf = 0; nf < numsFinal.length; nf++) {
+                            var pidx = pickOrder.indexOf(numsFinal[nf]);
+                            if (pidx !== -1) pickOrder.splice(pidx, 1);
+                        }
+
+                        selected.add(cand);
+                        transientSelected.add(cand);
+                        pickOrder.push(cand);
+                        currentPhaseNumber = cand;
+                        currentPhaseRow = finalTargetRow;
+                        lastClickedRow = finalTargetRow;
+                        lastClickedNumber = cand;
+                        recomputePairsFromSelected();
+                        updateBlocked();
+                        updateRenderLightweight();
+                        return;
+                    } else if (regionWS === 'left') {
+                        var groups = {};
+                        for (var i = 1; i <= 35; i++) { var f = raw.freq[i]; if (!groups[f]) groups[f] = []; groups[f].push(i); }
+                        var freqs = Object.keys(groups).map(function (x) { return +x; }).sort(function (a, b) { return b - a; });
+                        if (freqs.length === 0) return;
+                        var rows = freqs.map(function (f) { return groups[f]; });
+                        var prevRowIdx = 0;
+                        if (currentPhaseNumber != null) {
+                            var fcur = raw.freq[currentPhaseNumber]; prevRowIdx = freqs.indexOf(fcur); if (prevRowIdx === -1) prevRowIdx = 0;
+                        } else if (lastClickedRow != null) {
+                            var numsLC = getNumsFromLineObj(raw.lines[lastClickedRow]);
+                            if (numsLC.length) { var flc = raw.freq[numsLC[0]]; prevRowIdx = freqs.indexOf(flc); if (prevRowIdx === -1) prevRowIdx = 0; }
+                        } else if (lastClickedNumber != null) {
+                            var fln = raw.freq[lastClickedNumber]; prevRowIdx = freqs.indexOf(fln); if (prevRowIdx === -1) prevRowIdx = 0;
+                        } else {
+                            for (var ii = pickOrder.length - 1; ii >= 0; ii--) {
+                                var numI = pickOrder[ii]; var fi = raw.freq[numI]; var idxI = freqs.indexOf(fi);
+                                if (idxI !== -1) { prevRowIdx = idxI; break; }
+                            }
+                        }
+
+                        var rowCountL = rows.length; if (rowCountL === 0) return;
+                        var targetIdx = ((prevRowIdx + dirWS) % rowCountL + rowCountL) % rowCountL;
+                        var removed = [];
+                        if (currentPhaseNumber != null) removed.push(currentPhaseNumber);
+                        var candL = null; var finalIdx = null;
+                        for (var offL = 0; offL < rowCountL; offL++) {
+                            var idxL = ((targetIdx + offL * dirWS) % rowCountL + rowCountL) % rowCountL;
+                            var numsTryL = rows[idxL]; var localCandL = null;
+                            for (var nx = 0; nx < numsTryL.length; nx++) {
+                                var nL = numsTryL[nx];
+                                if (removed.indexOf(nL) !== -1) continue;
+                                if (selected.has(nL)) continue;
+                                var tempSel = new Set(selected); removed.forEach(function (x) { tempSel.delete(x); });
+                                var tempBlockedL = computeBlockedForSelected(tempSel);
+                                if (tempBlockedL.has(nL)) continue;
+                                localCandL = nL; break;
+                            }
+                            if (localCandL !== null) { candL = localCandL; finalIdx = idxL; break; }
+                        }
+                        if (candL === null) return;
+
+                        if (currentPhaseNumber != null) {
+                            var oldL = currentPhaseNumber;
+                            if (selected.has(oldL)) { selected.delete(oldL); if (transientSelected.has(oldL)) transientSelected.delete(oldL); }
+                            var oldPos = pickOrder.indexOf(oldL); if (oldPos !== -1) pickOrder.splice(oldPos, 1);
+                            currentPhaseNumber = null;
+                        }
+                        for (var nr = 0; nr < rows[finalIdx].length; nr++) {
+                            var pPos = pickOrder.indexOf(rows[finalIdx][nr]);
+                            if (pPos !== -1) pickOrder.splice(pPos, 1);
+                        }
+                        selected.add(candL); transientSelected.add(candL); pickOrder.push(candL);
+                        currentPhaseNumber = candL; lastClickedNumber = candL; lastClickedRegion = 'left';
+                        recomputePairsFromSelected(); updateBlocked(); updateRenderLightweight(); return;
+                    } else { return; }
+                }
+
+                if (e.key === 'a' || e.key === 'A' || e.key === 'd' || e.key === 'D' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                    e.preventDefault(); if (!raw) return; if (submitActive) return;
+                    // If there are no selected/simulated/transient numbers, do not perform horizontal navigation
+                    if ((selected.size === 0) && (simulatedSelected.size === 0) && (transientSelected.size === 0)) {
+                        try { updateFocusIndicator(); } catch (e) { }
+                        return;
+                    }
+                    var dir = (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') ? 1 : -1;
+
+                    var pairListExists = !!(document.getElementById && document.getElementById('pairList'));
+                    var tailListExists = !!(document.getElementById && document.getElementById('tailList'));
+                    var region = lastClickedRegion || (pairListExists ? 'pairList' : (tailListExists ? 'tailList' : 'left'));
+
+                    if (region === 'left') {
+                        if (!pickOrder || pickOrder.length === 0) return;
+                        var last = (currentPhaseNumber != null && selected.has(currentPhaseNumber)) ? currentPhaseNumber : pickOrder[pickOrder.length - 1];
+                        if (!last) return;
+                        var group = [];
+                        for (var n = 1; n <= 35; n++) if (raw.freq[n] === raw.freq[last]) group.push(n);
+                        if (group.length <= 1) return;
+                        var idxG = group.indexOf(last); if (idxG === -1) return;
+                        var found = null;
+                        for (var offG = 1; offG <= group.length; offG++) {
+                            var candIdx = (idxG + offG * dir) % group.length; if (candIdx < 0) candIdx += group.length;
+                            var candG = group[candIdx];
+                            if (isBlocked(candG)) {
+                                var tempSelG = new Set(selected); tempSelG.delete(last);
+                                var tempBlockedG = computeBlockedForSelected(tempSelG);
+                                if (tempBlockedG.has(candG)) continue;
+                            }
+                            if (candG !== last && selected.has(candG)) continue;
+                            found = candG; break;
+                        }
+                        if (found === null) return;
+                        selected.delete(last); if (transientSelected.has(last)) transientSelected.delete(last);
+                        var prior = pickOrder.indexOf(found); if (prior !== -1) pickOrder.splice(prior, 1);
+                        if (pickOrder.length && pickOrder[pickOrder.length - 1] === last) pickOrder[pickOrder.length - 1] = found;
+                        else {
+                            var li = pickOrder.indexOf(last); if (li !== -1) pickOrder.splice(li, 1);
+                            pickOrder.push(found);
+                        }
+                        selected.add(found); transientSelected.add(found); currentPhaseNumber = found; lastClickedNumber = found; lastClickedRegion = 'left';
+                        recomputePairsFromSelected(); updateBlocked(); updateRenderLightweight(); return;
+                    }
+
+                    if (region === 'right') {
+                        var row = (lastClickedRow != null) ? lastClickedRow : 0;
+                        var numsR = getNumsFromLineObj(raw.lines[row]); if (!numsR || numsR.length === 0) return;
+                        var lastR = lastClickedNumber;
+                        if (!lastR || numsR.indexOf(lastR) === -1) {
+                            lastR = null;
+                            for (var pr = pickOrder.length - 1; pr >= 0; pr--) { if (numsR.indexOf(pickOrder[pr]) !== -1) { lastR = pickOrder[pr]; break; } }
+                            if (!lastR) lastR = numsR[0];
+                        }
+                        var idxR = numsR.indexOf(lastR); if (idxR === -1) return;
+                        var foundR = null;
+                        for (var offR = 1; offR <= numsR.length; offR++) {
+                            var candIdxR = (idxR + offR * dir) % numsR.length; if (candIdxR < 0) candIdxR += numsR.length;
+                            var candR = numsR[candIdxR];
+                            if (isBlocked(candR)) {
+                                var tempSelR = new Set(selected); tempSelR.delete(lastR);
+                                var tempBlockedR = computeBlockedForSelected(tempSelR);
+                                if (tempBlockedR.has(candR)) continue;
+                            }
+                            if (candR !== lastR && selected.has(candR)) continue;
+                            foundR = candR; break;
+                        }
+                        if (foundR === null) return;
+                        if (selected.has(lastR)) { selected.delete(lastR); if (transientSelected.has(lastR)) transientSelected.delete(lastR); }
+                        var priorR = pickOrder.indexOf(foundR); if (priorR !== -1) pickOrder.splice(priorR, 1);
+                        var liR = pickOrder.indexOf(lastR); if (liR !== -1) pickOrder[liR] = foundR; else pickOrder.push(foundR);
+                        selected.add(foundR); lastClickedNumber = foundR; transientSelected.add(foundR); currentPhaseNumber = foundR; currentPhaseRow = row; lastClickedRow = row; lastClickedRegion = 'right';
+                        recomputePairsFromSelected(); updateBlocked(); updateRenderLightweight(); return;
+                    }
+
+                    if (region === 'pairList') {
+                        try {
+                            if (!currentPairs || currentPairs.length === 0) return;
+                            if (dir === 1) { if (currentPairIndex < 0) applyPairByIndex(0, { lightRender: true, skipFocus: true }); else applyPairByIndex((currentPairIndex + 1) % currentPairs.length, { lightRender: true, skipFocus: true }); }
+                            else { if (currentPairIndex < 0) applyPairByIndex(currentPairs.length - 1, { lightRender: true, skipFocus: true }); else applyPairByIndex((currentPairIndex - 1 + currentPairs.length) % currentPairs.length, { lightRender: true, skipFocus: true }); }
+                            return;
+                        } catch (err) { }
+                    }
+
+                    if (region === 'tailList') {
+                        try {
+                            if (!currentTails || currentTails.length === 0) return;
+                            if (dir === 1) { if (currentTailIndex < 0) applyTailByIndex(0, { lightRender: true, skipFocus: true }); else applyTailByIndex((currentTailIndex + 1) % currentTails.length, { lightRender: true, skipFocus: true }); }
+                            else { if (currentTailIndex < 0) applyTailByIndex(currentTails.length - 1, { lightRender: true, skipFocus: true }); else applyTailByIndex((currentTailIndex - 1 + currentTails.length) % currentTails.length, { lightRender: true, skipFocus: true }); }
+                            return;
+                        } catch (err2) { }
+                    }
+                }
+            } catch (ee) { /* ignore */ }
+        });
+
+        // Submit button click: act like Space (toggle submit preview) and keep button style in sync
+        (function () {
+            try {
+                var sb = document.getElementById('submitBtn');
+                if (!sb) return;
+                sb.addEventListener('click', function (ev) {
+                    try {
+                        if (disableSubmitForCurrentData) return;
+                        ev.preventDefault();
+                        toggleSubmitOnSpace();
+                        try {
+                            if (window.parent && window.parent !== window) {
+                                window.parent.postMessage({ type: 'submitStateChanged', submitActive: submitActive }, '*');
+                            }
+                        } catch (e) { }
+                    } catch (e) { console.error(e); }
+                });
+            } catch (e) { }
+        })();
+
+        // Pick button: copy selected numbers to clipboard
+        (function () {
+            try {
+                var pb = document.getElementById('pickBtn');
+                var pp = document.getElementById('pickPreview');
+                if (!pb) return;
+
+                function updatePickButton() {
+                    if (pickOrder && pickOrder.length >= 1) {
+                        pp.textContent = pickOrder.join(',');
+                        pb.disabled = false;
+                    } else {
+                        pp.textContent = '';
+                        pb.disabled = true;
+                    }
+                }
+
+                pb.addEventListener('click', async function (ev) {
+                    if (!pickOrder || pickOrder.length < 1) return;
+                    const txt = pickOrder.join(',') + '\n';
+                    try {
+                        await navigator.clipboard.writeText(txt);
+                        const old = pb.textContent;
+                        pb.textContent = 'Copied';
+                        setTimeout(function () { pb.textContent = old; }, 800);
+                    } catch (e) {
+                        const ta = document.createElement('textarea');
+                        ta.value = txt;
+                        document.body.appendChild(ta);
+                        ta.select();
+                        try {
+                            document.execCommand('copy');
+                            const old = pb.textContent;
+                            pb.textContent = 'Copied';
+                            setTimeout(function () { pb.textContent = old; }, 800);
+                        } catch (e2) { }
+                        ta.remove();
+                    }
+                });
+
+                // Store updatePickButton globally so it can be called from other parts
+                window.updatePickButtonUI = updatePickButton;
+            } catch (e) { }
+        })();
+
+        // Reset button: act like pressing 'q' (undo last selection)
+        (function () {
+            try {
+                var rb = document.getElementById('resetBtn');
+                if (!rb) return;
+                rb.addEventListener('click', function (ev) {
+                    try {
+                        ev.preventDefault();
+                        // Toggle clear/restore selection (same as 'q')
+                        toggleClearSelection();
+                    } catch (e) { console.error(e); }
+                });
+            } catch (e) { }
+        })();
+
+        // Basic constants
+        const MAX_NUM = 35;
+
+        // Helper: compute highlight refs coming from 11th line (same logic as in renderTable2)
+        function computeHighlightRefs11(displayLines) {
+            const idToIndex = {};
+            let baseFound = false, baseId = null, baseIndex = null;
+            displayLines.forEach(function (lineObj, idx) {
+                const noteText = (lineObj && lineObj.note) ? String(lineObj.note) : '';
+                const idMatch = noteText.match(/([0-9]+)\s*-/);
+                if (idMatch) {
+                    const idNum = parseInt(idMatch[1], 10);
+                    if (!isNaN(idNum)) { idToIndex[idNum] = idx; if (!baseFound) { baseFound = true; baseId = idNum; baseIndex = idx; } }
+                }
+            });
+            let inferredStep = null;
+            if (baseFound) {
+                for (const k in idToIndex) {
+                    const idNum = parseInt(k, 10);
+                    const idx = idToIndex[k];
+                    if (idNum === baseId) continue;
+                    const deltaId = idNum - baseId;
+                    const deltaIdx = idx - baseIndex;
+                    if (deltaIdx !== 0) {
+                        const step = Math.round(deltaId / deltaIdx);
+                        if (step !== 0) { inferredStep = step; break; }
+                    }
+                }
+            }
+            if (inferredStep === null) inferredStep = -1;
+            const highlightRefs11 = new Array(displayLines.length).fill(0);
+            if (raw && Array.isArray(raw.lines) && raw.lines.length > 10) {
+                const eleventh = raw.lines[10];
+                if (eleventh && eleventh.note) {
+                    const noteText = String(eleventh.note || '');
+                    const reRef11 = /([0-9]+)-([0-9]+)([¹²³⁴⁵⁶⁷⁸⁹⁰]*)/g;
+                    const supMap = { '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁰': '0' };
+                    let mm;
+                    while ((mm = reRef11.exec(noteText)) !== null) {
+                        const refId = parseInt(mm[2], 10);
+                        const supStr = mm[3] || '';
+                        let exp = 1;
+                        if (supStr.length) {
+                            let digits = '';
+                            for (const ch of supStr) digits += (supMap[ch] || '');
+                            if (digits.length) {
+                                const v = parseInt(digits, 10);
+                                if (!isNaN(v)) exp = v;
+                            }
+                        }
+                        let j = null;
+                        if (idToIndex.hasOwnProperty(refId)) { j = idToIndex[refId]; if (j >= 0 && j < displayLines.length) highlightRefs11[j] = Math.max(highlightRefs11[j], exp); }
+                        else if (baseFound) { j = baseIndex + Math.round((refId - baseId) / inferredStep); if (j >= 0 && j < displayLines.length) highlightRefs11[j] = Math.max(highlightRefs11[j], exp); }
+                    }
+                }
+            }
+            return highlightRefs11;
+        }
+
+        // Helper: compute base reference exponents from the 10 displayed rows (same as renderTable2)
+        function computeHighlightRefs(displayLines) {
+            const idToIndex = {};
+            let baseFound = false, baseId = null, baseIndex = null;
+            displayLines.forEach(function (lineObj, idx) {
+                const noteText = (lineObj && lineObj.note) ? String(lineObj.note) : '';
+                const idMatch = noteText.match(/([0-9]+)\s*-/);
+                if (idMatch) {
+                    const idNum = parseInt(idMatch[1], 10);
+                    if (!isNaN(idNum)) {
+                        idToIndex[idNum] = idx;
+                        if (!baseFound) { baseFound = true; baseId = idNum; baseIndex = idx; }
+                    }
+                }
+            });
+
+            let inferredStep = null;
+            if (baseFound) {
+                for (const k in idToIndex) {
+                    const idNum = parseInt(k, 10);
+                    const idx = idToIndex[k];
+                    if (idNum === baseId) continue;
+                    const deltaId = idNum - baseId;
+                    const deltaIdx = idx - baseIndex;
+                    if (deltaIdx !== 0) {
+                        const step = Math.round(deltaId / deltaIdx);
+                        if (step !== 0) { inferredStep = step; break; }
+                    }
+                }
+            }
+            if (inferredStep === null) inferredStep = -1;
+
+            const highlightRefs = new Array(displayLines.length).fill(0);
+            const supMap = { '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁰': '0' };
+            displayLines.forEach(function (lineObj) {
+                if (!lineObj || !lineObj.note) return;
+                const noteText = String(lineObj.note || '');
+                const reRef = /([0-9]+)-([0-9]+)([¹²³⁴⁵⁶⁷⁸⁹⁰]*)/g;
+                let m;
+                while ((m = reRef.exec(noteText)) !== null) {
+                    const refId = parseInt(m[2], 10);
+                    const supStr = m[3] || '';
+                    let exp = 1;
+                    if (supStr.length) {
+                        let digits = '';
+                        for (const ch of supStr) digits += (supMap[ch] || '');
+                        if (digits.length) {
+                            const v = parseInt(digits, 10);
+                            if (!isNaN(v)) exp = v;
+                        }
+                    }
+                    let j = null;
+                    if (Object.prototype.hasOwnProperty.call(idToIndex, refId)) {
+                        j = idToIndex[refId];
+                        highlightRefs[j] = Math.max(highlightRefs[j], exp);
+                    } else if (baseFound) {
+                        j = baseIndex + Math.round((refId - baseId) / inferredStep);
+                        if (j >= 0 && j < displayLines.length) highlightRefs[j] = Math.max(highlightRefs[j], exp);
+                    }
+                }
+            });
+            return highlightRefs;
+        }
+
+        // Helper: create neon SVG element for a row index
+        function createNeonSvgElement(i) {
+            try {
+                var ns = 'http://www.w3.org/2000/svg';
+                var svg = document.createElementNS(ns, 'svg');
+                svg.setAttribute('class', 'neon-streak');
+                svg.setAttribute('viewBox', '0 0 200 40');
+                svg.setAttribute('preserveAspectRatio', 'none');
+                svg.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+                svg.style.position = 'absolute';
+                svg.style.left = '0'; svg.style.top = '0'; svg.style.width = '100%'; svg.style.height = '100%'; svg.style.pointerEvents = 'none';
+                var defs = document.createElementNS(ns, 'defs');
+                var lg = document.createElementNS(ns, 'linearGradient');
+                var lgId = 'g' + i + '-' + Math.random().toString(36).slice(2, 8);
+                lg.setAttribute('id', lgId);
+                lg.setAttribute('gradientUnits', 'userSpaceOnUse');
+                lg.setAttribute('x1', '0'); lg.setAttribute('y1', '0'); lg.setAttribute('x2', '416'); lg.setAttribute('y2', '0');
+                var s1 = document.createElementNS(ns, 'stop'); s1.setAttribute('offset', '0%'); s1.setAttribute('stop-color', 'var(--neon-color)'); s1.setAttribute('stop-opacity', '0'); lg.appendChild(s1);
+                var s2 = document.createElementNS(ns, 'stop'); s2.setAttribute('offset', '70%'); s2.setAttribute('stop-color', 'var(--neon-color)'); s2.setAttribute('stop-opacity', '0'); lg.appendChild(s2);
+                var s3 = document.createElementNS(ns, 'stop'); s3.setAttribute('offset', '86%'); s3.setAttribute('stop-color', 'var(--neon-color)'); s3.setAttribute('stop-opacity', '0.9'); lg.appendChild(s3);
+                var s4 = document.createElementNS(ns, 'stop'); s4.setAttribute('offset', '100%'); s4.setAttribute('stop-color', 'var(--neon-color)'); s4.setAttribute('stop-opacity', '0'); lg.appendChild(s4);
+                var anim = document.createElementNS(ns, 'animateTransform'); anim.setAttribute('attributeName', 'gradientTransform'); anim.setAttribute('type', 'translate'); anim.setAttribute('from', '0 0'); anim.setAttribute('to', '-416 0'); anim.setAttribute('dur', '3.6s'); anim.setAttribute('repeatCount', 'indefinite'); lg.appendChild(anim);
+                defs.appendChild(lg);
+                svg.appendChild(defs);
+                var halo = document.createElementNS(ns, 'rect'); halo.setAttribute('class', 'halo'); halo.setAttribute('x', '8'); halo.setAttribute('y', '8'); halo.setAttribute('width', '184'); halo.setAttribute('height', '24'); halo.setAttribute('rx', '0'); halo.setAttribute('ry', '0'); svg.appendChild(halo);
+                var trail = document.createElementNS(ns, 'rect'); trail.setAttribute('class', 'trail'); trail.setAttribute('x', '8'); trail.setAttribute('y', '8'); trail.setAttribute('width', '184'); trail.setAttribute('height', '24'); trail.setAttribute('rx', '0'); trail.setAttribute('ry', '0'); trail.setAttribute('stroke', 'url(#' + lgId + ')'); svg.appendChild(trail);
+                var core = document.createElementNS(ns, 'rect'); core.setAttribute('class', 'core'); core.setAttribute('x', '8'); core.setAttribute('y', '8'); core.setAttribute('width', '184'); core.setAttribute('height', '24'); core.setAttribute('rx', '0'); core.setAttribute('ry', '0'); svg.appendChild(core);
+                return svg;
+            } catch (e) { return null; }
+        }
+
+        // Restart neon animation classes so newly loaded data shows animated glow immediately.
+        function restartNeonAnimationsInDOM() {
+            try {
+                var neonEls = document.querySelectorAll('#right td.answer-neon, #right .cell.answer-neon, #left .cell.answer-neon');
+                if (!neonEls || !neonEls.length) return;
+                neonEls.forEach(function (el) { el.classList.remove('animate'); });
+                // Force reflow to restart CSS keyframes deterministically.
+                void document.body.offsetHeight;
+                neonEls.forEach(function (el) { el.classList.add('animate'); });
+            } catch (e) { /* non-fatal */ }
+        }
+
+        // Debug helper: disabled — no-op to silence F12 logs
+        function debugLog() { }
+
+        // Apply submitActive and answerNums to DOM in-place to avoid full reflow
+        function applySubmitState() {
+            try {
+                debugLog('applySubmitState() start', { answerNums: answerNums, simulatedSelectedSize: (simulatedSelected && simulatedSelected.size) ? simulatedSelected.size : 0 });
+                if (!raw) return;
+                var displayLines = raw.lines.slice(0, 10);
+                var answerSet = new Set((answerNums || []).map(Number));
+                var autoCircleSet = getSubmitAutoCircleSet();
+                var right = document.getElementById('right');
+                var left = document.getElementById('left');
+                if (!right || !left) return;
+                var table = right.querySelector('table');
+                if (!table) return;
+
+                // compute 11th-line refs used for neon
+                var highlightRefs = computeHighlightRefs(displayLines);
+                var highlightRefs11 = computeHighlightRefs11(displayLines);
+
+                var mainRows = table.querySelectorAll('tr.chuoi-main-row');
+                var patternRows = table.querySelectorAll('tr.chuoi-pattern-row');
+                for (var i = 0; i < displayLines.length; i++) {
+                    var mainRow = mainRows[i];
+                    if (!mainRow) continue;
+                    var labelTd = mainRow.children[0];
+                    var numsTd = mainRow.children[1];
+                    var nums = getNumsFromLineObj(displayLines[i]);
+                    var rowAnswerCount = 0;
+                    nums.forEach(function (n) { if (answerSet.has(n)) rowAnswerCount++; });
+                    // Keep neon driven by the live submit count in this row only.
+                    var isNeon = submitActive && rowAnswerCount >= 2;
+
+                    debugLog('applySubmitState row', { row: i, rowAnswerCount: rowAnswerCount, isNeon: isNeon });
+
+                    // handle neon element in labelTd
+                    if (labelTd) {
+                        var existingNeon = labelTd.querySelector('.neon-streak');
+                        if (isNeon && !existingNeon) {
+                            var svg = createNeonSvgElement(i);
+                            if (svg) {
+                                labelTd.appendChild(svg);
+                                labelTd.style.setProperty('--neon-color', '#00ff66');
+                                labelTd.style.setProperty('--neon-mid', 'rgba(0,255,102,0.85)');
+                                labelTd.style.setProperty('--neon-inner', 'rgba(0,255,102,1)');
+                                labelTd.style.setProperty('--neon-outer', 'rgba(0,255,102,0.7)');
+                                debugLog('applySubmitState: appended neon for row', i);
+                            }
+                        } else if (!isNeon && existingNeon) {
+                            existingNeon.remove();
+                            labelTd.style.removeProperty('--neon-color');
+                            labelTd.style.removeProperty('--neon-mid');
+                            labelTd.style.removeProperty('--neon-inner');
+                            labelTd.style.removeProperty('--neon-outer');
+                            debugLog('applySubmitState: removed neon for row', i);
+                        }
+                        // toggle animation classes so CSS rules run (and remove when off)
+                        if (isNeon) { labelTd.classList.add('answer-neon'); labelTd.classList.add('animate'); }
+                        else { labelTd.classList.remove('answer-neon'); labelTd.classList.remove('animate'); }
+                    }
+
+                    // Apply deterministic base color promotion for Chuoi label (match renderTable2)
+                    try {
+                        var refExp = highlightRefs[i] || 0;
+                        var effectiveRefExp = refExp;
+                        if (submitActive && rowAnswerCount >= 2) {
+                            effectiveRefExp = Math.min(4, Math.max(effectiveRefExp, 0) + 1);
+                        }
+
+                        if (effectiveRefExp === 1) labelTd.style.setProperty('background-color', '#EBFFEB');
+                        else if (effectiveRefExp === 2) labelTd.style.setProperty('background-color', '#C8FFC8');
+                        else if (effectiveRefExp === 3) labelTd.style.setProperty('background-color', '#78E678');
+                        else if (effectiveRefExp >= 4) labelTd.style.setProperty('background-color', '#00B400');
+                        else labelTd.style.removeProperty('background-color');
+
+                        labelTd.style.setProperty('color', '#000000');
+                        labelTd.style.setProperty('font-weight', 'bold');
+                    } catch (e) { /* non-fatal */ }
+
+                    // update number cells in-place (only number cells, not index cells)
+                    if (numsTd) {
+                        var numSpans = numsTd.querySelectorAll('.cell.num[data-num]');
+                        numSpans.forEach(function (span) {
+                            var val = parseInt(span.getAttribute('data-num'), 10);
+                            var should = submitActive && answerSet.has(val);
+                            var shouldAutoCircle = autoCircleSet.has(val);
+                            span.classList.toggle('submit-highlight', should);
+                            span.classList.toggle('auto-circled', shouldAutoCircle);
+                            span.classList.toggle('answer-neon', should);
+                            span.classList.toggle('animate', should);
+                            // ensure blocked mapping applies only to number cells
+                            span.classList.toggle('blocked', isBlocked(val));
+                            if (should) {
+                                try { span.style.removeProperty('color'); } catch (e) { }
+                                try { span.style.removeProperty('font-weight'); } catch (e) { }
+                            }
+                        });
+                        // ensure index/pattern cells are not highlighted or blocked
+                        var patternRow = patternRows[i];
+                        if (patternRow) {
+                            var idxTd = patternRow.children[1];
+                            if (idxTd) {
+                                var idxSpans = idxTd.querySelectorAll('.cell.index[data-num]');
+                                idxSpans.forEach(function (span) { span.classList.remove('idx-highlight'); span.classList.remove('blocked'); });
+                            }
+                        }
+                    }
+                }
+
+                // update left table cells (submit highlight, blocked and red underline)
+                var leftSpans = left.querySelectorAll('.cell[data-num]');
+                leftSpans.forEach(function (span) {
+                    var val = parseInt(span.getAttribute('data-num'), 10);
+                    var should = submitActive && answerSet.has(val);
+                    var shouldAutoCircle = autoCircleSet.has(val);
+                    span.classList.toggle('submit-highlight', should);
+                    span.classList.toggle('auto-circled', shouldAutoCircle);
+                    span.classList.toggle('answer-neon', should);
+                    span.classList.toggle('animate', should);
+                    // apply blocked only to number cells (avoid blocking index cells)
+                    if (span.classList.contains('num')) {
+                        span.classList.toggle('blocked', isBlocked(val));
+                    } else {
+                        span.classList.remove('blocked');
+                    }
+                    if (should) {
+                        try { span.style.removeProperty('color'); } catch (e) { }
+                        try { span.style.removeProperty('font-weight'); } catch (e) { }
+                    }
+                    // update red underline rule: show red when not submitActive and in firstNums
+                    if (!submitActive && Array.isArray(raw.firstNums) && raw.firstNums.indexOf(val) !== -1) span.classList.add('red'); else span.classList.remove('red');
+                });
+
+                // blocked classes already handled per-number above
+                try { updateFocusIndicator(); } catch (e) { }
+            } catch (e) { console.error(e); }
+        }
+
+        function updateFocusIndicator() {
+            const ind = document.getElementById('focusIndicator');
+            if (!ind || !raw) { if (ind) ind.style.opacity = 0; return; }
+            // If there are no selected numbers at all, hide the arrow unconditionally.
+            if ((selected.size === 0) && (simulatedSelected.size === 0) && (transientSelected.size === 0)) {
+                ind.style.opacity = 0;
+                return;
+            }
+            if (submitActive && preSubmitSelected && preSubmitSelected.size === 0) { ind.style.opacity = 0; return; }
+
+            let region = lastClickedRegion || 'left';
+            let top = 0, left = 0;
+            try {
+                const indH = ind.offsetHeight || 18;
+                const indW = ind.offsetWidth || 18;
+                if (region === 'right') {
+                    let maxRow = Math.min(raw.lines.length, 10) - 1;
+                    let rowIdx = (currentPhaseRow != null) ? currentPhaseRow : (lastClickedRow != null ? lastClickedRow : 0);
+                    if (rowIdx < 0) rowIdx = 0;
+                    if (rowIdx > maxRow) rowIdx = maxRow;
+                    const tableRows = document.querySelectorAll('#right table tr');
+                    let domIdx = rowIdx * 3;
+                    let tr = tableRows[domIdx];
+                    if (!tr) { ind.style.opacity = 0; return; }
+                    const r = tr.getBoundingClientRect();
+                    top = window.scrollY + r.top + (r.height - indH) / 2;
+                    left = r.left - (indW + 10);
+                } else {
+                    let groups = {};
+                    for (let i = 1; i <= 35; i++) { let f = raw.freq[i]; if (!groups[f]) groups[f] = []; groups[f].push(i); }
+                    let freqs = Object.keys(groups).map(x => +x).sort((a, b) => b - a);
+                    let prevRowIdx = 0;
+                    if (currentPhaseNumber != null) {
+                        let f = raw.freq[currentPhaseNumber]; prevRowIdx = freqs.indexOf(f); if (prevRowIdx === -1) prevRowIdx = 0;
+                    } else if (lastClickedRow != null) {
+                        let nums = getNumsFromLineObj(raw.lines[lastClickedRow]);
+                        if (nums.length) { let f = raw.freq[nums[0]]; prevRowIdx = freqs.indexOf(f); if (prevRowIdx === -1) prevRowIdx = 0; }
+                    } else if (lastClickedNumber != null) {
+                        let f = raw.freq[lastClickedNumber]; prevRowIdx = freqs.indexOf(f); if (prevRowIdx === -1) prevRowIdx = 0;
+                    } else {
+                        for (let i = pickOrder.length - 1; i >= 0; i--) {
+                            let num = pickOrder[i];
+                            let f = raw.freq[num];
+                            let idx = freqs.indexOf(f);
+                            if (idx !== -1) { prevRowIdx = idx; break; }
+                        }
+                    }
+                    const table = document.querySelector('#left table');
+                    if (!table) { ind.style.opacity = 0; return; }
+                    const tableRows = table.querySelectorAll('tr');
+                    let domIdx = Math.min(tableRows.length - 1, prevRowIdx + 1);
+                    let tr = tableRows[domIdx];
+                    if (tr) {
+                        const r = tr.getBoundingClientRect();
+                        top = window.scrollY + r.top + (r.height - indH) / 2;
+                        left = r.left - (indW + 10);
+                    } else {
+                        const r = table.getBoundingClientRect();
+                        top = window.scrollY + r.top + (r.height - indH) / 2;
+                        left = r.left - (indW + 10);
+                    }
+                }
+                ind.style.top = top + 'px';
+                ind.style.left = left + 'px';
+                ind.style.opacity = 1;
+            } catch (err) { if (ind) ind.style.opacity = 0; }
+        }
+
+        // Receive messages from parent
+        window.addEventListener('message', (ev) => {
+            try {
+                const msg = ev.data || {};
+                if (msg.type === 'setLines' && Array.isArray(msg.lines)) {
+                    disableSubmitForCurrentData = !!msg.disableSubmit;
+                    syncSubmitButtonAvailability();
+                    const input = document.getElementById('input');
+                    input.value = msg.lines.join('\n');
+
+                    // Save the submit state before process() might reset it
+                    const wasSubmitActive = submitActive || msg.submitActive;
+
+                    // process the new input
+                    try {
+                        process();
+                    } catch (e) { console.error(e); }
+
+                    // If submit was active, restore and sync mode with new answerNums
+                    if (wasSubmitActive) {
+                        submitActive = true;
+                        const sbEl = document.getElementById('submitBtn');
+                        if (sbEl) sbEl.classList.add('active');
+                        try { syncSubmitStateForNewData(); } catch (e) { console.error(e); }
+                        try { applySubmitState(); } catch (e) { console.error(e); }
+                    }
+                } else if (msg.type === 'submitAutoCircleChanged') {
+                    submitAutoCircleEnabled = !!msg.enabled;
+                    submitAutoCircleMode = (msg.mode === 'min') ? 'min' : 'max';
+                    try { applySubmitState(); } catch (e) { }
+                } else if (msg.type === 'toggleSubmit') {
+                    toggleSubmitOnSpace();
+                }
+            } catch (e) { console.error(e); }
+        });
+
+        // Wire input events
+        document.getElementById('input').addEventListener('input', process);
+
+        // Delegated click handlers: ensure clicks on number/index cells reach toggleNumber()
+        // Skip calling toggleNumber when the element already has an inline onclick to avoid double-toggle
+        (function () {
+            try {
+                function findClosestCell(el, selector) {
+                    while (el && el.nodeType !== 1) el = el.parentElement;
+                    while (el) {
+                        if (el.matches && el.matches(selector)) return el;
+                        el = el.parentElement;
+                    }
+                    return null;
+                }
+
+                function hasInlineOnclick(el) {
+                    try { return !!(el && el.getAttribute && el.getAttribute('onclick')); } catch (e) { return false; }
+                }
+
+                var leftRoot = document.getElementById('left');
+                if (leftRoot) {
+                    leftRoot.addEventListener('click', function (ev) {
+                        try {
+                            var el = findClosestCell(ev.target, '.cell.num[data-num]');
+                            if (!el) return;
+                            // If element already has inline onclick, let it handle the event to avoid double-calls
+                            if (hasInlineOnclick(el)) return;
+                            ev.stopPropagation();
+                            var n = parseInt(el.getAttribute('data-num'), 10);
+                            if (isNaN(n)) return;
+                            if (submitActive || isBlocked(n)) return;
+                            try { lastClickedRegion = 'left'; lastClickedNumber = n; } catch (e2) { }
+                            toggleNumber(n);
+                        } catch (e) { }
+                    });
+                }
+
+                var rightRoot = document.getElementById('right');
+                if (rightRoot) {
+                    rightRoot.addEventListener('click', function (ev) {
+                        try {
+                            // accept clicks on either number cells or index cells in table 2
+                            var el = findClosestCell(ev.target, '.cell[data-num]');
+                            if (!el) return;
+                            // If element already has inline onclick, let it handle the event
+                            if (hasInlineOnclick(el)) return;
+                            ev.stopPropagation();
+                            var n = parseInt(el.getAttribute('data-num'), 10);
+                            if (isNaN(n)) return;
+                            if (submitActive || isBlocked(n)) return;
+                            try {
+                                var tr = findClosestCell(el, 'tr.chuoi-main-row');
+                                if (!tr) {
+                                    var trPattern = findClosestCell(el, 'tr.chuoi-pattern-row');
+                                    if (trPattern) tr = trPattern.previousElementSibling;
+                                }
+                                var rowIndex = null;
+                                if (tr) {
+                                    var mains = Array.from(rightRoot.querySelectorAll('tr.chuoi-main-row'));
+                                    rowIndex = mains.indexOf(tr);
+                                }
+                                lastClickedRegion = 'right';
+                                lastClickedNumber = n;
+                                if (rowIndex != null && rowIndex >= 0) { lastClickedRow = rowIndex; currentPhaseRow = rowIndex; }
+                            } catch (e2) { }
+                            toggleNumber(n);
+                        } catch (e) { }
+                    });
+                }
+            } catch (e) { }
+        })();
+    </script>
+</body>
+
+</html>

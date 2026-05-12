@@ -1,0 +1,33 @@
+name: Convert Excel to JSON
+
+on:
+  push:
+    paths:
+      - data.xlsx
+
+jobs:
+  convert:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 18
+
+      - name: Install deps
+        run: npm install xlsx
+
+      - name: Convert data
+        run: node convert_data_to_json.js
+
+      - name: Commit result
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
+          git add data.json
+          git commit -m "Auto update data.json" || echo "No changes"
+          git push
