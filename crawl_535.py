@@ -29,6 +29,8 @@ DEFAULT_JSONL_URLS = (
     "https://raw.githubusercontent.com/vietvudanh/vietlott-data/master/data/power535.jsonl",
     "https://cdn.jsdelivr.net/gh/vietvudanh/vietlott-data@master/data/power535.jsonl",
 )
+# Trang tong hop Vietlott (Lotto 5/35 21h = cung bo so voi Max 3D+ 535 tren vietlott.vn), cap nhat nhanh hon JSONL.
+DEFAULT_XSKT_VIETLOTT_URL = "https://xskt.com.vn/ket-qua-vietlott"
 
 
 def _headers(referer: str | None) -> dict[str, str]:
@@ -228,6 +230,14 @@ def _first_result_table_row(soup: BeautifulSoup):
     return soup.select_one("table.table-hover tbody tr") or soup.select_one("table tbody tr")
 
 
+def _record_from_vietlott_html(html: str) -> dict:
+    soup = BeautifulSoup(html, "html.parser")
+    row = _first_result_table_row(soup)
+    if row is None:
+        raise RuntimeError("Khong tim thay dong ket qua trong HTML Vietlott.")
+    return _parse_row_element_to_record(row)
+
+
 def _parse_row_element_to_record(row) -> dict:
     cols = row.select("td")
     if len(cols) < 3:
@@ -310,49 +320,107 @@ def _fetch_latest_from_mirror_jsonl() -> dict:
     raise last_err if last_err else RuntimeError("Khong co URL JSONL mirror.")
 
 
+def _xskt_vietlott_url() -> str:
+    return os.environ.get("VIETLOTT_535_XSKT_URL", "").strip() or DEFAULT_XSKT_VIETLOTT_URL
+
+
+def _fetch_latest_from_xskt_vietlott() -> dict:
+    """
+    Lay ket qua Lotto 5/35 (21h) tren xskt.com.vn — trung khop san pham 535 tren vietlott.vn,
+    thuong co ky moi truoc khi JSONL github cap nhat.
+    """
+    ua = _headers(None)["User-Agent"]
+    resp = requests.get(_xskt_vietlott_url(), timeout=60, headers={"User-Agent": ua})
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+    best_id = -1
+    best_rec: dict | None = None
+    for table in soup.select("table.result"):
+        kmt = table.select_one("td.kmt")
+        if not kmt or "21h" not in kmt.get_text():
+            continue
+        mid = re.search(r"#(\d{5})", kmt.get_text())
+        if not mid:
+            continue
+        draw_id = int(mid.group(1))
+        em = table.select_one("td.megaresult em")
+        if not em:
+            continue
+        spans = em.find_all("span")
+        main_text = em.get_text(" ", strip=True)
+        for sp in spans:
+            main_text = main_text.replace(sp.get_text(strip=True), "").strip()
+        main_nums = [p for p in re.split(r"\s+", main_text.strip()) if p.isdigit()]
+        if not spans:
+            continue
+        special = spans[-1].get_text(strip=True)
+        if len(main_nums) != 5 or not special.isdigit():
+            continue
+        h2 = table.find_previous("h2")
+        date_text = ""
+        if h2:
+            link = h2.select_one('a[href*="xslotto-21h/ngay-"]')
+            href = link.get("href") if link else ""
+            if href:
+                dm = re.search(r"ngay-(\d+)-(\d+)-(\d{4})", href)
+                if dm:
+                    da, mo, ye = int(dm.group(1)), int(dm.group(2)), dm.group(3)
+                    date_text = f"{da:02d}/{mo:02d}/{ye}"
+        if not date_text:
+            raise RuntimeError("Khong parse duoc ngay tu xskt.")
+        result = ",".join(str(int(x)) for x in main_nums) + "|" + str(int(special))
+        if draw_id > best_id:
+            best_id = draw_id
+            best_rec = {"date": date_text, "id": draw_id, "result": result}
+    if best_rec is None:
+        raise RuntimeError("Khong tim thay bang Lotto 21h tren xskt.com.vn.")
+    return best_rec
+
+
 def fetch_latest_record(url: str, ajax_key: str = DEFAULT_AJAX_KEY):
     errors: list[str] = []
+    candidates: list[dict] = []
     skip_official = os.environ.get("VIETLOTT_535_SKIP_OFFICIAL", "").lower() in (
         "1",
         "true",
         "yes",
     )
-
-    html_fetchers = (
-        ("AjaxPro", lambda: _fetch_html_via_ajaxpro(url, ajax_key)),
-        ("GET trang", lambda: _fetch_page_html(url)),
+    if _github_actions() and os.environ.get("VIETLOTT_535_TRY_OFFICIAL_ON_CI", "").lower() not in (
+        "1",
+        "true",
+        "yes",
+    ):
+        skip_official = True
+    skip_xskt = os.environ.get("VIETLOTT_535_SKIP_XSKT", "").lower() in (
+        "1",
+        "true",
+        "yes",
     )
-    jsonl_fetcher = (
-        "JSONL mirror (vietlott-data)",
-        lambda: _fetch_latest_from_mirror_jsonl(),
-    )
 
-    if skip_official:
-        fetch_order = (jsonl_fetcher,)
-    elif _github_actions():
-        fetch_order = (jsonl_fetcher,) + html_fetchers
-    else:
-        fetch_order = html_fetchers + (jsonl_fetcher,)
-
-    record: dict | None = None
-    for name, getter in fetch_order:
+    def run(name: str, fn):
         try:
-            if name == jsonl_fetcher[0]:
-                record = getter()
-                break
-            html = getter()
-            soup = BeautifulSoup(html, "html.parser")
-            row = _first_result_table_row(soup)
-            if row is None:
-                raise RuntimeError("Khong tim thay dong ket qua trong HTML.")
-            record = _parse_row_element_to_record(row)
-            break
+            candidates.append(fn())
         except Exception as e:
             errors.append(f"{name}: {e}")
 
-    if record is None:
-        raise RuntimeError("Khong lay duoc du lieu. " + " | ".join(errors))
-    return record
+    if not skip_xskt:
+        run("xskt.com.vn (Lotto 21h)", _fetch_latest_from_xskt_vietlott)
+
+    if not skip_official:
+        run(
+            "AjaxPro (vietlott.vn)",
+            lambda: _record_from_vietlott_html(_fetch_html_via_ajaxpro(url, ajax_key)),
+        )
+        run(
+            "GET trang (vietlott.vn)",
+            lambda: _record_from_vietlott_html(_fetch_page_html(url)),
+        )
+
+    run("JSONL mirror (vietlott-data)", _fetch_latest_from_mirror_jsonl)
+
+    if not candidates:
+        raise RuntimeError("Khong lay duoc du lieu tu bat ky nguon nao. " + " | ".join(errors))
+    return max(candidates, key=lambda r: r["id"])
 
 
 def load_existing_rows(file_path: str):
