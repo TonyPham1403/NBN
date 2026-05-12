@@ -1,6 +1,5 @@
 import argparse
 import itertools
-import importlib
 import os
 from collections import Counter
 
@@ -14,59 +13,56 @@ from openpyxl.styles import Alignment
 
 
 URL = "https://www.vietlott.vn/vi/trung-thuong/ket-qua-trung-thuong/winning-number-535#top"
+HOME = "https://www.vietlott.vn/vi/"
 
 
-def build_headers():
-    return {
+def _headers(referer: str | None) -> dict[str, str]:
+    h: dict[str, str] = {
         "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/124.0.0.0 Safari/537.36"
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+            "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
         ),
         "Accept": (
-            "text/html,application/xhtml+xml,application/xml;"
-            "q=0.9,image/avif,image/webp,*/*;q=0.8"
+            "text/html,application/xhtml+xml,application/xml;q=0.9,"
+            "image/avif,image/webp,image/apng,*/*;q=0.8"
         ),
         "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Cache-Control": "no-cache",
-        "Pragma": "no-cache",
-        "Referer": "https://www.vietlott.vn/",
+        "Cache-Control": "max-age=0",
+        "Sec-Ch-Ua": '"Google Chrome";v="131", "Chromium";v="131", "Not_A Brand";v="24"',
+        "Sec-Ch-Ua-Mobile": "?0",
+        "Sec-Ch-Ua-Platform": '"Windows"',
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "same-origin" if referer else "none",
+        "Sec-Fetch-User": "?1",
         "Upgrade-Insecure-Requests": "1",
     }
+    if referer:
+        h["Referer"] = referer
+    return h
 
 
-def fetch_html(url: str):
-    headers = build_headers()
+def _fetch_page_html(page_url: str) -> str:
+    page_url = page_url.split("#", 1)[0]
+    try:
+        from curl_cffi import requests as curl_requests
 
-    resp = requests.get(url, timeout=30, headers=headers)
-    if resp.status_code == 403:
-        try:
-            playwright_sync = importlib.import_module("playwright.sync_api")
-        except ImportError as exc:
-            raise RuntimeError(
-                "Vietlott dang chan requests thuong. Hay cai playwright de render trang bang browser."
-            ) from exc
-
-        with playwright_sync.sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            try:
-                page = browser.new_page(
-                    user_agent=build_headers()["User-Agent"],
-                    extra_http_headers={
-                        "Accept-Language": headers["Accept-Language"],
-                        "Referer": headers["Referer"],
-                    },
-                )
-                page.goto(url, wait_until="domcontentloaded", timeout=60000)
-                page.wait_for_selector("#divResultContent table tbody tr", timeout=60000)
-                resp_text = page.content()
-            finally:
-                browser.close()
-
-        return resp_text
-
-    resp.raise_for_status()
-    return resp.text
+        session = curl_requests.Session()
+        session.get(HOME, impersonate="chrome124", timeout=30, headers=_headers(None))
+        resp = session.get(
+            page_url,
+            impersonate="chrome124",
+            timeout=30,
+            headers=_headers(HOME),
+        )
+        resp.raise_for_status()
+        return resp.text
+    except ImportError:
+        session = requests.Session()
+        session.get(HOME, timeout=30, headers=_headers(None))
+        resp = session.get(page_url, timeout=30, headers=_headers(HOME))
+        resp.raise_for_status()
+        return resp.text
 
 
 def parse_args():
@@ -77,8 +73,7 @@ def parse_args():
 
 
 def fetch_latest_record(url: str):
-    html = fetch_html(url)
-
+    html = _fetch_page_html(url)
     soup = BeautifulSoup(html, "html.parser")
     row = soup.select_one("#divResultContent table tbody tr")
     if row is None:
