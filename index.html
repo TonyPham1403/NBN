@@ -783,6 +783,34 @@
         let rightPaneZoom = 1;
         let submitRingEnabled = false;
         let submitRingMode = 'max';
+        let keyboardFocusTarget = 'right';
+
+        function rememberKeyboardFocusTarget(target) {
+            keyboardFocusTarget = target === 'left' ? 'left' : 'right';
+        }
+
+        function restoreKeyboardFocusTarget() {
+            const frame = el('okFrame');
+            const wrap = el('tableWrap');
+
+            if (keyboardFocusTarget === 'left') {
+                try {
+                    if (frame && frame.contentWindow) {
+                        frame.contentWindow.focus();
+                    }
+                    if (frame && typeof frame.focus === 'function') {
+                        frame.focus();
+                    }
+                } catch (e) { }
+                return;
+            }
+
+            try {
+                if (wrap && typeof wrap.focus === 'function') {
+                    wrap.focus({ preventScroll: true });
+                }
+            } catch (e) { }
+        }
 
         function syncComboLogicUi() {
             if (!sheetManager) return;
@@ -940,11 +968,15 @@
             const toggleBtn = el('autoringToggleBtn');
             const modeSelect = el('submitRingModeSelect');
             if (toggleBtn) {
+                toggleBtn.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                });
                 toggleBtn.addEventListener('click', () => {
                     submitRingEnabled = !submitRingEnabled;
                     try { localStorage.setItem(SUBMIT_RING_ENABLED_KEY, submitRingEnabled ? '1' : '0'); } catch (e) { }
                     syncSubmitRingToolbarUi();
                     sendSubmitRingConfigToIframe();
+                    requestAnimationFrame(() => restoreKeyboardFocusTarget());
                 });
             }
             if (modeSelect) {
@@ -953,6 +985,7 @@
                     try { localStorage.setItem(SUBMIT_RING_MODE_KEY, submitRingMode); } catch (e) { }
                     syncSubmitRingToolbarUi();
                     sendSubmitRingConfigToIframe();
+                    requestAnimationFrame(() => restoreKeyboardFocusTarget());
                 });
             }
 
@@ -1166,9 +1199,19 @@
 
             const tableWrap = el('tableWrap');
             if (tableWrap) {
+                tableWrap.addEventListener('focusin', () => {
+                    rememberKeyboardFocusTarget('right');
+                });
                 tableWrap.addEventListener('scroll', () => {
                     captureCurrentScrollPosition();
                 }, { passive: true });
+            }
+
+            const frame = el('okFrame');
+            if (frame) {
+                frame.addEventListener('focus', () => {
+                    rememberKeyboardFocusTarget('left');
+                });
             }
 
             // Listen for row clicks from sheet manager
