@@ -4,6 +4,7 @@ import json
 import os
 import re
 from collections import Counter
+from datetime import datetime
 
 import pandas as pd
 import requests
@@ -23,6 +24,11 @@ AJAX_URL = (
 # Token in trang winning-number-535 (JS): ServerSideDrawResult(RenderInfo, '........', ...)
 DEFAULT_AJAX_KEY = "64bdd318"
 IMPERSONATE = "chrome124"
+# Du lieu cong dong (cap nhat hang ngay), dung khi IP GitHub bi Vietlott chan hoan toan.
+DEFAULT_JSONL_URLS = (
+    "https://raw.githubusercontent.com/vietvudanh/vietlott-data/master/data/power535.jsonl",
+    "https://cdn.jsdelivr.net/gh/vietvudanh/vietlott-data@master/data/power535.jsonl",
+)
 
 
 def _headers(referer: str | None) -> dict[str, str]:
@@ -222,24 +228,7 @@ def _first_result_table_row(soup: BeautifulSoup):
     return soup.select_one("table.table-hover tbody tr") or soup.select_one("table tbody tr")
 
 
-def fetch_latest_record(url: str, ajax_key: str = DEFAULT_AJAX_KEY):
-    errors: list[str] = []
-    for name, getter in (
-        ("AjaxPro", lambda: _fetch_html_via_ajaxpro(url, ajax_key)),
-        ("GET trang", lambda: _fetch_page_html(url)),
-    ):
-        try:
-            html = getter()
-            soup = BeautifulSoup(html, "html.parser")
-            row = _first_result_table_row(soup)
-            if row is None:
-                raise RuntimeError("Khong tim thay dong ket qua trong HTML.")
-            break
-        except Exception as e:
-            errors.append(f"{name}: {e}")
-    else:
-        raise RuntimeError("Khong lay duoc du lieu Vietlott. " + " | ".join(errors))
-
+def _parse_row_element_to_record(row) -> dict:
     cols = row.select("td")
     if len(cols) < 3:
         raise RuntimeError("Khong doc duoc du lieu cot ngay/id/result.")
@@ -265,6 +254,105 @@ def fetch_latest_record(url: str, ajax_key: str = DEFAULT_AJAX_KEY):
     result = ",".join(nums) + "|" + special
 
     return {"date": date_text, "id": id_num, "result": result}
+
+
+def _github_actions() -> bool:
+    return os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
+
+
+def _mirror_jsonl_urls() -> list[str]:
+    out: list[str] = []
+    env_u = os.environ.get("VIETLOTT_535_JSONL_URL", "").strip()
+    if env_u:
+        out.append(env_u)
+    for u in DEFAULT_JSONL_URLS:
+        if u not in out:
+            out.append(u)
+    return out
+
+
+def _record_from_jsonl_row(row: dict) -> dict:
+    """Dong JSONL power535: date YYYY-MM-DD, id string, result [5 main + 1 special]."""
+    raw_date = str(row.get("date", "")).strip()
+    dt = datetime.strptime(raw_date, "%Y-%m-%d")
+    date_text = dt.strftime("%d/%m/%Y")
+    id_num = int(str(row.get("id", "")).strip())
+    nums = row.get("result")
+    if not isinstance(nums, list) or len(nums) != 6:
+        raise RuntimeError(f"JSONL result khong hop le: {nums!r}")
+    main = ",".join(str(int(x)) for x in nums[:5])
+    special = str(int(nums[5]))
+    return {"date": date_text, "id": id_num, "result": f"{main}|{special}"}
+
+
+def _fetch_latest_from_mirror_jsonl() -> dict:
+    """
+    Doc power535.jsonl (mirror cong dong). Co the cham hon trang Vietlott vai gio.
+    """
+    ua = _headers(None)["User-Agent"]
+    last_err: Exception | None = None
+    for src in _mirror_jsonl_urls():
+        try:
+            resp = requests.get(src, timeout=60, headers={"User-Agent": ua})
+            resp.raise_for_status()
+            rows: list[dict] = []
+            for line in resp.text.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                rows.append(json.loads(line))
+            if not rows:
+                raise RuntimeError("File JSONL khong co dong nao.")
+            latest = max(rows, key=lambda x: int(str(x.get("id", "0")).strip() or "0"))
+            return _record_from_jsonl_row(latest)
+        except Exception as e:
+            last_err = e
+    raise last_err if last_err else RuntimeError("Khong co URL JSONL mirror.")
+
+
+def fetch_latest_record(url: str, ajax_key: str = DEFAULT_AJAX_KEY):
+    errors: list[str] = []
+    skip_official = os.environ.get("VIETLOTT_535_SKIP_OFFICIAL", "").lower() in (
+        "1",
+        "true",
+        "yes",
+    )
+
+    html_fetchers = (
+        ("AjaxPro", lambda: _fetch_html_via_ajaxpro(url, ajax_key)),
+        ("GET trang", lambda: _fetch_page_html(url)),
+    )
+    jsonl_fetcher = (
+        "JSONL mirror (vietlott-data)",
+        lambda: _fetch_latest_from_mirror_jsonl(),
+    )
+
+    if skip_official:
+        fetch_order = (jsonl_fetcher,)
+    elif _github_actions():
+        fetch_order = (jsonl_fetcher,) + html_fetchers
+    else:
+        fetch_order = html_fetchers + (jsonl_fetcher,)
+
+    record: dict | None = None
+    for name, getter in fetch_order:
+        try:
+            if name == jsonl_fetcher[0]:
+                record = getter()
+                break
+            html = getter()
+            soup = BeautifulSoup(html, "html.parser")
+            row = _first_result_table_row(soup)
+            if row is None:
+                raise RuntimeError("Khong tim thay dong ket qua trong HTML.")
+            record = _parse_row_element_to_record(row)
+            break
+        except Exception as e:
+            errors.append(f"{name}: {e}")
+
+    if record is None:
+        raise RuntimeError("Khong lay duoc du lieu. " + " | ".join(errors))
+    return record
 
 
 def load_existing_rows(file_path: str):
