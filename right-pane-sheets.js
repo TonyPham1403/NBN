@@ -1540,6 +1540,9 @@ class RightPaneSheetManager {
             return [res, note, nonexist].filter(Boolean).join('\t');
         });
 
+        const rowAtClick = this.dataRows[idx] || {};
+        const clickedRowId = String(rowAtClick.id || rowAtClick.ID || '').trim();
+
         // Send to parent/iframe
         const frame = document.getElementById('okFrame');
         if (frame && frame.contentWindow) {
@@ -1547,7 +1550,8 @@ class RightPaneSheetManager {
                 type: 'setLines',
                 lines: lines,
                 disableSubmit: !!isEmptyRow,
-                sheetName: this.activeSheet
+                sheetName: this.activeSheet,
+                focusRowId: clickedRowId
             }, '*');
         }
 
@@ -1597,7 +1601,8 @@ class RightPaneSheetManager {
             detail: {
                 selectedLines: this.selectedLines,
                 selectedNums: this.parseNums(this.selectedLines.length > 0 ? (this.selectedLines[this.selectedLines.length - 1].result || '') : ''),
-                sheetName: this.activeSheet
+                sheetName: this.activeSheet,
+                clickedRowId
             }
         }));
     }
