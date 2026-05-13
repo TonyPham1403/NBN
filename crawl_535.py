@@ -92,7 +92,8 @@ def _ajax_request_body(ajax_key: str, page_index: int = 0) -> dict:
     }
 
 
-def _ajaxpro_headers() -> dict[str, str]:
+def _ajaxpro_headers(page_url: str = URL) -> dict[str, str]:
+    referer = page_url.split("#", 1)[0]
     return {
         "User-Agent": (
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
@@ -102,8 +103,8 @@ def _ajaxpro_headers() -> dict[str, str]:
         "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
         "Content-Type": "text/plain; charset=utf-8",
         "X-AjaxPro-Method": "ServerSideDrawResult",
-        "Origin": "https://www.vietlott.vn",
-        "Referer": "https://www.vietlott.vn/vi/trung-thuong/ket-qua-trung-thuong/winning-number-535",
+       "Origin": "https://www.vietlott.vn",
+        "Referer": referer,
     }
 
 
@@ -141,7 +142,7 @@ def _fetch_html_via_ajaxpro(page_url: str, ajax_key: str, page_index: int = 0) -
         resp = session.post(
             AJAX_URL,
             data=json.dumps(body, ensure_ascii=False),
-            headers=_ajaxpro_headers(),
+            headers=_ajaxpro_headers(page_url),
             impersonate=IMPERSONATE,
             timeout=30,
         )
@@ -180,7 +181,7 @@ def _fetch_html_via_ajaxpro(page_url: str, ajax_key: str, page_index: int = 0) -
         resp = session.post(
             AJAX_URL,
             data=json.dumps(body, ensure_ascii=False),
-            headers=_ajaxpro_headers(),
+            headers=_ajaxpro_headers(page_url),
             timeout=30,
         )
         resp.raise_for_status()
