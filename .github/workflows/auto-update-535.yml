@@ -27,10 +27,6 @@ jobs:
           pip install requests beautifulsoup4 curl-cffi
 
       - name: Sync new draws into data.json
-        env:
-          # Trên GitHub Actions, crawl_535.py sẽ mặc định skip Vietlott chính nếu không set biến này.
-          # Bật lên để tránh trường hợp mirror/xskt chưa kịp cập nhật (vd. thiếu kỳ mới nhất).
-          VIETLOTT_535_TRY_OFFICIAL_ON_CI: "1"
         run: python crawl_535.py --json "data.json"
 
       - name: Commit and push if changed
