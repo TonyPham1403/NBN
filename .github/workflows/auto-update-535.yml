@@ -3,12 +3,15 @@ name: Auto update 535 data
 on:
   schedule:
     # 13:05 và 21:05 giờ Việt Nam (UTC+7) -> 06:05 và 14:05 UTC
-    - cron: "5 6,14 * * *"
+    # - cron: "5 6,14 * * *"
+    - cron: "*/15 * * * *"
   workflow_dispatch:
 
 jobs:
   update-data:
     runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
     permissions:
       contents: write
 
