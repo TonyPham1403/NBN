@@ -206,14 +206,16 @@ def _fetch_all_from_xskt_535(page_url: str) -> list[dict]:
         em = table.select_one("td.megaresult em")
         if not em:
             continue
-        spans = em.find_all("span")
-        main_text = em.get_text(" ", strip=True)
-        for sp in spans:
-            main_text = main_text.replace(sp.get_text(strip=True), "").strip()
-        main_nums = [p for p in re.split(r"\s+", main_text.strip()) if p.isdigit()]
-        if not spans:
+        # Lay 5 so + so dac biet theo thu tu trong <em> (get_text).
+        # Khong dung replace(tung span): neu mega trung mot so trong 5 so
+        # (vd 01 ... <span>01</span>) thi replace xoa nham ca so chinh.
+        parts = [
+            p for p in re.split(r"\s+", em.get_text(" ", strip=True)) if p.isdigit()
+        ]
+        if len(parts) < 6:
             continue
-        special = spans[-1].get_text(strip=True)
+        main_nums = parts[:5]
+        special = parts[-1]
         if len(main_nums) != 5 or not special.isdigit():
             continue
 
