@@ -2573,11 +2573,21 @@
                         applySubmitState();
                         try { updatePairList(); } catch (e) { }
                         refreshPairTailSelectionState();
+                        try {
+                            if (window.parent && window.parent !== window) {
+                                window.parent.postMessage({ type: 'submitStateChanged', submitActive: submitActive }, '*');
+                            }
+                        } catch (e) { }
                         return;
                     }
                 } catch (e) { /* fallback below */ }
                 // fallback: full rerender when DOM not present
                 renderTable1(); renderTable2(); try { updatePairList(); } catch (e) { } try { refreshPairTailSelectionState(); } catch (e) { } alignTableActionsAndCenter(); updateFloatingCopyButtons();
+                try {
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage({ type: 'submitStateChanged', submitActive: submitActive }, '*');
+                    }
+                } catch (e) { }
             } catch (e) { console.error(e); }
         }
 
@@ -3450,9 +3460,30 @@
                     const wasSubmitActive = submitActive || msg.submitActive;
                     const focusRowId = (msg.focusRowId != null) ? String(msg.focusRowId) : '';
                     const newFk = normalizeAutoRingFocusKey(focusRowId);
+                    const focusChanged = !!lastAutoRingFocusKey && !!newFk && lastAutoRingFocusKey !== newFk;
 
                     if (lastAutoRingFocusKey && lastAutoRingFocusKey !== newFk) {
                         try { selectionMemoryByFocusId.set(lastAutoRingFocusKey, snapshotSelectionState()); } catch (e) { }
+                    }
+
+                    if (focusChanged) {
+                        // Đổi sang kỳ khác: không giữ submit ON và không giữ khoanh số kỳ trước.
+                        submitActive = false;
+                        try {
+                            const sbEl = document.getElementById('submitBtn');
+                            if (sbEl) sbEl.classList.remove('active');
+                        } catch (e) { }
+                        selected.clear();
+                        transientSelected.clear();
+                        simulatedSelected.clear();
+                        pickOrder = [];
+                        currentPairIndex = -1;
+                        currentTailIndex = -1;
+                        currentPhaseNumber = null;
+                        currentPhaseRow = null;
+                        lastClickedNumber = null;
+                        lastClickedRow = null;
+                        phaseHistory = [];
                     }
 
                     // process the new input
@@ -3461,7 +3492,7 @@
                     } catch (e) { console.error(e); }
 
                     // If submit was active, restore and sync mode with new answerNums
-                    if (wasSubmitActive) {
+                    if (wasSubmitActive && !focusChanged) {
                         submitActive = true;
                         const sbEl = document.getElementById('submitBtn');
                         if (sbEl) sbEl.classList.add('active');
@@ -3469,11 +3500,7 @@
                         try { applySubmitState(); } catch (e) { console.error(e); }
                         lastAutoRingFocusKey = newFk;
                     } else {
-                        if (submitAutoCircleEnabled && newFk && autoRingVisitedIds.has(newFk) && selectionMemoryByFocusId.has(newFk)) {
-                            try { restoreSelectionStateSnapshot(selectionMemoryByFocusId.get(newFk)); } catch (e) { console.error(e); }
-                        } else {
-                            try { maybeApplySubmitAutoRingAfterProcess(focusRowId); } catch (e) { console.error(e); }
-                        }
+                        try { maybeApplySubmitAutoRingAfterProcess(focusRowId); } catch (e) { console.error(e); }
                         lastAutoRingFocusKey = newFk;
                         try { persistSelectionMemoryForFocus(); } catch (e) { }
                     }

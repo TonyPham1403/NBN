@@ -1354,6 +1354,12 @@ class RightPaneSheetManager {
 
         const display = rows.slice(0, 10);
         const sets = display.map(row => new Set(this.parseMainNums(row.result || row.Result || '')));
+        const windowFreq = {};
+        for (const set of sets) {
+            for (const n of set) {
+                windowFreq[n] = (windowFreq[n] || 0) + 1;
+            }
+        }
         const allNums = new Set();
         sets.forEach(set => set.forEach(num => allNums.add(num)));
         const nums = Array.from(allNums).sort((left, right) => left - right);
@@ -1389,10 +1395,10 @@ class RightPaneSheetManager {
                             const flippedHasPair = sets[pair.top].has(b) && sets[pair.bottom].has(a);
                             if (topHasPair || flippedHasPair) {
                                 if (!((sets[pair.top].has(a) && sets[pair.top].has(b)) || (sets[pair.bottom].has(a) && sets[pair.bottom].has(b)))) {
-                                    const allowAboveIfFreq2 = (this.frequencyMap && (
-                                        (this.frequencyMap[a] >= 2 && this.frequencyMap[b] >= 2 && mainIdx === sets.length - 1) ||
-                                        ((this.frequencyMap[a] === 3 && this.frequencyMap[b] === 2) || (this.frequencyMap[a] === 2 && this.frequencyMap[b] === 3))
-                                    ));
+                                    const allowAboveIfFreq2 = (
+                                        (windowFreq[a] >= 2 && windowFreq[b] >= 2 && mainIdx === sets.length - 1) ||
+                                        ((windowFreq[a] === 3 && windowFreq[b] === 2) || (windowFreq[a] === 2 && windowFreq[b] === 3))
+                                    );
                                     if (!allowAboveIfFreq2) {
                                         aboveFound = true;
                                         break;
@@ -1423,10 +1429,10 @@ class RightPaneSheetManager {
                     }
 
                     if (!foundForThisMain) {
-                        const allowAboveIfFreq2 = (this.frequencyMap && (
-                            (this.frequencyMap[a] >= 2 && this.frequencyMap[b] >= 2 && mainIdx === sets.length - 1) ||
-                            ((this.frequencyMap[a] === 3 && this.frequencyMap[b] === 2) || (this.frequencyMap[a] === 2 && this.frequencyMap[b] === 3))
-                        ));
+                        const allowAboveIfFreq2 = (
+                            (windowFreq[a] >= 2 && windowFreq[b] >= 2 && mainIdx === sets.length - 1) ||
+                            ((windowFreq[a] === 3 && windowFreq[b] === 2) || (windowFreq[a] === 2 && windowFreq[b] === 3))
+                        );
                         if (allowAboveIfFreq2) {
                             for (const pair of adjPairs) {
                                 if (!(pair.bottom < mainIdx)) {
