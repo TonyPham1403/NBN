@@ -27,6 +27,8 @@ jobs:
           pip install requests beautifulsoup4 curl-cffi
 
       - name: Sync new draws into data.json
+        env:
+          VIETLOTT_535_TRY_OFFICIAL_ON_CI: "1"
         run: python crawl_535.py --json "data.json"
 
       - name: Commit and push if changed
