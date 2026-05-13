@@ -1,6 +1,7 @@
 """
 Dong bo tat ca ky xo so 535 (Max 3D+ / Lotto 21h) moi hon data.json hien co.
-Ghi truc tiep proj/data.json, giu dung hang cuoi result rong nhu convert_data_to_json.js.
+Chi lay tu trang xskt xslotto-5-35. Ghi truc tiep proj/data.json,
+giu dung hang cuoi result rong nhu convert_data_to_json.js.
 """
 from __future__ import annotations
 
@@ -14,19 +15,6 @@ import requests
 from bs4 import BeautifulSoup
 
 
-URL = "https://www.vietlott.vn/vi/trung-thuong/ket-qua-trung-thuong/winning-number-535#top"
-HOME = "https://www.vietlott.vn/vi/"
-AJAX_URL = (
-    "https://www.vietlott.vn/ajaxpro/Vietlott.PlugIn.WebParts.Game535CompareWebPart,"
-    "Vietlott.PlugIn.WebParts.ashx"
-)
-DEFAULT_AJAX_KEY = "64bdd318"
-IMPERSONATE = "chrome124"
-DEFAULT_JSONL_URLS = (
-    "https://raw.githubusercontent.com/vietvudanh/vietlott-data/master/data/power535.jsonl",
-    "https://cdn.jsdelivr.net/gh/vietvudanh/vietlott-data@master/data/power535.jsonl",
-)
-DEFAULT_XSKT_VIETLOTT_URL = "https://xskt.com.vn/ket-qua-vietlott"
 DEFAULT_XSKT_535_URL = "https://xskt.com.vn/xslotto-5-35"
 
 
@@ -56,196 +44,21 @@ def _headers(referer: str | None) -> dict[str, str]:
     return h
 
 
-def _ajax_key_from_page_html(html: str) -> str | None:
-    m = re.search(
-        r"ServerSideDrawResult\([^)]*'([0-9a-f]{8})'",
-        html,
-        re.I,
-    )
-    return m.group(1) if m else None
-
-
-def _ajax_request_body(ajax_key: str, page_index: int = 0) -> dict:
-    return {
-        "ORenderInfo": {
-            "ExtraParam1": "",
-            "ExtraParam2": "",
-            "ExtraParam3": "",
-            "FullPageAlias": "",
-            "IsPageDesign": False,
-            "OrgPageAlias": "",
-            "PageAlias": "",
-            "RefKey": "",
-            "SiteAlias": "main.vi",
-            "SiteId": "main.frontend.vi",
-            "SiteLang": "vi",
-            "SiteName": "Vietlott",
-            "SiteURL": "",
-            "System": 1,
-            "UserSessionId": "",
-            "WebPage": "",
-        },
-        "Key": ajax_key,
-        "GameDrawId": "",
-        "ArrayNumbers": [["" for _ in range(35)] for _ in range(5)],
-        "CheckMulti": False,
-        "PageIndex": page_index,
-    }
-
-
-def _ajaxpro_headers(page_url: str = URL) -> dict[str, str]:
-    referer = page_url.split("#", 1)[0]
-    return {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
-            "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-        ),
-        "Accept": "*/*",
-        "Accept-Language": "vi-VN,vi;q=0.9,en-US;q=0.8,en;q=0.7",
-        "Content-Type": "text/plain; charset=utf-8",
-        "X-AjaxPro-Method": "ServerSideDrawResult",
-       "Origin": "https://www.vietlott.vn",
-        "Referer": referer,
-    }
-
-
-def _fetch_html_via_ajaxpro(page_url: str, ajax_key: str, page_index: int = 0) -> str:
-    page_url = page_url.split("#", 1)[0]
-    try:
-        from curl_cffi import requests as curl_requests
-
-        session = curl_requests.Session()
-        home_html = None
-        try:
-            home = session.get(HOME, impersonate=IMPERSONATE, timeout=30, headers=_headers(None))
-            if home.ok:
-                home_html = home.text
-        except Exception:
-            home_html = None
-        win_html = None
-        try:
-            win = session.get(
-                page_url,
-                impersonate=IMPERSONATE,
-                timeout=30,
-                headers=_headers(HOME),
-            )
-            if win.ok:
-                win_html = win.text
-        except Exception:
-            win_html = None
-        key = (
-            (_ajax_key_from_page_html(win_html) if win_html else None)
-            or (_ajax_key_from_page_html(home_html) if home_html else None)
-            or ajax_key
-        )
-        body = _ajax_request_body(key, page_index)
-        resp = session.post(
-            AJAX_URL,
-            data=json.dumps(body, ensure_ascii=False),
-            headers=_ajaxpro_headers(page_url),
-            impersonate=IMPERSONATE,
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        val = data.get("value") or {}
-        if val.get("Error"):
-            msg = val.get("InfoMessage") or str(val)
-            raise RuntimeError(f"AjaxPro loi: {msg}")
-        html = val.get("HtmlContent") or ""
-        if not html.strip():
-            raise RuntimeError("AjaxPro tra ve HtmlContent rong.")
-        return html
-    except ImportError:
-        session = requests.Session()
-        home_html = None
-        try:
-            home = session.get(HOME, timeout=30, headers=_headers(None))
-            if home.ok:
-                home_html = home.text
-        except Exception:
-            home_html = None
-        win_html = None
-        try:
-            win = session.get(page_url, timeout=30, headers=_headers(HOME))
-            if win.ok:
-                win_html = win.text
-        except Exception:
-            win_html = None
-        key = (
-            (_ajax_key_from_page_html(win_html) if win_html else None)
-            or (_ajax_key_from_page_html(home_html) if home_html else None)
-            or ajax_key
-        )
-        body = _ajax_request_body(key, page_index)
-        resp = session.post(
-            AJAX_URL,
-            data=json.dumps(body, ensure_ascii=False),
-            headers=_ajaxpro_headers(page_url),
-            timeout=30,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        val = data.get("value") or {}
-        if val.get("Error"):
-            msg = val.get("InfoMessage") or str(val)
-            raise RuntimeError(f"AjaxPro loi: {msg}")
-        html = val.get("HtmlContent") or ""
-        if not html.strip():
-            raise RuntimeError("AjaxPro tra ve HtmlContent rong.")
-        return html
-
-
-def _fetch_page_html(page_url: str) -> str:
-    page_url = page_url.split("#", 1)[0]
-    try:
-        from curl_cffi import requests as curl_requests
-
-        session = curl_requests.Session()
-        session.get(HOME, impersonate=IMPERSONATE, timeout=30, headers=_headers(None))
-        resp = session.get(
-            page_url,
-            impersonate=IMPERSONATE,
-            timeout=30,
-            headers=_headers(HOME),
-        )
-        resp.raise_for_status()
-        return resp.text
-    except ImportError:
-        session = requests.Session()
-        session.get(HOME, timeout=30, headers=_headers(None))
-        resp = session.get(page_url, timeout=30, headers=_headers(HOME))
-        resp.raise_for_status()
-        return resp.text
-
-
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(
-        description="Dong bo ky moi vao data.json (khong sua xlsm).",
+        description="Dong bo ky moi vao data.json tu xskt xslotto-5-35 (khong sua xlsm).",
     )
     p.add_argument(
         "--json",
         default=os.environ.get("VIETLOTT_535_DATA_JSON", "data.json"),
         help="Duong toi data.json (mac dinh data.json trong cwd).",
     )
-    p.add_argument("--url", default=URL, help="URL trang ket qua Vietlott.")
     p.add_argument(
-        "--ajax-key",
-        default=os.environ.get("VIETLOTT_535_AJAX_KEY", DEFAULT_AJAX_KEY),
-        help="AjaxPro key (hoac VIETLOTT_535_AJAX_KEY).",
-    )
-    p.add_argument(
-        "--max-ajax-pages",
-        type=int,
-        default=int(os.environ.get("VIETLOTT_535_MAX_AJAX_PAGES", "15")),
-        help="So trang AjaxPro toi da de lay du cac ky gan day.",
+        "--url",
+        default=os.environ.get("VIETLOTT_535_XSKT_535_URL", "").strip() or DEFAULT_XSKT_535_URL,
+        help="URL trang ket qua Lotto 5/35 tren xskt (mac dinh xslotto-5-35).",
     )
     return p.parse_args()
-
-
-def _github_actions() -> bool:
-    return os.environ.get("GITHUB_ACTIONS", "").lower() == "true"
 
 
 def _result_meaningful(result: str) -> bool:
@@ -376,110 +189,9 @@ def write_data_json(path: str, rows_with_trailing: list[dict]) -> None:
         f.write("\n")
 
 
-def _parse_row_element_to_record(row) -> dict:
-    cols = row.select("td")
-    if len(cols) < 3:
-        raise RuntimeError("Khong doc duoc du lieu cot ngay/id/result.")
-
-    date_text = cols[0].get_text(strip=True)
-    id_text = cols[1].get_text(strip=True)
-    id_num = int(id_text)
-
-    spans = cols[2].select("span")
-    values: list[str] = []
-    for span in spans:
-        txt = span.get_text(strip=True)
-        if not txt or txt == "|":
-            continue
-        if txt.isdigit():
-            values.append(str(int(txt)))
-
-    if len(values) < 6:
-        raise RuntimeError(f"Khong du 6 so de tao ket qua: {values}")
-
-    nums = values[:5]
-    special = values[5]
-    result = ",".join(nums) + "|" + special
-
-    return {"date": date_text, "id": id_num, "result": result}
-
-
-def _parse_all_vietlott_table_rows(html: str) -> list[dict]:
-    soup = BeautifulSoup(html, "html.parser")
-    out: list[dict] = []
-    for sel in (
-        "#divResultContent table tbody tr",
-        "table.table-hover tbody tr",
-        "table tbody tr",
-    ):
-        found = soup.select(sel)
-        if not found:
-            continue
-        for row in found:
-            try:
-                out.append(_parse_row_element_to_record(row))
-            except Exception:
-                continue
-        break
-    return out
-
-
-def _mirror_jsonl_urls() -> list[str]:
-    out: list[str] = []
-    env_u = os.environ.get("VIETLOTT_535_JSONL_URL", "").strip()
-    if env_u:
-        out.append(env_u)
-    for u in DEFAULT_JSONL_URLS:
-        if u not in out:
-            out.append(u)
-    return out
-
-
-def _record_from_jsonl_row(row: dict) -> dict:
-    raw_date = str(row.get("date", "")).strip()
-    dt = datetime.strptime(raw_date, "%Y-%m-%d")
-    date_text = dt.strftime("%d/%m/%Y")
-    id_num = int(str(row.get("id", "")).strip())
-    nums = row.get("result")
-    if not isinstance(nums, list) or len(nums) != 6:
-        raise RuntimeError(f"JSONL result khong hop le: {nums!r}")
-    main = ",".join(str(int(x)) for x in nums[:5])
-    special = str(int(nums[5]))
-    return {"date": date_text, "id": id_num, "result": f"{main}|{special}"}
-
-
-def _fetch_all_from_mirror_jsonl() -> list[dict]:
+def _fetch_all_from_xskt_535(page_url: str) -> list[dict]:
     ua = _headers(None)["User-Agent"]
-    last_err: Exception | None = None
-    for src in _mirror_jsonl_urls():
-        try:
-            resp = requests.get(src, timeout=60, headers={"User-Agent": ua})
-            resp.raise_for_status()
-            rows: list[dict] = []
-            for line in resp.text.splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                rows.append(_record_from_jsonl_row(json.loads(line)))
-            if not rows:
-                raise RuntimeError("JSONL rong.")
-            return rows
-        except Exception as e:
-            last_err = e
-    raise last_err if last_err else RuntimeError("Khong doc duoc JSONL mirror.")
-
-
-def _xskt_vietlott_url() -> str:
-    return os.environ.get("VIETLOTT_535_XSKT_URL", "").strip() or DEFAULT_XSKT_VIETLOTT_URL
-
-
-def _xskt_535_url() -> str:
-    return os.environ.get("VIETLOTT_535_XSKT_535_URL", "").strip() or DEFAULT_XSKT_535_URL
-
-
-def _fetch_all_from_xskt_535() -> list[dict]:
-    ua = _headers(None)["User-Agent"]
-    resp = requests.get(_xskt_535_url(), timeout=60, headers={"User-Agent": ua})
+    resp = requests.get(page_url, timeout=60, headers={"User-Agent": ua})
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
     out: list[dict] = []
@@ -522,138 +234,21 @@ def _fetch_all_from_xskt_535() -> list[dict]:
     return out
 
 
-def _fetch_all_from_xskt_vietlott() -> list[dict]:
-    ua = _headers(None)["User-Agent"]
-    resp = requests.get(_xskt_vietlott_url(), timeout=60, headers={"User-Agent": ua})
-    resp.raise_for_status()
-    soup = BeautifulSoup(resp.text, "html.parser")
-    out: list[dict] = []
-    for table in soup.select("table.result"):
-        kmt = table.select_one("td.kmt")
-        if not kmt or "21h" not in kmt.get_text():
-            continue
-        mid = re.search(r"#(\d{5})", kmt.get_text())
-        if not mid:
-            continue
-        draw_id = int(mid.group(1))
-        em = table.select_one("td.megaresult em")
-        if not em:
-            continue
-        spans = em.find_all("span")
-        main_text = em.get_text(" ", strip=True)
-        for sp in spans:
-            main_text = main_text.replace(sp.get_text(strip=True), "").strip()
-        main_nums = [p for p in re.split(r"\s+", main_text.strip()) if p.isdigit()]
-        if not spans:
-            continue
-        special = spans[-1].get_text(strip=True)
-        if len(main_nums) != 5 or not special.isdigit():
-            continue
-        h2 = table.find_previous("h2")
-        date_text = ""
-        if h2:
-            link = h2.select_one('a[href*="xslotto-21h/ngay-"]')
-            href = link.get("href") if link else ""
-            if href:
-                dm = re.search(r"ngay-(\d+)-(\d+)-(\d{4})", href)
-                if dm:
-                    da, mo, ye = int(dm.group(1)), int(dm.group(2)), dm.group(3)
-                    date_text = f"{da:02d}/{mo:02d}/{ye}"
-        if not date_text:
-            continue
-        result = ",".join(str(int(x)) for x in main_nums) + "|" + str(int(special))
-        out.append({"date": date_text, "id": draw_id, "result": result})
-    if not out:
-        raise RuntimeError("Khong tim thay bang Lotto 21h tren xskt.")
-    return out
-
-
-def _fetch_all_vietlott_ajax_pages(
-    url: str,
-    ajax_key: str,
-    max_pages: int,
-    min_id_exclusive: int,
-) -> list[dict]:
-    by_id: dict[int, dict] = {}
-    prev_sig: tuple[int, ...] | None = None
-    for page in range(max_pages):
-        try:
-            html = _fetch_html_via_ajaxpro(url, ajax_key, page)
-        except Exception as e:
-            if page == 0:
-                raise RuntimeError(f"AjaxPro page dau loi: {e}") from e
-            break
-        rows = _parse_all_vietlott_table_rows(html)
-        if not rows:
-            break
-        sig = tuple(sorted(r["id"] for r in rows))
-        if sig == prev_sig:
-            break
-        prev_sig = sig
-        for r in rows:
-            if r["id"] > min_id_exclusive:
-                by_id[r["id"]] = r
-    return sorted(by_id.values(), key=lambda r: r["id"])
-
-
-def _merge_remote_rows(
-    min_id_exclusive: int,
-    url: str,
-    ajax_key: str,
-    max_pages: int,
-    skip_official: bool,
-    skip_xskt: bool,
-) -> list[dict]:
-    """
-    Gom tu nhieu nguon, chi giu id > min_id_exclusive.
-    Thu tu ghi de: JSONL -> GET trang -> tung trang AjaxPro -> xskt (uu tien xskt neu trung id).
-    """
-    merged: dict[int, dict] = {}
-
-    def put_many(rows: list[dict]) -> None:
-        for r in rows:
-            if r["id"] <= min_id_exclusive:
-                continue
-            merged[r["id"]] = dict(r)
-
-    errors: list[str] = []
-
+def _fetch_new_rows_xskt(min_id_exclusive: int, page_url: str) -> list[dict]:
     try:
-        put_many(_fetch_all_from_mirror_jsonl())
+        rows = _fetch_all_from_xskt_535(page_url)
     except Exception as e:
-        errors.append(f"jsonl: {e}")
-
-    if not skip_official:
-        try:
-            put_many(_parse_all_vietlott_table_rows(_fetch_page_html(url)))
-        except Exception as e:
-            errors.append(f"GET: {e}")
-        try:
-            put_many(_fetch_all_vietlott_ajax_pages(url, ajax_key, max_pages, min_id_exclusive))
-        except Exception as e:
-            errors.append(f"AjaxPro: {e}")
-
-    if not skip_xskt:
-        try:
-            put_many(_fetch_all_from_xskt_535())
-        except Exception as e:
-            errors.append(f"xskt-535: {e}")
-        try:
-            put_many(_fetch_all_from_xskt_vietlott())
-        except Exception as e:
-            errors.append(f"xskt: {e}")
-
-    out = sorted(merged.values(), key=lambda r: r["id"])
-    if not out and errors:
-        # Không nên fail workflow nếu nguồn Vietlott chính bị chặn/404 tạm thời.
-        # Lần cron sau hoặc mirror/xskt có thể cập nhật kịp kỳ mới.
         print(
-            "Canh bao: khong lay duoc ky moi (se thu lai o lan sau). "
-            + " | ".join(errors),
+            f"Canh bao: khong lay duoc ky moi tu xskt (se thu lai o lan sau). {e}",
             flush=True,
         )
         return []
-    return out
+    merged: dict[int, dict] = {}
+    for r in rows:
+        if r["id"] <= min_id_exclusive:
+            continue
+        merged[r["id"]] = dict(r)
+    return sorted(merged.values(), key=lambda r: r["id"])
 
 
 def main() -> int:
@@ -664,33 +259,7 @@ def main() -> int:
 
     existing, max_id = read_real_rows_from_data_json(json_path)
 
-    skip_official = os.environ.get("VIETLOTT_535_SKIP_OFFICIAL", "").lower() in (
-        "1",
-        "true",
-        "yes",
-    )
-    if _github_actions() and os.environ.get("VIETLOTT_535_TRY_OFFICIAL_ON_CI", "").lower() not in (
-        "1",
-        "true",
-        "yes",
-    ):
-        skip_official = True
-
-    skip_xskt = os.environ.get("VIETLOTT_535_SKIP_XSKT", "").lower() in (
-        "1",
-        "true",
-        "yes",
-    )
-
-    new_rows = _merge_remote_rows(
-        max_id,
-        args.url,
-        args.ajax_key,
-        args.max_ajax_pages,
-        skip_official=skip_official,
-        skip_xskt=skip_xskt,
-    )
-    new_rows = [r for r in new_rows if r["id"] > max_id]
+    new_rows = _fetch_new_rows_xskt(max_id, args.url)
     if not new_rows:
         print(f"Khong co ky moi (max_id hien tai: {max_id:05d}).")
         return 0
