@@ -27,6 +27,7 @@ DEFAULT_JSONL_URLS = (
     "https://cdn.jsdelivr.net/gh/vietvudanh/vietlott-data@master/data/power535.jsonl",
 )
 DEFAULT_XSKT_VIETLOTT_URL = "https://xskt.com.vn/ket-qua-vietlott"
+DEFAULT_XSKT_535_URL = "https://xskt.com.vn/xslotto-5-35"
 
 
 def _headers(referer: str | None) -> dict[str, str]:
@@ -472,6 +473,55 @@ def _xskt_vietlott_url() -> str:
     return os.environ.get("VIETLOTT_535_XSKT_URL", "").strip() or DEFAULT_XSKT_VIETLOTT_URL
 
 
+def _xskt_535_url() -> str:
+    return os.environ.get("VIETLOTT_535_XSKT_535_URL", "").strip() or DEFAULT_XSKT_535_URL
+
+
+def _fetch_all_from_xskt_535() -> list[dict]:
+    ua = _headers(None)["User-Agent"]
+    resp = requests.get(_xskt_535_url(), timeout=60, headers={"User-Agent": ua})
+    resp.raise_for_status()
+    soup = BeautifulSoup(resp.text, "html.parser")
+    out: list[dict] = []
+    for table in soup.select("table.result"):
+        kmt = table.select_one("td.kmt")
+        if not kmt:
+            continue
+        mid = re.search(r"#(\d{5})", kmt.get_text())
+        if not mid:
+            continue
+        draw_id = int(mid.group(1))
+        em = table.select_one("td.megaresult em")
+        if not em:
+            continue
+        spans = em.find_all("span")
+        main_text = em.get_text(" ", strip=True)
+        for sp in spans:
+            main_text = main_text.replace(sp.get_text(strip=True), "").strip()
+        main_nums = [p for p in re.split(r"\s+", main_text.strip()) if p.isdigit()]
+        if not spans:
+            continue
+        special = spans[-1].get_text(strip=True)
+        if len(main_nums) != 5 or not special.isdigit():
+            continue
+
+        date_text = ""
+        link = kmt.select_one('a[href*="ngay-"]')
+        href = link.get("href") if link else ""
+        if href:
+            dm = re.search(r"ngay-(\d+)-(\d+)-(\d{4})", href)
+            if dm:
+                da, mo, ye = int(dm.group(1)), int(dm.group(2)), dm.group(3)
+                date_text = f"{da:02d}/{mo:02d}/{ye}"
+        if not date_text:
+            continue
+        result = ",".join(str(int(x)) for x in main_nums) + "|" + str(int(special))
+        out.append({"date": date_text, "id": draw_id, "result": result})
+    if not out:
+        raise RuntimeError("Khong tim thay bang Lotto 5/35 tren xskt xslotto-5-35.")
+    return out
+
+
 def _fetch_all_from_xskt_vietlott() -> list[dict]:
     ua = _headers(None)["User-Agent"]
     resp = requests.get(_xskt_vietlott_url(), timeout=60, headers={"User-Agent": ua})
@@ -584,6 +634,10 @@ def _merge_remote_rows(
             errors.append(f"AjaxPro: {e}")
 
     if not skip_xskt:
+        try:
+            put_many(_fetch_all_from_xskt_535())
+        except Exception as e:
+            errors.append(f"xskt-535: {e}")
         try:
             put_many(_fetch_all_from_xskt_vietlott())
         except Exception as e:
