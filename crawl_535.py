@@ -57,7 +57,7 @@ def _headers(referer: str | None) -> dict[str, str]:
 
 def _ajax_key_from_page_html(html: str) -> str | None:
     m = re.search(
-        r"Game535CompareWebPart\.ServerSideDrawResult\([^,]+,\s*'([0-9a-f]{8})'",
+        r"ServerSideDrawResult\([^)]*'([0-9a-f]{8})'",
         html,
         re.I,
     )
@@ -113,7 +113,13 @@ def _fetch_html_via_ajaxpro(page_url: str, ajax_key: str, page_index: int = 0) -
         from curl_cffi import requests as curl_requests
 
         session = curl_requests.Session()
-        session.get(HOME, impersonate=IMPERSONATE, timeout=30, headers=_headers(None))
+        home_html = None
+        try:
+            home = session.get(HOME, impersonate=IMPERSONATE, timeout=30, headers=_headers(None))
+            if home.ok:
+                home_html = home.text
+        except Exception:
+            home_html = None
         win_html = None
         try:
             win = session.get(
@@ -126,7 +132,11 @@ def _fetch_html_via_ajaxpro(page_url: str, ajax_key: str, page_index: int = 0) -
                 win_html = win.text
         except Exception:
             win_html = None
-        key = (_ajax_key_from_page_html(win_html) if win_html else None) or ajax_key
+        key = (
+            (_ajax_key_from_page_html(win_html) if win_html else None)
+            or (_ajax_key_from_page_html(home_html) if home_html else None)
+            or ajax_key
+        )
         body = _ajax_request_body(key, page_index)
         resp = session.post(
             AJAX_URL,
@@ -147,7 +157,13 @@ def _fetch_html_via_ajaxpro(page_url: str, ajax_key: str, page_index: int = 0) -
         return html
     except ImportError:
         session = requests.Session()
-        session.get(HOME, timeout=30, headers=_headers(None))
+        home_html = None
+        try:
+            home = session.get(HOME, timeout=30, headers=_headers(None))
+            if home.ok:
+                home_html = home.text
+        except Exception:
+            home_html = None
         win_html = None
         try:
             win = session.get(page_url, timeout=30, headers=_headers(HOME))
@@ -155,7 +171,11 @@ def _fetch_html_via_ajaxpro(page_url: str, ajax_key: str, page_index: int = 0) -
                 win_html = win.text
         except Exception:
             win_html = None
-        key = (_ajax_key_from_page_html(win_html) if win_html else None) or ajax_key
+        key = (
+            (_ajax_key_from_page_html(win_html) if win_html else None)
+            or (_ajax_key_from_page_html(home_html) if home_html else None)
+            or ajax_key
+        )
         body = _ajax_request_body(key, page_index)
         resp = session.post(
             AJAX_URL,
@@ -508,7 +528,9 @@ def _fetch_all_vietlott_ajax_pages(
     for page in range(max_pages):
         try:
             html = _fetch_html_via_ajaxpro(url, ajax_key, page)
-        except Exception:
+        except Exception as e:
+            if page == 0:
+                raise RuntimeError(f"AjaxPro page dau loi: {e}") from e
             break
         rows = _parse_all_vietlott_table_rows(html)
         if not rows:
