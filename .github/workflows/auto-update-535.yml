@@ -1,26 +1,28 @@
 name: Auto update 535 data
 
 on:
+  push:
+    branches:
+      - main
+
   schedule:
-    # 13:05 và 21:05 giờ Việt Nam (UTC+7) -> 06:05 và 14:05 UTC
-    # - cron: "5 6,14 * * *"
     - cron: "*/15 * * * *"
+
   workflow_dispatch:
 
 jobs:
   update-data:
     runs-on: ubuntu-latest
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
     permissions:
       contents: write
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Setup Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
@@ -35,11 +37,14 @@ jobs:
       - name: Commit and push if changed
         run: |
           git add data.json
+
           if git diff --cached --quiet; then
             echo "No changes to commit."
             exit 0
           fi
+
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
+
           git commit -m "chore: auto update 535 draw data"
           git push
