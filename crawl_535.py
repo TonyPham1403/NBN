@@ -513,8 +513,6 @@ def _fetch_all_vietlott_ajax_pages(
         rows = _parse_all_vietlott_table_rows(html)
         if not rows:
             break
-        if not any(r["id"] > min_id_exclusive for r in rows):
-            break
         sig = tuple(sorted(r["id"] for r in rows))
         if sig == prev_sig:
             break
@@ -570,7 +568,14 @@ def _merge_remote_rows(
 
     out = sorted(merged.values(), key=lambda r: r["id"])
     if not out and errors:
-        raise RuntimeError("Khong lay duoc ky moi. " + " | ".join(errors))
+        # Không nên fail workflow nếu nguồn Vietlott chính bị chặn/404 tạm thời.
+        # Lần cron sau hoặc mirror/xskt có thể cập nhật kịp kỳ mới.
+        print(
+            "Canh bao: khong lay duoc ky moi (se thu lai o lan sau). "
+            + " | ".join(errors),
+            flush=True,
+        )
+        return []
     return out
 
 
