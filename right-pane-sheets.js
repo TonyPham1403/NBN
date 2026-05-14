@@ -414,21 +414,7 @@ class RightPaneSheetManager {
             const result = row.result || row.Result || '';
             const isEmptyResultRow = this.isEmptyResultRow(row);
             const noteMeta = isEmptyResultRow ? { text: '', highlightYellow: false } : this.getComputedNoteMeta(i, row);
-            // For empty-result rows (editable trailing row), if an id exists and no explicit
-            // nonexist was provided, compute nonexist using the same 10-row window logic.
-            let nonexistMeta;
-            if (isEmptyResultRow) {
-                const provided = String(row.nonexist || row.Nonexist || '').trim();
-                if (provided.length > 0) {
-                    nonexistMeta = { text: provided };
-                } else if (String(row.id || row.ID || '').trim().length > 0) {
-                    nonexistMeta = this.getComputedNonexistMeta(i, row);
-                } else {
-                    nonexistMeta = { text: '' };
-                }
-            } else {
-                nonexistMeta = this.getComputedNonexistMeta(i, row);
-            }
+            const nonexistMeta = this.getNonexistMetaForSourceRow(i, row);
             const idBg = this.getIdBackgroundByFrequency(id);
             const dateBg = this.shouldHighlightDateByPairWindow(displayRows, i) ? ' style="background:#00b0f0;color:#000;font-weight:bold;"' : '';
 
@@ -830,6 +816,7 @@ class RightPaneSheetManager {
 
         if (startIdx === null || endIdx === null || endIdx < startIdx) {
             this.activeWindowRange = null;
+            this.refreshNonexistCellsForActiveWindow(tableWrap);
             return;
         }
 
@@ -891,6 +878,7 @@ class RightPaneSheetManager {
 
         this.activeWindowRange = { start: startIdx, end: endIdx, target: targetIdx };
         this.renderWindowLabels(startIdx, endIdx);
+        this.refreshNonexistCellsForActiveWindow(tableWrap);
     }
 
     /**
@@ -1152,6 +1140,86 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Resolve nonexist text for a source sheet row (same rules as renderSourceSheet).
+     */
+    getNonexistMetaForSourceRow(rowIndex, row) {
+        const isEmptyResultRow = this.isEmptyResultRow(row);
+        if (isEmptyResultRow) {
+            const provided = String(row.nonexist || row.Nonexist || '').trim();
+            if (provided.length > 0) {
+                return { text: provided };
+            }
+            if (String(row.id || row.ID || '').trim().length > 0) {
+                return this.getComputedNonexistMeta(rowIndex, row);
+            }
+            return { text: '' };
+        }
+        return this.getComputedNonexistMeta(rowIndex, row);
+    }
+
+    /**
+     * True when rowIndex is in the WinLabel row range for the active window and `num`
+     * appears in the bottom row (chuỗi 11) nonexist — yellow nonexist gets x1.5 in that case.
+     */
+    shouldBoostYellowNonexistForWindow(rowIndex, num) {
+        const win = this.activeWindowRange;
+        if (!win || typeof win.start !== 'number' || typeof win.end !== 'number') {
+            return false;
+        }
+        const start = win.start;
+        const end = win.end;
+        if (end < start) {
+            return false;
+        }
+        const maxLabels = Math.min(10, Math.max(0, end - start + 1));
+        const lastLabeledRow = start + maxLabels - 1;
+        if (rowIndex < start || rowIndex > lastLabeledRow) {
+            return false;
+        }
+        const bottomMeta = this.nonexistCache && this.nonexistCache[end];
+        if (!bottomMeta) {
+            return false;
+        }
+        const bottomText = String(bottomMeta.text || '').trim();
+        if (!bottomText || bottomText === 'N/A') {
+            return false;
+        }
+        const bottomNums = this.parseNums(bottomText);
+        return bottomNums.indexOf(num) !== -1;
+    }
+
+    /**
+     * Re-render nonexist column so yellow x1.5 tracks the active sliding window (chuỗi 11 nonexist).
+     */
+    refreshNonexistCellsForActiveWindow(tableWrap) {
+        if (!tableWrap || this.activeSheet !== 'sheet1') {
+            return;
+        }
+        const meta = this.sheets[this.activeSheet] || {};
+        if (meta.kind === 'combo') {
+            return;
+        }
+        const displayRows = this.dataRows || [];
+        if (!this.nonexistCache || this.nonexistCache.length !== displayRows.length) {
+            this.refreshDerivedState();
+        }
+        for (let i = 0; i < displayRows.length; i++) {
+            const tr = tableWrap.querySelector(`tbody tr[data-idx="${i}"]`);
+            if (!tr) {
+                continue;
+            }
+            const cell = tr.querySelector('td.cell-nonexist');
+            if (!cell) {
+                continue;
+            }
+            const row = displayRows[i];
+            const nonexistMeta = this.getNonexistMetaForSourceRow(i, row);
+            const result = row.result || row.Result || '';
+            cell.innerHTML = this.renderNonexistHtml(i, nonexistMeta.text, result);
+        }
+    }
+
+    /**
      * Render nonexist text using the generated values from result data only.
      */
     renderNonexistHtml(rowIndex, nonexistText, currentResult) {
@@ -1222,7 +1290,9 @@ class RightPaneSheetManager {
             }
 
             if (isInDiff) {
-                return `<span style="color:rgb(240,200,64);font-weight:bold">${value}</span>`;
+                const boost = this.shouldBoostYellowNonexistForWindow(rowIndex, value);
+                const fs = boost ? 'font-size:1.5em;' : '';
+                return `<span style="color:rgb(240,200,64);font-weight:bold;${fs}">${value}</span>`;
             }
 
             if (isMatch) {
@@ -1602,6 +1672,12 @@ class RightPaneSheetManager {
         const targetIdx = idx;
         this.applyWindowSelection(start, windowEnd, targetIdx);
 
+        const tableWrap = document.getElementById('tableWrap');
+        const activeSheetMeta = this.sheets[this.activeSheet] || {};
+        if (tableWrap && activeSheetMeta.kind !== 'combo') {
+            this.centerActiveWindowInView(tableWrap);
+        }
+
         // Dispatch custom event with selected lines
         window.dispatchEvent(new CustomEvent('rowClicked', {
             detail: {
@@ -1890,6 +1966,144 @@ class RightPaneSheetManager {
         }
 
         return true;
+    }
+
+    /**
+     * Fill pair_to_ids using the same 10-row window + pair logic as buildNoteForRow
+     * (diff = currentId - prevId for each prevId block). Matches ok.py semantics for column 2/3.
+     */
+    accumulatePairToIdsFromRowWindows(rows, pair_to_ids) {
+        const list = rows || [];
+        for (let rowIndex = 0; rowIndex < list.length; rowIndex++) {
+            const currentRow = list[rowIndex] || {};
+            const currentId = this.parseRowId(currentRow.id || currentRow.ID || '');
+            const currentNums = this.parseMainNums(currentRow.result || currentRow.Result || '');
+            if (currentId === null || currentNums.length !== 5) {
+                continue;
+            }
+            const rid = this.normalizeNumberKey(currentRow.id || currentRow.ID || '');
+            if (!rid) {
+                continue;
+            }
+
+            const startIndex = Math.max(0, rowIndex - 10);
+            const matchedNumbersByPrevId = new Map();
+
+            for (let prevIndex = startIndex; prevIndex < rowIndex; prevIndex++) {
+                const prevRow = list[prevIndex] || {};
+                const prevId = this.parseRowId(prevRow.id || prevRow.ID || '');
+                const prevNums = this.parseMainNums(prevRow.result || prevRow.Result || '');
+                if (prevId === null || prevNums.length !== 5) {
+                    continue;
+                }
+
+                for (let a = 0; a < 4; a++) {
+                    for (let b = a + 1; b < 5; b++) {
+                        if (this.pairExists(prevNums, currentNums[a], currentNums[b])) {
+                            if (!matchedNumbersByPrevId.has(prevId)) {
+                                matchedNumbersByPrevId.set(prevId, new Set());
+                            }
+                            matchedNumbersByPrevId.get(prevId).add(currentNums[a]);
+                            matchedNumbersByPrevId.get(prevId).add(currentNums[b]);
+                        }
+                    }
+                }
+            }
+
+            for (const [prevId, matchedNumberSet] of matchedNumbersByPrevId.entries()) {
+                const uniq = [...new Set(Array.from(matchedNumberSet))];
+                const diff = currentId - prevId;
+                for (let i = 0; i < uniq.length; i++) {
+                    for (let j = i + 1; j < uniq.length; j++) {
+                        const a = Math.min(uniq[i], uniq[j]);
+                        const b = Math.max(uniq[i], uniq[j]);
+                        const key = `${a},${b}`;
+                        if (!pair_to_ids[key]) {
+                            pair_to_ids[key] = {};
+                        }
+                        if (!pair_to_ids[key][rid]) {
+                            pair_to_ids[key][rid] = [];
+                        }
+                        pair_to_ids[key][rid].push(diff);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Build checknote-shaped data from the right pane source rows (same fields as ok.py __checknote_data from 535.xlsm).
+     * id_to_result: draw id -> "n1,n2,n3,n4,n5" from result cell
+     * pair_to_ids: "a,b" -> { idStr: [dist, ...] } from (1) regex on computed+raw notes `N:{...}` and
+     * (2) structural accumulation from the same 10-row window logic as buildNoteForRow.
+     */
+    buildChecknoteDataFromSourceRows() {
+        this.refreshDerivedState();
+        const rows = this.sourceRows || [];
+        const notes = (this.noteCache && this.noteCache.length === rows.length)
+            ? this.noteCache
+            : this.buildNotesFromRows(rows);
+
+        const id_to_result = {};
+        const pair_to_ids = {};
+        const notePat = /(\d+)\s*:\s*\{([^}]*)\}/g;
+
+        for (let r = 0; r < rows.length; r++) {
+            const row = rows[r] || {};
+            const rid = this.normalizeNumberKey(row.id || row.ID || '');
+            if (!rid) {
+                continue;
+            }
+
+            const main = this.parseMainNums(row.result || row.Result || '');
+            if (main.length === 5) {
+                id_to_result[rid] = main.join(',');
+            }
+
+            const meta = notes[r] || {};
+            const rawNote = String(row.note || row.Note || '');
+            const computed = (meta.text && meta.text !== '?') ? String(meta.text) : '';
+            const note = [computed, rawNote].filter(Boolean).join(' ');
+
+            let m;
+            notePat.lastIndex = 0;
+            while ((m = notePat.exec(note)) !== null) {
+                const dist = parseInt(m[1], 10);
+                if (Number.isNaN(dist)) {
+                    continue;
+                }
+                const group = m[2] || '';
+                const innerNums = String(group)
+                    .split(/[\s,;:|]+/)
+                    .map((x) => parseInt(String(x).trim(), 10))
+                    .filter((n) => !Number.isNaN(n));
+                const uniq = [...new Set(innerNums)];
+                for (let i = 0; i < uniq.length; i++) {
+                    for (let j = i + 1; j < uniq.length; j++) {
+                        const a = Math.min(uniq[i], uniq[j]);
+                        const b = Math.max(uniq[i], uniq[j]);
+                        const key = `${a},${b}`;
+                        if (!pair_to_ids[key]) {
+                            pair_to_ids[key] = {};
+                        }
+                        if (!pair_to_ids[key][rid]) {
+                            pair_to_ids[key][rid] = [];
+                        }
+                        pair_to_ids[key][rid].push(dist);
+                    }
+                }
+            }
+        }
+
+        this.accumulatePairToIdsFromRowWindows(rows, pair_to_ids);
+
+        let max_id = null;
+        const ids = Object.keys(id_to_result).map((x) => parseInt(x, 10)).filter((n) => !Number.isNaN(n));
+        if (ids.length) {
+            max_id = Math.max(...ids);
+        }
+
+        return { id_to_result, pair_to_ids, max_id };
     }
 
     /**

@@ -839,6 +839,27 @@
     <div id="focusSink" tabindex="-1" style="position:fixed;left:-9999px;top:auto;width:1px;height:1px;overflow:hidden">
     </div>
     <script>
+        if (typeof window.__checknote_data === 'undefined') window.__checknote_data = null;
+        window.__checknote_lastData = null;
+        window.__checknotePending = null;
+        window.addEventListener('message', function (ev) {
+            var d = ev.data || {};
+            if (d.type !== 'checknotePopupData') return;
+            var pend = window.__checknotePending;
+            if (!pend || pend.nonce !== d.nonce) return;
+            clearTimeout(pend.timer);
+            window.__checknotePending = null;
+            window.__checknote_lastData = d.data || { id_to_result: {}, pair_to_ids: {}, max_id: null };
+            var html = generateChecknoteHtml(pend.resultPart, pend.highlightedNums, window.__checknote_lastData);
+            if (!html) html = generateFallbackHtml(pend.resultPart);
+            try {
+                window.__checknote_tooltip_result = pend.resultPart;
+                window.__checknote_tooltip_anchor = pend.anchor || document.body;
+                window.__checknote_tooltip_row = pend.rowIdx;
+            } catch (e) { }
+            showChecknoteTooltip(pend.anchor || document.body, html);
+        });
+
         // Minimal JS extracted from ok.py necessary for left UI rendering and process()
         // For full behavior we include key functions: getNumsFromLineObj, process, renderTable1, renderTable2 (renderTable2 writes into #right but it's hidden), copyLine, computePairs, applyPair, etc.
         // To keep this manageable, we include the core process/renderTable1/renderTable2 implementations copied from ok.py (compact).
@@ -858,6 +879,12 @@
         let submitActive = false;
         let answerNums = [];
         let pickOrder = [];
+        let lastClickedChuoiText = '';
+        let pickTooltipTimers = [];
+        let pickTooltipHideTimer = null;
+        let precomputedPickRows = [];
+        let pickTooltipPinned = false;
+        let pickTooltipDocListener = null;
         let disableSubmitForCurrentData = false;
         let currentPairs = []; // computed pairs
         let currentPairIndex = -1;
@@ -1446,6 +1473,7 @@
             // Apply minimal in-place DOM updates to avoid full rerender (prevents flicker)
             try { applySelectionAndBlockedInDOM(n); updateFloatingCopyButtons(); alignTableActionsAndCenter(); updateFocusIndicator(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); try { updateFocusIndicator(); } catch (ee) { } }
             try { persistSelectionMemoryForFocus(); } catch (e) { }
+            try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
         }
 
         function onNumberCellClick(n, region, rowIdx) {
@@ -2350,8 +2378,612 @@
             bindRightScrollHandlers();
         });
 
-        // copyLine helper
-        function copyLine(idx) { if (!raw) return; const row = raw.lines[idx] || {}; const txt = (row.result || '') + (row.note ? '\t' + row.note : '') + (row.nonexist ? '\t' + row.nonexist : ''); try { navigator.clipboard.writeText(txt); } catch (e) { } }
+        // --- checknote popup (📑) + pick pair tooltip: ported from ok.py ---
+        function generateChecknoteHtml(inputStr, highlightedNums, cnData) {
+            try {
+                const data = cnData !== undefined ? cnData : window.__checknote_data;
+                if (!data) return '';
+                highlightedNums = Array.isArray(highlightedNums) ? highlightedNums : [];
+                let s = (inputStr || "").toString().split("|")[0].trim();
+                const parts = s.split(/[\s,;]+/).filter(x => x.length > 0);
+                const input_nums = parts.map(x => parseInt(x, 10)).filter(n => !isNaN(n));
+                if (input_nums.length !== 5) return "<span style='color:red;'>❌ Vui lòng nhập đúng 5 số.</span>";
+                const input_norm = input_nums.join(',');
+                const id_to_result = data.id_to_result || {};
+                const pair_to_ids = data.pair_to_ids || {};
+                let match_ids = [];
+                for (const k in id_to_result) { if (id_to_result[k] === input_norm) { const v = parseInt(k, 10); if (!isNaN(v)) match_ids.push(v); } }
+                match_ids.sort((a, b) => a - b);
+                let maxId = data.max_id;
+                if (!maxId) {
+                    const ids = Object.keys(id_to_result).map(x => parseInt(x, 10)).filter(n => !isNaN(n));
+                    if (ids.length) maxId = Math.max(...ids);
+                }
+                let current_id = null;
+                for (let i = match_ids.length - 1; i >= 0; --i) { const mid = match_ids[i]; if (maxId != null && mid + 10 <= maxId) { current_id = mid; break; } }
+                if (current_id === null && match_ids.length) current_id = match_ids[match_ids.length - 1];
+                if (current_id === null) current_id = (maxId || 0);
+                const pairs = [];
+                for (let i = 0; i < input_nums.length; i++) { for (let j = i + 1; j < input_nums.length; j++) { const a = Math.min(input_nums[i], input_nums[j]); const b = Math.max(input_nums[i], input_nums[j]); pairs.push([a, b]); } }
+                const rows = [];
+                pairs.forEach(p => {
+                    const a = p[0], b = p[1];
+                    const key = `${a},${b}`;
+                    const rawEntries = pair_to_ids[key] || {};
+                    const entries = [];
+                    for (const idStr in rawEntries) { const dists = rawEntries[idStr]; const dist = (Array.isArray(dists) && dists.length) ? Math.min(...dists) : null; entries.push({ id: idStr, dist: dist }); }
+                    entries.sort((x, y) => { const xi = parseInt(x.id, 10), yi = parseInt(y.id, 10); if (isNaN(xi) || isNaN(yi)) return 0; return xi - yi; });
+                    const count = entries.length;
+                    const rendered = entries.map(ent => {
+                        const _id = ent.id; const dist = ent.dist;
+                        const id_num = parseInt(_id, 10);
+                        const is_match = (id_to_result[_id] === input_norm);
+                        const in_window = (current_id != null && !isNaN(id_num) && (current_id < id_num && id_num <= current_id + 10));
+                        const past_window = (current_id != null && !isNaN(id_num) && (id_num < current_id && id_num >= current_id - 10));
+                        let cls = '';
+                        if (current_id != null && !isNaN(id_num) && id_num === current_id) cls = 'present';
+                        else if (past_window) cls = 'past';
+                        else if (in_window) cls = 'future';
+                        else if (is_match) cls = 'match';
+                        return `<span class="idlabel ${cls}">${_id}&lt;<span class="dist">${dist}</span>&gt;</span>`;
+                    }).join('');
+                    let rowClass = '';
+                    try {
+                        const uniq = Array.isArray(highlightedNums) ? [...new Set(highlightedNums.map(x => parseInt(x, 10)).filter(n => !isNaN(n)))] : [];
+                        if (uniq.length === 1) { if (uniq[0] === a || uniq[0] === b) rowClass = 'row-neon'; }
+                        else if (uniq.length === 2) {
+                            const u0 = Math.min(uniq[0], uniq[1]); const u1 = Math.max(uniq[0], uniq[1]);
+                            if (a === u0 && b === u1) rowClass = 'row-neon';
+                        } else if (uniq.length === 3) {
+                            for (let ii = 0; ii < 3 && !rowClass; ii++) { for (let jj = ii + 1; jj < 3; jj++) { const x = Math.min(uniq[ii], uniq[jj]); const y = Math.max(uniq[ii], uniq[jj]); if (a === x && b === y) { rowClass = 'row-neon'; break; } } }
+                        } else { if (uniq.some(n => n === a || n === b)) rowClass = 'row-neon'; }
+                    } catch (e) { }
+                    rows.push({ pair: `{${a},${b}}`, count: count, content: rendered, rowClass: rowClass });
+                });
+                const style = `<style>
+            .checknote-table{border-collapse:collapse;font-family:monospace;font-size:13px;line-height:1.35;max-width:100%;width:auto;table-layout:auto}
+            .checknote-table td{vertical-align:top;padding:2px 6px}
+            .checknote-table .pair{white-space:nowrap;padding-right:8px;font-weight:600}
+            .checknote-table .sep{white-space:nowrap;padding-right:8px;font-weight:700}
+            .checknote-table .content{text-align:left}
+            .checknote-table .idlabel{display:inline-block;white-space:nowrap;margin-right:8px}
+            .checknote-table .idlabel .dist{background:yellow;color:black;padding:1px 3px;border-radius:3px}
+            .checknote-table .idlabel.present{background:#008000;color:white;padding:2px 4px;border-radius:3px}
+            .checknote-table .idlabel.past{background:#ff0000;color:white;padding:2px 4px;border-radius:3px}
+            .checknote-table .idlabel.future{background:#00ffff;color:#003;padding:2px 4px;border-radius:3px}
+            .checknote-table .idlabel.match{padding:2px 4px;border-radius:3px;border:1px solid #ddd}
+            .checknote-table tr.row-neon td{background:linear-gradient(90deg, rgba(0,255,102,0.18), rgba(0,255,102,0.10));box-shadow:0 0 12px rgba(0,255,102,0.16) inset}
+        </style>`;
+                let table = '<table class="checknote-table">';
+                rows.forEach(r => { const rc = r.rowClass ? ` class="${r.rowClass}"` : ''; table += `<tr${rc}><td class="pair">${r.pair}</td><td class="sep">${r.count}</td><td class="content">${r.content ? r.content : ''}</td></tr>`; });
+                table += '</table>';
+                return style + table;
+            } catch (err) { console.error(err); return ''; }
+        }
+
+        function generateFallbackHtml(inputStr) {
+            const s = (inputStr || '').toString();
+            const style = `<style>
+        .checknote-table{border-collapse:collapse;font-family:monospace;font-size:13px;line-height:1.35;max-width:100%;width:auto;table-layout:auto}
+        .checknote-table td{vertical-align:top;padding:2px 6px}
+        .checknote-table .pair{white-space:nowrap;padding-right:8px;font-weight:600}
+        .checknote-table .sep{white-space:nowrap;padding-right:8px;font-weight:700}
+        .checknote-table .content{text-align:left}
+    </style>`;
+            const table = `<table class='checknote-table'><tr><td class='pair'>Chuỗi</td><td class='sep'></td><td class='content'>${s}</td></tr></table>`;
+            return style + table;
+        }
+
+        function showChecknoteTooltip(anchorEl, html) {
+            hideChecknoteTooltip();
+            const tip = document.createElement('div');
+            tip.id = 'checknoteTooltip';
+            tip.style.position = 'fixed';
+            tip.style.zIndex = '999999';
+            tip.style.maxWidth = '420px';
+            tip.style.background = 'white';
+            tip.style.border = '1px solid #ccc';
+            tip.style.padding = '8px';
+            tip.style.borderRadius = '8px';
+            tip.style.boxShadow = '0 6px 24px rgba(0,0,0,0.16)';
+            tip.style.fontFamily = 'Arial, sans-serif';
+            tip.style.fontSize = '13px';
+            tip.style.color = '#111';
+            tip.style.pointerEvents = 'auto';
+            tip.style.overflow = 'visible';
+            const content = document.createElement('div');
+            content.id = 'checknoteTooltipContent';
+            content.style.position = 'relative';
+            content.style.padding = '0px';
+            content.innerHTML = html;
+            tip.appendChild(content);
+            document.body.appendChild(tip);
+            const rect = anchorEl.getBoundingClientRect();
+            tip.style.visibility = 'hidden'; tip.style.left = '0px'; tip.style.top = '0px';
+            const w = tip.offsetWidth, h = tip.offsetHeight;
+            const rightContainer = document.getElementById('right');
+            const rightRect = rightContainer ? rightContainer.getBoundingClientRect() : rect;
+            let left = (rightRect.left - w - 14);
+            if (left < 8) left = 8;
+            let top = rect.top + rect.height / 2 - h / 2;
+            const minTop = 4;
+            const maxTop = window.innerHeight - h - 4;
+            if (top < minTop) top = minTop;
+            if (top > maxTop) top = maxTop;
+            tip.style.left = left + 'px';
+            tip.style.top = top + 'px';
+            tip.style.visibility = 'visible';
+            const anchorCenterY = rect.top + rect.height / 2;
+            let arrowTop = (anchorCenterY - top - 8);
+            if (arrowTop < 6) arrowTop = 6;
+            if (arrowTop > h - 16) arrowTop = Math.max(6, h - 16);
+            const arrowBorder = document.createElement('div');
+            arrowBorder.className = 'checknote-arrow-border';
+            arrowBorder.style.position = 'absolute';
+            arrowBorder.style.width = '0';
+            arrowBorder.style.height = '0';
+            arrowBorder.style.borderTop = '10px solid transparent';
+            arrowBorder.style.borderBottom = '10px solid transparent';
+            arrowBorder.style.borderLeft = '14px solid #cc4f00';
+            arrowBorder.style.right = '-14px';
+            arrowBorder.style.top = (arrowTop - 2) + 'px';
+            tip.appendChild(arrowBorder);
+            const arrowFill = document.createElement('div');
+            arrowFill.className = 'checknote-arrow-fill';
+            arrowFill.style.position = 'absolute';
+            arrowFill.style.width = '0';
+            arrowFill.style.height = '0';
+            arrowFill.style.borderTop = '8px solid transparent';
+            arrowFill.style.borderBottom = '8px solid transparent';
+            arrowFill.style.borderLeft = '12px solid #ff6b00';
+            arrowFill.style.right = '-12px';
+            arrowFill.style.top = arrowTop + 'px';
+            arrowFill.style.filter = 'drop-shadow(0 2px 6px rgba(0,0,0,0.12))';
+            tip.appendChild(arrowFill);
+            setTimeout(function () {
+                function onDoc(e) {
+                    try {
+                        if (tip.contains(e.target) || e.target === anchorEl) return;
+                        if (e.target && e.target.closest && (e.target.closest('#right') || e.target.closest('#left'))) return;
+                    } catch (err) { }
+                    hideChecknoteTooltip();
+                    document.removeEventListener('mousedown', onDoc);
+                }
+                document.addEventListener('mousedown', onDoc);
+            }, 10);
+        }
+
+        function hideChecknoteTooltip() { const ex = document.getElementById('checknoteTooltip'); if (ex) ex.remove(); }
+
+        function repositionChecknoteTooltip(anchorEl) {
+            const tip = document.getElementById('checknoteTooltip'); if (!tip) return;
+            const rect = (anchorEl && anchorEl.getBoundingClientRect) ? anchorEl.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
+            tip.style.visibility = 'hidden'; tip.style.left = '0px'; tip.style.top = '0px';
+            const w = tip.offsetWidth, h = tip.offsetHeight;
+            const rightContainer = document.getElementById('right');
+            const rightRect = rightContainer ? rightContainer.getBoundingClientRect() : rect;
+            let left = (rightRect.left - w - 14);
+            if (left < 8) left = 8;
+            let top = rect.top + rect.height / 2 - h / 2;
+            const minTop = 4;
+            const maxTop = window.innerHeight - h - 4;
+            if (top < minTop) top = minTop;
+            if (top > maxTop) top = maxTop;
+            tip.style.left = left + 'px';
+            tip.style.top = top + 'px';
+            tip.style.visibility = 'visible';
+            const arrowBorder = tip.querySelector('.checknote-arrow-border');
+            const arrowFill = tip.querySelector('.checknote-arrow-fill');
+            const anchorCenterY = rect.top + rect.height / 2;
+            let arrowTop = (anchorCenterY - top - 8);
+            if (arrowTop < 6) arrowTop = 6;
+            if (arrowTop > h - 16) arrowTop = Math.max(6, h - 16);
+            if (arrowBorder) arrowBorder.style.top = (arrowTop - 2) + 'px';
+            if (arrowFill) arrowFill.style.top = arrowTop + 'px';
+        }
+
+        function refreshChecknoteTooltip() {
+            const tip = document.getElementById('checknoteTooltip'); if (!tip) return;
+            const result = window.__checknote_tooltip_result || '';
+            let anchor = document.body;
+            try {
+                const rowIdx = window.__checknote_tooltip_row;
+                if (rowIdx != null) {
+                    const btn = document.getElementById('copyBtn-' + rowIdx);
+                    if (btn) { const tr = btn.closest && btn.closest('tr'); if (tr) { const leftLabel = tr.querySelector('td:first-child span'); if (leftLabel) anchor = leftLabel; } }
+                }
+            } catch (e) { }
+            if (!anchor || anchor === document.body) anchor = window.__checknote_tooltip_anchor || document.body;
+            let uniq = [];
+            try {
+                const rowIdx = window.__checknote_tooltip_row;
+                if (rowIdx != null) {
+                    const btn = document.getElementById('copyBtn-' + rowIdx);
+                    if (btn) {
+                        const tr = btn.closest && btn.closest('tr'); if (tr) {
+                            const els = tr.querySelectorAll('span.idx-highlight, span.selected, span.cell.selected, span.answer-neon, span.cell.answer-neon');
+                            const highlighted = [];
+                            els.forEach(el => {
+                                let v = NaN;
+                                try { if (el.hasAttribute && el.hasAttribute('data-num')) v = parseInt(el.getAttribute('data-num'), 10); else v = parseInt((el.textContent || '').trim(), 10); } catch (e) { }
+                                if (!isNaN(v)) highlighted.push(v);
+                            });
+                            uniq = [...new Set(highlighted)];
+                        }
+                    }
+                }
+            } catch (e) { }
+            if (!uniq || uniq.length === 0) {
+                const selectedEls = document.querySelectorAll('#right span.cell.selected, #right span.idx-highlight, #right span.index.idx-highlight, #right span.answer-neon, #right span.cell.answer-neon');
+                const highlighted = [];
+                selectedEls.forEach(el => {
+                    let v = NaN;
+                    try { if (el.hasAttribute && el.hasAttribute('data-num')) v = parseInt(el.getAttribute('data-num'), 10); else v = parseInt((el.textContent || '').trim(), 10); } catch (e) { }
+                    if (!isNaN(v)) highlighted.push(v);
+                });
+                uniq = [...new Set(highlighted)];
+            }
+            let html = '';
+            if (window.__checknote_lastData) html = generateChecknoteHtml(result, uniq, window.__checknote_lastData);
+            else if (window.__checknote_data) html = generateChecknoteHtml(result, uniq, window.__checknote_data);
+            if (!html) html = generateFallbackHtml(result);
+            const content = tip.querySelector('#checknoteTooltipContent'); if (content) content.innerHTML = html;
+            repositionChecknoteTooltip(anchor);
+        }
+
+        function generatePickPairsHtmlFragment(a, b) {
+            try {
+                const data = window.__checknote_lastData || window.__checknote_data || null;
+                const key = `${a},${b}`;
+                const rawEntries = data && data.pair_to_ids ? (data.pair_to_ids[key] || {}) : {};
+                const entries = [];
+                for (const idStr in rawEntries) { const dists = rawEntries[idStr]; const dist = (Array.isArray(dists) && dists.length) ? Math.min(...dists) : null; entries.push({ id: idStr, dist: dist }); }
+                entries.sort((x, y) => { const xi = parseInt(x.id, 10), yi = parseInt(y.id, 10); if (isNaN(xi) || isNaN(yi)) return 0; return xi - yi; });
+                let current_id = null;
+                try {
+                    if (data && data.id_to_result && typeof raw !== 'undefined' && raw && raw.lines && raw.lines.length) {
+                        const id_to_result = data.id_to_result || {};
+                        const chain1 = (raw.lines[0] && (raw.lines[0].result || '').split("|")[0].trim()) || null;
+                        if (chain1) {
+                            for (const k in id_to_result) { if (id_to_result[k] === chain1) { const v = parseInt(k, 10); if (!isNaN(v)) { current_id = v + 1; break; } } }
+                        }
+                    }
+                } catch (e) { }
+                if (current_id === null && data && data.max_id) current_id = data.max_id;
+                const rendered = entries.map(ent => {
+                    const _id = ent.id; const dist = ent.dist;
+                    const id_num = parseInt(_id, 10);
+                    let cls = '';
+                    try {
+                        if (current_id != null && !isNaN(id_num)) {
+                            if (id_num === current_id) cls = 'present';
+                            else if (id_num < current_id && id_num >= current_id - 10) cls = 'past';
+                            else if (id_num > current_id && id_num <= current_id + 10) cls = 'future';
+                        }
+                    } catch (e) { }
+                    return `<span class="idlabel ${cls}">${_id}&lt;<span class="dist">${dist}</span>&gt;</span>`;
+                }).join('');
+                return { count: entries.length, content: rendered };
+            } catch (err) { return { count: 0, content: '' }; }
+        }
+
+        function showPickTooltip(anchorEl, nums) {
+            hidePickTooltip();
+            if (!nums || nums.length < 2) return;
+            pickTooltipTimers = [];
+            const tip = document.createElement('div');
+            tip.id = 'pickTooltip';
+            tip.style.position = 'fixed';
+            tip.style.zIndex = '999999';
+            tip.style.maxWidth = '520px';
+            tip.style.background = 'white';
+            tip.style.border = '1px solid #ccc';
+            tip.style.padding = '8px';
+            tip.style.borderRadius = '8px';
+            tip.style.boxShadow = '0 6px 24px rgba(0,0,0,0.16)';
+            tip.style.fontFamily = 'Arial, sans-serif';
+            tip.style.fontSize = '13px';
+            tip.style.color = '#111';
+            tip.style.pointerEvents = 'auto';
+            tip.style.overflow = 'visible';
+            const content = document.createElement('div');
+            content.id = 'pickTooltipContent';
+            content.style.position = 'relative';
+            content.style.padding = '0px';
+            const style = document.createElement('style');
+            style.textContent = '.checknote-table{border-collapse:collapse;font-family:monospace;font-size:13px;line-height:1.35;max-width:100%;width:auto;table-layout:auto}.checknote-table td{vertical-align:top;padding:2px 6px}.checknote-table .pair{white-space:nowrap;padding-right:8px;font-weight:600}.checknote-table .sep{white-space:nowrap;padding-right:8px;font-weight:700}.checknote-table .content{text-align:left}.checknote-table .idlabel{display:inline-block;white-space:nowrap;margin-right:8px}.checknote-table .idlabel .dist{background:yellow;color:black;padding:1px 3px;border-radius:3px}.checknote-table .idlabel.present{background:#008000;color:white;padding:2px 4px;border-radius:3px}.checknote-table .idlabel.past{background:#ff0000;color:white;padding:2px 4px;border-radius:3px}.checknote-table .idlabel.future{background:#00ffff;color:#003;padding:2px 4px;border-radius:3px}.checknote-table .idlabel.match{padding:2px 4px;border-radius:3px;border:1px solid #ddd}';
+            tip.appendChild(style);
+            const table = document.createElement('table'); table.className = 'checknote-table';
+            content.appendChild(table);
+            tip.appendChild(content);
+            document.body.appendChild(tip);
+            function doPosition() {
+                const rect = anchorEl.getBoundingClientRect();
+                tip.style.visibility = 'hidden'; tip.style.left = '0px'; tip.style.top = '0px';
+                const w = Math.min(tip.offsetWidth || 320, 520);
+                const h = tip.offsetHeight || 40;
+                let left = rect.left + rect.width / 2 - w / 2;
+                if (left < 8) left = 8;
+                if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+                const arrowH = 14;
+                let topBelow = rect.bottom + arrowH;
+                let placedBelow = true;
+                let top = topBelow;
+                if (top + h > window.innerHeight - 8) {
+                    const topAbove = rect.top - h - arrowH;
+                    if (topAbove >= 8) { top = topAbove; placedBelow = false; }
+                    else { top = Math.max(8, Math.min(topBelow, window.innerHeight - h - 8)); placedBelow = true; }
+                }
+                tip.style.left = left + 'px';
+                tip.style.top = top + 'px';
+                tip.style.visibility = 'visible';
+                const oldBorder = tip.querySelector('.pick-arrow-border'); if (oldBorder) oldBorder.remove();
+                const oldFill = tip.querySelector('.pick-arrow-fill'); if (oldFill) oldFill.remove();
+                const arrowBorder = document.createElement('div');
+                arrowBorder.className = 'pick-arrow-border';
+                arrowBorder.style.position = 'absolute'; arrowBorder.style.width = '0'; arrowBorder.style.height = '0';
+                const anchorCenterX = rect.left + rect.width / 2;
+                let arrowLeft = Math.round(anchorCenterX - left - 10);
+                arrowLeft = Math.max(8, Math.min(arrowLeft, w - 28));
+                if (placedBelow) {
+                    arrowBorder.style.borderLeft = '10px solid transparent'; arrowBorder.style.borderRight = '10px solid transparent';
+                    arrowBorder.style.borderTop = '14px solid #cc4f00';
+                    arrowBorder.style.top = '-14px';
+                    arrowBorder.style.left = arrowLeft + 'px';
+                } else {
+                    arrowBorder.style.borderLeft = '10px solid transparent'; arrowBorder.style.borderRight = '10px solid transparent';
+                    arrowBorder.style.borderBottom = '14px solid #cc4f00';
+                    arrowBorder.style.bottom = '-14px';
+                    arrowBorder.style.left = arrowLeft + 'px';
+                }
+                tip.appendChild(arrowBorder);
+                const arrowFill = document.createElement('div');
+                arrowFill.className = 'pick-arrow-fill';
+                arrowFill.style.position = 'absolute'; arrowFill.style.width = '0'; arrowFill.style.height = '0';
+                if (placedBelow) {
+                    arrowFill.style.borderLeft = '8px solid transparent'; arrowFill.style.borderRight = '8px solid transparent';
+                    arrowFill.style.borderTop = '12px solid #ff6b00';
+                    arrowFill.style.top = '-12px';
+                    arrowFill.style.left = (arrowLeft + 2) + 'px';
+                } else {
+                    arrowFill.style.borderLeft = '8px solid transparent'; arrowFill.style.borderRight = '8px solid transparent';
+                    arrowFill.style.borderBottom = '12px solid #ff8b00';
+                    arrowFill.style.bottom = '-12px';
+                    arrowFill.style.left = (arrowLeft + 2) + 'px';
+                }
+                arrowFill.style.filter = 'drop-shadow(0 2px 6px rgba(0,0,0,0.12))';
+                tip.appendChild(arrowFill);
+                try { arrowBorder.style.transform = 'rotate(180deg)'; arrowFill.style.transform = 'rotate(180deg)'; } catch (e) { }
+            }
+            if (precomputedPickRows && precomputedPickRows.length >= 1) {
+                precomputedPickRows.forEach(r => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `<td class="pair">{${r.a},${r.b}}</td><td class="sep">${r.count}</td><td class="content">${r.content}</td>`;
+                    table.appendChild(tr);
+                });
+            } else {
+                const pairs = [];
+                for (let i = 0; i < nums.length; i++) {
+                    for (let j = i + 1; j < nums.length; j++) {
+                        const a = Math.min(nums[i], nums[j]); const b = Math.max(nums[i], nums[j]);
+                        pairs.push({ a: a, b: b });
+                    }
+                }
+                pairs.forEach(p => {
+                    const tr = document.createElement('tr');
+                    tr.setAttribute('data-a', p.a); tr.setAttribute('data-b', p.b);
+                    tr.innerHTML = `<td class="pair">{${p.a},${p.b}}</td><td class="sep">…</td><td class="content">...</td>`;
+                    table.appendChild(tr);
+                });
+                setTimeout(function () {
+                    pairs.forEach((p, idx) => {
+                        try {
+                            const info = generatePickPairsHtmlFragment(p.a, p.b);
+                            const tr = table.rows[idx];
+                            if (tr) tr.innerHTML = `<td class="pair">{${p.a},${p.b}}</td><td class="sep">${info.count}</td><td class="content">${info.content}</td>`;
+                        } catch (err) { }
+                    });
+                    try { doPosition(); } catch (e) { }
+                }, 8);
+            }
+            tip.addEventListener('mouseenter', function () { if (pickTooltipHideTimer) { clearTimeout(pickTooltipHideTimer); pickTooltipHideTimer = null; } });
+            tip.addEventListener('mouseleave', function () { if (!pickTooltipPinned) pickTooltipHideTimer = setTimeout(function () { hidePickTooltip(false); }, 110); });
+            doPosition();
+        }
+
+        function hidePickTooltip(force) {
+            if (pickTooltipPinned && !force) return;
+            pickTooltipTimers.forEach(function (t) { try { clearTimeout(t); } catch (e) { } }); pickTooltipTimers = [];
+            if (pickTooltipHideTimer) { clearTimeout(pickTooltipHideTimer); pickTooltipHideTimer = null; }
+            const ex = document.getElementById('pickTooltip'); if (ex) ex.remove();
+            if (pickTooltipDocListener) { try { document.removeEventListener('mousedown', pickTooltipDocListener); } catch (e) { } pickTooltipDocListener = null; }
+            if (force) pickTooltipPinned = false;
+        }
+
+        function refreshPickTooltip() {
+            const tip = document.getElementById('pickTooltip');
+            if (!tip) return;
+            pickTooltipTimers.forEach(function (t) { try { clearTimeout(t); } catch (e) { } }); pickTooltipTimers = [];
+            const content = tip.querySelector('#pickTooltipContent'); if (!content) return;
+            const table = content.querySelector('table.checknote-table'); if (!table) return;
+            table.innerHTML = '';
+            const rows = (precomputedPickRows && precomputedPickRows.length >= 1) ? precomputedPickRows : (function () {
+                const nums = (typeof pickOrder !== 'undefined' && pickOrder) ? pickOrder.slice() : []; const out = [];
+                for (let i = 0; i < nums.length; i++) { for (let j = i + 1; j < nums.length; j++) { const a = Math.min(nums[i], nums[j]); const b = Math.max(nums[i], nums[j]); const info = generatePickPairsHtmlFragment(a, b); out.push({ a: a, b: b, count: info.count, content: info.content }); } }
+                return out;
+            })();
+            rows.forEach(function (r) { const tr = document.createElement('tr'); tr.innerHTML = `<td class="pair">{${r.a},${r.b}}</td><td class="sep">${r.count}</td><td class="content">${r.content}</td>`; table.appendChild(tr); });
+            try {
+                const rectAnchor = document.getElementById('pickBtn').getBoundingClientRect();
+                const tipEl = document.getElementById('pickTooltip');
+                if (tipEl) {
+                    tipEl.style.visibility = 'hidden';
+                    const w = tipEl.offsetWidth; const h = tipEl.offsetHeight;
+                    let left = rectAnchor.left + rectAnchor.width / 2 - Math.min(w, 520) / 2;
+                    if (left < 8) left = 8;
+                    if (left + w > window.innerWidth - 8) left = window.innerWidth - w - 8;
+                    const arrowH = 14;
+                    let topBelow = rectAnchor.bottom + arrowH;
+                    let top = topBelow;
+                    let placedBelow = true;
+                    if (top + h > window.innerHeight - 8) {
+                        const topAbove = rectAnchor.top - h - arrowH;
+                        if (topAbove >= 8) { top = topAbove; placedBelow = false; }
+                        else { top = Math.max(8, Math.min(topBelow, window.innerHeight - h - 8)); placedBelow = true; }
+                    }
+                    tipEl.style.left = left + 'px';
+                    tipEl.style.top = top + 'px';
+                    tipEl.style.visibility = 'visible';
+                    const anchorCenterX = rectAnchor.left + rectAnchor.width / 2;
+                    let arrowLeft = Math.round(anchorCenterX - left - 10);
+                    arrowLeft = Math.max(8, Math.min(arrowLeft, w - 28));
+                    const oldB = tipEl.querySelector('.pick-arrow-border'); if (oldB) oldB.remove();
+                    const oldF = tipEl.querySelector('.pick-arrow-fill'); if (oldF) oldF.remove();
+                    const arrowBorder = document.createElement('div');
+                    arrowBorder.className = 'pick-arrow-border';
+                    arrowBorder.style.position = 'absolute';
+                    arrowBorder.style.width = '0';
+                    arrowBorder.style.height = '0';
+                    if (placedBelow) {
+                        arrowBorder.style.borderLeft = '10px solid transparent';
+                        arrowBorder.style.borderRight = '10px solid transparent';
+                        arrowBorder.style.borderTop = '14px solid #cc4f00';
+                        arrowBorder.style.top = '-14px';
+                        arrowBorder.style.left = arrowLeft + 'px';
+                    } else {
+                        arrowBorder.style.borderLeft = '10px solid transparent';
+                        arrowBorder.style.borderRight = '10px solid transparent';
+                        arrowBorder.style.borderBottom = '14px solid #cc4f00';
+                        arrowBorder.style.bottom = '-14px';
+                        arrowBorder.style.left = arrowLeft + 'px';
+                    }
+                    tipEl.appendChild(arrowBorder);
+                    const arrowFill = document.createElement('div');
+                    arrowFill.className = 'pick-arrow-fill';
+                    arrowFill.style.position = 'absolute';
+                    arrowFill.style.width = '0';
+                    arrowFill.style.height = '0';
+                    if (placedBelow) {
+                        arrowFill.style.borderLeft = '8px solid transparent';
+                        arrowFill.style.borderRight = '8px solid transparent';
+                        arrowFill.style.borderTop = '12px solid #ff6b00';
+                        arrowFill.style.top = '-12px';
+                        arrowFill.style.left = (arrowLeft + 2) + 'px';
+                    } else {
+                        arrowFill.style.borderLeft = '8px solid transparent';
+                        arrowFill.style.borderRight = '8px solid transparent';
+                        arrowFill.style.borderBottom = '12px solid #ff8b00';
+                        arrowFill.style.bottom = '-12px';
+                        arrowFill.style.left = (arrowLeft + 2) + 'px';
+                    }
+                    arrowFill.style.filter = 'drop-shadow(0 2px 6px rgba(0,0,0,0.12))';
+                    tipEl.appendChild(arrowFill);
+                    try { arrowBorder.style.transform = 'rotate(180deg)'; arrowFill.style.transform = 'rotate(180deg)'; } catch (e) { }
+                }
+            } catch (e) { }
+        }
+
+        try {
+            const rightElChk = document.getElementById('right');
+            if (rightElChk) {
+                rightElChk.addEventListener('click', function () {
+                    if (!document.getElementById('checknoteTooltip')) return;
+                    setTimeout(function () { try { refreshChecknoteTooltip(); } catch (err) { } }, 12);
+                });
+            }
+        } catch (e) { }
+
+        function copyLine(idx) {
+            if (!raw) return;
+            const row = raw.lines[idx] || "";
+            const btn = document.getElementById('copyBtn-' + idx);
+            let txt = "";
+            if (!row) return;
+            let resultPart = '';
+            if (typeof row === 'string') {
+                txt = row.trim();
+                resultPart = txt.split(/\t|\n/)[0].split("|")[0].trim();
+            } else {
+                txt = [row.result || '', row.note || '', row.nonexist || ''].join('\t').trim();
+                resultPart = (row.result || '').split("|")[0].trim();
+            }
+            if (!txt) return;
+            try { lastClickedChuoiText = resultPart; window.__lastClickedChuoi = resultPart; } catch (e) { }
+            function _flashBtn(text) { if (!btn) return; const old = btn.textContent; btn.textContent = text; setTimeout(function () { const el = document.getElementById('copyBtn-' + idx); if (el) el.textContent = old; }, 800); }
+            if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(txt).then(function () { _flashBtn('✓'); }).catch(function () { fallbackCopy(); });
+            } else { fallbackCopy(); }
+            function fallbackCopy() {
+                const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); _flashBtn('Copied'); } catch (e) { console.error(e); }
+                ta.remove();
+            }
+            try {
+                let highlightedNums = [];
+                try {
+                    const tr = btn && btn.closest && btn.closest('tr');
+                    if (tr) {
+                        const els = tr.querySelectorAll('span.idx-highlight, span.selected, span.cell.selected, span.answer-neon, span.cell.answer-neon');
+                        els.forEach(function (el) {
+                            let v = NaN;
+                            try {
+                                if (el.hasAttribute && el.hasAttribute('data-num')) v = parseInt(el.getAttribute('data-num'), 10);
+                                else v = parseInt((el.textContent || '').trim(), 10);
+                            } catch (e) { }
+                            if (!isNaN(v)) highlightedNums.push(v);
+                        });
+                    }
+                } catch (e) { }
+                let anchor = btn;
+                try {
+                    const tr2 = btn && btn.closest && btn.closest('tr');
+                    if (tr2) {
+                        const leftLabel = tr2.querySelector('td:first-child span');
+                        if (leftLabel) anchor = leftLabel;
+                    }
+                } catch (e) { }
+
+                if (window.parent && window.parent !== window) {
+                    const nonce = String(Date.now()) + '-' + Math.random().toString(36).slice(2, 10);
+                    if (window.__checknotePending && window.__checknotePending.timer) {
+                        clearTimeout(window.__checknotePending.timer);
+                    }
+                    window.__checknotePending = {
+                        nonce,
+                        anchor: anchor || document.body,
+                        resultPart,
+                        highlightedNums,
+                        rowIdx: idx,
+                        timer: setTimeout(function () {
+                            if (!window.__checknotePending || window.__checknotePending.nonce !== nonce) return;
+                            window.__checknotePending = null;
+                            var htmlT = generateChecknoteHtml(resultPart, highlightedNums, window.__checknote_data);
+                            if (!htmlT) htmlT = generateFallbackHtml(resultPart);
+                            try {
+                                window.__checknote_tooltip_result = resultPart;
+                                window.__checknote_tooltip_anchor = anchor || document.body;
+                                window.__checknote_tooltip_row = idx;
+                            } catch (e) { }
+                            showChecknoteTooltip(anchor || document.body, htmlT);
+                        }, 450)
+                    };
+                    try {
+                        window.parent.postMessage({ type: 'requestChecknotePopup', resultPart, highlightedNums, nonce }, '*');
+                    } catch (e) {
+                        if (window.__checknotePending && window.__checknotePending.timer) clearTimeout(window.__checknotePending.timer);
+                        window.__checknotePending = null;
+                        var htmlE = generateChecknoteHtml(resultPart, highlightedNums, window.__checknote_data) || generateFallbackHtml(resultPart);
+                        try { window.__checknote_tooltip_result = resultPart; window.__checknote_tooltip_anchor = anchor || document.body; window.__checknote_tooltip_row = idx; } catch (ee) { }
+                        showChecknoteTooltip(anchor || document.body, htmlE);
+                    }
+                } else {
+                    var html = generateChecknoteHtml(resultPart, highlightedNums, window.__checknote_data);
+                    if (!html) html = generateFallbackHtml(resultPart);
+                    try { window.__checknote_tooltip_result = resultPart; window.__checknote_tooltip_anchor = (anchor || document.body); window.__checknote_tooltip_row = idx; } catch (e) { }
+                    showChecknoteTooltip(anchor || document.body, html);
+                }
+            } catch (e) { console.error(e); }
+        }
 
         // Keyboard helpers: 'q' undo last selected number, Space toggles submit preview (5 numbers)
         function undoLastSelection() {
@@ -2392,6 +3024,7 @@
                         // Fallback to full rerender if incremental update fails
                         try { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); } catch (ee) { }
                     }
+                    try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
                 }
             } catch (e) { console.error(e); }
         }
@@ -2478,6 +3111,7 @@
                 try { refreshPairTailSelectionState(); } catch (e) { }
                 try { applySelectionAndBlockedInDOM(); updateFloatingCopyButtons(); alignTableActionsAndCenter(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); }
                 try { updateFocusIndicator(); } catch (e) { }
+                try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
             } catch (e) { console.error(e); }
         }
 
@@ -3000,7 +3634,7 @@
             } catch (e) { }
         })();
 
-        // Pick button: copy selected numbers to clipboard
+        // Pick button: copy + hover/pinned pair popup (same as ok.py)
         (function () {
             try {
                 var pb = document.getElementById('pickBtn');
@@ -3008,6 +3642,7 @@
                 if (!pb) return;
 
                 function updatePickButton() {
+                    pb.style.display = '';
                     if (pickOrder && pickOrder.length >= 1) {
                         pp.textContent = pickOrder.join(',');
                         pb.disabled = false;
@@ -3015,32 +3650,86 @@
                         pp.textContent = '';
                         pb.disabled = true;
                     }
+                    try {
+                        if (pickOrder && pickOrder.length >= 2) {
+                            var nums = pickOrder.slice();
+                            var out = [];
+                            for (var i = 0; i < nums.length; i++) {
+                                for (var j = i + 1; j < nums.length; j++) {
+                                    var a = Math.min(nums[i], nums[j]), b = Math.max(nums[i], nums[j]);
+                                    var info = generatePickPairsHtmlFragment(a, b);
+                                    out.push({ a: a, b: b, count: info.count, content: info.content });
+                                }
+                            }
+                            precomputedPickRows = out;
+                        } else {
+                            precomputedPickRows = [];
+                            try { hidePickTooltip(); } catch (e) { }
+                        }
+                    } catch (e) { precomputedPickRows = []; }
+                    try { if (document.getElementById('pickTooltip')) refreshPickTooltip(); } catch (e) { }
                 }
 
                 pb.addEventListener('click', async function (ev) {
                     if (!pickOrder || pickOrder.length < 1) return;
-                    const txt = pickOrder.join(',') + '\n';
+                    var txt = pickOrder.join(',') + '\n';
                     try {
                         await navigator.clipboard.writeText(txt);
-                        const old = pb.textContent;
+                        var old = pb.textContent;
                         pb.textContent = 'Copied';
                         setTimeout(function () { pb.textContent = old; }, 800);
                     } catch (e) {
-                        const ta = document.createElement('textarea');
+                        var ta = document.createElement('textarea');
                         ta.value = txt;
                         document.body.appendChild(ta);
                         ta.select();
                         try {
                             document.execCommand('copy');
-                            const old = pb.textContent;
+                            var old2 = pb.textContent;
                             pb.textContent = 'Copied';
-                            setTimeout(function () { pb.textContent = old; }, 800);
+                            setTimeout(function () { pb.textContent = old2; }, 800);
                         } catch (e2) { }
                         ta.remove();
                     }
+                    try {
+                        if (pickTooltipPinned) {
+                            pickTooltipPinned = false;
+                            hidePickTooltip(true);
+                            if (pickTooltipDocListener) { document.removeEventListener('mousedown', pickTooltipDocListener); pickTooltipDocListener = null; }
+                        } else {
+                            showPickTooltip(pb, pickOrder);
+                            pickTooltipPinned = true;
+                            pickTooltipDocListener = function (ev) {
+                                try {
+                                    var tip = document.getElementById('pickTooltip');
+                                    var rightEl = document.getElementById('right');
+                                    var leftEl = document.getElementById('left');
+                                    if (tip && (tip.contains(ev.target) || pb.contains(ev.target))) return;
+                                    if (rightEl && rightEl.contains(ev.target)) return;
+                                    if (leftEl && leftEl.contains(ev.target)) return;
+                                } catch (e) { }
+                                pickTooltipPinned = false;
+                                hidePickTooltip(true);
+                                if (pickTooltipDocListener) { document.removeEventListener('mousedown', pickTooltipDocListener); pickTooltipDocListener = null; }
+                            };
+                            document.addEventListener('mousedown', pickTooltipDocListener);
+                        }
+                    } catch (err) { }
                 });
 
-                // Store updatePickButton globally so it can be called from other parts
+                pb.addEventListener('mouseenter', function (e) {
+                    try {
+                        if (!pickOrder || pickOrder.length < 2) return;
+                        if (pickTooltipHideTimer) { clearTimeout(pickTooltipHideTimer); pickTooltipHideTimer = null; }
+                        if (pickTooltipPinned) { refreshPickTooltip(); }
+                        else { showPickTooltip(pb, pickOrder); }
+                    } catch (ex) { }
+                });
+                pb.addEventListener('mouseleave', function (e) {
+                    if (pickTooltipHideTimer) { clearTimeout(pickTooltipHideTimer); }
+                    if (!pickTooltipPinned) pickTooltipHideTimer = setTimeout(function () { hidePickTooltip(false); }, 110);
+                });
+
                 window.updatePickButtonUI = updatePickButton;
             } catch (e) { }
         })();

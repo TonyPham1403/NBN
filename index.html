@@ -1250,6 +1250,24 @@
 
             window.addEventListener('message', (ev) => {
                 const msg = ev.data || {};
+                if (msg.type === 'requestChecknotePopup') {
+                    const frame = el('okFrame');
+                    if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
+                        return;
+                    }
+                    let data = { id_to_result: {}, pair_to_ids: {}, max_id: null };
+                    try {
+                        if (sheetManager && typeof sheetManager.buildChecknoteDataFromSourceRows === 'function') {
+                            data = sheetManager.buildChecknoteDataFromSourceRows();
+                        }
+                    } catch (err) {
+                        /* keep empty data */
+                    }
+                    try {
+                        frame.contentWindow.postMessage({ type: 'checknotePopupData', data, nonce: msg.nonce }, '*');
+                    } catch (e) { /* ignore */ }
+                    return;
+                }
                 if (msg.type === 'submitStateChanged') {
                     iframeSubmitActive = !!msg.submitActive;
                     syncSubmitRingToolbarUi();
