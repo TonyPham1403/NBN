@@ -7,13 +7,13 @@ on:
 
   schedule:
     # Cron cũ: chạy mỗi 15 phút
-    # - cron: "*/15 * * * *"
+    - cron: "*/10 * * * *"
 
     # 13:05 và 21:05 giờ Việt Nam (UTC+7)
     # GitHub Actions dùng giờ UTC:
     # 13:05 VN = 06:05 UTC
     # 21:05 VN = 14:05 UTC
-    - cron: "5 6,14 * * *"
+    # - cron: "5 6,14 * * *"
 
   workflow_dispatch:
 
