@@ -677,6 +677,75 @@
             font-weight: bold
         }
 
+        /* freq 0 row: per-number colors like right-pane renderNonexistHtml */
+        .cell.num.left-nx-yellow {
+            color: rgb(240, 200, 64);
+            font-weight: bold;
+        }
+
+        .cell.num.left-nx-red {
+            color: rgb(255, 0, 0);
+            font-weight: bold;
+        }
+
+        .cell.num.left-nx-purple {
+            color: rgb(148, 55, 220);
+            font-weight: bold;
+        }
+
+        .cell.num.left-nx-green {
+            color: rgb(0, 80, 0);
+            font-weight: bold;
+        }
+
+        .cell.num.left-nx-green-ul {
+            color: rgb(0, 80, 0);
+            font-weight: bold;
+            text-decoration: underline;
+        }
+
+        .cell.num.left-nx-green-italic {
+            color: rgb(0, 80, 0);
+            font-weight: bold;
+            font-style: italic;
+        }
+
+        .cell.blocked.left-nx-yellow {
+            color: rgb(240, 200, 64) !important;
+            font-weight: bold !important;
+        }
+
+        .cell.blocked.left-nx-red {
+            color: rgb(255, 0, 0) !important;
+            font-weight: bold !important;
+        }
+
+        .cell.blocked.left-nx-purple {
+            color: rgb(148, 55, 220) !important;
+            font-weight: bold !important;
+        }
+
+        .cell.num.left-nx-green-strike {
+            color: rgb(0, 80, 0);
+            font-weight: bold;
+            font-size: 1.5em;
+            text-decoration: line-through;
+        }
+
+        .cell.blocked.left-nx-green-strike {
+            color: rgb(0, 80, 0) !important;
+            font-weight: bold !important;
+            font-size: 1.5em !important;
+            text-decoration: line-through !important;
+        }
+
+        .cell.blocked.left-nx-green,
+        .cell.blocked.left-nx-green-ul,
+        .cell.blocked.left-nx-green-italic {
+            color: rgb(0, 80, 0) !important;
+            font-weight: bold !important;
+        }
+
         #resetBtn,
         #submitBtn {
             font-size: 12px;
@@ -787,6 +856,107 @@
             color: #ffffff;
             border-color: #1b5e20
         }
+
+        /* pair/tail selected (green): giữ cyan / vàng như submit-highlight trên bảng 1 */
+        .pair-btn.pair-selected .pair-num {
+            color: var(--submit-answer-color);
+            font-weight: bold;
+        }
+
+        .pair-btn.pair-selected .pair-num.note-highlight {
+            color: var(--submit-note-color) !important;
+            font-weight: bold !important;
+        }
+
+        .pair-btn.pair-selected .pair-num.nonexist-intersect {
+            color: var(--submit-nonexist-color) !important;
+            font-weight: bold !important;
+        }
+
+        .pair-btn.pair-selected .pair-num.left-nx-yellow {
+            color: var(--submit-nonexist-color) !important;
+            font-weight: bold !important;
+        }
+
+        .pair-btn.pair-selected .pair-num.left-nx-red {
+            color: rgb(255, 120, 120) !important;
+            font-weight: bold !important;
+        }
+
+        .pair-btn.pair-selected .pair-num.left-nx-purple {
+            color: rgb(220, 180, 255) !important;
+            font-weight: bold !important;
+        }
+
+        .pair-btn.pair-selected .pair-num.left-nx-green,
+        .pair-btn.pair-selected .pair-num.left-nx-green-ul,
+        .pair-btn.pair-selected .pair-num.left-nx-green-italic,
+        .pair-btn.pair-selected .pair-num.left-nx-green-strike {
+            color: var(--submit-note-color) !important;
+            font-weight: bold !important;
+        }
+
+        .pair-btn.pair-selected .pair-num.left-nx-green-ul {
+            text-decoration: underline;
+        }
+
+        .pair-btn.pair-selected .pair-num.left-nx-green-italic {
+            font-style: italic;
+        }
+
+        .pair-btn.pair-selected .pair-num.left-nx-green-strike {
+            text-decoration: line-through;
+        }
+
+        /* pair/tail: same number colors as table 1 (when button not selected) */
+        .pair-btn:not(.pair-selected) .pair-num.note-highlight {
+            color: #0097a7;
+            font-weight: bold;
+        }
+
+        .pair-btn:not(.pair-selected) .pair-num.nonexist-intersect {
+            color: #e6b800;
+            font-weight: bold;
+        }
+
+        .pair-btn:not(.pair-selected) .pair-num.left-nx-yellow {
+            color: rgb(240, 200, 64);
+            font-weight: bold;
+        }
+
+        .pair-btn:not(.pair-selected) .pair-num.left-nx-red {
+            color: rgb(255, 0, 0);
+            font-weight: bold;
+        }
+
+        .pair-btn:not(.pair-selected) .pair-num.left-nx-purple {
+            color: rgb(148, 55, 220);
+            font-weight: bold;
+        }
+
+        .pair-btn:not(.pair-selected) .pair-num.left-nx-green {
+            color: rgb(0, 80, 0);
+            font-weight: bold;
+        }
+
+        .pair-btn:not(.pair-selected) .pair-num.left-nx-green-ul {
+            color: rgb(0, 80, 0);
+            font-weight: bold;
+            text-decoration: underline;
+        }
+
+        .pair-btn:not(.pair-selected) .pair-num.left-nx-green-italic {
+            color: rgb(0, 80, 0);
+            font-weight: bold;
+            font-style: italic;
+        }
+
+        .pair-btn:not(.pair-selected) .pair-num.left-nx-green-strike {
+            color: rgb(0, 80, 0);
+            font-weight: bold;
+            font-size: 1.15em;
+            text-decoration: line-through;
+        }
     </style>
 </head>
 
@@ -845,19 +1015,27 @@
         window.addEventListener('message', function (ev) {
             var d = ev.data || {};
             if (d.type !== 'checknotePopupData') return;
-            var pend = window.__checknotePending;
-            if (!pend || pend.nonce !== d.nonce) return;
-            clearTimeout(pend.timer);
-            window.__checknotePending = null;
             window.__checknote_lastData = d.data || { id_to_result: {}, pair_to_ids: {}, max_id: null };
-            var html = generateChecknoteHtml(pend.resultPart, pend.highlightedNums, window.__checknote_lastData);
-            if (!html) html = generateFallbackHtml(pend.resultPart);
-            try {
-                window.__checknote_tooltip_result = pend.resultPart;
-                window.__checknote_tooltip_anchor = pend.anchor || document.body;
-                window.__checknote_tooltip_row = pend.rowIdx;
-            } catch (e) { }
-            showChecknoteTooltip(pend.anchor || document.body, html);
+            var pend = window.__checknotePending;
+            if (pend && pend.nonce === d.nonce) {
+                clearTimeout(pend.timer);
+                window.__checknotePending = null;
+                if (pend.showChecknoteTooltip !== false) {
+                    var html = generateChecknoteHtml(pend.resultPart, pend.highlightedNums, window.__checknote_lastData);
+                    if (!html) html = generateFallbackHtml(pend.resultPart);
+                    try {
+                        window.__checknote_tooltip_result = pend.resultPart;
+                        window.__checknote_tooltip_anchor = pend.anchor || document.body;
+                        window.__checknote_tooltip_row = pend.rowIdx;
+                    } catch (e) { }
+                    showChecknoteTooltip(pend.anchor || document.body, html, {
+                        hover: !!pend.hover,
+                        pinned: !!pend.pinned
+                    });
+                }
+            }
+            try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
+            try { if (document.getElementById('pickTooltip')) refreshPickTooltip(); } catch (e) { }
         });
 
         // Minimal JS extracted from ok.py necessary for left UI rendering and process()
@@ -872,11 +1050,16 @@
             return s.split(",").map(x => parseInt(x, 10)).filter(n => !isNaN(n));
         }
 
+        const MAX_PICK_NUMBERS = 5;
+
         let raw = null; // structure { lines: [...], freq: {...}, firstNums: [...] }
+        /** Per-number nonexist highlight kinds from right pane (yellow / red / green / default black) */
+        let focusNonexistHighlights = {};
         let selected = new Set();
         let blockedSet = new Set();
         let simulatedSelected = new Set();
         let submitActive = false;
+        let preserveSubmitOnNextProcess = false;
         let answerNums = [];
         let pickOrder = [];
         let lastClickedChuoiText = '';
@@ -885,6 +1068,9 @@
         let precomputedPickRows = [];
         let pickTooltipPinned = false;
         let pickTooltipDocListener = null;
+        let checknoteTooltipHideTimer = null;
+        let checknoteTooltipPinned = false;
+        let checknoteTooltipDocListener = null;
         let disableSubmitForCurrentData = false;
         let currentPairs = []; // computed pairs
         let currentPairIndex = -1;
@@ -894,6 +1080,7 @@
         let submitAutoCircleMode = 'max';
         /** Track draw ids (right-pane focus row) that already received one-shot auto ring */
         let autoRingVisitedIds = new Set();
+        let autoRingPicked = new Set();
         /** Remember selection per focus id so revisiting a row restores user state */
         let selectionMemoryByFocusId = new Map();
         let lastAutoRingFocusKey = '';
@@ -964,13 +1151,53 @@
         // Helper: detect pair-mode and extract pair count (e.g., 'pair3' -> 3)
         function isPairMode(mode) { return typeof mode === 'string' && mode.startsWith('pair'); }
         function pairModeCount(mode) { if (!isPairMode(mode)) return 0; const v = parseInt(mode.slice(4), 10); return isNaN(v) ? 0 : v; }
+        function hasCurrentLine11Result() {
+            if (!raw || !Array.isArray(raw.lines) || raw.lines.length < 11) return false;
+            var eleventh = raw.lines[10] || {};
+            var ansLine = String(eleventh.result || '').split('|')[0].trim();
+            return ansLine.length > 0;
+        }
+
+        function getAnswerNumsFromCurrentLine11() {
+            if (!hasCurrentLine11Result()) return [];
+            var eleventh = raw.lines[10] || {};
+            var ansLine = String(eleventh.result || '').split('|')[0].trim();
+            return ansLine.split(',').map(function (x) { return parseInt(x, 10); }).filter(function (n) { return !isNaN(n); });
+        }
+
+        function getAnswerNumsForAutoring() {
+            return getAnswerNumsFromCurrentLine11();
+        }
+
+        function clearAutoRingSelectionVisuals() {
+            autoRingPicked.clear();
+            if (!submitActive) {
+                selected.clear();
+                transientSelected.clear();
+                simulatedSelected.clear();
+                pickOrder = [];
+                currentPairIndex = -1;
+                currentTailIndex = -1;
+                selectionCleared = false;
+                recomputePairsFromSelected();
+                updateBlocked();
+                try { updatePairList(); } catch (e) { }
+                try { refreshPairTailSelectionState(); } catch (e) { }
+                try { applySelectionAndBlockedInDOM(); } catch (e) { }
+                try { updateFocusIndicator(); } catch (e) { }
+            } else {
+                try { applySubmitState(); } catch (e) { }
+            }
+        }
+
         function getSubmitAutoCircleSet() {
             const out = new Set();
-            if (!submitAutoCircleEnabled || !raw || !raw.freq || !Array.isArray(answerNums) || answerNums.length === 0) {
+            var ansSrc = getAnswerNumsForAutoring();
+            if (!submitAutoCircleEnabled || !raw || !raw.freq || !ansSrc.length) {
                 return out;
             }
 
-            const candidates = answerNums
+            const candidates = ansSrc
                 .map(function (n) { return parseInt(n, 10); })
                 .filter(function (n) { return !isNaN(n); })
                 .map(function (n) { return { num: n, freq: parseInt(raw.freq[n], 10) || 0 }; });
@@ -996,12 +1223,147 @@
             return out;
         }
 
+        function applyAutoRingSelection(circleNums) {
+            circleNums = (circleNums || []).filter(function (n) { return !isNaN(n); });
+            if (!circleNums.length) return false;
+
+            autoRingPicked.clear();
+            circleNums.forEach(function (n) { autoRingPicked.add(n); });
+
+            if (submitActive) {
+                circleNums.forEach(function (n) {
+                    if (!isNaN(n)) selected.add(n);
+                });
+                try { recomputePairsFromSelected(); } catch (e) { }
+                try { updateBlocked(); } catch (e) { }
+                try { applySubmitState(); } catch (e) { }
+                try { applySelectionAndBlockedInDOM(); } catch (e) { }
+                return true;
+            }
+
+            selected.clear();
+            transientSelected.clear();
+            simulatedSelected.clear();
+            pickOrder = [];
+            currentPairIndex = -1;
+            currentTailIndex = -1;
+            selectionCleared = false;
+
+            recomputePairsFromSelected();
+            updateBlocked();
+
+            circleNums.sort(function (a, b) { return a - b; });
+            for (var i = 0; i < circleNums.length; i++) {
+                var n = circleNums[i];
+                if (isBlocked(n)) continue;
+                toggleNumber(n);
+            }
+            return true;
+        }
+
         function normalizeAutoRingFocusKey(s) {
             var d = String(s || '').replace(/\D/g, '');
             if (!d) return '';
             var n = parseInt(d, 10);
             if (isNaN(n)) return '';
             return String(n).padStart(5, '0');
+        }
+
+        function hasCircledNumbersForNav() {
+            if (submitActive) {
+                return (preSubmitSelected && preSubmitSelected.size > 0) || selected.size > 0;
+            }
+            return selected.size > 0 || simulatedSelected.size > 0 || transientSelected.size > 0;
+        }
+
+        function isFocusedOnPairOrTail() {
+            return lastClickedRegion === 'pairList' || lastClickedRegion === 'tailList';
+        }
+
+        function getLeftTable1MaxFreqFirstNumber() {
+            if (!raw || !raw.freq) return null;
+            var maxFreq = -Infinity;
+            for (var i = 1; i <= 35; i++) {
+                var f = parseInt(raw.freq[i], 10) || 0;
+                if (f > maxFreq) maxFreq = f;
+            }
+            if (!isFinite(maxFreq)) return null;
+            var nums = [];
+            for (var i = 1; i <= 35; i++) {
+                if ((parseInt(raw.freq[i], 10) || 0) === maxFreq) nums.push(i);
+            }
+            if (!nums.length) return null;
+            nums.sort(function (a, b) { return a - b; });
+            return nums[0];
+        }
+
+        function bootstrapLeftTable1Focus() {
+            var n = getLeftTable1MaxFreqFirstNumber();
+            if (n == null || isNaN(n)) return false;
+            try { if (isBlocked(n)) return false; } catch (e) { return false; }
+
+            lastClickedRegion = 'left';
+            lastClickedNumber = n;
+            currentPhaseNumber = n;
+            currentPhaseRow = null;
+
+            if (!selected.has(n)) {
+                if (!submitActive && selected.size >= MAX_PICK_NUMBERS) return false;
+                selected.add(n);
+            }
+            if (!submitActive) {
+                if (!pickOrder) pickOrder = [];
+                if (pickOrder.indexOf(n) === -1) {
+                    if (pickOrder.length >= MAX_PICK_NUMBERS) pickOrder.shift();
+                    pickOrder.push(n);
+                }
+            }
+            try { recomputePairsFromSelected(); } catch (e) { }
+            try { updateBlocked(); } catch (e) { }
+
+            try { pushPhaseHistory('left', n, null); } catch (e) { }
+            try {
+                if (submitActive) {
+                    applySubmitState();
+                } else {
+                    applySelectionAndBlockedInDOM(n);
+                    updateRenderLightweight();
+                }
+            } catch (e) {
+                try { applySelectionAndBlockedInDOM(n); } catch (ee) { }
+            }
+            try { updateFocusIndicator(); } catch (e) { }
+            try { refreshPairTailSelectionState(); } catch (e) { }
+            try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
+            try {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: 'childFocus', region: 'left' }, '*');
+                }
+            } catch (e) { }
+            return true;
+        }
+
+        function needsLeftTable1Bootstrap() {
+            if (lastClickedRegion === 'right') return false;
+            if (!hasCircledNumbersForNav()) return currentPhaseNumber == null;
+            if (isFocusedOnPairOrTail()) return false;
+            return currentPhaseNumber == null;
+        }
+
+        function syncPickOrderForSubmitState() {
+            try {
+                if (submitActive) {
+                    pickOrder = (answerNums && answerNums.length)
+                        ? answerNums.slice(0, MAX_PICK_NUMBERS)
+                        : [];
+                } else if (preSubmitOrder && preSubmitOrder.length) {
+                    pickOrder = preSubmitOrder.slice();
+                } else {
+                    pickOrder = Array.from(selected).filter(function (n) { return !isNaN(n); }).slice(0, MAX_PICK_NUMBERS);
+                }
+            } catch (e) {
+                pickOrder = pickOrder || [];
+            }
         }
 
         function snapshotSelectionState() {
@@ -1090,60 +1452,29 @@
 
         function maybeApplySubmitAutoRingAfterProcess(focusRowIdRaw) {
             try {
-                if (!submitAutoCircleEnabled || submitActive || disableSubmitForCurrentData || !raw) return;
+                if (!submitAutoCircleEnabled || !raw) return;
+                if (disableSubmitForCurrentData || !hasCurrentLine11Result()) {
+                    clearAutoRingSelectionVisuals();
+                    return;
+                }
 
                 var fk = normalizeAutoRingFocusKey(focusRowIdRaw);
                 if (!fk) return;
                 if (autoRingVisitedIds.has(fk)) return;
 
-                var circleNums = Array.from(getSubmitAutoCircleSet()).filter(function (n) { return !isNaN(n); });
-                var ans = [];
-                if (raw.lines && raw.lines.length > 10) {
-                    var eleventh = raw.lines[10] || {};
-                    var ansLine = (eleventh.result || '').split('|')[0].trim();
-                    if (ansLine.length) {
-                        ans = ansLine.split(',').map(function (x) { return parseInt(x, 10); }).filter(function (n) { return !isNaN(n); });
-                    }
-                }
+                var ans = getAnswerNumsFromCurrentLine11();
                 if (ans.length >= 5) {
                     syncModeFromAnswerNums(ans);
                 }
 
+                var circleNums = Array.from(getSubmitAutoCircleSet()).filter(function (n) { return !isNaN(n); });
+
                 if (!circleNums.length) {
-                    autoRingVisitedIds.add(fk);
-                    selected.clear();
-                    transientSelected.clear();
-                    simulatedSelected.clear();
-                    pickOrder = [];
-                    currentPairIndex = -1;
-                    currentTailIndex = -1;
-                    selectionCleared = false;
-                    recomputePairsFromSelected();
-                    updateBlocked();
-                    try { updatePairList(); } catch (e) { }
-                    try { refreshPairTailSelectionState(); } catch (e) { }
-                    try { applySelectionAndBlockedInDOM(); } catch (e) { }
-                    try { updateFocusIndicator(); } catch (e) { }
+                    clearAutoRingSelectionVisuals();
                     return;
                 }
 
-                selected.clear();
-                transientSelected.clear();
-                simulatedSelected.clear();
-                pickOrder = [];
-                currentPairIndex = -1;
-                currentTailIndex = -1;
-                selectionCleared = false;
-
-                recomputePairsFromSelected();
-                updateBlocked();
-
-                circleNums.sort(function (a, b) { return a - b; });
-                for (var i = 0; i < circleNums.length; i++) {
-                    var n = circleNums[i];
-                    if (isBlocked(n)) continue;
-                    toggleNumber(n);
-                }
+                if (!applyAutoRingSelection(circleNums)) return;
 
                 autoRingVisitedIds.add(fk);
 
@@ -1425,9 +1756,7 @@
         }
 
         function toggleNumber(n) {
-            // Disallow toggles while Submit is active
             if (submitActive) return;
-            // Disallow toggles on blocked numbers
             try { if (isBlocked(n)) return; } catch (e) { }
             // If selection was previously cleared via Reset/q toggle, clear its backup now
             if (selectionCleared) {
@@ -1449,6 +1778,7 @@
                     if (lastClickedRegion === 'right' && currentPhaseNumber === null) currentPhaseRow = null;
                 }
             } else {
+                if (selected.size >= MAX_PICK_NUMBERS) return;
                 selected.add(n);
                 currentPhaseNumber = n;
                 // record mouse-driven phase selection so arrow can return here later
@@ -1456,7 +1786,12 @@
             }
             if (!pickOrder) pickOrder = [];
             const idx = pickOrder.indexOf(n);
-            if (idx === -1) pickOrder.push(n); else pickOrder.splice(idx, 1);
+            if (idx === -1) {
+                if (pickOrder.length >= MAX_PICK_NUMBERS) return;
+                pickOrder.push(n);
+            } else {
+                pickOrder.splice(idx, 1);
+            }
 
             // Update only sequence-number cells in-place (have class `num`) to avoid repaint of index/footer cells
             try {
@@ -1510,9 +1845,9 @@
                             el.classList.remove('blocked');
                             try {
                                 if (el.closest && el.closest('#right')) {
-                                    el.classList.remove('idx-highlight');
+                                    el.classList.toggle('idx-highlight', selected.has(v) || (submitActive && Array.isArray(answerNums) && answerNums.indexOf(v) !== -1));
                                 } else {
-                                    el.classList.toggle('idx-highlight', (selected.has(v) && !submitActive) || (submitActive && Array.isArray(answerNums) && answerNums.indexOf(v) !== -1));
+                                    el.classList.toggle('idx-highlight', selected.has(v) || (submitActive && Array.isArray(answerNums) && answerNums.indexOf(v) !== -1));
                                 }
                             } catch (ee) { el.classList.remove('idx-highlight'); }
                             if (!submitActive) el.classList.remove('submit-highlight');
@@ -1579,51 +1914,61 @@
             for (let i = 1; i <= MAX_NUM; i++) freq[i] = 0;
             all.forEach(n => freq[n]++);
             raw = { lines: rowsUsed, freq: freq, firstNums: firstNums };
-            // extract answerNums from 11th line if present
+            // answerNums chỉ từ dòng 11 của record hiện tại (không dùng đáp án id cũ)
             if (linesSimple.length === 11) {
                 let eleventh = rowsUsed[10] || {};
                 let ansLine = (eleventh.result || '').split("|")[0].trim();
-                answerNums = ansLine.length ? ansLine.split(",").map(x => parseInt(x, 10)).filter(n => !isNaN(n)) : [];
-            } else answerNums = [];
+                if (ansLine.length) {
+                    answerNums = ansLine.split(",").map(x => parseInt(x, 10)).filter(n => !isNaN(n));
+                } else {
+                    answerNums = [];
+                }
+            } else {
+                answerNums = [];
+            }
 
             debugLog('process() answerNums:', answerNums);
             syncSubmitButtonAvailability();
 
             if (disableSubmitForCurrentData) {
-                submitActive = false;
-                simulatedSelected.clear();
                 answerNums = [];
-                pickOrder = [];
-                const sbEl = document.getElementById('submitBtn');
-                if (sbEl) sbEl.classList.remove('active');
-                const modeEl = document.getElementById('mode');
-                if (modeEl) {
-                    modeEl.classList.remove('synced-mode');
-                    modeEl.disabled = false;
+                if (!preserveSubmitOnNextProcess) {
+                    submitActive = false;
+                    simulatedSelected.clear();
+                    pickOrder = [];
+                    const sbEl = document.getElementById('submitBtn');
+                    if (sbEl) sbEl.classList.remove('active');
+                    const modeEl = document.getElementById('mode');
+                    if (modeEl) {
+                        modeEl.classList.remove('synced-mode');
+                        modeEl.disabled = false;
+                    }
                 }
             }
 
             // Match ok.py: if fewer than 11 meaningful rows, force Submit OFF and
             // restore manual mode if it was auto-synced before.
             if (rowsUsed.length < 11) {
-                const sbEl = document.getElementById('submitBtn');
-                submitActive = false;
-                if (sbEl) sbEl.classList.remove('active');
-                simulatedSelected.clear();
-                preSubmitSelected = null;
-                preSubmitOrder = null;
-                answerNums = [];
-                const modeEl = document.getElementById('mode');
-                if (modeEl) {
-                    if (modeSynced) {
-                        if (userModeBeforeSubmit !== null) modeEl.value = userModeBeforeSubmit;
+                if (!preserveSubmitOnNextProcess) {
+                    const sbEl = document.getElementById('submitBtn');
+                    submitActive = false;
+                    if (sbEl) sbEl.classList.remove('active');
+                    simulatedSelected.clear();
+                    preSubmitSelected = null;
+                    preSubmitOrder = null;
+                    answerNums = [];
+                    const modeEl = document.getElementById('mode');
+                    if (modeEl) {
+                        if (modeSynced) {
+                            if (userModeBeforeSubmit !== null) modeEl.value = userModeBeforeSubmit;
+                            modeEl.classList.remove('synced-mode');
+                        }
                         modeEl.classList.remove('synced-mode');
+                        modeEl.disabled = false;
                     }
-                    modeEl.classList.remove('synced-mode');
-                    modeEl.disabled = false;
+                    userModeBeforeSubmit = null;
+                    modeSynced = false;
                 }
-                userModeBeforeSubmit = null;
-                modeSynced = false;
             }
 
             // Match ok.py: do NOT auto-sync mode on each new dataset while Submit ON.
@@ -1645,6 +1990,7 @@
             try { applySubmitState(); } catch (e) { }
             try { updateFocusIndicator(); } catch (e) { }
             try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
+            try { requestChecknoteDataIfNeeded(); } catch (e) { }
             setTimeout(function () { try { updateFocusIndicator(); } catch (e) { } }, 40);
         }
 
@@ -1655,6 +2001,39 @@
             try { refreshPairTailSelectionState(); } catch (e) { }
             try { updateFocusIndicator(); } catch (e) { }
             try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
+            try { if (document.getElementById('checknoteTooltip')) refreshChecknoteTooltip(); } catch (e) { }
+        }
+
+        function requestChecknoteDataIfNeeded() {
+            if (window.__checknote_lastData) return;
+            if (!window.parent || window.parent === window || !raw || !raw.lines || !raw.lines.length) return;
+            var resultPart = '';
+            try {
+                var first = raw.lines[0];
+                resultPart = (first && (first.result || '')) ? String(first.result).split('|')[0].trim() : '';
+            } catch (e) { }
+            if (!resultPart) return;
+            var nonce = 'pick-data-' + String(Date.now()) + '-' + Math.random().toString(36).slice(2, 8);
+            if (window.__checknotePending && window.__checknotePending.timer) {
+                clearTimeout(window.__checknotePending.timer);
+            }
+            window.__checknotePending = {
+                nonce: nonce,
+                showChecknoteTooltip: false,
+                anchor: document.body,
+                resultPart: resultPart,
+                highlightedNums: (pickOrder && pickOrder.length) ? pickOrder.slice() : [],
+                rowIdx: 0,
+                timer: null
+            };
+            try {
+                window.parent.postMessage({
+                    type: 'requestChecknotePopup',
+                    resultPart: resultPart,
+                    highlightedNums: pickOrder ? pickOrder.slice() : [],
+                    nonce: nonce
+                }, '*');
+            } catch (e) { }
         }
 
         // Helper utilities used by renderTable1/renderTable2
@@ -1863,11 +2242,169 @@
             let firstMatch = -1;
             for (let i = 0; i < sortedPairs.length; i++) { const p = sortedPairs[i]; if (effective.has(p[0]) && effective.has(p[1])) { firstMatch = i; break; } }
             if (firstMatch >= 0) { if (currentPairIndex < 0) currentPairIndex = firstMatch; else { const cp = currentPairs[currentPairIndex]; if (!cp || !(effective.has(cp[0]) && effective.has(cp[1]))) currentPairIndex = firstMatch; } } else if (currentPairIndex >= 0) { const cp = currentPairs[currentPairIndex]; if (!cp || !(effective.has(cp[0]) && effective.has(cp[1]))) currentPairIndex = -1; }
-            el.innerHTML = 'pair[' + sortedPairs.length + ']: ' + pairsWithMain.map((o, i) => { const p = o.pair; const a = p[0], b = p[1]; const main = isFinite(o.main) ? o.main : '-'; return `<button type="button" class="pair-btn" data-idx="${i}" data-a="${a}" data-b="${b}" data-main="${main}">${main}:{${a},${b}}</button>`; }).join(' ');
+            el.innerHTML = 'pair[' + sortedPairs.length + ']: ' + pairsWithMain.map((o, i) => {
+                const p = o.pair;
+                const a = p[0], b = p[1];
+                const main = isFinite(o.main) ? o.main : '-';
+                return `<button type="button" class="pair-btn" data-idx="${i}" data-a="${a}" data-b="${b}" data-main="${main}">${formatPairTailButtonLabel(main, a, b)}</button>`;
+            }).join(' ');
             const buttons = Array.from(el.querySelectorAll('.pair-btn'));
             buttons.forEach((btn, idx) => { btn.addEventListener('click', function (ev) { ev.preventDefault(); const a = parseInt(btn.getAttribute('data-a'), 10); const b = parseInt(btn.getAttribute('data-b'), 10); try { lastClickedRegion = 'pairList'; lastClickedNumber = b; pushPhaseHistory('pairList', b, null); } catch (e) { } if (selected.has(a) && selected.has(b)) { toggleNumber(a); toggleNumber(b); currentPairIndex = -1; } else { applyPairByIndex(idx); } }); });
             updatePairButtonsSelection(effective);
             syncPairTailWrapWidths();
+        }
+
+        /** Aggregate note / nonexist number sets from the first 10 chuỗi (same source as table 2). */
+        function buildAggregatedNoteNonexistSets() {
+            const noteSet = [];
+            const nonexistSet = [];
+            if (!raw || !raw.lines) {
+                return { noteSet, nonexistSet };
+            }
+            raw.lines.slice(0, 10).forEach(function (lineObj) {
+                if (lineObj && typeof lineObj !== 'string') {
+                    if (lineObj.note) {
+                        const all = lineObj.note.matchAll(/\{([^}]*)\}/g);
+                        for (const m of all) {
+                            if (m && m[1]) {
+                                const nums = m[1].split(',').map(function (x) { return parseInt(x.trim(), 10); }).filter(function (n) { return !isNaN(n); });
+                                noteSet.push.apply(noteSet, nums);
+                            }
+                        }
+                    }
+                    if (lineObj.nonexist) {
+                        const nums = (lineObj.nonexist || '').split(',').map(function (x) { return parseInt(x.trim(), 10); }).filter(function (n) { return !isNaN(n); });
+                        nonexistSet.push.apply(nonexistSet, nums);
+                    }
+                }
+            });
+            return {
+                noteSet: Array.from(new Set(noteSet)),
+                nonexistSet: Array.from(new Set(nonexistSet))
+            };
+        }
+
+        /**
+         * Table 1: one semantic color per number (table 2 may combine several).
+         * Priority: yellow (nonexist) > cyan (note). Blocked (black) is applied separately via isBlocked().
+         */
+        function appendLeftTableSemanticHighlight(cls, n, aggregatedNoteSet, aggregatedNonexistSet) {
+            if (aggregatedNonexistSet.indexOf(n) !== -1) {
+                return cls + ' nonexist-intersect';
+            }
+            if (aggregatedNoteSet.indexOf(n) !== -1) {
+                return cls + ' note-highlight';
+            }
+            return cls;
+        }
+
+        function getLeftTableSubmitTextColor(n, aggregatedNoteSet, aggregatedNonexistSet) {
+            if (aggregatedNonexistSet.indexOf(n) !== -1) {
+                return '#f0c840';
+            }
+            if (aggregatedNoteSet.indexOf(n) !== -1) {
+                return '#00d9f2';
+            }
+            return null;
+        }
+
+        const LEFT_NX_CLASS_NAMES = [
+            'left-nx-yellow', 'left-nx-red', 'left-nx-purple', 'left-nx-green',
+            'left-nx-green-ul', 'left-nx-green-italic', 'left-nx-green-strike'
+        ];
+
+        function isGreenNonexistKind(kind) {
+            return kind === 'green' || kind === 'green-ul' || kind === 'green-italic' || kind === 'green-strike';
+        }
+
+        /**
+         * Submit OFF: vàng / đỏ / tím / đen — không xanh (gạch chân, gạch ngang, xanh thường).
+         * green-ul (longest + đáp án) → đỏ; green-italic → vàng; green-strike / purple → tím.
+         * Submit ON: giữ nguyên map nonexist pane phải.
+         */
+        function resolveLeftNonexistKind(kind) {
+            if (!kind) return '';
+            if (!submitActive) {
+                if (kind === 'purple' || kind === 'green-strike') return 'purple';
+                if (kind === 'green-ul') return 'red';
+                if (kind === 'green-italic') return 'yellow';
+                if (isGreenNonexistKind(kind)) return '';
+                return kind;
+            }
+            return kind;
+        }
+
+        function leftNonexistKindToClassName(kind) {
+            if (kind === 'yellow') return 'left-nx-yellow';
+            if (kind === 'red') return 'left-nx-red';
+            if (kind === 'purple') return 'left-nx-purple';
+            if (kind === 'green') return 'left-nx-green';
+            if (kind === 'green-ul') return 'left-nx-green-ul';
+            if (kind === 'green-italic') return 'left-nx-green-italic';
+            if (kind === 'green-strike') return 'left-nx-green-strike';
+            return '';
+        }
+
+        function leftNonexistKindToClass(kind) {
+            const name = leftNonexistKindToClassName(kind);
+            return name ? (' ' + name) : '';
+        }
+
+        function getLeftNonexistHighlightClassFromFocus(n) {
+            if (!focusNonexistHighlights) return '';
+            const rawKind = focusNonexistHighlights[n] || focusNonexistHighlights[String(n)];
+            return leftNonexistKindToClass(resolveLeftNonexistKind(rawKind));
+        }
+
+        /** Class list for a number in pair/tail (semantic colors only — no blocked/black). */
+        function getLeftTableNumberClassString(n) {
+            let cls = 'pair-num';
+            if (!raw || !raw.freq) return cls;
+            const freqRow = parseInt(raw.freq[n], 10) || 0;
+            const isFreqZeroRow = freqRow === 0;
+            if (isFreqZeroRow) {
+                cls += getLeftNonexistHighlightClassFromFocus(n);
+            } else {
+                const agg = buildAggregatedNoteNonexistSets();
+                cls = appendLeftTableSemanticHighlight(cls, n, agg.noteSet, agg.nonexistSet);
+            }
+            return cls.trim().replace(/\s+/g, ' ');
+        }
+
+        function formatLeftTableNumSpan(n) {
+            return '<span class="' + getLeftTableNumberClassString(n) + '">' + n + '</span>';
+        }
+
+        function formatPairTailButtonLabel(main, a, b) {
+            return main + ':{' + formatLeftTableNumSpan(a) + ',' + formatLeftTableNumSpan(b) + '}';
+        }
+
+        function refreshPairTailNumberStyles() {
+            document.querySelectorAll('#pairList .pair-btn, #tailList .pair-btn').forEach(function (btn) {
+                const a = parseInt(btn.getAttribute('data-a'), 10);
+                const b = parseInt(btn.getAttribute('data-b'), 10);
+                const main = btn.getAttribute('data-main');
+                if (isNaN(a) || isNaN(b) || main == null) return;
+                btn.innerHTML = formatPairTailButtonLabel(main, a, b);
+            });
+        }
+
+        function syncLeftFreqZeroNonexistStylesInDOM() {
+            const left = document.getElementById('left');
+            if (!left || !raw || !raw.freq) return;
+            for (let i = 1; i <= MAX_NUM; i++) {
+                if ((parseInt(raw.freq[i], 10) || 0) !== 0) continue;
+                const spans = left.querySelectorAll('.cell.num[data-num="' + i + '"]');
+                const kind = resolveLeftNonexistKind(
+                    focusNonexistHighlights[i] || focusNonexistHighlights[String(i)]
+                );
+                const cls = leftNonexistKindToClassName(kind);
+                spans.forEach(function (span) {
+                    LEFT_NX_CLASS_NAMES.forEach(function (c) { span.classList.remove(c); });
+                    if (cls) span.classList.add(cls);
+                });
+            }
+            refreshPairTailNumberStyles();
         }
 
         function renderTable1() {
@@ -1890,24 +2427,9 @@
                 return;
             }
             let { freq, firstNums } = raw;
-            // aggregate note/nonexist from the first 10 rows (to enable left-table highlights for freq==1)
-            let aggregatedNoteSet = [];
-            let aggregatedNonexistSet = [];
-            raw.lines.slice(0, 10).forEach(lineObj => {
-                if (lineObj && typeof lineObj !== 'string') {
-                    if (lineObj.note) {
-                        let all = lineObj.note.matchAll(/\{([^}]*)\}/g);
-                        for (const m of all) { if (m && m[1]) { let nums = m[1].split(',').map(x => parseInt(x.trim(), 10)).filter(n => !isNaN(n)); aggregatedNoteSet.push(...nums); } }
-                    }
-                    if (lineObj.nonexist) {
-                        let nums = (lineObj.nonexist || "").split(',').map(x => parseInt(x.trim(), 10)).filter(n => !isNaN(n));
-                        aggregatedNonexistSet.push(...nums);
-                    }
-                }
-            });
-            aggregatedNoteSet = Array.from(new Set(aggregatedNoteSet));
-            aggregatedNonexistSet = Array.from(new Set(aggregatedNonexistSet));
-
+            const agg = buildAggregatedNoteNonexistSets();
+            const aggregatedNoteSet = agg.noteSet;
+            const aggregatedNonexistSet = agg.nonexistSet;
             let blockCount = blockedSet.size;
             let blockLabel = `<div style="display:flex;justify-content:space-between;align-items:center;"><span>Các số</span><span style="font-weight:bold;text-align:right;">${blockCount}</span></div>`;
             let html = `<table><tr><th>Số lần</th><th>${blockLabel}</th><th>Tổng</th></tr>`;
@@ -1915,37 +2437,34 @@
             Object.entries(freq).forEach(([n, f]) => { if (!groups[f]) groups[f] = []; groups[f].push(parseInt(n)); });
             Object.keys(groups).sort((a, b) => b - a).forEach(f => {
                 let arr = groups[f];
+                const freqRow = parseInt(f, 10);
+                const isFreqZeroRow = !isNaN(freqRow) && freqRow === 0;
                 html += "<tr>";
                 html += "<td>" + f + "</td>";
-                // convert frequency key to int for comparisons
-                let freqInt = parseInt(f, 10);
                 html += "<td>" + arr.map(n => {
                     let cls = "";
                     // do NOT apply red underline to submitted answer numbers
                     if (!(submitActive && answerNums.includes(n)) && firstNums.includes(n)) cls += " red";
                     if (selected.has(n)) cls += " selected";
                     if (isBlocked(n)) cls += " blocked";
-                    // apply aggregated note/nonexist highlights only for freq==1
-                    if (freqInt === 1) {
-                        if (aggregatedNoteSet.indexOf(n) !== -1) cls += ' note-highlight';
-                        if (aggregatedNonexistSet.indexOf(n) !== -1) cls += ' nonexist-intersect';
+                    if (isFreqZeroRow) {
+                        cls += getLeftNonexistHighlightClassFromFocus(n);
+                    } else {
+                        cls = appendLeftTableSemanticHighlight(cls, n, aggregatedNoteSet, aggregatedNonexistSet);
                     }
-                    // allow click only when submit is OFF and the number is not blocked
-                    let clickAttr = (!submitActive && !isBlocked(n)) ? `onclick="onNumberCellClick(${n},'left')"` : "";
+                    let clickAttr = (!submitActive && !isBlocked(n))
+                        ? `onclick="onNumberCellClick(${n},'left')"` : "";
                     let style = "";
-                    // determine submit-time text color if submitActive (only when freq==1)
-                    let submitTextColor = null;
-                    if (submitActive && freqInt === 1) {
-                        if (aggregatedNoteSet.indexOf(n) !== -1) submitTextColor = '#00d9f2';
-                        else if (aggregatedNonexistSet.indexOf(n) !== -1) submitTextColor = '#f0c840';
-                    }
+                    let submitTextColor = submitActive
+                        ? getLeftTableSubmitTextColor(n, aggregatedNoteSet, aggregatedNonexistSet)
+                        : null;
                     if (isBlocked(n)) {
                         // Use class-based blocked styling (match ok.py): .blocked{background:black;color:var(--blocked-default)}
                         // cls already includes 'blocked' earlier; avoid inline styles here so the CSS rule applies uniformly.
                     } else if (submitActive && answerNums.includes(n)) {
                         // mark submitted numbers with a class — CSS maps their text color by semantic class
                         cls += ' submit-highlight';
-                    } else if (submitActive && submitTextColor) {
+                    } else if (submitActive && submitTextColor && !isFreqZeroRow) {
                         style = `color:${submitTextColor};font-weight:bold;`;
                     }
                     return `<span class="cell num${cls}" data-num="${n}" ${clickAttr} style='${style}'>${n}</span>`;
@@ -1962,7 +2481,7 @@
                     html += 'tail[' + tails.length + ']: ';
                     for (let ti = 0; ti < tails.length; ti++) {
                         const t = tails[ti]; const a = t.a, b = t.b, main = (t.main === Infinity) ? '-' : t.main;
-                        html += '<button type="button" class="pair-btn tail-btn" data-tail-idx="' + ti + '" data-a="' + a + '" data-b="' + b + '" data-main="' + main + '">' + main + ':{' + a + ',' + b + '}</button>';
+                        html += '<button type="button" class="pair-btn tail-btn" data-tail-idx="' + ti + '" data-a="' + a + '" data-b="' + b + '" data-main="' + main + '">' + formatPairTailButtonLabel(main, a, b) + '</button>';
                     }
                     html += '</div>';
                 }
@@ -2098,7 +2617,8 @@
                     let cls = selected.has(n) ? ' selected' : '';
                     if (noteSet.indexOf(n) !== -1) cls += ' note-highlight';
                     if (nonexistSet.indexOf(n) !== -1) cls += ' nonexist-intersect';
-                    let clickAttr = (!submitActive && !isBlocked(n)) ? `onclick="onNumberCellClick(${n},'right',${i})"` : "";
+                    let clickAttr = (!submitActive && !isBlocked(n))
+                        ? `onclick="onNumberCellClick(${n},'right',${i})"` : "";
                     // Prefer class-based blocked styling (no inline black background)
                     if (isBlocked(n)) cls += ' blocked';
                     let style = '';
@@ -2474,8 +2994,132 @@
             return style + table;
         }
 
-        function showChecknoteTooltip(anchorEl, html) {
-            hideChecknoteTooltip();
+        function parseCopyBtnRowIndex(btnOrId) {
+            if (btnOrId == null) return -1;
+            var id = typeof btnOrId === 'string' ? btnOrId : (btnOrId.id || '');
+            var m = String(id).match(/(?:floatingCopyBtn|copyBtn)-(\d+)/);
+            return m ? parseInt(m[1], 10) : -1;
+        }
+
+        function getChecknoteRowContext(idx, btnEl) {
+            if (!raw || idx < 0) return null;
+            var row = raw.lines[idx] || '';
+            var resultPart = '';
+            if (!row) return null;
+            if (typeof row === 'string') {
+                resultPart = row.trim().split(/\t|\n/)[0].split('|')[0].trim();
+            } else {
+                resultPart = (row.result || '').split('|')[0].trim();
+            }
+            if (!resultPart) return null;
+
+            var highlightedNums = [];
+            try {
+                var tr = btnEl && btnEl.closest ? btnEl.closest('tr') : null;
+                if (!tr) {
+                    var right = document.getElementById('right');
+                    var mainRows = right ? right.querySelectorAll('tr.chuoi-main-row') : [];
+                    if (mainRows && mainRows[idx]) tr = mainRows[idx];
+                }
+                if (tr) {
+                    var els = tr.querySelectorAll('span.idx-highlight, span.selected, span.cell.selected, span.answer-neon, span.cell.answer-neon');
+                    els.forEach(function (el) {
+                        var v = NaN;
+                        try {
+                            if (el.hasAttribute && el.hasAttribute('data-num')) v = parseInt(el.getAttribute('data-num'), 10);
+                            else v = parseInt((el.textContent || '').trim(), 10);
+                        } catch (e) { }
+                        if (!isNaN(v)) highlightedNums.push(v);
+                    });
+                }
+            } catch (e) { }
+
+            var anchor = btnEl || document.body;
+            try {
+                var tr2 = btnEl && btnEl.closest ? btnEl.closest('tr') : null;
+                if (!tr2) {
+                    var right2 = document.getElementById('right');
+                    var mainRows2 = right2 ? right2.querySelectorAll('tr.chuoi-main-row') : [];
+                    if (mainRows2 && mainRows2[idx]) tr2 = mainRows2[idx];
+                }
+                if (tr2) {
+                    var leftLabel = tr2.querySelector('td:first-child span');
+                    if (leftLabel) anchor = leftLabel;
+                }
+            } catch (e) { }
+
+            return { resultPart: resultPart, highlightedNums: highlightedNums, anchor: anchor, rowIdx: idx };
+        }
+
+        function previewChecknoteForRow(idx, anchorEl, opts) {
+            opts = opts || {};
+            var ctx = getChecknoteRowContext(idx, anchorEl);
+            if (!ctx || !ctx.resultPart) return;
+            var resultPart = ctx.resultPart;
+            var highlightedNums = ctx.highlightedNums;
+            var anchor = ctx.anchor || anchorEl || document.body;
+
+            try {
+                window.__checknote_tooltip_result = resultPart;
+                window.__checknote_tooltip_anchor = anchor;
+                window.__checknote_tooltip_row = idx;
+            } catch (e) { }
+
+            if (!window.__checknote_lastData) {
+                try { requestChecknoteDataIfNeeded(); } catch (e) { }
+            }
+
+            var tipOpts = { hover: !!opts.hover && !opts.pinned, pinned: !!opts.pinned };
+
+            if (window.__checknote_lastData) {
+                var htmlReady = generateChecknoteHtml(resultPart, highlightedNums, window.__checknote_lastData);
+                if (!htmlReady) htmlReady = generateFallbackHtml(resultPart);
+                showChecknoteTooltip(anchor, htmlReady, tipOpts);
+                return;
+            }
+
+            if (window.parent && window.parent !== window) {
+                var nonce = String(Date.now()) + '-' + Math.random().toString(36).slice(2, 10);
+                if (window.__checknotePending && window.__checknotePending.timer) {
+                    clearTimeout(window.__checknotePending.timer);
+                }
+                var delay = opts.hover ? 80 : 450;
+                window.__checknotePending = {
+                    nonce: nonce,
+                    anchor: anchor,
+                    resultPart: resultPart,
+                    highlightedNums: highlightedNums,
+                    rowIdx: idx,
+                    hover: tipOpts.hover,
+                    pinned: tipOpts.pinned,
+                    showChecknoteTooltip: true,
+                    timer: setTimeout(function () {
+                        if (!window.__checknotePending || window.__checknotePending.nonce !== nonce) return;
+                        window.__checknotePending = null;
+                        var htmlT = generateChecknoteHtml(resultPart, highlightedNums, window.__checknote_data);
+                        if (!htmlT) htmlT = generateFallbackHtml(resultPart);
+                        showChecknoteTooltip(anchor, htmlT, tipOpts);
+                    }, delay)
+                };
+                try {
+                    window.parent.postMessage({ type: 'requestChecknotePopup', resultPart: resultPart, highlightedNums: highlightedNums, nonce: nonce }, '*');
+                } catch (e) {
+                    if (window.__checknotePending && window.__checknotePending.timer) clearTimeout(window.__checknotePending.timer);
+                    window.__checknotePending = null;
+                    var htmlE = generateChecknoteHtml(resultPart, highlightedNums, window.__checknote_data) || generateFallbackHtml(resultPart);
+                    showChecknoteTooltip(anchor, htmlE, tipOpts);
+                }
+            } else {
+                var html = generateChecknoteHtml(resultPart, highlightedNums, window.__checknote_data);
+                if (!html) html = generateFallbackHtml(resultPart);
+                showChecknoteTooltip(anchor, html, tipOpts);
+            }
+        }
+
+        function showChecknoteTooltip(anchorEl, html, opts) {
+            opts = opts || {};
+            hideChecknoteTooltip(true);
+            if (opts.pinned) checknoteTooltipPinned = true;
             const tip = document.createElement('div');
             tip.id = 'checknoteTooltip';
             tip.style.position = 'fixed';
@@ -2540,20 +3184,44 @@
             arrowFill.style.top = arrowTop + 'px';
             arrowFill.style.filter = 'drop-shadow(0 2px 6px rgba(0,0,0,0.12))';
             tip.appendChild(arrowFill);
-            setTimeout(function () {
-                function onDoc(e) {
-                    try {
-                        if (tip.contains(e.target) || e.target === anchorEl) return;
-                        if (e.target && e.target.closest && (e.target.closest('#right') || e.target.closest('#left'))) return;
-                    } catch (err) { }
-                    hideChecknoteTooltip();
-                    document.removeEventListener('mousedown', onDoc);
+            tip.addEventListener('mouseenter', function () {
+                if (checknoteTooltipHideTimer) { clearTimeout(checknoteTooltipHideTimer); checknoteTooltipHideTimer = null; }
+            });
+            tip.addEventListener('mouseleave', function () {
+                if (!checknoteTooltipPinned) {
+                    checknoteTooltipHideTimer = setTimeout(function () { hideChecknoteTooltip(false); }, 110);
                 }
-                document.addEventListener('mousedown', onDoc);
-            }, 10);
+            });
+            if (opts.pinned) {
+                setTimeout(function () {
+                    function onDoc(e) {
+                        try {
+                            if (tip.contains(e.target) || anchorEl === e.target || (anchorEl.contains && anchorEl.contains(e.target))) return;
+                            if (e.target && e.target.closest && (e.target.closest('#right') || e.target.closest('#left') || e.target.closest('.floatingCopyContainer'))) return;
+                        } catch (err) { }
+                        hideChecknoteTooltip(true);
+                    }
+                    checknoteTooltipDocListener = onDoc;
+                    document.addEventListener('mousedown', onDoc);
+                }, 10);
+            }
         }
 
-        function hideChecknoteTooltip() { const ex = document.getElementById('checknoteTooltip'); if (ex) ex.remove(); }
+        function hideChecknoteTooltip(force) {
+            if (checknoteTooltipPinned && !force) return;
+            if (checknoteTooltipHideTimer) { clearTimeout(checknoteTooltipHideTimer); checknoteTooltipHideTimer = null; }
+            if (window.__checknotePending && window.__checknotePending.hover && !checknoteTooltipPinned) {
+                try { clearTimeout(window.__checknotePending.timer); } catch (e) { }
+                window.__checknotePending = null;
+            }
+            const ex = document.getElementById('checknoteTooltip');
+            if (ex) ex.remove();
+            if (checknoteTooltipDocListener) {
+                try { document.removeEventListener('mousedown', checknoteTooltipDocListener); } catch (e) { }
+                checknoteTooltipDocListener = null;
+            }
+            if (force) checknoteTooltipPinned = false;
+        }
 
         function repositionChecknoteTooltip(anchorEl) {
             const tip = document.getElementById('checknoteTooltip'); if (!tip) return;
@@ -2594,25 +3262,34 @@
                 }
             } catch (e) { }
             if (!anchor || anchor === document.body) anchor = window.__checknote_tooltip_anchor || document.body;
-            let uniq = [];
+            const rowIdx = window.__checknote_tooltip_row;
+            let highlighted = [];
             try {
-                const rowIdx = window.__checknote_tooltip_row;
                 if (rowIdx != null) {
                     const btn = document.getElementById('copyBtn-' + rowIdx);
                     if (btn) {
-                        const tr = btn.closest && btn.closest('tr'); if (tr) {
+                        const tr = btn.closest && btn.closest('tr');
+                        if (tr) {
                             const els = tr.querySelectorAll('span.idx-highlight, span.selected, span.cell.selected, span.answer-neon, span.cell.answer-neon');
-                            const highlighted = [];
                             els.forEach(el => {
                                 let v = NaN;
                                 try { if (el.hasAttribute && el.hasAttribute('data-num')) v = parseInt(el.getAttribute('data-num'), 10); else v = parseInt((el.textContent || '').trim(), 10); } catch (e) { }
                                 if (!isNaN(v)) highlighted.push(v);
                             });
-                            uniq = [...new Set(highlighted)];
                         }
                     }
                 }
             } catch (e) { }
+            try {
+                if (raw && rowIdx != null && raw.lines[rowIdx]) {
+                    const pickSet = submitActive ? simulatedSelected : selected;
+                    const rowNums = getNumsFromLineObj(raw.lines[rowIdx]);
+                    rowNums.forEach(function (rn) {
+                        if (pickSet.has(rn)) highlighted.push(rn);
+                    });
+                }
+            } catch (e) { }
+            let uniq = [...new Set(highlighted)];
             if (!uniq || uniq.length === 0) {
                 const selectedEls = document.querySelectorAll('#right span.cell.selected, #right span.idx-highlight, #right span.index.idx-highlight, #right span.answer-neon, #right span.cell.answer-neon');
                 const highlighted = [];
@@ -2919,69 +3596,7 @@
                 ta.remove();
             }
             try {
-                let highlightedNums = [];
-                try {
-                    const tr = btn && btn.closest && btn.closest('tr');
-                    if (tr) {
-                        const els = tr.querySelectorAll('span.idx-highlight, span.selected, span.cell.selected, span.answer-neon, span.cell.answer-neon');
-                        els.forEach(function (el) {
-                            let v = NaN;
-                            try {
-                                if (el.hasAttribute && el.hasAttribute('data-num')) v = parseInt(el.getAttribute('data-num'), 10);
-                                else v = parseInt((el.textContent || '').trim(), 10);
-                            } catch (e) { }
-                            if (!isNaN(v)) highlightedNums.push(v);
-                        });
-                    }
-                } catch (e) { }
-                let anchor = btn;
-                try {
-                    const tr2 = btn && btn.closest && btn.closest('tr');
-                    if (tr2) {
-                        const leftLabel = tr2.querySelector('td:first-child span');
-                        if (leftLabel) anchor = leftLabel;
-                    }
-                } catch (e) { }
-
-                if (window.parent && window.parent !== window) {
-                    const nonce = String(Date.now()) + '-' + Math.random().toString(36).slice(2, 10);
-                    if (window.__checknotePending && window.__checknotePending.timer) {
-                        clearTimeout(window.__checknotePending.timer);
-                    }
-                    window.__checknotePending = {
-                        nonce,
-                        anchor: anchor || document.body,
-                        resultPart,
-                        highlightedNums,
-                        rowIdx: idx,
-                        timer: setTimeout(function () {
-                            if (!window.__checknotePending || window.__checknotePending.nonce !== nonce) return;
-                            window.__checknotePending = null;
-                            var htmlT = generateChecknoteHtml(resultPart, highlightedNums, window.__checknote_data);
-                            if (!htmlT) htmlT = generateFallbackHtml(resultPart);
-                            try {
-                                window.__checknote_tooltip_result = resultPart;
-                                window.__checknote_tooltip_anchor = anchor || document.body;
-                                window.__checknote_tooltip_row = idx;
-                            } catch (e) { }
-                            showChecknoteTooltip(anchor || document.body, htmlT);
-                        }, 450)
-                    };
-                    try {
-                        window.parent.postMessage({ type: 'requestChecknotePopup', resultPart, highlightedNums, nonce }, '*');
-                    } catch (e) {
-                        if (window.__checknotePending && window.__checknotePending.timer) clearTimeout(window.__checknotePending.timer);
-                        window.__checknotePending = null;
-                        var htmlE = generateChecknoteHtml(resultPart, highlightedNums, window.__checknote_data) || generateFallbackHtml(resultPart);
-                        try { window.__checknote_tooltip_result = resultPart; window.__checknote_tooltip_anchor = anchor || document.body; window.__checknote_tooltip_row = idx; } catch (ee) { }
-                        showChecknoteTooltip(anchor || document.body, htmlE);
-                    }
-                } else {
-                    var html = generateChecknoteHtml(resultPart, highlightedNums, window.__checknote_data);
-                    if (!html) html = generateFallbackHtml(resultPart);
-                    try { window.__checknote_tooltip_result = resultPart; window.__checknote_tooltip_anchor = (anchor || document.body); window.__checknote_tooltip_row = idx; } catch (e) { }
-                    showChecknoteTooltip(anchor || document.body, html);
-                }
+                previewChecknoteForRow(idx, btn, { pinned: true });
             } catch (e) { console.error(e); }
         }
 
@@ -3130,15 +3745,9 @@
                 if (submitActive) {
                     preSubmitSelected = new Set(selected);
                     preSubmitOrder = pickOrder ? pickOrder.slice() : [];
-                    try {
-                        pickOrder = answerNums ? answerNums.slice(0, 5) : [];
-                    } catch (e) {
-                        pickOrder = [];
-                    }
-
-                    // set simulated picks for preview
                     simulatedSelected.clear();
-                    (answerNums || []).forEach(n => simulatedSelected.add(n));
+                    (answerNums || []).forEach(function (n) { simulatedSelected.add(n); });
+                    syncPickOrderForSubmitState();
 
                     // Sync mode only when user explicitly toggles Submit ON (same as ok.py)
                     if (raw && answerNums && answerNums.length) {
@@ -3180,15 +3789,13 @@
                     recomputePairsFromSelected();
                     updateBlocked();
                 } else {
-                    // Restore previous manual picks/order when Submit is turned OFF
-                    try {
-                        if (preSubmitOrder && preSubmitOrder.length) pickOrder = preSubmitOrder.slice();
-                        else pickOrder = [];
-                        if (preSubmitSelected) selected = new Set(preSubmitSelected);
-                    } catch (e) { }
-
-                    // clear preview simulated picks
                     simulatedSelected.clear();
+                    try {
+                        if (preSubmitSelected) {
+                            selected = new Set(preSubmitSelected);
+                        }
+                        syncPickOrderForSubmitState();
+                    } catch (e) { }
                     if (modeSynced && userModeBeforeSubmit !== null && modeEl) {
                         modeEl.value = userModeBeforeSubmit;
                         modeEl.classList.remove('synced-mode');
@@ -3207,6 +3814,7 @@
                         applySubmitState();
                         try { updatePairList(); } catch (e) { }
                         refreshPairTailSelectionState();
+                        try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
                         try {
                             if (window.parent && window.parent !== window) {
                                 window.parent.postMessage({ type: 'submitStateChanged', submitActive: submitActive }, '*');
@@ -3217,6 +3825,7 @@
                 } catch (e) { /* fallback below */ }
                 // fallback: full rerender when DOM not present
                 renderTable1(); renderTable2(); try { updatePairList(); } catch (e) { } try { refreshPairTailSelectionState(); } catch (e) { } alignTableActionsAndCenter(); updateFloatingCopyButtons();
+                try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
                 try {
                     if (window.parent && window.parent !== window) {
                         window.parent.postMessage({ type: 'submitStateChanged', submitActive: submitActive }, '*');
@@ -3269,18 +3878,11 @@
                 simulatedSelected.clear();
                 (answerNums || []).forEach(function (n) { simulatedSelected.add(n); });
 
-                preSubmitSelected = new Set(selected);
-                preSubmitOrder = pickOrder ? pickOrder.slice() : [];
-
-                try {
-                    if (answerNums && answerNums.length) {
-                        pickOrder = answerNums.slice(0, 5);
-                    } else {
-                        pickOrder = [];
-                    }
-                } catch (e) {
-                    pickOrder = [];
+                if (!preSubmitSelected || preSubmitSelected.size === 0) {
+                    preSubmitSelected = new Set(selected);
+                    preSubmitOrder = pickOrder ? pickOrder.slice() : [];
                 }
+                syncPickOrderForSubmitState();
 
                 // infer a reasonable mode from derived answers
                 try {
@@ -3370,14 +3972,21 @@
                     if (!raw) return;
                     if (submitActive) return;
 
-                    // If there are no selected/simulated/transient numbers, do not perform vertical navigation
-                    if ((selected.size === 0) && (simulatedSelected.size === 0) && (transientSelected.size === 0)) {
-                        // ensure focus indicator is hidden
-                        try { updateFocusIndicator(); } catch (e) { }
+                    if (needsLeftTable1Bootstrap()) {
+                        bootstrapLeftTable1Focus();
                         return;
                     }
 
                     var regionWS = lastClickedRegion || 'right';
+
+                    if (!hasCircledNumbersForNav() && regionWS === 'right') {
+                        try { updateFocusIndicator(); } catch (e) { }
+                        return;
+                    }
+
+                    if (!hasCircledNumbersForNav() && regionWS !== 'right') {
+                        regionWS = 'left';
+                    }
                     var dirWS = (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') ? 1 : -1;
 
                     if (regionWS === 'right') {
@@ -3520,20 +4129,27 @@
 
                 if (e.key === 'a' || e.key === 'A' || e.key === 'd' || e.key === 'D' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
                     e.preventDefault(); if (!raw) return; if (submitActive) return;
-                    // If there are no selected/simulated/transient numbers, do not perform horizontal navigation
-                    if ((selected.size === 0) && (simulatedSelected.size === 0) && (transientSelected.size === 0)) {
-                        try { updateFocusIndicator(); } catch (e) { }
+
+                    if (needsLeftTable1Bootstrap()) {
+                        bootstrapLeftTable1Focus();
                         return;
                     }
+
                     var dir = (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') ? 1 : -1;
 
                     var pairListExists = !!(document.getElementById && document.getElementById('pairList'));
                     var tailListExists = !!(document.getElementById && document.getElementById('tailList'));
                     var region = lastClickedRegion || (pairListExists ? 'pairList' : (tailListExists ? 'tailList' : 'left'));
 
+                    if (!hasCircledNumbersForNav() && region === 'right') {
+                        try { updateFocusIndicator(); } catch (e) { }
+                        return;
+                    }
+
                     if (region === 'left') {
-                        if (!pickOrder || pickOrder.length === 0) return;
-                        var last = (currentPhaseNumber != null && selected.has(currentPhaseNumber)) ? currentPhaseNumber : pickOrder[pickOrder.length - 1];
+                        var last = null;
+                        if (currentPhaseNumber != null) last = currentPhaseNumber;
+                        else if (pickOrder && pickOrder.length) last = pickOrder[pickOrder.length - 1];
                         if (!last) return;
                         var group = [];
                         for (var n = 1; n <= 35; n++) if (raw.freq[n] === raw.freq[last]) group.push(n);
@@ -3634,6 +4250,41 @@
             } catch (e) { }
         })();
 
+        // 📑 copy buttons: hover preview + click to copy / pin popup (same pattern as pick)
+        (function wireChecknoteButtonHover() {
+            try {
+                var lastHoverBtn = null;
+                document.addEventListener('mouseover', function (ev) {
+                    try {
+                        var btn = ev.target && ev.target.closest ? ev.target.closest('.copyBtn, .copyBtnFloating') : null;
+                        if (!btn || btn === lastHoverBtn) return;
+                        lastHoverBtn = btn;
+                        var idx = parseCopyBtnRowIndex(btn);
+                        if (idx < 0) return;
+                        if (checknoteTooltipHideTimer) { clearTimeout(checknoteTooltipHideTimer); checknoteTooltipHideTimer = null; }
+                        if (checknoteTooltipPinned) {
+                            try { refreshChecknoteTooltip(); } catch (e) { }
+                            return;
+                        }
+                        previewChecknoteForRow(idx, btn, { hover: true });
+                    } catch (e) { }
+                });
+                document.addEventListener('mouseout', function (ev) {
+                    try {
+                        var btn = ev.target && ev.target.closest ? ev.target.closest('.copyBtn, .copyBtnFloating') : null;
+                        if (!btn) return;
+                        var rel = ev.relatedTarget;
+                        if (rel && (btn.contains(rel) || (rel.closest && rel.closest('#checknoteTooltip')))) return;
+                        if (lastHoverBtn === btn) lastHoverBtn = null;
+                        if (checknoteTooltipHideTimer) clearTimeout(checknoteTooltipHideTimer);
+                        if (!checknoteTooltipPinned) {
+                            checknoteTooltipHideTimer = setTimeout(function () { hideChecknoteTooltip(false); }, 110);
+                        }
+                    } catch (e) { }
+                });
+            } catch (e) { }
+        })();
+
         // Pick button: copy + hover/pinned pair popup (same as ok.py)
         (function () {
             try {
@@ -3650,6 +4301,11 @@
                         pp.textContent = '';
                         pb.disabled = true;
                     }
+                    try {
+                        if (pickOrder && pickOrder.length >= 2 && !window.__checknote_lastData) {
+                            requestChecknoteDataIfNeeded();
+                        }
+                    } catch (e) { }
                     try {
                         if (pickOrder && pickOrder.length >= 2) {
                             var nums = pickOrder.slice();
@@ -3925,7 +4581,6 @@
                 if (!raw) return;
                 var displayLines = raw.lines.slice(0, 10);
                 var answerSet = new Set((answerNums || []).map(Number));
-                var autoCircleSet = getSubmitAutoCircleSet();
                 var right = document.getElementById('right');
                 var left = document.getElementById('left');
                 if (!right || !left) return;
@@ -4001,12 +4656,11 @@
                         numSpans.forEach(function (span) {
                             var val = parseInt(span.getAttribute('data-num'), 10);
                             var should = submitActive && answerSet.has(val);
-                            var shouldAutoCircle = submitActive && autoCircleSet.has(val);
                             span.classList.toggle('submit-highlight', should);
-                            span.classList.toggle('auto-circled', shouldAutoCircle);
+                            span.classList.toggle('auto-circled', false);
                             span.classList.toggle('answer-neon', should);
                             span.classList.toggle('animate', should);
-                            // ensure blocked mapping applies only to number cells
+                            span.classList.toggle('selected', selected.has(val));
                             span.classList.toggle('blocked', isBlocked(val));
                             if (should) {
                                 try { span.style.removeProperty('color'); } catch (e) { }
@@ -4030,13 +4684,12 @@
                 leftSpans.forEach(function (span) {
                     var val = parseInt(span.getAttribute('data-num'), 10);
                     var should = submitActive && answerSet.has(val);
-                    var shouldAutoCircle = submitActive && autoCircleSet.has(val);
                     span.classList.toggle('submit-highlight', should);
-                    span.classList.toggle('auto-circled', shouldAutoCircle);
+                    span.classList.toggle('auto-circled', false);
                     span.classList.toggle('answer-neon', should);
                     span.classList.toggle('animate', should);
-                    // apply blocked only to number cells (avoid blocking index cells)
                     if (span.classList.contains('num')) {
+                        span.classList.toggle('selected', selected.has(val));
                         span.classList.toggle('blocked', isBlocked(val));
                     } else {
                         span.classList.remove('blocked');
@@ -4049,6 +4702,8 @@
                     if (!submitActive && Array.isArray(raw.firstNums) && raw.firstNums.indexOf(val) !== -1) span.classList.add('red'); else span.classList.remove('red');
                 });
 
+                syncLeftFreqZeroNonexistStylesInDOM();
+
                 // blocked classes already handled per-number above
                 try { updateFocusIndicator(); } catch (e) { }
             } catch (e) { console.error(e); }
@@ -4057,12 +4712,16 @@
         function updateFocusIndicator() {
             const ind = document.getElementById('focusIndicator');
             if (!ind || !raw) { if (ind) ind.style.opacity = 0; return; }
-            // If there are no selected numbers at all, hide the arrow unconditionally.
             if ((selected.size === 0) && (simulatedSelected.size === 0) && (transientSelected.size === 0)) {
+                if (currentPhaseNumber == null || lastClickedRegion === 'right') {
+                    ind.style.opacity = 0;
+                    return;
+                }
+            }
+            if (submitActive && preSubmitSelected && preSubmitSelected.size === 0 && currentPhaseNumber == null) {
                 ind.style.opacity = 0;
                 return;
             }
-            if (submitActive && preSubmitSelected && preSubmitSelected.size === 0) { ind.style.opacity = 0; return; }
 
             let region = lastClickedRegion || 'left';
             let top = 0, left = 0;
@@ -4148,6 +4807,9 @@
                     // Save the submit state before process() might reset it
                     const wasSubmitActive = submitActive || msg.submitActive;
                     const focusRowId = (msg.focusRowId != null) ? String(msg.focusRowId) : '';
+                    focusNonexistHighlights = (msg.focusNonexistHighlights && typeof msg.focusNonexistHighlights === 'object')
+                        ? msg.focusNonexistHighlights
+                        : {};
                     const newFk = normalizeAutoRingFocusKey(focusRowId);
                     const focusChanged = !!lastAutoRingFocusKey && !!newFk && lastAutoRingFocusKey !== newFk;
 
@@ -4156,12 +4818,8 @@
                     }
 
                     if (focusChanged) {
-                        // Đổi sang kỳ khác: không giữ submit ON và không giữ khoanh số kỳ trước.
-                        submitActive = false;
-                        try {
-                            const sbEl = document.getElementById('submitBtn');
-                            if (sbEl) sbEl.classList.remove('active');
-                        } catch (e) { }
+                        autoRingPicked.clear();
+                        if (newFk) autoRingVisitedIds.delete(newFk);
                         selected.clear();
                         transientSelected.clear();
                         simulatedSelected.clear();
@@ -4175,23 +4833,41 @@
                         phaseHistory = [];
                     }
 
-                    // process the new input
+                    preserveSubmitOnNextProcess = !!wasSubmitActive;
                     try {
                         process();
                     } catch (e) { console.error(e); }
+                    preserveSubmitOnNextProcess = false;
 
-                    // If submit was active, restore and sync mode with new answerNums
-                    if (wasSubmitActive && !focusChanged) {
+                    if (wasSubmitActive) {
                         submitActive = true;
-                        const sbEl = document.getElementById('submitBtn');
-                        if (sbEl) sbEl.classList.add('active');
+                        try {
+                            const sbEl = document.getElementById('submitBtn');
+                            if (sbEl) sbEl.classList.add('active');
+                        } catch (e) { }
                         try { syncSubmitStateForNewData(); } catch (e) { console.error(e); }
                         try { applySubmitState(); } catch (e) { console.error(e); }
-                        lastAutoRingFocusKey = newFk;
+                        try { syncPickOrderForSubmitState(); } catch (e) { }
+                        try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
+                        try {
+                            if (window.parent && window.parent !== window) {
+                                window.parent.postMessage({ type: 'submitStateChanged', submitActive: true }, '*');
+                            }
+                        } catch (e) { }
                     } else {
-                        try { maybeApplySubmitAutoRingAfterProcess(focusRowId); } catch (e) { console.error(e); }
-                        lastAutoRingFocusKey = newFk;
                         try { persistSelectionMemoryForFocus(); } catch (e) { }
+                    }
+                    lastAutoRingFocusKey = newFk;
+                    if (submitAutoCircleEnabled) {
+                        var focusIdForRing = focusRowId;
+                        var runAutoRing = function () {
+                            try { maybeApplySubmitAutoRingAfterProcess(focusIdForRing); } catch (e) { console.error(e); }
+                        };
+                        if (wasSubmitActive) {
+                            runAutoRing();
+                        } else {
+                            requestAnimationFrame(runAutoRing);
+                        }
                     }
                 } else if (msg.type === 'submitAutoCircleChanged') {
                     const wasEnabled = submitAutoCircleEnabled;
@@ -4211,10 +4887,8 @@
                         currentTailIndex = -1;
                         selectionCleared = false;
 
-                        // Get autoring numbers and apply them
                         var circleNums = Array.from(getSubmitAutoCircleSet()).filter(function (n) { return !isNaN(n); });
                         if (circleNums.length > 0) {
-                            // Sync mode from answer numbers if available
                             var ans = [];
                             if (raw.lines && raw.lines.length > 10) {
                                 var eleventh = raw.lines[10] || {};
@@ -4226,16 +4900,7 @@
                             if (ans.length >= 5) {
                                 try { syncModeFromAnswerNums(ans); } catch (e) { }
                             }
-
-                            // Apply autoring by toggling numbers
-                            recomputePairsFromSelected();
-                            updateBlocked();
-                            circleNums.sort(function (a, b) { return a - b; });
-                            for (var i = 0; i < circleNums.length; i++) {
-                                var n = circleNums[i];
-                                if (isBlocked(n)) continue;
-                                toggleNumber(n);
-                            }
+                            applyAutoRingSelection(circleNums);
                         }
 
                         try { updatePairList(); } catch (e) { }
@@ -4245,7 +4910,7 @@
                         try { updateFloatingCopyButtons(); } catch (e) { }
                         try { updateFocusIndicator(); } catch (e) { }
                     } else if (!submitAutoCircleEnabled && wasEnabled) {
-                        // When autoring is turned OFF, clear all selections and memory
+                        try { autoRingPicked.clear(); } catch (e) { }
                         try { autoRingVisitedIds.clear(); } catch (e) { }
                         try { selectionMemoryByFocusId.clear(); } catch (e) { }
                         lastAutoRingFocusKey = '';

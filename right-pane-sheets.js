@@ -1158,9 +1158,53 @@ class RightPaneSheetManager {
     }
 
     /**
-     * True when rowIndex is in the WinLabel row range for the active window and `num`
-     * appears in the bottom row (chuỗi 11) nonexist — yellow nonexist gets x1.5 in that case.
+     * Start row of the 10-period lookback used for nonexist at rowIndex (Module4 window).
      */
+    getNonexistLookbackStart(rowIndex) {
+        return Math.max(0, rowIndex - 10);
+    }
+
+    /**
+     * Consecutive rows (going up) where `num` appears in generated nonexist, down to minRow.
+     */
+    countNonexistStreak(rowIndex, num, minRowInclusive) {
+        if (!this.nonexistCache || rowIndex < 0) {
+            return 0;
+        }
+        const candidate = parseInt(num, 10);
+        if (isNaN(candidate)) {
+            return 0;
+        }
+        const minRow = Math.max(0, minRowInclusive);
+        let count = 0;
+        for (let r = rowIndex; r >= minRow; r--) {
+            const meta = this.nonexistCache[r];
+            const text = meta ? String(meta.text || '').trim() : '';
+            if (!text || text === 'N/A') {
+                break;
+            }
+            const nums = this.parseNums(text);
+            if (nums.indexOf(candidate) === -1) {
+                break;
+            }
+            count++;
+        }
+        return count;
+    }
+
+    /**
+     * Streak of `num` in nonexist continues before this row's 10-period lookback window.
+     */
+    isNonexistLongerOutsideWindow(rowIndex, num) {
+        if (!this.nonexistCache || this.nonexistCache.length !== (this.dataRows || []).length) {
+            this.refreshDerivedState();
+        }
+        const windowStart = this.getNonexistLookbackStart(rowIndex);
+        const fullStreak = this.countNonexistStreak(rowIndex, num, 0);
+        const windowStreak = this.countNonexistStreak(rowIndex, num, windowStart);
+        return fullStreak > windowStreak;
+    }
+
     shouldBoostYellowNonexistForWindow(rowIndex, num) {
         const win = this.activeWindowRange;
         if (!win || typeof win.start !== 'number' || typeof win.end !== 'number') {
@@ -1220,18 +1264,18 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Render nonexist text using the generated values from result data only.
+     * Visual state for one nonexist cell (shared by renderNonexistHtml and left-pane freq=0).
+     * @returns {{ longestSet: Set<string>, prevNonexistNums: Set<number>, currentNums: Set<number> } | null}
      */
-    renderNonexistHtml(rowIndex, nonexistText, currentResult) {
+    computeNonexistVisualState(rowIndex, nonexistText, currentResult) {
         if (!nonexistText || nonexistText === 'N/A') {
-            return this.escapeHtml(nonexistText || '');
+            return null;
         }
 
         const currentNums = new Set(this.parseMainNums(currentResult));
         const prevNonexist = rowIndex > 0 && this.nonexistCache && this.nonexistCache[rowIndex - 1]
             ? String(this.nonexistCache[rowIndex - 1].text || '')
             : '';
-
         const prevNonexistNums = new Set(prevNonexist === 'N/A' ? [] : this.parseNums(prevNonexist));
         const candidateNums = this.parseNums(nonexistText);
 
@@ -1271,34 +1315,145 @@ class RightPaneSheetManager {
             }
         }
 
+        return { longestSet, prevNonexistNums, currentNums };
+    }
+
+    /**
+     * Highlight kind for one number in a nonexist list ('yellow' | 'red' | 'green' | 'green-ul' | 'green-italic' | '').
+     */
+    getNonexistHighlightKindForNumber(rowIndex, num, nonexistText, currentResult) {
+        const state = this.computeNonexistVisualState(rowIndex, nonexistText, currentResult);
+        if (!state) {
+            return '';
+        }
+
+        const value = parseInt(num, 10);
+        if (isNaN(value)) {
+            return '';
+        }
+
+        const valueText = String(value);
+        const isInDiff = !state.prevNonexistNums.has(value);
+        const isMatch = state.currentNums.has(value);
+        const isLongest = state.longestSet.has(valueText);
+
+        if (isLongest) {
+            return isMatch ? 'green-ul' : 'red';
+        }
+        if (isMatch && isInDiff) {
+            return 'green-italic';
+        }
+        if (isInDiff) {
+            return 'yellow';
+        }
+        if (isMatch) {
+            return 'green';
+        }
+        return '';
+    }
+
+    /**
+     * Final display kind for one nonexist number (matches renderNonexistHtml priority).
+     */
+    getNonexistDisplayKindForNumber(rowIndex, num, nonexistText, currentResult) {
+        const state = this.computeNonexistVisualState(rowIndex, nonexistText, currentResult);
+        if (!state) {
+            return '';
+        }
+
+        const value = parseInt(num, 10);
+        if (isNaN(value)) {
+            return '';
+        }
+
+        const kind = this.getNonexistHighlightKindForNumber(rowIndex, num, nonexistText, currentResult);
+        const isMatch = state.currentNums.has(value);
+        const longerOutside = this.isNonexistLongerOutsideWindow(rowIndex, value);
+
+        if (kind === 'red') {
+            return 'red';
+        }
+        if (kind === 'green-ul') {
+            return 'green-ul';
+        }
+        if (longerOutside && isMatch) {
+            return 'green-strike';
+        }
+        if (longerOutside && !isMatch) {
+            return 'purple';
+        }
+        return kind || '';
+    }
+
+    /**
+     * Map number -> highlight kind for the clicked/focus row (left table freq=0).
+     */
+    buildNonexistHighlightMapForRow(rowIndex) {
+        const row = (this.dataRows || [])[rowIndex];
+        if (!row) {
+            return {};
+        }
+        const nonexistMeta = this.getNonexistMetaForSourceRow(rowIndex, row);
+        const nonexistText = String(nonexistMeta.text || '').trim();
+        if (!nonexistText || nonexistText === 'N/A') {
+            return {};
+        }
+        const currentResult = row.result || row.Result || '';
+        const out = {};
+        const candidates = this.parseNums(nonexistText);
+        for (let i = 0; i < candidates.length; i++) {
+            const num = candidates[i];
+            const kind = this.getNonexistDisplayKindForNumber(rowIndex, num, nonexistText, currentResult);
+            if (kind) {
+                out[num] = kind;
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Render nonexist text using the generated values from result data only.
+     */
+    renderNonexistHtml(rowIndex, nonexistText, currentResult) {
+        if (!nonexistText || nonexistText === 'N/A') {
+            return this.escapeHtml(nonexistText || '');
+        }
+
+        const greenStrikeStyle = 'color:rgb(0,80,0);font-weight:bold;font-size:1.5em;text-decoration:line-through';
+        const redLongestStyle = 'color:rgb(255,0,0);font-weight:bold';
+        const purpleOutsideStyle = 'color:rgb(148,55,220);font-weight:bold';
+
         return this.escapeHtml(nonexistText).replace(/\b\d+\b/g, (match) => {
             const value = parseInt(match, 10);
-            const valueText = String(value);
-            const isInDiff = !prevNonexistNums.has(value);
-            const isMatch = currentNums.has(value);
-            const isLongest = longestSet.has(valueText);
+            const displayKind = this.getNonexistDisplayKindForNumber(rowIndex, value, nonexistText, currentResult);
 
-            if (isLongest) {
-                if (isMatch) {
-                    return `<span style="color:rgb(0,80,0);font-weight:bold;text-decoration:underline;font-size:1.5em">${value}</span>`;
-                }
-                return `<span style="color:rgb(180,30,30);font-weight:bold">${value}</span>`;
+            if (displayKind === 'red') {
+                return `<span style="${redLongestStyle}">${value}</span>`;
+            }
+            if (displayKind === 'green-ul') {
+                return `<span style="color:rgb(0,80,0);font-weight:bold;text-decoration:underline;font-size:1.5em">${value}</span>`;
+            }
+            if (displayKind === 'green-strike') {
+                return `<span style="${greenStrikeStyle}">${value}</span>`;
+            }
+            if (displayKind === 'purple') {
+                return `<span style="${purpleOutsideStyle}">${value}</span>`;
             }
 
-            if (isMatch && isInDiff) {
+            if (!displayKind) {
+                return match;
+            }
+            if (displayKind === 'green-italic') {
                 return `<span style="color:rgb(0,80,0);font-weight:bold;font-style:italic;font-size:1.5em">${value}</span>`;
             }
-
-            if (isInDiff) {
+            if (displayKind === 'yellow') {
                 const boost = this.shouldBoostYellowNonexistForWindow(rowIndex, value);
                 const fs = boost ? 'font-size:1.5em;' : '';
                 return `<span style="color:rgb(240,200,64);font-weight:bold;${fs}">${value}</span>`;
             }
-
-            if (isMatch) {
+            if (displayKind === 'green') {
                 return `<span style="color:rgb(0,80,0);font-weight:bold;font-size:1.5em">${value}</span>`;
             }
-
             return match;
         });
     }
@@ -1618,18 +1773,7 @@ class RightPaneSheetManager {
 
         const rowAtClick = this.dataRows[idx] || {};
         const clickedRowId = String(rowAtClick.id || rowAtClick.ID || '').trim();
-
-        // Send to parent/iframe
-        const frame = document.getElementById('okFrame');
-        if (frame && frame.contentWindow) {
-            frame.contentWindow.postMessage({
-                type: 'setLines',
-                lines: lines,
-                disableSubmit: !!isEmptyRow,
-                sheetName: this.activeSheet,
-                focusRowId: clickedRowId
-            }, '*');
-        }
+        const focusNonexistHighlights = this.buildNonexistHighlightMapForRow(idx);
 
         // Update selectedLines
         this.selectedLines = slice.map((r, offset) => {
@@ -1684,7 +1828,9 @@ class RightPaneSheetManager {
                 selectedLines: this.selectedLines,
                 selectedNums: this.parseNums(this.selectedLines.length > 0 ? (this.selectedLines[this.selectedLines.length - 1].result || '') : ''),
                 sheetName: this.activeSheet,
-                clickedRowId
+                clickedRowId,
+                focusRowIndex: idx,
+                focusNonexistHighlights
             }
         }));
     }

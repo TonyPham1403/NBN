@@ -1236,12 +1236,15 @@
                         if (nonexist) line += '\t' + nonexist;
                         return line;
                     });
+                    const isFocusEmpty = selectedLines.length > 0 && !(String(selectedLines[selectedLines.length - 1].result || '').trim());
                     frame.contentWindow.postMessage({
                         type: 'setLines',
                         lines: lines,
-                        disableSubmit: false,
+                        disableSubmit: isFocusEmpty,
                         submitActive: iframeSubmitActive,
                         focusRowId: String(detail.clickedRowId || '').trim(),
+                        focusRowIndex: detail.focusRowIndex,
+                        focusNonexistHighlights: detail.focusNonexistHighlights || {},
                         submitAutoCircleEnabled: submitRingEnabled,
                         submitAutoCircleMode: submitRingMode
                     }, '*');
