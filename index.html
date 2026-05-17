@@ -5,6 +5,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width,initial-scale=1" />
     <title>Quick Lotto Helper</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="favicon.svg" />
     <script src="https://cdn.sheetjs.com/xlsx-latest/package/dist/xlsx.full.min.js"></script>
     <style>
         :root {
@@ -1068,6 +1070,7 @@
             overflow: auto;
             margin-top: 0;
             padding-bottom: 48px;
+            scroll-padding-top: 32px;
             scroll-padding-bottom: 40px;
             scrollbar-gutter: stable;
         }
@@ -2029,9 +2032,32 @@
                 return;
             }
             const tr = wrap.querySelector(`tbody tr[data-idx="${filterPopupActiveIdx}"]`);
-            if (tr && typeof tr.scrollIntoView === 'function') {
-                tr.scrollIntoView({ block: 'nearest' });
+            if (!tr) {
+                return;
             }
+
+            const ensureRowFullyVisible = () => {
+                const thead = wrap.querySelector('thead');
+                const headerHeight = thead ? thead.getBoundingClientRect().height : 0;
+                const topInset = headerHeight + 4;
+                const bottomInset = 4;
+
+                const wrapRect = wrap.getBoundingClientRect();
+                const rowRect = tr.getBoundingClientRect();
+
+                if (rowRect.top < wrapRect.top + topInset) {
+                    wrap.scrollTop += rowRect.top - wrapRect.top - topInset;
+                    return;
+                }
+                if (rowRect.bottom > wrapRect.bottom - bottomInset) {
+                    wrap.scrollTop += rowRect.bottom - wrapRect.bottom + bottomInset;
+                }
+            };
+
+            ensureRowFullyVisible();
+            requestAnimationFrame(() => {
+                ensureRowFullyVisible();
+            });
         }
 
         function updateFilterPopupSelection() {
@@ -2276,6 +2302,36 @@
                 return true;
             }
             return !!target.closest('[contenteditable="true"]');
+        }
+
+        function initParentSpaceSubmitShortcut() {
+            if (document.documentElement.dataset.parentSpaceSubmitBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.parentSpaceSubmitBound = '1';
+
+            document.addEventListener('keydown', (event) => {
+                if (event.code !== 'Space' || event.repeat) {
+                    return;
+                }
+                if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+                    return;
+                }
+                if (!event.target || event.target.ownerDocument !== document) {
+                    return;
+                }
+
+                const frame = el('okFrame');
+                if (!frame || !frame.contentWindow) {
+                    return;
+                }
+
+                event.preventDefault();
+                event.stopPropagation();
+                try {
+                    frame.contentWindow.postMessage({ type: 'toggleSubmit' }, '*');
+                } catch (e) { }
+            }, true);
         }
 
         function togglePeriodFilterFromShortcut() {
@@ -2524,6 +2580,7 @@
         // file input, convert and row-copy utilities removed — right pane shows only data table
 
         document.addEventListener('DOMContentLoaded', () => {
+            initParentSpaceSubmitShortcut();
             initZoomControls();
             initSubmitRingToolbar();
             initPeriodFilterToolbar();
