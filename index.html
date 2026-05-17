@@ -650,7 +650,7 @@
             flex: 0 0 auto;
         }
 
-        #periodFilterMatchCount {
+        .period-filter-match-count {
             display: inline-flex;
             align-items: center;
             justify-content: center;
@@ -666,19 +666,20 @@
             font-weight: 700;
             font-variant-numeric: tabular-nums;
             white-space: nowrap;
+            text-align: center;
+            line-height: 24px;
         }
 
-        #periodFilterMatchCount.enabled,
         .period-filter-match-count.enabled {
             background: #eefbf3;
             color: #111111;
         }
 
-        #periodFilterMatchCount.preview {
+        .period-filter-match-count.preview {
             background: #fff9e6;
         }
 
-        #periodFilterMatchCount.preview.enabled {
+        .period-filter-match-count.preview.enabled {
             background: #fff3c4;
         }
 
@@ -740,21 +741,26 @@
             user-select: none;
         }
 
-        .filter-popup-title {
+        .filter-popup-filter-tools {
+            flex-shrink: 0;
+            position: relative;
+            z-index: 30;
+        }
+
+        .filter-popup-title-label {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
+            padding: 0 6px 0 2px;
             font-size: 12px;
             font-weight: 700;
             color: #0f172a;
-            flex-shrink: 0;
+            white-space: nowrap;
+            border-right: 1px solid #cbd5e1;
+            background: #f8fafc;
         }
 
-        .filter-popup-title-count {
-            color: #64748b;
-            font-size: 12px;
-            font-weight: 600;
-            font-variant-numeric: tabular-nums;
+        .filter-popup-filter-tools .period-filter-mode-picker {
+            border-left: none;
         }
 
         .filter-popup-hint {
@@ -1126,9 +1132,19 @@
     </main>
 
     <div id="filterPopupDock" class="filter-popup-dock hidden" aria-hidden="true">
-        <div id="filterPopupPanel" class="filter-popup-panel" role="dialog" aria-labelledby="filterPopupTitle">
+        <div id="filterPopupPanel" class="filter-popup-panel" role="dialog" aria-labelledby="filterPopupModeBtn">
             <div id="filterPopupHeader" class="filter-popup-header">
-                <span id="filterPopupTitle" class="filter-popup-title">Lọc kỳ</span>
+                <div class="filter-popup-filter-tools sheet-tools-group filter-tools-group">
+                    <span class="filter-popup-title-label">Lọc:</span>
+                    <div id="filterPopupModePicker" class="period-filter-mode-picker">
+                        <button type="button" id="filterPopupModeBtn" class="period-filter-mode-btn"
+                            aria-haspopup="listbox" aria-expanded="false" title="Chọn mode lọc">
+                            <span id="filterPopupModeBtnLabel">1 bộ 2</span>
+                            <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
+                        </button>
+                    </div>
+                    <span id="filterPopupMatchCount" class="period-filter-match-count" title="Số kỳ khớp mode">0</span>
+                </div>
                 <span class="filter-popup-hint">Kéo tiêu đề · kéo góc/viền đổi kích thước · ↑↓ / WASD trong bảng</span>
                 <button type="button" id="filterPopupClose" class="filter-popup-close" title="Ẩn bảng lọc">×</button>
             </div>
@@ -1174,6 +1190,7 @@
         let submitRingMode = 'max';
         let periodFilterEnabled = false;
         let periodFilterMode = 'pair1';
+        let periodFilterMenuAnchor = 'toolbar';
         let filterPopupIndices = [];
         let filterPopupActiveIdx = -1;
         let filterModeCounts = {};
@@ -1440,44 +1457,25 @@
             return getFilterModeLabel(mode);
         }
 
-        function syncFilterPopupTitle(titleEl, mode, count) {
-            if (!titleEl) {
-                return;
-            }
-
-            const normalized = normalizeFilterMode(mode);
-            const total = typeof count === 'number'
-                ? count
-                : (filterModeCounts[normalized] ?? 0);
-
-            titleEl.textContent = '';
-            titleEl.appendChild(document.createTextNode('Lọc: '));
-            if (isDatebandFilterMode(mode)) {
-                const swatch = document.createElement('span');
-                swatch.className = 'period-filter-dateband-swatch';
-                swatch.setAttribute('aria-hidden', 'true');
-                titleEl.appendChild(swatch);
-            } else {
-                titleEl.appendChild(document.createTextNode(getFilterModeLabel(mode)));
-            }
-
-            const countSpan = document.createElement('span');
-            countSpan.className = 'filter-popup-title-count';
-            countSpan.textContent = String(total);
-            titleEl.appendChild(countSpan);
-        }
-
         function normalizeFilterMode(mode) {
             return VALID_FILTER_MODES.includes(mode) ? mode : 'pair1';
         }
 
-        function fitPeriodFilterModeBtnWidth() {
-            const modeBtn = el('periodFilterModeBtn');
-            const modeLabel = el('periodFilterModeBtnLabel');
-            if (!modeBtn || !modeLabel) {
-                return;
-            }
+        function getPeriodFilterMenu() {
+            return el('periodFilterModeMenu');
+        }
 
+        function getPeriodFilterPicker(which) {
+            const isPopup = which === 'popup';
+            return {
+                picker: el(isPopup ? 'filterPopupModePicker' : 'periodFilterModePicker'),
+                modeBtn: el(isPopup ? 'filterPopupModeBtn' : 'periodFilterModeBtn'),
+                modeLabel: el(isPopup ? 'filterPopupModeBtnLabel' : 'periodFilterModeBtnLabel'),
+                countEl: el(isPopup ? 'filterPopupMatchCount' : 'periodFilterMatchCount')
+            };
+        }
+
+        function fitPeriodFilterModeBtnWidth() {
             const probe = document.createElement('span');
             probe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;font:700 12px Inter,Segoe UI,Arial';
             document.body.appendChild(probe);
@@ -1493,11 +1491,17 @@
             }
             document.body.removeChild(probe);
 
-            modeBtn.style.width = `${Math.ceil(maxTextWidth) + 28}px`;
+            const btnWidth = `${Math.ceil(maxTextWidth) + 28}px`;
+            for (const which of ['toolbar', 'popup']) {
+                const { modeBtn } = getPeriodFilterPicker(which);
+                if (modeBtn) {
+                    modeBtn.style.width = btnWidth;
+                }
+            }
         }
 
         function highlightPeriodFilterModeMenu(previewMode) {
-            const menu = el('periodFilterModeMenu');
+            const menu = getPeriodFilterMenu();
             if (!menu) {
                 return;
             }
@@ -1510,7 +1514,7 @@
         }
 
         function buildPeriodFilterModeMenu() {
-            const menu = el('periodFilterModeMenu');
+            const menu = getPeriodFilterMenu();
             if (!menu) {
                 return;
             }
@@ -1555,8 +1559,8 @@
         }
 
         function positionPeriodFilterModeMenu() {
-            const menu = el('periodFilterModeMenu');
-            const modeBtn = el('periodFilterModeBtn');
+            const menu = getPeriodFilterMenu();
+            const { modeBtn } = getPeriodFilterPicker(periodFilterMenuAnchor);
             if (!menu || !modeBtn) {
                 return;
             }
@@ -1567,10 +1571,11 @@
             menu.style.minWidth = `${Math.max(rect.width, 88)}px`;
         }
 
-        function openPeriodFilterModeMenu() {
-            const menu = el('periodFilterModeMenu');
-            const modeBtn = el('periodFilterModeBtn');
-            const picker = el('periodFilterModePicker');
+        function openPeriodFilterModeMenu(anchor) {
+            periodFilterMenuAnchor = anchor === 'popup' ? 'popup' : 'toolbar';
+            const menu = getPeriodFilterMenu();
+            const { modeBtn, picker } = getPeriodFilterPicker(periodFilterMenuAnchor);
+            const toolbarPicker = getPeriodFilterPicker('toolbar').picker;
             if (!menu || !modeBtn || modeBtn.disabled) {
                 return;
             }
@@ -1592,17 +1597,19 @@
         }
 
         function closePeriodFilterModeMenu() {
-            const menu = el('periodFilterModeMenu');
-            const modeBtn = el('periodFilterModeBtn');
-            const picker = el('periodFilterModePicker');
+            const menu = getPeriodFilterMenu();
+            const toolbarPicker = getPeriodFilterPicker('toolbar').picker;
             if (menu) {
                 menu.classList.add('hidden');
-                if (picker && menu.parentElement === document.body) {
-                    picker.appendChild(menu);
+                if (toolbarPicker && menu.parentElement === document.body) {
+                    toolbarPicker.appendChild(menu);
                 }
             }
-            if (modeBtn) {
-                modeBtn.setAttribute('aria-expanded', 'false');
+            for (const which of ['toolbar', 'popup']) {
+                const { modeBtn } = getPeriodFilterPicker(which);
+                if (modeBtn) {
+                    modeBtn.setAttribute('aria-expanded', 'false');
+                }
             }
             highlightPeriodFilterModeMenu(null);
             updatePeriodFilterMatchCount();
@@ -1622,7 +1629,7 @@
         }
 
         function updatePeriodFilterModeMenuItemCounts() {
-            const menu = el('periodFilterModeMenu');
+            const menu = getPeriodFilterMenu();
             if (!menu) {
                 return;
             }
@@ -1648,17 +1655,18 @@
         }
 
         function fitPeriodFilterMatchCountWidth() {
-            const countEl = el('periodFilterMatchCount');
-            if (!countEl) {
-                return;
-            }
-
             const probe = document.createElement('span');
             probe.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;white-space:nowrap;font:700 12px Inter,Segoe UI,Arial;font-variant-numeric:tabular-nums';
             document.body.appendChild(probe);
 
             let maxTextWidth = 0;
-            const samples = [countEl.textContent || '0'];
+            const samples = ['0'];
+            for (const which of ['toolbar', 'popup']) {
+                const { countEl } = getPeriodFilterPicker(which);
+                if (countEl && countEl.textContent) {
+                    samples.push(countEl.textContent);
+                }
+            }
             for (const mode of VALID_FILTER_MODES) {
                 samples.push(String(filterModeCounts[mode] ?? 0));
             }
@@ -1669,32 +1677,39 @@
             }
             document.body.removeChild(probe);
 
-            countEl.style.width = `${Math.ceil(maxTextWidth) + 8}px`;
+            const countWidth = `${Math.ceil(maxTextWidth) + 8}px`;
+            for (const which of ['toolbar', 'popup']) {
+                const { countEl } = getPeriodFilterPicker(which);
+                if (countEl) {
+                    countEl.style.width = countWidth;
+                }
+            }
         }
 
         function setPeriodFilterMatchCountDisplay(mode, isPreview) {
-            const countEl = el('periodFilterMatchCount');
-            if (!countEl) {
-                return;
-            }
-
             const normalized = normalizeFilterMode(mode);
             let total = 0;
             if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1') {
                 total = filterModeCounts[normalized] ?? 0;
             }
 
-            countEl.textContent = String(total);
-            countEl.classList.toggle('enabled', periodFilterEnabled);
-            countEl.classList.toggle('preview', !!isPreview);
-
             const label = getFilterModeTitleHint(normalized);
+            let title = `Có ${total} kỳ khớp ${label}`;
             if (!periodFilterEnabled) {
-                countEl.setAttribute('title', 'Số kỳ khớp mode');
+                title = 'Số kỳ khớp mode';
             } else if (isPreview) {
-                countEl.setAttribute('title', `Xem trước: ${total} kỳ khớp ${label}`);
-            } else {
-                countEl.setAttribute('title', `Có ${total} kỳ khớp ${label}`);
+                title = `Xem trước: ${total} kỳ khớp ${label}`;
+            }
+
+            for (const which of ['toolbar', 'popup']) {
+                const { countEl } = getPeriodFilterPicker(which);
+                if (!countEl) {
+                    continue;
+                }
+                countEl.textContent = String(total);
+                countEl.classList.toggle('enabled', periodFilterEnabled);
+                countEl.classList.toggle('preview', !!isPreview);
+                countEl.setAttribute('title', title);
             }
 
             fitPeriodFilterMatchCountWidth();
@@ -1704,16 +1719,17 @@
             setPeriodFilterMatchCountDisplay(periodFilterMode, false);
         }
 
-        function initPeriodFilterModePicker() {
-            const picker = el('periodFilterModePicker');
-            const modeBtn = el('periodFilterModeBtn');
-            const menu = el('periodFilterModeMenu');
-            if (!picker || !modeBtn || !menu || picker.dataset.pickerBound === '1') {
+        function bindPeriodFilterModeButton(which) {
+            const { picker, modeBtn } = getPeriodFilterPicker(which);
+            const menu = getPeriodFilterMenu();
+            if (!picker || !modeBtn || !menu || modeBtn.dataset.pickerBtnBound === '1') {
                 return;
             }
-            picker.dataset.pickerBound = '1';
+            modeBtn.dataset.pickerBtnBound = '1';
 
-            buildPeriodFilterModeMenu();
+            modeBtn.addEventListener('mousedown', (event) => {
+                event.stopPropagation();
+            });
 
             modeBtn.addEventListener('click', (event) => {
                 event.preventDefault();
@@ -1721,12 +1737,25 @@
                 if (modeBtn.disabled) {
                     return;
                 }
-                if (menu.classList.contains('hidden')) {
-                    openPeriodFilterModeMenu();
+                if (menu.classList.contains('hidden') || periodFilterMenuAnchor !== which) {
+                    openPeriodFilterModeMenu(which);
                 } else {
                     closePeriodFilterModeMenu();
                 }
             });
+        }
+
+        function initPeriodFilterModePicker() {
+            const toolbarPicker = getPeriodFilterPicker('toolbar').picker;
+            const menu = getPeriodFilterMenu();
+            if (!toolbarPicker || !menu || toolbarPicker.dataset.pickerBound === '1') {
+                return;
+            }
+            toolbarPicker.dataset.pickerBound = '1';
+
+            buildPeriodFilterModeMenu();
+            bindPeriodFilterModeButton('toolbar');
+            bindPeriodFilterModeButton('popup');
 
             menu.addEventListener('mouseleave', () => {
                 highlightPeriodFilterModeMenu(null);
@@ -1742,7 +1771,11 @@
                     return;
                 }
                 const target = event.target;
-                if (picker.contains(target) || menu.contains(target)) {
+                const toolbar = getPeriodFilterPicker('toolbar');
+                const popup = getPeriodFilterPicker('popup');
+                if ((toolbar.picker && toolbar.picker.contains(target))
+                    || (popup.picker && popup.picker.contains(target))
+                    || menu.contains(target)) {
                     return;
                 }
                 closePeriodFilterModeMenu();
@@ -1771,8 +1804,8 @@
 
         function syncPeriodFilterToolbarUi() {
             const toggleBtn = el('periodFilterToggleBtn');
-            const modeBtn = el('periodFilterModeBtn');
-            const modeLabelEl = el('periodFilterModeBtnLabel');
+            const toolbar = getPeriodFilterPicker('toolbar');
+            const popup = getPeriodFilterPicker('popup');
             const titleHint = getFilterModeTitleHint(periodFilterMode);
 
             if (toggleBtn) {
@@ -1784,11 +1817,16 @@
                         : 'Đang tắt lọc kỳ. Bấm để tắt'
                 );
             }
-            if (modeBtn) {
-                modeBtn.disabled = !periodFilterEnabled;
-                modeBtn.setAttribute('title', `Mode lọc: ${titleHint}`);
+            if (toolbar.modeBtn) {
+                toolbar.modeBtn.disabled = !periodFilterEnabled;
+                toolbar.modeBtn.setAttribute('title', `Mode lọc: ${titleHint}`);
             }
-            applyPeriodFilterModeVisual(modeLabelEl, periodFilterMode);
+            if (popup.modeBtn) {
+                popup.modeBtn.disabled = !periodFilterEnabled;
+                popup.modeBtn.setAttribute('title', `Mode lọc: ${titleHint}`);
+            }
+            applyPeriodFilterModeVisual(toolbar.modeLabel, periodFilterMode);
+            applyPeriodFilterModeVisual(popup.modeLabel, periodFilterMode);
 
             fitPeriodFilterModeBtnWidth();
             highlightPeriodFilterModeMenu(null);
@@ -2071,7 +2109,6 @@
 
             openFilterPopup();
 
-            const title = el('filterPopupTitle');
             const wrap = el('filterTableWrap');
             if (!wrap || !sheetManager) {
                 syncPeriodFilterNavModeToIframe();
@@ -2083,9 +2120,6 @@
                 filterPopupActiveIdx = -1;
                 wrap.innerHTML = '<div class="filter-popup-empty">Lọc chỉ áp dụng cho sheet dữ liệu chính.</div>';
                 updatePeriodFilterMatchCount();
-                if (title) {
-                    syncFilterPopupTitle(title, periodFilterMode, 0);
-                }
                 syncPeriodFilterNavModeToIframe();
                 return;
             }
@@ -2093,9 +2127,6 @@
             filterPopupIndices = sheetManager.getFilterMatchingIndices(periodFilterMode);
             filterPopupActiveIdx = resolveFilterPopupActiveIdx(filterPopupIndices);
             updatePeriodFilterMatchCount();
-            if (title) {
-                syncFilterPopupTitle(title, periodFilterMode, filterPopupIndices.length);
-            }
 
             if (filterPopupIndices.length === 0) {
                 syncPeriodFilterNavModeToIframe();
@@ -2143,7 +2174,9 @@
             const panel = el('filterPopupPanel');
 
             header.addEventListener('mousedown', (event) => {
-                if (event.button !== 0 || event.target.closest('#filterPopupClose')) {
+                if (event.button !== 0
+                    || event.target.closest('#filterPopupClose')
+                    || event.target.closest('.filter-popup-filter-tools')) {
                     return;
                 }
                 const rect = dock.getBoundingClientRect();
