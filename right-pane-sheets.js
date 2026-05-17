@@ -399,15 +399,119 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Render the raw five-column source sheet.
+     * Infer left-pane mode (pair1, pair2, modeq, triple1, ...) for a source row index.
+     * Mirrors ok_left.html syncModeFromAnswerNums using the 11-line window ending at rowIndex.
      */
-    renderSourceSheet(tableWrap, rows) {
-        this.bindSourceSheetKeyboardNavigation(tableWrap);
+    inferModeForRowIndex(rowIndex) {
+        const rows = this.dataRows || [];
+        if (rowIndex < 0 || rowIndex >= rows.length) {
+            return null;
+        }
+
+        const focusRow = rows[rowIndex];
+        const answerNums = this.parseMainNums(focusRow.result || focusRow.Result || '');
+        if (answerNums.length < 5) {
+            return null;
+        }
+
+        const windowStart = Math.max(0, rowIndex - 10);
+        let pairLines = 0;
+        let tripleFound = false;
+        let singleLines = 0;
+
+        const limit = Math.min(rowIndex - windowStart, 10);
+        for (let offset = 0; offset < limit; offset++) {
+            const lineRow = rows[windowStart + offset] || {};
+            const nums = this.parseMainNums(lineRow.result || lineRow.Result || '');
+            const matched = answerNums.filter(num => nums.includes(num));
+            if (matched.length >= 3) {
+                tripleFound = true;
+                break;
+            }
+            if (matched.length >= 2) {
+                pairLines++;
+            }
+            if (matched.length >= 1) {
+                singleLines++;
+            }
+        }
+
+        if (tripleFound) {
+            return 'triple1';
+        }
+        if (pairLines >= 5) {
+            return 'pair5';
+        }
+        if (pairLines >= 4) {
+            return 'pair4';
+        }
+        if (pairLines >= 3) {
+            return 'pair3';
+        }
+        if (pairLines === 2) {
+            return 'pair2';
+        }
+        if (pairLines === 1) {
+            return 'pair1';
+        }
+        if (singleLines > 0) {
+            return 'modeq';
+        }
+        return null;
+    }
+
+    /**
+     * Row indices on sheet1 whose inferred mode matches the filter mode.
+     */
+    rowHasCyanDateBand(rows, rowIndex) {
+        return this.shouldHighlightDateByPairWindow(rows, rowIndex);
+    }
+
+    getFilterMatchingIndices(mode) {
+        const indices = [];
+        const rows = this.dataRows || [];
+        for (let i = 0; i < rows.length; i++) {
+            if (this.isEmptyResultRow(rows[i])) {
+                continue;
+            }
+            if (mode === 'dateband') {
+                if (this.rowHasCyanDateBand(rows, i)) {
+                    indices.push(i);
+                }
+                continue;
+            }
+            if (this.inferModeForRowIndex(i) === mode) {
+                indices.push(i);
+            }
+        }
+        return indices;
+    }
+
+    /**
+     * Render the raw five-column source sheet.
+     * @param {object} [options]
+     * @param {number[]} [options.indices] - subset of row indices to render
+     * @param {number} [options.highlightIdx] - active row highlight (filter popup)
+     * @param {boolean} [options.bindKeyboard=true]
+     * @param {boolean} [options.applyWindowSelection=true]
+     */
+    renderSourceSheet(tableWrap, rows, options = {}) {
+        const bindKeyboard = options.bindKeyboard !== false;
+        const applyWindowSelection = options.applyWindowSelection !== false;
+        const highlightIdx = typeof options.highlightIdx === 'number' ? options.highlightIdx : -1;
+
+        if (bindKeyboard) {
+            this.bindSourceSheetKeyboardNavigation(tableWrap);
+        }
 
         let html = '<table class="sheet-data-table"><thead><tr><th>date</th><th>id</th><th>result</th><th>note</th><th>nonexist</th></tr></thead><tbody>';
 
         const displayRows = rows || [];
-        for (let i = 0; i < displayRows.length; i++) {
+        const rowIndices = Array.isArray(options.indices)
+            ? options.indices.filter(i => i >= 0 && i < displayRows.length)
+            : displayRows.map((_, i) => i);
+
+        for (const i of rowIndices) {
             const row = displayRows[i];
             const date = row.date || row.Date || '';
             const id = row.id || row.ID || '';
@@ -418,14 +522,14 @@ class RightPaneSheetManager {
             const idBg = this.getIdBackgroundByFrequency(id);
             const dateBg = this.shouldHighlightDateByPairWindow(displayRows, i) ? ' style="background:#00b0f0;color:#000;font-weight:bold;"' : '';
 
-            // Build result HTML with frequency coloring (inspired by Module2 highlighting)
             let resultHtml = this.highlightResultByFrequency(result);
             let noteHtml = this.renderNoteHtml(noteMeta.text, noteMeta.highlightYellow);
             const noteStyle = noteMeta.highlightYellow ? ' style="background:#ff0;"' : '';
             let nonexistHtml = this.renderNonexistHtml(i, nonexistMeta.text, result);
             const idStyle = idBg ? ` style="background:${idBg};"` : '';
+            const activeClass = highlightIdx === i ? ' filter-popup-row-active' : '';
 
-            html += `<tr data-idx="${i}" class="data-row" data-has-result="${!!result}" data-empty="${isEmptyResultRow ? '1' : '0'}">
+            html += `<tr data-idx="${i}" class="data-row${activeClass}" data-has-result="${!!result}" data-empty="${isEmptyResultRow ? '1' : '0'}">
                 <td class="cell-date"${dateBg}>${date}</td>
                 <td class="cell-id"${idStyle}>${id}</td>
                 <td class="cell-result">${resultHtml}</td>
@@ -436,7 +540,6 @@ class RightPaneSheetManager {
         html += '</tbody></table>';
         tableWrap.innerHTML = html;
 
-        // Attach click handlers
         tableWrap.querySelectorAll('tbody tr').forEach(tr => {
             tr.style.cursor = 'pointer';
             tr.addEventListener('click', (e) => {
@@ -446,11 +549,20 @@ class RightPaneSheetManager {
                 } catch (err) {
                     // ignore focus failures
                 }
+                if (typeof options.onRowActivated === 'function') {
+                    options.onRowActivated(Number(tr.dataset.idx));
+                }
             });
         });
 
-        if (this.activeWindowRange) {
-            this.applyWindowSelection(this.activeWindowRange.start, this.activeWindowRange.end, this.activeWindowRange.target);
+        if (applyWindowSelection && this.activeWindowRange) {
+            const selectionRoot = options.selectionRoot || tableWrap;
+            this.applyWindowSelection(
+                this.activeWindowRange.start,
+                this.activeWindowRange.end,
+                this.activeWindowRange.target,
+                selectionRoot
+            );
         }
     }
 
@@ -789,8 +901,8 @@ class RightPaneSheetManager {
     /**
      * Remove the black border from the previously selected 11-row window.
      */
-    clearWindowSelection() {
-        const tableWrap = document.getElementById('tableWrap');
+    clearWindowSelection(tableWrapEl) {
+        const tableWrap = tableWrapEl || document.getElementById('tableWrap');
         if (!tableWrap) {
             return;
         }
@@ -806,13 +918,13 @@ class RightPaneSheetManager {
     /**
      * Apply a black border to the result/note/nonexist cells for the selected window.
      */
-    applyWindowSelection(startIdx, endIdx, targetIdx = null) {
-        const tableWrap = document.getElementById('tableWrap');
+    applyWindowSelection(startIdx, endIdx, targetIdx = null, tableWrapEl) {
+        const tableWrap = tableWrapEl || document.getElementById('tableWrap');
         if (!tableWrap) {
             return;
         }
 
-        this.clearWindowSelection();
+        this.clearWindowSelection(tableWrap);
 
         if (startIdx === null || endIdx === null || endIdx < startIdx) {
             this.activeWindowRange = null;
@@ -877,16 +989,17 @@ class RightPaneSheetManager {
         }
 
         this.activeWindowRange = { start: startIdx, end: endIdx, target: targetIdx };
-        this.renderWindowLabels(startIdx, endIdx);
+        // Refresh nonexist HTML first; renderWindowLabels after so innerHTML does not strip labels.
         this.refreshNonexistCellsForActiveWindow(tableWrap);
+        this.renderWindowLabels(startIdx, endIdx, tableWrap);
     }
 
     /**
      * Draw 10 inline labels inside the right side of the selected window rows.
      * Mirrors the VBA WinLabel_01..10 placement at the right of the block.
      */
-    renderWindowLabels(startIdx, endIdx) {
-        const tableWrap = document.getElementById('tableWrap');
+    renderWindowLabels(startIdx, endIdx, tableWrapEl) {
+        const tableWrap = tableWrapEl || document.getElementById('tableWrap');
         if (!tableWrap) {
             return;
         }

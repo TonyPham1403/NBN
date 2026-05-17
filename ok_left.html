@@ -1012,6 +1012,18 @@
         if (typeof window.__checknote_data === 'undefined') window.__checknote_data = null;
         window.__checknote_lastData = null;
         window.__checknotePending = null;
+        window.__periodFilterNavMode = false;
+
+        function tryFilterPopupNavFromLeft(event, step) {
+            if (!window.__periodFilterNavMode) {
+                return false;
+            }
+            event.preventDefault();
+            try {
+                window.parent.postMessage({ type: 'filterPopupNavigate', step: step }, '*');
+            } catch (err) { }
+            return true;
+        }
         window.addEventListener('message', function (ev) {
             var d = ev.data || {};
             if (d.type !== 'checknotePopupData') return;
@@ -3949,6 +3961,68 @@
             } catch (e) { console.error(e); debugLog('syncSubmitStateForNewData: unexpected error', String(e)); }
         }
 
+        (function initLeftPeriodFilterCtrlShortcut() {
+            if (document.documentElement.dataset.periodFilterCtrlBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.periodFilterCtrlBound = '1';
+
+            var ctrlPressedAlone = false;
+            var ctrlChordUsed = false;
+
+            function isPeriodFilterShortcutBlockedTarget(target) {
+                if (!target || !target.tagName) {
+                    return false;
+                }
+                var tag = target.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+                    return true;
+                }
+                if (target.isContentEditable) {
+                    return true;
+                }
+                try {
+                    return !!target.closest && target.closest('[contenteditable="true"]');
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Control') {
+                    if (event.repeat) {
+                        return;
+                    }
+                    ctrlPressedAlone = true;
+                    ctrlChordUsed = false;
+                    if (!isPeriodFilterShortcutBlockedTarget(event.target)) {
+                        event.preventDefault();
+                    }
+                    return;
+                }
+                if (event.ctrlKey) {
+                    ctrlChordUsed = true;
+                }
+            }, true);
+
+            document.addEventListener('keyup', function (event) {
+                if (event.key !== 'Control') {
+                    return;
+                }
+                var shouldToggle = ctrlPressedAlone && !ctrlChordUsed;
+                ctrlPressedAlone = false;
+                ctrlChordUsed = false;
+                if (!shouldToggle || isPeriodFilterShortcutBlockedTarget(event.target)) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                try {
+                    window.parent.postMessage({ type: 'togglePeriodFilter' }, '*');
+                } catch (err) { }
+            }, true);
+        })();
+
         document.addEventListener('keydown', function (e) {
             try {
                 var active = document.activeElement;
@@ -3968,6 +4042,10 @@
                 }
 
                 if (e.key === 'w' || e.key === 'W' || e.key === 's' || e.key === 'S' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+                    var filterStepWS = (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') ? 1 : -1;
+                    if (tryFilterPopupNavFromLeft(e, filterStepWS)) {
+                        return;
+                    }
                     e.preventDefault();
                     if (!raw) return;
                     if (submitActive) return;
@@ -4128,6 +4206,10 @@
                 }
 
                 if (e.key === 'a' || e.key === 'A' || e.key === 'd' || e.key === 'D' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                    var filterStepAD = (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') ? 1 : -1;
+                    if (tryFilterPopupNavFromLeft(e, filterStepAD)) {
+                        return;
+                    }
                     e.preventDefault(); if (!raw) return; if (submitActive) return;
 
                     if (needsLeftTable1Bootstrap()) {
@@ -4789,6 +4871,11 @@
                     try { window.focus(); } catch (e) { }
                     try { const sink = document.getElementById('focusSink'); if (sink && typeof sink.focus === 'function') sink.focus(); } catch (e) { }
                     try { window.parent.postMessage({ type: 'childFocus', region: 'left' }, '*'); } catch (e) { }
+                    return;
+                }
+
+                if (msg.type === 'periodFilterNavMode') {
+                    window.__periodFilterNavMode = !!msg.active;
                     return;
                 }
 
