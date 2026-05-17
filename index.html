@@ -154,7 +154,7 @@
 
         select,
         button,
-        input[type=text] {
+        input[type=text]:not(.filter-popup-position-input) {
             padding: 8px;
             border-radius: 6px;
             border: 1px solid #26343f;
@@ -685,6 +685,98 @@
             background: #fff3c4;
         }
 
+        .filter-popup-match-count {
+            cursor: text;
+            gap: 0;
+            align-items: center;
+            line-height: 24px;
+        }
+
+        .filter-popup-count-position-wrap {
+            display: inline-flex;
+            align-items: center;
+            height: 24px;
+            max-height: 24px;
+            line-height: 24px;
+            flex: 0 0 auto;
+        }
+
+        .filter-popup-count-position-wrap.hidden {
+            display: none;
+        }
+
+        .filter-popup-position-input {
+            display: inline-block;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: #111111;
+            font-family: Inter, Segoe UI, Arial, sans-serif;
+            font-size: 12px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            line-height: 24px;
+            height: 24px;
+            min-height: 0;
+            max-height: 24px;
+            text-align: right;
+            vertical-align: top;
+            outline: none;
+            box-shadow: none;
+            box-sizing: border-box;
+            min-width: 1ch;
+            width: 1ch;
+            cursor: text;
+            user-select: none;
+        }
+
+        .filter-popup-position-input:focus {
+            outline: none;
+            background: transparent;
+            box-shadow: none;
+            color: #111111;
+        }
+
+        @keyframes filter-popup-position-caret-blink {
+
+            0%,
+            49% {
+                opacity: 1;
+            }
+
+            50%,
+            100% {
+                opacity: 0;
+            }
+        }
+
+        .filter-popup-position-input:focus::after {
+            content: '';
+            display: inline-block;
+            width: 1.5px;
+            height: 14px;
+            margin-left: 1px;
+            background: #111111;
+            vertical-align: middle;
+            pointer-events: none;
+            animation: filter-popup-position-caret-blink 1s step-start infinite;
+        }
+
+        .filter-popup-count-slash {
+            flex: 0 0 auto;
+            line-height: 24px;
+            color: #111111;
+            user-select: none;
+        }
+
+        .filter-popup-total-count {
+            flex: 0 0 auto;
+            line-height: 24px;
+            color: #111111;
+            font-variant-numeric: tabular-nums;
+        }
+
         /* Floating find-style popup: no modal backdrop, clicks pass through outside the panel */
         .filter-popup-dock {
             position: fixed;
@@ -1146,7 +1238,15 @@
                             <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
                         </button>
                     </div>
-                    <span id="filterPopupMatchCount" class="period-filter-match-count" title="Số kỳ khớp mode">0</span>
+                    <span id="filterPopupMatchCount" class="period-filter-match-count filter-popup-match-count"
+                        title="Số kỳ khớp mode">
+                        <span id="filterPopupPositionWrap" class="filter-popup-count-position-wrap hidden">
+                            <span id="filterPopupPositionInput" class="filter-popup-position-input" tabindex="0"
+                                role="textbox" aria-label="Vị trí kỳ trong danh sách lọc"></span>
+                            <span class="filter-popup-count-slash" aria-hidden="true">/</span>
+                        </span>
+                        <span id="filterPopupTotalCount" class="filter-popup-total-count">0</span>
+                    </span>
                 </div>
                 <span class="filter-popup-hint">Kéo tiêu đề · kéo góc/viền đổi kích thước · ↑↓ / WASD trong bảng</span>
                 <button type="button" id="filterPopupClose" class="filter-popup-close" title="Ẩn bảng lọc">×</button>
@@ -1664,14 +1764,17 @@
 
             let maxTextWidth = 0;
             const samples = ['0'];
-            for (const which of ['toolbar', 'popup']) {
-                const { countEl } = getPeriodFilterPicker(which);
-                if (countEl && countEl.textContent) {
-                    samples.push(countEl.textContent);
-                }
+            const toolbarCount = getPeriodFilterPicker('toolbar').countEl;
+            if (toolbarCount && toolbarCount.textContent) {
+                samples.push(toolbarCount.textContent);
             }
             for (const mode of VALID_FILTER_MODES) {
                 samples.push(String(filterModeCounts[mode] ?? 0));
+            }
+            const maxSampleTotal = Math.max(0, ...samples.map((t) => parseInt(t, 10) || 0));
+            if (maxSampleTotal > 0) {
+                samples.push(`${maxSampleTotal}/${maxSampleTotal}`);
+                samples.push(`1/${maxSampleTotal}`);
             }
 
             for (const text of samples) {
@@ -1680,13 +1783,248 @@
             }
             document.body.removeChild(probe);
 
-            const countWidth = `${Math.ceil(maxTextWidth) + 8}px`;
             for (const which of ['toolbar', 'popup']) {
                 const { countEl } = getPeriodFilterPicker(which);
-                if (countEl) {
-                    countEl.style.width = countWidth;
+                if (!countEl) {
+                    continue;
                 }
+                const extra = which === 'popup' ? 14 : 0;
+                countEl.style.width = `${Math.ceil(maxTextWidth) + 8 + extra}px`;
             }
+        }
+
+        function getFilterPopupListTotal(fallbackTotal) {
+            if (filterPopupIndices.length > 0) {
+                return filterPopupIndices.length;
+            }
+            return Math.max(0, Number(fallbackTotal) || 0);
+        }
+
+        function getFilterPopupListPosition() {
+            if (filterPopupActiveIdx < 0 || !filterPopupIndices.includes(filterPopupActiveIdx)) {
+                return 0;
+            }
+            return filterPopupIndices.indexOf(filterPopupActiveIdx) + 1;
+        }
+
+        function getFilterPopupPositionText(positionEl) {
+            return positionEl ? String(positionEl.textContent || '') : '';
+        }
+
+        function setFilterPopupPositionText(positionEl, text) {
+            if (positionEl) {
+                positionEl.textContent = String(text ?? '');
+            }
+        }
+
+        function setFilterPopupPositionInputWidth(positionEl, text) {
+            if (!positionEl) {
+                return;
+            }
+            const len = Math.max(1, String(text || '').length);
+            positionEl.style.width = `${len}ch`;
+        }
+
+        function focusFilterPopupByListPosition(position) {
+            const total = filterPopupIndices.length;
+            if (total === 0) {
+                return false;
+            }
+            const pos = Math.max(1, Math.min(total, Math.floor(Number(position) || 0)));
+            const idx = filterPopupIndices[pos - 1];
+            if (typeof idx !== 'number') {
+                return false;
+            }
+            filterPopupActiveIdx = idx;
+            syncMainRowFromFilter(idx);
+            applyFilterPopupRowFocus(idx);
+            scrollFilterPopupRowIntoView();
+            return true;
+        }
+
+        function clearFilterPopupListSelection() {
+            filterPopupActiveIdx = -1;
+            clearFilterPopupRowFocus();
+        }
+
+        function syncFilterPopupMatchCountUi(mode, isPreview, total) {
+            const popup = getPeriodFilterPicker('popup').countEl;
+            const positionWrap = el('filterPopupPositionWrap');
+            const positionInput = el('filterPopupPositionInput');
+            const totalEl = el('filterPopupTotalCount');
+            if (!popup || !totalEl) {
+                return;
+            }
+
+            const normalized = normalizeFilterMode(mode);
+            const label = getFilterModeTitleHint(normalized);
+            const listTotal = getFilterPopupListTotal(total);
+            const listPos = getFilterPopupListPosition();
+            const isEditing = positionInput && document.activeElement === positionInput;
+            const inputHasDigits = positionInput && getFilterPopupPositionText(positionInput).length > 0;
+            const showPosition = !isPreview
+                && periodFilterEnabled
+                && listTotal > 0
+                && (listPos > 0 || isEditing || inputHasDigits);
+
+            totalEl.textContent = String(listTotal);
+            if (positionWrap) {
+                positionWrap.classList.toggle('hidden', !showPosition);
+            }
+            if (positionInput) {
+                if (!isEditing) {
+                    const nextText = showPosition && listPos > 0
+                        ? String(listPos)
+                        : (inputHasDigits ? getFilterPopupPositionText(positionInput) : '');
+                    setFilterPopupPositionText(positionInput, showPosition ? nextText : '');
+                }
+                setFilterPopupPositionInputWidth(positionInput, getFilterPopupPositionText(positionInput));
+            }
+
+            let title = `Có ${listTotal} kỳ khớp ${label}`;
+            if (!periodFilterEnabled) {
+                title = 'Số kỳ khớp mode';
+            } else if (isPreview) {
+                title = `Xem trước: ${listTotal} kỳ khớp ${label}`;
+            } else if (showPosition && listPos > 0) {
+                title = `Kỳ thứ ${listPos} / ${listTotal} — gõ số để nhảy (${label})`;
+            } else if (listTotal > 0) {
+                title = `Gõ số thứ tự / ${listTotal} để nhảy tới kỳ (${label})`;
+            }
+
+            popup.classList.toggle('enabled', periodFilterEnabled);
+            popup.classList.toggle('preview', !!isPreview);
+            popup.setAttribute('title', title);
+        }
+
+        function tryAppendFilterPopupPositionDigit(digit) {
+            const input = el('filterPopupPositionInput');
+            const total = filterPopupIndices.length;
+            if (!input || total === 0) {
+                return false;
+            }
+
+            const nextText = getFilterPopupPositionText(input) + String(digit);
+            const nextPos = parseInt(nextText, 10);
+            if (!Number.isFinite(nextPos) || nextPos < 1 || nextPos > total) {
+                return false;
+            }
+
+            const wrap = el('filterPopupPositionWrap');
+            if (wrap) {
+                wrap.classList.remove('hidden');
+            }
+            setFilterPopupPositionText(input, nextText);
+            setFilterPopupPositionInputWidth(input, nextText);
+            focusFilterPopupByListPosition(nextPos);
+            return true;
+        }
+
+        function tryBackspaceFilterPopupPosition() {
+            const input = el('filterPopupPositionInput');
+            if (!input) {
+                return false;
+            }
+            const total = filterPopupIndices.length;
+            const nextText = getFilterPopupPositionText(input).slice(0, -1);
+            setFilterPopupPositionText(input, nextText);
+            setFilterPopupPositionInputWidth(input, nextText);
+
+            if (!nextText) {
+                clearFilterPopupListSelection();
+                const wrap = el('filterPopupPositionWrap');
+                if (wrap) {
+                    wrap.classList.add('hidden');
+                }
+                updateFilterPopupMatchCount();
+                return true;
+            }
+
+            const nextPos = parseInt(nextText, 10);
+            if (total > 0 && Number.isFinite(nextPos) && nextPos >= 1) {
+                focusFilterPopupByListPosition(nextPos);
+            }
+            return true;
+        }
+
+        function initFilterPopupPositionInput() {
+            const popup = getPeriodFilterPicker('popup').countEl;
+            const input = el('filterPopupPositionInput');
+            if (!input || input.dataset.bound === '1') {
+                return;
+            }
+            input.dataset.bound = '1';
+
+            input.addEventListener('mousedown', (event) => {
+                event.stopPropagation();
+            });
+
+            input.addEventListener('click', (event) => {
+                event.stopPropagation();
+            });
+
+            input.addEventListener('keydown', (event) => {
+                if (!periodFilterEnabled || filterPopupIndices.length === 0) {
+                    return;
+                }
+                const key = String(event.key || '');
+                if (key >= '0' && key <= '9') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    tryAppendFilterPopupPositionDigit(key);
+                    return;
+                }
+                if (key === 'Backspace') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    tryBackspaceFilterPopupPosition();
+                }
+            });
+
+            if (popup) {
+                popup.addEventListener('mousedown', (event) => {
+                    event.stopPropagation();
+                });
+                popup.addEventListener('click', (event) => {
+                    if (filterPopupIndices.length === 0) {
+                        return;
+                    }
+                    const wrap = el('filterPopupPositionWrap');
+                    if (wrap) {
+                        wrap.classList.remove('hidden');
+                    }
+                    input.focus({ preventScroll: true });
+                });
+            }
+
+            if (document.documentElement.dataset.filterPopupDigitNavBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.filterPopupDigitNavBound = '1';
+
+            document.addEventListener('keydown', (event) => {
+                if (!isFilterPopupNavActive()) {
+                    return;
+                }
+                if (document.activeElement === input) {
+                    return;
+                }
+                if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+                    return;
+                }
+                const key = String(event.key || '');
+                if (key >= '0' && key <= '9') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const wrap = el('filterPopupPositionWrap');
+                    if (wrap) {
+                        wrap.classList.remove('hidden');
+                    }
+                    setFilterPopupPositionText(input, '');
+                    input.focus({ preventScroll: true });
+                    tryAppendFilterPopupPositionDigit(key);
+                }
+            }, true);
         }
 
         function setPeriodFilterMatchCountDisplay(mode, isPreview) {
@@ -1704,22 +2042,30 @@
                 title = `Xem trước: ${total} kỳ khớp ${label}`;
             }
 
-            for (const which of ['toolbar', 'popup']) {
-                const { countEl } = getPeriodFilterPicker(which);
-                if (!countEl) {
-                    continue;
-                }
-                countEl.textContent = String(total);
-                countEl.classList.toggle('enabled', periodFilterEnabled);
-                countEl.classList.toggle('preview', !!isPreview);
-                countEl.setAttribute('title', title);
+            const toolbar = getPeriodFilterPicker('toolbar').countEl;
+            if (toolbar) {
+                toolbar.textContent = String(total);
+                toolbar.classList.toggle('enabled', periodFilterEnabled);
+                toolbar.classList.toggle('preview', !!isPreview);
+                toolbar.setAttribute('title', title);
             }
 
+            syncFilterPopupMatchCountUi(mode, isPreview, total);
             fitPeriodFilterMatchCountWidth();
         }
 
         function updatePeriodFilterMatchCount() {
             setPeriodFilterMatchCountDisplay(periodFilterMode, false);
+        }
+
+        function updateFilterPopupMatchCount() {
+            const normalized = normalizeFilterMode(periodFilterMode);
+            let total = 0;
+            if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1') {
+                total = filterModeCounts[normalized] ?? 0;
+            }
+            syncFilterPopupMatchCountUi(periodFilterMode, false, total);
+            fitPeriodFilterMatchCountWidth();
         }
 
         function bindPeriodFilterModeButton(which) {
@@ -2123,6 +2469,13 @@
             syncMainRowFromFilter(filterPopupActiveIdx);
             applyFilterPopupRowFocus(filterPopupActiveIdx);
             scrollFilterPopupRowIntoView();
+            const positionInput = el('filterPopupPositionInput');
+            if (positionInput) {
+                const posText = String(nextPos + 1);
+                setFilterPopupPositionText(positionInput, posText);
+                setFilterPopupPositionInputWidth(positionInput, posText);
+            }
+            updateFilterPopupMatchCount();
         }
 
         function refreshFilterPopup(options = {}) {
@@ -2169,6 +2522,7 @@
                 onRowActivated: (idx) => {
                     filterPopupActiveIdx = idx;
                     applyFilterPopupRowFocus(idx);
+                    updateFilterPopupMatchCount();
                 }
             });
 
@@ -2404,6 +2758,7 @@
             }
 
             initPeriodFilterModePicker();
+            initFilterPopupPositionInput();
             initPeriodFilterCtrlShortcut();
             syncPeriodFilterToolbarUi();
             initFilterPopupLayoutOnWindowResize();
@@ -2646,6 +3001,7 @@
                     if (filterPopupIndices.includes(filterPopupActiveIdx)) {
                         applyFilterPopupRowFocus(filterPopupActiveIdx);
                         scrollFilterPopupRowIntoView();
+                        updateFilterPopupMatchCount();
                     }
                 }
                 selectedLines = detail.selectedLines || [];
