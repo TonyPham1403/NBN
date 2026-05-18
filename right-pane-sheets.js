@@ -99,20 +99,28 @@ class RightPaneSheetManager {
         this.nonexistCache = this.buildNonexistFromRows(this.sourceRows || []);
         this.idFrequencyMap = this.buildIdFrequencyMapFromNotes(this.noteCache);
         this.nonexistGreenFilterCache = null;
-        this.ensureNonexistGreenFilterCache();
+    }
+
+    /** Rows used for sheet1 / nonexist filter (independent of active combo tab). */
+    getSourceSheetRows() {
+        const sheet = this.sheets && this.sheets.sheet1;
+        if (sheet && Array.isArray(sheet.data)) {
+            return sheet.data;
+        }
+        return this.sourceRows || [];
     }
 
     /**
-     * Per-row green nonexist entries for filter (built once per data refresh).
+     * Per-row green nonexist entries for filter (sheet1 only, built lazily).
      * @returns {{ num: number, kind: string }[][]}
      */
     ensureNonexistGreenFilterCache() {
-        const rows = this.dataRows || [];
+        const rows = this.getSourceSheetRows();
         if (this.nonexistGreenFilterCache && this.nonexistGreenFilterCache.length === rows.length) {
             return this.nonexistGreenFilterCache;
         }
         if (!this.nonexistCache || this.nonexistCache.length !== rows.length) {
-            this.refreshDerivedState();
+            this.nonexistCache = this.buildNonexistFromRows(rows);
         }
         const cache = new Array(rows.length);
         for (let i = 0; i < rows.length; i++) {
@@ -128,7 +136,7 @@ class RightPaneSheetManager {
      * Green-highlighted numbers in one row's nonexist column (single visual-state pass).
      */
     buildNonexistGreenEntriesForRow(rowIndex) {
-        const row = (this.dataRows || [])[rowIndex];
+        const row = this.getSourceSheetRows()[rowIndex];
         if (!row) {
             return [];
         }
@@ -466,7 +474,7 @@ class RightPaneSheetManager {
      * Mirrors ok_left.html syncModeFromAnswerNums using the 11-line window ending at rowIndex.
      */
     inferModeForRowIndex(rowIndex) {
-        const rows = this.dataRows || [];
+        const rows = this.getSourceSheetRows();
         if (rowIndex < 0 || rowIndex >= rows.length) {
             return null;
         }
@@ -532,7 +540,7 @@ class RightPaneSheetManager {
 
     getFilterMatchingIndices(mode, filterOptions = null) {
         const indices = [];
-        const rows = this.dataRows || [];
+        const rows = this.getSourceSheetRows();
         if (mode === 'nonexist') {
             const opts = filterOptions || {};
             const numRaw = opts.num;
@@ -630,7 +638,7 @@ class RightPaneSheetManager {
             return false;
         }
 
-        const row = (this.dataRows || [])[rowIndex];
+        const row = this.getSourceSheetRows()[rowIndex];
         if (!row || this.isEmptyResultRow(row)) {
             return false;
         }
@@ -2220,7 +2228,6 @@ class RightPaneSheetManager {
         }
         this.activeSheet = sheetName;
         this.dataRows = this.sheets[sheetName].data || [];
-        this.refreshDerivedState();
         this.save();
         return true;
     }

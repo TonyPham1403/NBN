@@ -3637,7 +3637,9 @@
         function renderTable() {
             const wrap = el('tableWrap');
             if (sheetManager) {
-                rebuildFilterModeCounts();
+                if (sheetManager.activeSheet === 'sheet1') {
+                    rebuildFilterModeCounts();
+                }
                 sheetManager.renderTable(wrap);
                 if (sheetManager.activeSheet === 'combo_1') {
                     sheetManager.wireCombo1HeaderControls();
@@ -3792,7 +3794,7 @@
                 renderTable();
                 renderSheetTabs();
                 updatePeriodFilterMatchCount();
-                if (periodFilterEnabled) {
+                if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1') {
                     refreshFilterPopup();
                 }
                 // Clear selection when switching sheets
