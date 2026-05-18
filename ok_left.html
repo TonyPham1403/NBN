@@ -1074,6 +1074,7 @@
         let simulatedSelected = new Set();
         let submitActive = false;
         let preserveSubmitOnNextProcess = false;
+        let preserveSelectionOnNextProcess = false;
         let answerNums = [];
         let pickOrder = [];
         let lastClickedChuoiText = '';
@@ -1109,8 +1110,26 @@
         let currentPhaseNumber = null;
         let currentPhaseRow = null;
         let lastClickedRegion = 'left';
+        /** Keyboard (WASD) nav region for the left pane — independent of right-pane clicks */
+        let leftKeyboardRegion = 'left';
         let lastClickedRow = null;
         let lastClickedNumber = null;
+
+        function syncLeftKeyboardRegion(region) {
+            if (region === 'left' || region === 'right' || region === 'pairList' || region === 'tailList') {
+                leftKeyboardRegion = region;
+            }
+        }
+
+        function getLeftKeyboardNavRegion() {
+            if (leftKeyboardRegion === 'left' || leftKeyboardRegion === 'right' ||
+                leftKeyboardRegion === 'pairList' || leftKeyboardRegion === 'tailList') {
+                return leftKeyboardRegion;
+            }
+            var pairListExists = !!(document.getElementById && document.getElementById('pairList'));
+            var tailListExists = !!(document.getElementById && document.getElementById('tailList'));
+            return pairListExists ? 'pairList' : (tailListExists ? 'tailList' : 'left');
+        }
 
         // Phase history: remember recent mouse phase selections (region, number, row)
         // so the focus arrow can revert to the last phase target when the current phase is cleared.
@@ -1135,6 +1154,7 @@
                     // Only restore to a history entry whose number is still present in selection/simulated/transient
                     if (selected.has(e.number) || simulatedSelected.has(e.number) || transientSelected.has(e.number)) {
                         lastClickedRegion = e.region || 'left';
+                        syncLeftKeyboardRegion(e.region || 'left');
                         lastClickedNumber = e.number;
                         currentPhaseNumber = e.number;
                         currentPhaseRow = (typeof e.row === 'number') ? e.row : null;
@@ -1143,6 +1163,7 @@
                 }
             } catch (err) { }
             lastClickedRegion = 'left';
+            syncLeftKeyboardRegion('left');
             lastClickedNumber = null;
             currentPhaseNumber = null;
             currentPhaseRow = null;
@@ -1245,6 +1266,8 @@
             circleNums.forEach(function (n) { autoRingPicked.add(n); });
 
             if (submitActive) {
+                // Autoring picks are per focus id — never keep circles from a previous id
+                selected.clear();
                 circleNums.forEach(function (n) {
                     if (!isNaN(n)) selected.add(n);
                 });
@@ -1291,7 +1314,7 @@
         }
 
         function isFocusedOnPairOrTail() {
-            return lastClickedRegion === 'pairList' || lastClickedRegion === 'tailList';
+            return leftKeyboardRegion === 'pairList' || leftKeyboardRegion === 'tailList';
         }
 
         function getLeftTable1MaxFreqFirstNumber() {
@@ -1317,6 +1340,7 @@
             try { if (isBlocked(n)) return false; } catch (e) { return false; }
 
             lastClickedRegion = 'left';
+            syncLeftKeyboardRegion('left');
             lastClickedNumber = n;
             currentPhaseNumber = n;
             currentPhaseRow = null;
@@ -1358,7 +1382,7 @@
         }
 
         function needsLeftTable1Bootstrap() {
-            if (lastClickedRegion === 'right') return false;
+            if (leftKeyboardRegion === 'right') return false;
             if (!hasCircledNumbersForNav()) return currentPhaseNumber == null;
             if (isFocusedOnPairOrTail()) return false;
             return currentPhaseNumber == null;
@@ -1389,6 +1413,7 @@
                 currentPhaseNumber: currentPhaseNumber,
                 currentPhaseRow: currentPhaseRow,
                 lastClickedRegion: lastClickedRegion,
+                leftKeyboardRegion: leftKeyboardRegion,
                 lastClickedRow: lastClickedRow,
                 lastClickedNumber: lastClickedNumber,
                 phaseHistory: phaseHistory ? phaseHistory.slice() : []
@@ -1408,6 +1433,7 @@
                 currentPhaseNumber = snap.currentPhaseNumber != null ? snap.currentPhaseNumber : null;
                 currentPhaseRow = snap.currentPhaseRow != null ? snap.currentPhaseRow : null;
                 lastClickedRegion = snap.lastClickedRegion || 'left';
+                syncLeftKeyboardRegion(snap.leftKeyboardRegion || snap.lastClickedRegion || 'left');
                 lastClickedRow = snap.lastClickedRow != null ? snap.lastClickedRow : null;
                 lastClickedNumber = snap.lastClickedNumber != null ? snap.lastClickedNumber : null;
                 phaseHistory = Array.isArray(snap.phaseHistory) ? snap.phaseHistory.slice() : [];
@@ -1530,13 +1556,59 @@
             firstPair = pairs[0] || null; secondPair = pairs[1] || null; thirdPair = pairs[2] || null; fourthPair = pairs[3] || null; fifthPair = pairs[4] || null;
         }
 
+        /** triple1: chưa có chuỗi nào đủ 3 số chọn thì không block; sau đó mỗi chuỗi block phần còn lại khi đã có >= 2 số. */
+        function lineHasTripleFromSelection(lineIndex, isSelectedFn) {
+            if (!raw || typeof lineIndex !== 'number' || lineIndex < 0 || lineIndex >= 10) {
+                return false;
+            }
+            var nums = getNumsFromLineObj(raw.lines[lineIndex]);
+            var selInLine = nums.filter(function (n) { return isSelectedFn(n); });
+            return selInLine.length >= 3;
+        }
+
+        function applyTriple1LineBlocking(nums, selInLine, blockedTarget) {
+            if (!nums || !selInLine || selInLine.length < 2) {
+                return;
+            }
+            nums.forEach(function (n) {
+                if (selInLine.indexOf(n) === -1) {
+                    blockedTarget.add(n);
+                }
+            });
+        }
+
+        function applyTriple1BlockingForSelection(isSelectedFn, blockedTarget) {
+            if (!raw) {
+                return;
+            }
+            var tripleLineIdx = -1;
+            for (var i = 0; i < Math.min(raw.lines.length, 10); i++) {
+                if (lineHasTripleFromSelection(i, isSelectedFn)) {
+                    tripleLineIdx = i;
+                    break;
+                }
+            }
+            if (tripleLineIdx < 0) {
+                return;
+            }
+            for (var li = 0; li < Math.min(raw.lines.length, 10); li++) {
+                var nums = getNumsFromLineObj(raw.lines[li]);
+                var selInLine = nums.filter(function (n) { return isSelectedFn(n); });
+                applyTriple1LineBlocking(nums, selInLine, blockedTarget);
+            }
+        }
+
         function updateBlocked() {
             blockedSet.clear();
             let mode = document.getElementById("mode") ? document.getElementById("mode").value : null;
             if (!raw) return;
 
-            if (mode === "pair1" || mode === "triple1") {
-                let p = mode === "pair1" ? firstPair : firstTriple;
+            if (mode === "triple1") {
+                applyTriple1BlockingForSelection(function (n) {
+                    return selected.has(n) || simulatedSelected.has(n);
+                }, blockedSet);
+            } else if (mode === "pair1") {
+                let p = firstPair;
                 if (p) {
                     raw.lines.slice(0, 10).forEach(line => {
                         let nums = getNumsFromLineObj(line);
@@ -1581,23 +1653,16 @@
             // compute simulated-only blocks and union
             let simBlocked = new Set();
             if (raw) {
-                if (mode === "pair1" || mode === "triple1") {
+                if (mode === "triple1") {
+                    applyTriple1BlockingForSelection(function (n) { return simulatedSelected.has(n); }, simBlocked);
+                } else if (mode === "pair1") {
                     let p = null;
-                    if (mode === "pair1") {
-                        raw.lines.slice(0, 10).forEach(line => {
-                            if (p) return;
-                            let nums = getNumsFromLineObj(line);
-                            let selInLine = nums.filter(x => simulatedSelected.has(x));
-                            if (selInLine.length >= 2) p = selInLine.slice(0, 2);
-                        });
-                    } else {
-                        raw.lines.slice(0, 10).forEach(line => {
-                            if (p) return;
-                            let nums = getNumsFromLineObj(line);
-                            let selInLine = nums.filter(x => simulatedSelected.has(x));
-                            if (selInLine.length >= 3) p = selInLine.slice(0, 3);
-                        });
-                    }
+                    raw.lines.slice(0, 10).forEach(line => {
+                        if (p) return;
+                        let nums = getNumsFromLineObj(line);
+                        let selInLine = nums.filter(x => simulatedSelected.has(x));
+                        if (selInLine.length >= 2) p = selInLine.slice(0, 2);
+                    });
                     if (p) {
                         raw.lines.slice(0, 10).forEach(line => {
                             let nums = getNumsFromLineObj(line);
@@ -1642,19 +1707,17 @@
             let mode = document.getElementById("mode") ? document.getElementById("mode").value : null;
 
             let localFirstPair = null, localSecondPair = null, localThirdPair = null, localFourthPair = null, localFifthPair = null, localFirstTriple = null;
-            if (mode === "pair1" || mode === "triple1") {
-                if (mode === "pair1") {
-                    for (let i = 0; i < Math.min(raw.lines.length, 10); i++) {
-                        let nums = getNumsFromLineObj(raw.lines[i]);
-                        let selInLine = nums.filter(x => selSet.has(x));
-                        if (selInLine.length >= 2) { localFirstPair = selInLine.slice(0, 2); break; }
-                    }
-                } else {
-                    for (let i = 0; i < Math.min(raw.lines.length, 10); i++) {
-                        let nums = getNumsFromLineObj(raw.lines[i]);
-                        let selInLine = nums.filter(x => selSet.has(x));
-                        if (selInLine.length >= 3) { localFirstTriple = selInLine.slice(0, 3); break; }
-                    }
+            if (mode === "pair1") {
+                for (let i = 0; i < Math.min(raw.lines.length, 10); i++) {
+                    let nums = getNumsFromLineObj(raw.lines[i]);
+                    let selInLine = nums.filter(x => selSet.has(x));
+                    if (selInLine.length >= 2) { localFirstPair = selInLine.slice(0, 2); break; }
+                }
+            } else if (mode === "triple1") {
+                for (let i = 0; i < Math.min(raw.lines.length, 10); i++) {
+                    let nums = getNumsFromLineObj(raw.lines[i]);
+                    let selInLine = nums.filter(x => selSet.has(x) || simulatedSelected.has(x));
+                    if (selInLine.length >= 3) { localFirstTriple = selInLine.slice(0, 3); break; }
                 }
             }
 
@@ -1668,8 +1731,12 @@
                 localFirstPair = pairs[0] || null; localSecondPair = pairs[1] || null; localThirdPair = pairs[2] || null; localFourthPair = pairs[3] || null; localFifthPair = pairs[4] || null;
             }
 
-            if (mode === "pair1" || mode === "triple1") {
-                let p = mode === "pair1" ? localFirstPair : localFirstTriple;
+            if (mode === "triple1") {
+                applyTriple1BlockingForSelection(function (n) {
+                    return selSet.has(n) || simulatedSelected.has(n);
+                }, b);
+            } else if (mode === "pair1") {
+                let p = localFirstPair;
                 if (p) {
                     raw.lines.slice(0, 10).forEach(line => {
                         let nums = getNumsFromLineObj(line);
@@ -1714,23 +1781,16 @@
             // union simBlocked
             let simBlocked = new Set();
             if (raw) {
-                if (mode === "pair1" || mode === "triple1") {
+                if (mode === "triple1") {
+                    applyTriple1BlockingForSelection(function (n) { return simulatedSelected.has(n); }, simBlocked);
+                } else if (mode === "pair1") {
                     let p = null;
-                    if (mode === "pair1") {
-                        raw.lines.slice(0, 10).forEach(line => {
-                            if (p) return;
-                            let nums = getNumsFromLineObj(line);
-                            let selInLine = nums.filter(x => simulatedSelected.has(x));
-                            if (selInLine.length >= 2) p = selInLine.slice(0, 2);
-                        });
-                    } else {
-                        raw.lines.slice(0, 10).forEach(line => {
-                            if (p) return;
-                            let nums = getNumsFromLineObj(line);
-                            let selInLine = nums.filter(x => simulatedSelected.has(x));
-                            if (selInLine.length >= 3) p = selInLine.slice(0, 3);
-                        });
-                    }
+                    raw.lines.slice(0, 10).forEach(line => {
+                        if (p) return;
+                        let nums = getNumsFromLineObj(line);
+                        let selInLine = nums.filter(x => simulatedSelected.has(x));
+                        if (selInLine.length >= 2) p = selInLine.slice(0, 2);
+                    });
                     if (p) {
                         raw.lines.slice(0, 10).forEach(line => {
                             let nums = getNumsFromLineObj(line);
@@ -1828,6 +1888,7 @@
         function onNumberCellClick(n, region, rowIdx) {
             try {
                 lastClickedRegion = region || 'left';
+                syncLeftKeyboardRegion(region || 'left');
                 if (typeof rowIdx === 'number') {
                     lastClickedRow = rowIdx;
                     if (region === 'right') currentPhaseRow = rowIdx;
@@ -1881,10 +1942,12 @@
             let rawText = document.getElementById("input").value.trim();
             debugLog('process() called — input length:', rawText.length);
             // Clear selections when new data is loaded (sheet/dataset change)
-            selected.clear();
-            simulatedSelected.clear();
-            blockedSet.clear();
-            transientSelected.clear();
+            if (!preserveSelectionOnNextProcess) {
+                selected.clear();
+                simulatedSelected.clear();
+                blockedSet.clear();
+                transientSelected.clear();
+            }
             let rows = [];
             if (!rawText) { updateRender(); return; }
             if (rawText.indexOf('\n') !== -1 || rawText.indexOf('\r') !== -1) {
@@ -1958,6 +2021,7 @@
                         modeEl.disabled = false;
                     }
                 }
+                syncSubmitButtonAvailability();
             }
 
             // Match ok.py: if fewer than 11 meaningful rows, force Submit OFF and
@@ -1994,7 +2058,13 @@
 
             recomputePairsFromSelected();
             updateBlocked();
-            updateRender();
+            if (preserveSelectionOnNextProcess) {
+                renderTable1();
+                renderTable2();
+                updateRenderLightweight();
+            } else {
+                updateRender();
+            }
         }
 
         function updateRender() {
@@ -2263,7 +2333,7 @@
                 return `<button type="button" class="pair-btn" data-idx="${i}" data-a="${a}" data-b="${b}" data-main="${main}">${formatPairTailButtonLabel(main, a, b)}</button>`;
             }).join(' ');
             const buttons = Array.from(el.querySelectorAll('.pair-btn'));
-            buttons.forEach((btn, idx) => { btn.addEventListener('click', function (ev) { ev.preventDefault(); const a = parseInt(btn.getAttribute('data-a'), 10); const b = parseInt(btn.getAttribute('data-b'), 10); try { lastClickedRegion = 'pairList'; lastClickedNumber = b; pushPhaseHistory('pairList', b, null); } catch (e) { } if (selected.has(a) && selected.has(b)) { toggleNumber(a); toggleNumber(b); currentPairIndex = -1; } else { applyPairByIndex(idx); } }); });
+            buttons.forEach((btn, idx) => { btn.addEventListener('click', function (ev) { ev.preventDefault(); const a = parseInt(btn.getAttribute('data-a'), 10); const b = parseInt(btn.getAttribute('data-b'), 10); try { lastClickedRegion = 'pairList'; syncLeftKeyboardRegion('pairList'); lastClickedNumber = b; pushPhaseHistory('pairList', b, null); } catch (e) { } if (selected.has(a) && selected.has(b)) { toggleNumber(a); toggleNumber(b); currentPairIndex = -1; } else { applyPairByIndex(idx); } }); });
             updatePairButtonsSelection(effective);
             syncPairTailWrapWidths();
         }
@@ -2514,7 +2584,7 @@
                             ev.preventDefault();
                             const a = parseInt(btn.getAttribute('data-a'), 10);
                             const b = parseInt(btn.getAttribute('data-b'), 10);
-                            try { lastClickedRegion = 'tailList'; lastClickedNumber = b; currentTailIndex = idx; pushPhaseHistory('tailList', b, null); } catch (e) { }
+                            try { lastClickedRegion = 'tailList'; syncLeftKeyboardRegion('tailList'); lastClickedNumber = b; currentTailIndex = idx; pushPhaseHistory('tailList', b, null); } catch (e) { }
                             if (selected.has(a) && selected.has(b)) {
                                 toggleNumber(a); toggleNumber(b); currentTailIndex = -1;
                             } else {
@@ -3669,6 +3739,7 @@
                     // backup current focus/phase state so q->q can restore exact arrow position
                     clearedFocusBackup = {
                         lastClickedRegion: lastClickedRegion,
+                        leftKeyboardRegion: leftKeyboardRegion,
                         lastClickedRow: lastClickedRow,
                         lastClickedNumber: lastClickedNumber,
                         currentPhaseNumber: currentPhaseNumber,
@@ -3707,6 +3778,7 @@
                                 : clearedFocusBackup.lastClickedNumber;
                             if (focusNum != null && selected.has(focusNum)) {
                                 lastClickedRegion = clearedFocusBackup.lastClickedRegion || 'left';
+                                syncLeftKeyboardRegion(clearedFocusBackup.leftKeyboardRegion || clearedFocusBackup.lastClickedRegion || 'left');
                                 lastClickedRow = (typeof clearedFocusBackup.lastClickedRow === 'number') ? clearedFocusBackup.lastClickedRow : null;
                                 lastClickedNumber = focusNum;
                                 currentPhaseNumber = focusNum;
@@ -3721,11 +3793,13 @@
                         if (!restored) {
                             if (pickOrder && pickOrder.length) {
                                 lastClickedRegion = 'left';
+                                syncLeftKeyboardRegion('left');
                                 lastClickedNumber = pickOrder[pickOrder.length - 1];
                                 currentPhaseNumber = lastClickedNumber;
                                 try { pushPhaseHistory(lastClickedRegion, lastClickedNumber, currentPhaseRow); } catch (e) { }
                             } else {
                                 lastClickedRegion = 'left';
+                                syncLeftKeyboardRegion('left');
                                 lastClickedNumber = null;
                                 currentPhaseNumber = null;
                             }
@@ -3805,8 +3879,20 @@
                 } else {
                     simulatedSelected.clear();
                     try {
-                        if (preSubmitSelected) {
+                        // Autoring is independent from submit preview — keep current autoring picks
+                        if (submitAutoCircleEnabled && autoRingPicked.size > 0) {
+                            selected.clear();
+                            autoRingPicked.forEach(function (n) {
+                                if (!isNaN(n)) selected.add(n);
+                            });
+                            pickOrder = Array.from(autoRingPicked)
+                                .filter(function (n) { return !isNaN(n); })
+                                .slice(0, MAX_PICK_NUMBERS);
+                        } else if (preSubmitSelected) {
                             selected = new Set(preSubmitSelected);
+                            if (preSubmitOrder && preSubmitOrder.length) {
+                                pickOrder = preSubmitOrder.slice();
+                            }
                         }
                         syncPickOrderForSubmitState();
                     } catch (e) { }
@@ -3826,6 +3912,7 @@
                 try {
                     if (raw && document.getElementById('right') && document.getElementById('left')) {
                         applySubmitState();
+                        try { applySelectionAndBlockedInDOM(); } catch (e) { }
                         try { updatePairList(); } catch (e) { }
                         refreshPairTailSelectionState();
                         try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
@@ -4025,39 +4112,19 @@
             }, true);
         })();
 
-        document.addEventListener('keydown', function (e) {
+        function handleLeftPaneNavKey(key) {
             try {
-                var active = document.activeElement;
-                var activeTag = active ? active.tagName : '';
-                if (active && active.id !== 'searchBox' && (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || active.isContentEditable)) return;
+                if (!key) return;
+                if (!raw) return;
+                if (submitActive) return;
 
-                if (e.key === 'q' || e.key === 'Q') {
-                    toggleClearSelection();
-                    e.preventDefault();
+                if (needsLeftTable1Bootstrap()) {
+                    bootstrapLeftTable1Focus();
                     return;
                 }
 
-                if (e.code === 'Space') {
-                    toggleSubmitOnSpace();
-                    e.preventDefault();
-                    return;
-                }
-
-                if (e.key === 'w' || e.key === 'W' || e.key === 's' || e.key === 'S' || e.key === 'ArrowUp' || e.key === 'ArrowDown') {
-                    var filterStepWS = (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') ? 1 : -1;
-                    if (tryFilterPopupNavFromLeft(e, filterStepWS)) {
-                        return;
-                    }
-                    e.preventDefault();
-                    if (!raw) return;
-                    if (submitActive) return;
-
-                    if (needsLeftTable1Bootstrap()) {
-                        bootstrapLeftTable1Focus();
-                        return;
-                    }
-
-                    var regionWS = lastClickedRegion || 'right';
+                if (key === 'w' || key === 'W' || key === 's' || key === 'S') {
+                    var regionWS = getLeftKeyboardNavRegion();
 
                     if (!hasCircledNumbersForNav() && regionWS === 'right') {
                         try { updateFocusIndicator(); } catch (e) { }
@@ -4067,7 +4134,7 @@
                     if (!hasCircledNumbersForNav() && regionWS !== 'right') {
                         regionWS = 'left';
                     }
-                    var dirWS = (e.key === 's' || e.key === 'S' || e.key === 'ArrowDown') ? 1 : -1;
+                    var dirWS = (key === 's' || key === 'S') ? 1 : -1;
 
                     if (regionWS === 'right') {
                         var maxRow = Math.min(raw.lines.length, 10) - 1;
@@ -4145,6 +4212,8 @@
                         currentPhaseRow = finalTargetRow;
                         lastClickedRow = finalTargetRow;
                         lastClickedNumber = cand;
+                        lastClickedRegion = 'right';
+                        syncLeftKeyboardRegion('right');
                         recomputePairsFromSelected();
                         updateBlocked();
                         updateRenderLightweight();
@@ -4203,27 +4272,14 @@
                         }
                         selected.add(candL); transientSelected.add(candL); pickOrder.push(candL);
                         currentPhaseNumber = candL; lastClickedNumber = candL; lastClickedRegion = 'left';
+                        syncLeftKeyboardRegion('left');
                         recomputePairsFromSelected(); updateBlocked(); updateRenderLightweight(); return;
                     } else { return; }
                 }
 
-                if (e.key === 'a' || e.key === 'A' || e.key === 'd' || e.key === 'D' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
-                    var filterStepAD = (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') ? 1 : -1;
-                    if (tryFilterPopupNavFromLeft(e, filterStepAD)) {
-                        return;
-                    }
-                    e.preventDefault(); if (!raw) return; if (submitActive) return;
-
-                    if (needsLeftTable1Bootstrap()) {
-                        bootstrapLeftTable1Focus();
-                        return;
-                    }
-
-                    var dir = (e.key === 'd' || e.key === 'D' || e.key === 'ArrowRight') ? 1 : -1;
-
-                    var pairListExists = !!(document.getElementById && document.getElementById('pairList'));
-                    var tailListExists = !!(document.getElementById && document.getElementById('tailList'));
-                    var region = lastClickedRegion || (pairListExists ? 'pairList' : (tailListExists ? 'tailList' : 'left'));
+                if (key === 'a' || key === 'A' || key === 'd' || key === 'D') {
+                    var dir = (key === 'd' || key === 'D') ? 1 : -1;
+                    var region = getLeftKeyboardNavRegion();
 
                     if (!hasCircledNumbersForNav() && region === 'right') {
                         try { updateFocusIndicator(); } catch (e) { }
@@ -4260,6 +4316,7 @@
                             pickOrder.push(found);
                         }
                         selected.add(found); transientSelected.add(found); currentPhaseNumber = found; lastClickedNumber = found; lastClickedRegion = 'left';
+                        syncLeftKeyboardRegion('left');
                         recomputePairsFromSelected(); updateBlocked(); updateRenderLightweight(); return;
                     }
 
@@ -4290,6 +4347,7 @@
                         var priorR = pickOrder.indexOf(foundR); if (priorR !== -1) pickOrder.splice(priorR, 1);
                         var liR = pickOrder.indexOf(lastR); if (liR !== -1) pickOrder[liR] = foundR; else pickOrder.push(foundR);
                         selected.add(foundR); lastClickedNumber = foundR; transientSelected.add(foundR); currentPhaseNumber = foundR; currentPhaseRow = row; lastClickedRow = row; lastClickedRegion = 'right';
+                        syncLeftKeyboardRegion('right');
                         recomputePairsFromSelected(); updateBlocked(); updateRenderLightweight(); return;
                     }
 
@@ -4298,6 +4356,7 @@
                             if (!currentPairs || currentPairs.length === 0) return;
                             if (dir === 1) { if (currentPairIndex < 0) applyPairByIndex(0, { lightRender: true, skipFocus: true }); else applyPairByIndex((currentPairIndex + 1) % currentPairs.length, { lightRender: true, skipFocus: true }); }
                             else { if (currentPairIndex < 0) applyPairByIndex(currentPairs.length - 1, { lightRender: true, skipFocus: true }); else applyPairByIndex((currentPairIndex - 1 + currentPairs.length) % currentPairs.length, { lightRender: true, skipFocus: true }); }
+                            syncLeftKeyboardRegion('pairList');
                             return;
                         } catch (err) { }
                     }
@@ -4307,9 +4366,49 @@
                             if (!currentTails || currentTails.length === 0) return;
                             if (dir === 1) { if (currentTailIndex < 0) applyTailByIndex(0, { lightRender: true, skipFocus: true }); else applyTailByIndex((currentTailIndex + 1) % currentTails.length, { lightRender: true, skipFocus: true }); }
                             else { if (currentTailIndex < 0) applyTailByIndex(currentTails.length - 1, { lightRender: true, skipFocus: true }); else applyTailByIndex((currentTailIndex - 1 + currentTails.length) % currentTails.length, { lightRender: true, skipFocus: true }); }
+                            syncLeftKeyboardRegion('tailList');
                             return;
                         } catch (err2) { }
                     }
+                }
+            } catch (ee) { /* ignore */ }
+        }
+
+        document.addEventListener('keydown', function (e) {
+            try {
+                var active = document.activeElement;
+                var activeTag = active ? active.tagName : '';
+                if (active && active.id !== 'searchBox' && (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || active.isContentEditable)) return;
+
+                if (e.key === 'q' || e.key === 'Q') {
+                    toggleClearSelection();
+                    e.preventDefault();
+                    return;
+                }
+
+                if (e.code === 'Space') {
+                    toggleSubmitOnSpace();
+                    e.preventDefault();
+                    return;
+                }
+
+                if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                    var arrowStep = (e.key === 'ArrowDown' || e.key === 'ArrowRight') ? 1 : -1;
+                    if (tryFilterPopupNavFromLeft(e, arrowStep)) {
+                        return;
+                    }
+                    e.preventDefault();
+                    try {
+                        window.parent.postMessage({ type: 'rightPaneNavKey', key: e.key }, '*');
+                    } catch (err) { }
+                    return;
+                }
+
+                if (e.key === 'w' || e.key === 'W' || e.key === 's' || e.key === 'S' ||
+                    e.key === 'a' || e.key === 'A' || e.key === 'd' || e.key === 'D') {
+                    e.preventDefault();
+                    handleLeftPaneNavKey(e.key);
+                    return;
                 }
             } catch (ee) { /* ignore */ }
         });
@@ -4876,6 +4975,16 @@
                     return;
                 }
 
+                if (msg.type === 'leftPaneNavKey' && msg.key) {
+                    handleLeftPaneNavKey(String(msg.key));
+                    return;
+                }
+
+                if (msg.type === 'leftPaneToggleClear') {
+                    toggleClearSelection();
+                    return;
+                }
+
                 if (msg.type === 'periodFilterNavMode') {
                     window.__periodFilterNavMode = !!msg.active;
                     return;
@@ -4893,20 +5002,20 @@
                     const input = document.getElementById('input');
                     input.value = msg.lines.join('\n');
 
-                    // Save the submit state before process() might reset it
-                    const wasSubmitActive = submitActive || msg.submitActive;
+                    // Save the submit state before process() might reset it (empty focus row = no submit preview)
+                    const wasSubmitActive = (submitActive || msg.submitActive) && !msg.disableSubmit;
                     const focusRowId = (msg.focusRowId != null) ? String(msg.focusRowId) : '';
                     focusNonexistHighlights = (msg.focusNonexistHighlights && typeof msg.focusNonexistHighlights === 'object')
                         ? msg.focusNonexistHighlights
                         : {};
                     const newFk = normalizeAutoRingFocusKey(focusRowId);
-                    const focusChanged = !!lastAutoRingFocusKey && !!newFk && lastAutoRingFocusKey !== newFk;
+                    const focusIdChanged = lastAutoRingFocusKey !== newFk;
 
                     if (lastAutoRingFocusKey && lastAutoRingFocusKey !== newFk) {
                         try { selectionMemoryByFocusId.set(lastAutoRingFocusKey, snapshotSelectionState()); } catch (e) { }
                     }
 
-                    if (focusChanged) {
+                    if (focusIdChanged) {
                         autoRingPicked.clear();
                         if (newFk) autoRingVisitedIds.delete(newFk);
                         selected.clear();
@@ -4920,13 +5029,19 @@
                         lastClickedNumber = null;
                         lastClickedRow = null;
                         phaseHistory = [];
+                        if (wasSubmitActive) {
+                            preSubmitSelected = null;
+                            preSubmitOrder = null;
+                        }
                     }
 
                     preserveSubmitOnNextProcess = !!wasSubmitActive;
+                    preserveSelectionOnNextProcess = !!msg.preserveSelection;
                     try {
                         process();
                     } catch (e) { console.error(e); }
                     preserveSubmitOnNextProcess = false;
+                    preserveSelectionOnNextProcess = false;
 
                     if (wasSubmitActive) {
                         submitActive = true;
@@ -4945,12 +5060,30 @@
                         } catch (e) { }
                     } else {
                         try { persistSelectionMemoryForFocus(); } catch (e) { }
+                        if (msg.disableSubmit) {
+                            try {
+                                const sbOff = document.getElementById('submitBtn');
+                                if (sbOff) {
+                                    sbOff.classList.remove('active');
+                                    sbOff.disabled = true;
+                                }
+                            } catch (e) { }
+                            try {
+                                if (window.parent && window.parent !== window) {
+                                    window.parent.postMessage({ type: 'submitStateChanged', submitActive: false }, '*');
+                                }
+                            } catch (e) { }
+                        }
                     }
                     lastAutoRingFocusKey = newFk;
                     if (submitAutoCircleEnabled) {
                         var focusIdForRing = focusRowId;
                         var runAutoRing = function () {
                             try { maybeApplySubmitAutoRingAfterProcess(focusIdForRing); } catch (e) { console.error(e); }
+                            if (submitActive) {
+                                try { applySubmitState(); } catch (e) { console.error(e); }
+                                try { applySelectionAndBlockedInDOM(); } catch (e) { }
+                            }
                         };
                         if (wasSubmitActive) {
                             runAutoRing();
@@ -5075,7 +5208,7 @@
                             var n = parseInt(el.getAttribute('data-num'), 10);
                             if (isNaN(n)) return;
                             if (submitActive || isBlocked(n)) return;
-                            try { lastClickedRegion = 'left'; lastClickedNumber = n; } catch (e2) { }
+                            try { lastClickedRegion = 'left'; syncLeftKeyboardRegion('left'); lastClickedNumber = n; } catch (e2) { }
                             toggleNumber(n);
                         } catch (e) { }
                     });
@@ -5106,6 +5239,7 @@
                                     rowIndex = mains.indexOf(tr);
                                 }
                                 lastClickedRegion = 'right';
+                                syncLeftKeyboardRegion('right');
                                 lastClickedNumber = n;
                                 if (rowIndex != null && rowIndex >= 0) { lastClickedRow = rowIndex; currentPhaseRow = rowIndex; }
                             } catch (e2) { }

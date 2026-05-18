@@ -721,10 +721,11 @@
             min-height: 0;
             max-height: 24px;
             text-align: right;
-            vertical-align: top;
+            vertical-align: middle;
+            white-space: nowrap;
             outline: none;
             box-shadow: none;
-            box-sizing: border-box;
+            box-sizing: content-box;
             min-width: 1ch;
             width: 1ch;
             cursor: text;
@@ -783,8 +784,6 @@
             z-index: 1200;
             top: 88px;
             right: 28px;
-            width: fit-content;
-            height: fit-content;
             max-width: calc(100vw - 24px);
             max-height: calc(100vh - 24px);
             pointer-events: none;
@@ -795,17 +794,19 @@
         }
 
         .filter-popup-panel {
+            position: relative;
             pointer-events: auto;
             display: flex;
             flex-direction: column;
-            width: min(900px, 56vw);
+            width: min(720px, 48vw);
             height: min(68vh, 680px);
-            min-width: 360px;
-            min-height: 220px;
+            min-width: 228px;
+            min-height: 160px;
             max-width: calc(100vw - 24px);
             max-height: calc(100vh - 24px);
             resize: both;
             overflow: hidden;
+            box-sizing: border-box;
             background: #ffffff;
             color: #111111;
             border: 1px solid #94a3b8;
@@ -816,9 +817,10 @@
         .filter-popup-body {
             flex: 1;
             min-height: 0;
+            min-width: 0;
             display: flex;
             flex-direction: column;
-            padding: 0 18px 18px 0;
+            padding: 0 6px 8px 0;
             box-sizing: border-box;
             overflow: hidden;
         }
@@ -826,11 +828,12 @@
         .filter-popup-header {
             display: flex;
             align-items: center;
-            gap: 8px;
-            padding: 4px 8px;
+            gap: 6px;
+            padding: 4px 6px;
             background: #f8fafc;
             border-bottom: 1px solid #d7dde5;
             flex-shrink: 0;
+            min-width: 0;
             cursor: move;
             user-select: none;
         }
@@ -857,15 +860,72 @@
             border-left: none;
         }
 
-        .filter-popup-hint {
-            margin-left: auto;
-            font-size: 11px;
-            color: #94a3b8;
+        .filter-popup-nonexist-tools {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+            border-left: 1px solid #cbd5e1;
+            padding-left: 4px;
+        }
+
+        .filter-popup-nonexist-tools.hidden {
+            display: none;
+        }
+
+        .filter-popup-position-input.filter-popup-nonexist-num {
+            width: 3ch;
+            min-width: 3ch;
+            max-width: 3ch;
+            flex: 0 0 3ch;
+            text-align: center;
+        }
+
+        .filter-popup-nonexist-style-wrap {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            flex-shrink: 0;
+        }
+
+        .filter-popup-nonexist-style-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 22px;
+            height: 22px;
+            margin: 0;
+            padding: 0;
+            border: 1px solid #cbd5e1;
+            border-radius: 3px;
+            background: #fff;
+            cursor: pointer;
+            box-sizing: border-box;
+            flex-shrink: 0;
+        }
+
+        .filter-popup-nonexist-style-toggle:hover {
+            background: #f8fafc;
+        }
+
+        .filter-popup-nonexist-style-toggle.active {
+            background: #e8f5e9;
+            border-color: #86efac;
+        }
+
+        .filter-popup-nonexist-style-toggle-letter {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 1ch;
+            line-height: 1;
+            pointer-events: none;
         }
 
         .filter-popup-close {
             width: 22px;
             height: 22px;
+            margin-left: auto;
             padding: 0;
             border: 1px solid #cbd5e1;
             border-radius: 4px;
@@ -879,6 +939,44 @@
 
         .filter-popup-close:hover {
             background: #f1f5f9;
+        }
+
+        .filter-popup-resize-handle {
+            position: absolute;
+            z-index: 50;
+            touch-action: none;
+        }
+
+        .filter-popup-resize-n {
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 7px;
+            cursor: ns-resize;
+        }
+
+        .filter-popup-resize-s {
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 7px;
+            cursor: ns-resize;
+        }
+
+        .filter-popup-resize-e {
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: 7px;
+            cursor: ew-resize;
+        }
+
+        .filter-popup-resize-w {
+            top: 0;
+            left: 0;
+            bottom: 0;
+            width: 7px;
+            cursor: ew-resize;
         }
 
         .filter-popup-empty {
@@ -922,6 +1020,50 @@
 
         #filterTableWrap .win-label-inline {
             display: none !important;
+        }
+
+        /* Popup table: date/id/result fit content; note/nonexist single-line, clipped when narrow */
+        #filterTableWrap .sheet-data-table {
+            width: max-content;
+            min-width: 100%;
+            table-layout: auto;
+        }
+
+        #filterTableWrap .sheet-data-table th,
+        #filterTableWrap .sheet-data-table td {
+            padding: 4px 6px;
+            vertical-align: middle;
+        }
+
+        #filterTableWrap .sheet-data-table td.cell-date,
+        #filterTableWrap .sheet-data-table td.cell-id,
+        #filterTableWrap .sheet-data-table td.cell-result,
+        #filterTableWrap .sheet-data-table thead th:nth-child(1),
+        #filterTableWrap .sheet-data-table thead th:nth-child(2),
+        #filterTableWrap .sheet-data-table thead th:nth-child(3) {
+            white-space: nowrap;
+            width: 1%;
+        }
+
+        #filterTableWrap .sheet-data-table td.cell-result,
+        #filterTableWrap .sheet-data-table td.cell-note,
+        #filterTableWrap .sheet-data-table td.cell-nonexist {
+            padding-right: 6px;
+        }
+
+        #filterTableWrap .sheet-data-table td.cell-note,
+        #filterTableWrap .sheet-data-table td.cell-nonexist,
+        #filterTableWrap .sheet-data-table thead th:nth-child(4),
+        #filterTableWrap .sheet-data-table thead th:nth-child(5) {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 220px;
+        }
+
+        #filterTableWrap .sheet-data-table td.cell-note *,
+        #filterTableWrap .sheet-data-table td.cell-nonexist * {
+            white-space: nowrap;
         }
 
         .sheet-data-table {
@@ -1159,7 +1301,9 @@
         #filterTableWrap {
             flex: 1;
             min-height: 0;
-            overflow: auto;
+            min-width: 0;
+            overflow-x: hidden;
+            overflow-y: auto;
             margin-top: 0;
             padding-bottom: 48px;
             scroll-padding-top: 32px;
@@ -1238,6 +1382,30 @@
                             <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
                         </button>
                     </div>
+                    <div id="filterPopupNonexistTools" class="filter-popup-nonexist-tools hidden">
+                        <span id="filterPopupNonexistNum" class="filter-popup-position-input filter-popup-nonexist-num"
+                            tabindex="0" role="textbox" aria-label="Số nonexist 1-35"
+                            title="Số 1-35 trong cột nonexist"></span>
+                        <div id="filterPopupNonexistStyleWrap" class="filter-popup-nonexist-style-wrap" role="group"
+                            aria-label="Kiểu chữ nonexist">
+                            <button type="button" class="filter-popup-nonexist-style-toggle" data-style="bold"
+                                aria-pressed="false" title="Bold">
+                                <span class="filter-popup-nonexist-style-toggle-letter" aria-hidden="true"></span>
+                            </button>
+                            <button type="button" class="filter-popup-nonexist-style-toggle" data-style="italic"
+                                aria-pressed="false" title="Italic">
+                                <span class="filter-popup-nonexist-style-toggle-letter" aria-hidden="true"></span>
+                            </button>
+                            <button type="button" class="filter-popup-nonexist-style-toggle" data-style="underline"
+                                aria-pressed="false" title="Underline">
+                                <span class="filter-popup-nonexist-style-toggle-letter" aria-hidden="true"></span>
+                            </button>
+                            <button type="button" class="filter-popup-nonexist-style-toggle" data-style="strikethrough"
+                                aria-pressed="false" title="Strikethrough">
+                                <span class="filter-popup-nonexist-style-toggle-letter" aria-hidden="true"></span>
+                            </button>
+                        </div>
+                    </div>
                     <span id="filterPopupMatchCount" class="period-filter-match-count filter-popup-match-count"
                         title="Số kỳ khớp mode">
                         <span id="filterPopupPositionWrap" class="filter-popup-count-position-wrap hidden">
@@ -1248,12 +1416,15 @@
                         <span id="filterPopupTotalCount" class="filter-popup-total-count">0</span>
                     </span>
                 </div>
-                <span class="filter-popup-hint">Kéo tiêu đề · kéo góc/viền đổi kích thước · ↑↓ / WASD trong bảng</span>
                 <button type="button" id="filterPopupClose" class="filter-popup-close" title="Ẩn bảng lọc">×</button>
             </div>
             <div class="filter-popup-body">
                 <div id="filterTableWrap" class="right-table-viewport" tabindex="0" aria-label="Bảng lọc kỳ"></div>
             </div>
+            <div class="filter-popup-resize-handle filter-popup-resize-n" data-resize="n" aria-hidden="true"></div>
+            <div class="filter-popup-resize-handle filter-popup-resize-e" data-resize="e" aria-hidden="true"></div>
+            <div class="filter-popup-resize-handle filter-popup-resize-s" data-resize="s" aria-hidden="true"></div>
+            <div class="filter-popup-resize-handle filter-popup-resize-w" data-resize="w" aria-hidden="true"></div>
         </div>
     </div>
 
@@ -1270,8 +1441,23 @@
         const PERIOD_FILTER_ENABLED_KEY = 'periodFilterEnabled';
         const PERIOD_FILTER_MODE_KEY = 'periodFilterMode';
         const FILTER_POPUP_LAYOUT_KEY = 'filterPopupLayout';
-        const FILTER_POPUP_MIN_WIDTH = 360;
-        const FILTER_POPUP_MIN_HEIGHT = 220;
+        const FILTER_NONEXIST_NUM_KEY = 'filterNonexistNum';
+        const FILTER_NONEXIST_STYLES_KEY = 'filterNonexistStyles';
+        const FILTER_POPUP_MIN_WIDTH = 228;
+        const FILTER_POPUP_MIN_HEIGHT = 160;
+        const NONEXIST_FILTER_STYLES = ['bold', 'italic', 'underline', 'strikethrough'];
+        const NONEXIST_FILTER_STYLE_LETTERS = {
+            bold: 'B',
+            italic: 'I',
+            underline: 'U',
+            strikethrough: 'S'
+        };
+        const NONEXIST_FILTER_STYLE_TITLES = {
+            bold: 'Bold',
+            italic: 'Italic',
+            underline: 'Underline',
+            strikethrough: 'Strikethrough'
+        };
         const FILTER_MODE_LABELS = {
             modeq: '?',
             pair1: '1 bộ 2',
@@ -1280,7 +1466,8 @@
             pair4: '4 bộ 2',
             pair5: '5 bộ 2',
             triple1: '1 bộ 3',
-            dateband: ''
+            dateband: '',
+            nonexist: 'nonexist'
         };
         const DATEBAND_FILTER_MODE = 'dateband';
         const VALID_FILTER_MODES = Object.keys(FILTER_MODE_LABELS);
@@ -1298,15 +1485,30 @@
         let filterPopupActiveIdx = -1;
         let filterModeCounts = {};
         let filterPopupLayoutSaveTimer = null;
-        let keyboardFocusTarget = 'right';
+        let filterNonexistNum = null;
+        let filterNonexistStyles = [];
+        let keyboardFocusTarget = 'right-main';
 
         function rememberKeyboardFocusTarget(target) {
-            keyboardFocusTarget = target === 'left' ? 'left' : 'right';
+            const t = String(target || '');
+            if (t === 'left') {
+                keyboardFocusTarget = 'left';
+            } else if (t === 'filter' || t === 'right-filter') {
+                keyboardFocusTarget = 'right-filter';
+            } else {
+                keyboardFocusTarget = 'right-main';
+            }
+        }
+
+        function isRightPaneFilterKeyboardTarget() {
+            return keyboardFocusTarget === 'right-filter';
         }
 
         function restoreKeyboardFocusTarget() {
             const frame = el('okFrame');
-            const wrap = el('tableWrap');
+            const wrap = keyboardFocusTarget === 'right-filter'
+                ? el('filterTableWrap')
+                : el('tableWrap');
 
             if (keyboardFocusTarget === 'left') {
                 try {
@@ -1564,6 +1766,228 @@
             return VALID_FILTER_MODES.includes(mode) ? mode : 'pair1';
         }
 
+        function isNonexistFilterMode(mode) {
+            return normalizeFilterMode(mode) === 'nonexist';
+        }
+
+        function isNonexistFilterNumEmpty() {
+            return filterNonexistNum == null;
+        }
+
+        function getNonexistFilterOptions() {
+            return {
+                num: filterNonexistNum,
+                styles: filterNonexistStyles.slice()
+            };
+        }
+
+        function getNonexistFilterStyleLabelList() {
+            return filterNonexistStyles
+                .map((s) => NONEXIST_FILTER_STYLE_LETTERS[s] || s)
+                .join(', ');
+        }
+
+        function parseFilterNonexistNumInput(raw) {
+            const text = String(raw || '').trim();
+            if (!text) {
+                return null;
+            }
+            const value = parseInt(text, 10);
+            if (!Number.isFinite(value) || value < 1 || value > MAX_NUM) {
+                return null;
+            }
+            return value;
+        }
+
+        function saveFilterNonexistSettings() {
+            try {
+                if (filterNonexistNum == null) {
+                    localStorage.removeItem(FILTER_NONEXIST_NUM_KEY);
+                } else {
+                    localStorage.setItem(FILTER_NONEXIST_NUM_KEY, String(filterNonexistNum));
+                }
+                localStorage.setItem(FILTER_NONEXIST_STYLES_KEY, JSON.stringify(filterNonexistStyles));
+            } catch (e) { }
+        }
+
+        function loadFilterNonexistSettings() {
+            try {
+                const savedNum = localStorage.getItem(FILTER_NONEXIST_NUM_KEY);
+                if (savedNum != null && savedNum !== '') {
+                    const parsed = parseInt(savedNum, 10);
+                    filterNonexistNum = Number.isFinite(parsed) && parsed >= 1 && parsed <= MAX_NUM
+                        ? parsed
+                        : null;
+                } else {
+                    filterNonexistNum = null;
+                }
+                const savedStyles = localStorage.getItem(FILTER_NONEXIST_STYLES_KEY);
+                if (savedStyles) {
+                    const parsed = JSON.parse(savedStyles);
+                    filterNonexistStyles = Array.isArray(parsed)
+                        ? parsed.filter(s => NONEXIST_FILTER_STYLES.includes(s))
+                        : [];
+                } else {
+                    filterNonexistStyles = [];
+                }
+            } catch (e) {
+                filterNonexistNum = null;
+                filterNonexistStyles = [];
+            }
+        }
+
+        function syncFilterPopupNonexistToolsUi() {
+            const tools = el('filterPopupNonexistTools');
+            const numInput = el('filterPopupNonexistNum');
+            const show = periodFilterEnabled && isNonexistFilterMode(periodFilterMode);
+            if (tools) {
+                tools.classList.toggle('hidden', !show);
+            }
+            if (numInput) {
+                const text = filterNonexistNum != null ? String(filterNonexistNum) : '';
+                setFilterPopupPositionText(numInput, text);
+            }
+            syncFilterPopupNonexistStyleToggles();
+        }
+
+        function renderNonexistStyleLetterHtml(style, active) {
+            const letter = NONEXIST_FILTER_STYLE_LETTERS[style] || String(style || '').charAt(0).toUpperCase();
+            const color = active ? '#0f172a' : '#94a3b8';
+            const base = `color:${color};font-size:12px;font-weight:700;font-family:Inter,Segoe UI,Arial,sans-serif;line-height:1`;
+            if (style === 'bold') {
+                return `<span style="${base};font-weight:900">${letter}</span>`;
+            }
+            if (style === 'italic') {
+                return `<span style="${base};font-style:italic">${letter}</span>`;
+            }
+            if (style === 'underline') {
+                return `<span style="${base};text-decoration:underline">${letter}</span>`;
+            }
+            if (style === 'strikethrough') {
+                return `<span style="${base};text-decoration:line-through">${letter}</span>`;
+            }
+            return `<span style="${base}">${letter}</span>`;
+        }
+
+        function syncFilterPopupNonexistStyleToggles() {
+            const wrap = el('filterPopupNonexistStyleWrap');
+            if (!wrap) {
+                return;
+            }
+            wrap.querySelectorAll('.filter-popup-nonexist-style-toggle').forEach((btn) => {
+                const style = btn.dataset.style || '';
+                if (!style) {
+                    return;
+                }
+                const active = filterNonexistStyles.includes(style);
+                btn.classList.toggle('active', active);
+                btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+                const letter = btn.querySelector('.filter-popup-nonexist-style-toggle-letter');
+                if (letter) {
+                    letter.innerHTML = renderNonexistStyleLetterHtml(style, active);
+                }
+            });
+        }
+
+        function toggleFilterPopupNonexistStyle(style) {
+            const idx = filterNonexistStyles.indexOf(style);
+            if (idx === -1) {
+                filterNonexistStyles.push(style);
+            } else {
+                filterNonexistStyles.splice(idx, 1);
+            }
+            saveFilterNonexistSettings();
+            syncFilterPopupNonexistStyleToggles();
+            applyNonexistFilterSettingsFromUi();
+        }
+
+        function getFilterMatchingIndicesForMode(mode) {
+            if (!sheetManager) {
+                return [];
+            }
+            if (isNonexistFilterMode(mode)) {
+                return sheetManager.getFilterMatchingIndices(mode, getNonexistFilterOptions());
+            }
+            return sheetManager.getFilterMatchingIndices(mode);
+        }
+
+        function commitFilterPopupNonexistNumFromUi() {
+            const numInput = el('filterPopupNonexistNum');
+            if (!numInput) {
+                return;
+            }
+            filterNonexistNum = parseFilterNonexistNumInput(getFilterPopupPositionText(numInput));
+            const text = filterNonexistNum != null ? String(filterNonexistNum) : '';
+            setFilterPopupPositionText(numInput, text);
+        }
+
+        function tryAppendFilterPopupNonexistDigit(digit) {
+            const input = el('filterPopupNonexistNum');
+            if (!input) {
+                return false;
+            }
+            const nextText = getFilterPopupPositionText(input) + String(digit);
+            const nextNum = parseInt(nextText, 10);
+            if (!Number.isFinite(nextNum) || nextNum < 1 || nextNum > MAX_NUM) {
+                return false;
+            }
+            setFilterPopupPositionText(input, nextText);
+            filterNonexistNum = nextNum;
+            saveFilterNonexistSettings();
+            if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
+                refreshFilterPopup({ syncMain: false });
+            } else {
+                rebuildNonexistFilterModeCountOnly();
+                updatePeriodFilterMatchCount();
+            }
+            return true;
+        }
+
+        function tryBackspaceFilterPopupNonexistNum() {
+            const input = el('filterPopupNonexistNum');
+            if (!input) {
+                return false;
+            }
+            const nextText = getFilterPopupPositionText(input).slice(0, -1);
+            setFilterPopupPositionText(input, nextText);
+            filterNonexistNum = parseFilterNonexistNumInput(nextText);
+            saveFilterNonexistSettings();
+            if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
+                refreshFilterPopup({ syncMain: false });
+            } else {
+                rebuildNonexistFilterModeCountOnly();
+                updatePeriodFilterMatchCount();
+            }
+            return true;
+        }
+
+        function applyNonexistFilterSettingsFromUi() {
+            commitFilterPopupNonexistNumFromUi();
+            saveFilterNonexistSettings();
+            if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
+                refreshFilterPopup({ syncMain: false });
+            } else {
+                rebuildNonexistFilterModeCountOnly();
+                updatePeriodFilterMatchCount();
+            }
+        }
+
+        function getFilterPopupEmptyMessage(mode) {
+            const normalized = normalizeFilterMode(mode);
+            if (isNonexistFilterMode(normalized)) {
+                if (!filterNonexistStyles.length) {
+                    return 'Chọn ít nhất một kiểu chữ (B, I, U, S).';
+                }
+                const styles = getNonexistFilterStyleLabelList();
+                if (isNonexistFilterNumEmpty()) {
+                    return `Không có kỳ nào có số xanh lá (${styles}) trong nonexist.`;
+                }
+                return `Không có kỳ nào có số ${filterNonexistNum} xanh lá (${styles}) trong nonexist.`;
+            }
+            const hint = getFilterModeTitleHint(normalized);
+            return 'Không có kỳ nào khớp ' + hint + '.';
+        }
+
         function getPeriodFilterMenu() {
             return el('periodFilterModeMenu');
         }
@@ -1752,9 +2176,26 @@
             }
 
             for (const mode of VALID_FILTER_MODES) {
-                filterModeCounts[mode] = sheetManager.getFilterMatchingIndices(mode).length;
+                filterModeCounts[mode] = getFilterMatchingIndicesForMode(mode).length;
             }
             updatePeriodFilterModeMenuItemCounts();
+        }
+
+        /** Nonexist UI tweaks only need one mode count, not a full menu recount. */
+        function rebuildNonexistFilterModeCountOnly() {
+            if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
+                return;
+            }
+            filterModeCounts.nonexist = getFilterMatchingIndicesForMode('nonexist').length;
+            const menu = getPeriodFilterMenu();
+            if (!menu) {
+                return;
+            }
+            const item = menu.querySelector('.period-filter-mode-item[data-mode="nonexist"]');
+            const countSpan = item && item.querySelector('.period-filter-mode-item-count');
+            if (countSpan) {
+                countSpan.textContent = String(filterModeCounts.nonexist ?? 0);
+            }
         }
 
         function fitPeriodFilterMatchCountWidth() {
@@ -1818,11 +2259,12 @@
         }
 
         function setFilterPopupPositionInputWidth(positionEl, text) {
-            if (!positionEl) {
+            if (!positionEl || positionEl.classList.contains('filter-popup-nonexist-num')) {
                 return;
             }
             const len = Math.max(1, String(text || '').length);
-            positionEl.style.width = `${len}ch`;
+            const caretExtra = document.activeElement === positionEl ? 1 : 0;
+            positionEl.style.width = `${len + caretExtra}ch`;
         }
 
         function focusFilterPopupByListPosition(position) {
@@ -1947,6 +2389,72 @@
             return true;
         }
 
+        function initFilterPopupNonexistControls() {
+            loadFilterNonexistSettings();
+
+            const tools = el('filterPopupNonexistTools');
+            const numInput = el('filterPopupNonexistNum');
+            const styleWrap = el('filterPopupNonexistStyleWrap');
+
+            if (tools && tools.dataset.bound !== '1') {
+                tools.dataset.bound = '1';
+                tools.addEventListener('mousedown', (event) => {
+                    event.stopPropagation();
+                });
+                tools.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                });
+            }
+
+            if (numInput && numInput.dataset.bound !== '1') {
+                numInput.dataset.bound = '1';
+                numInput.addEventListener('mousedown', (event) => {
+                    event.stopPropagation();
+                });
+                numInput.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                });
+                numInput.addEventListener('keydown', (event) => {
+                    if (!periodFilterEnabled || !isNonexistFilterMode(periodFilterMode)) {
+                        return;
+                    }
+                    const key = String(event.key || '');
+                    if (key >= '0' && key <= '9') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        tryAppendFilterPopupNonexistDigit(key);
+                        return;
+                    }
+                    if (key === 'Backspace') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        tryBackspaceFilterPopupNonexistNum();
+                    }
+                });
+            }
+
+            if (styleWrap && styleWrap.dataset.bound !== '1') {
+                styleWrap.dataset.bound = '1';
+                styleWrap.querySelectorAll('.filter-popup-nonexist-style-toggle').forEach((btn) => {
+                    btn.addEventListener('mousedown', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    });
+                    btn.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        const style = btn.dataset.style || '';
+                        if (!style) {
+                            return;
+                        }
+                        toggleFilterPopupNonexistStyle(style);
+                    });
+                });
+            }
+
+            syncFilterPopupNonexistToolsUi();
+        }
+
         function initFilterPopupPositionInput() {
             const popup = getPeriodFilterPicker('popup').countEl;
             const input = el('filterPopupPositionInput');
@@ -2006,7 +2514,8 @@
                 if (!isFilterPopupNavActive()) {
                     return;
                 }
-                if (document.activeElement === input) {
+                const nonexistNumInput = el('filterPopupNonexistNum');
+                if (document.activeElement === input || document.activeElement === nonexistNumInput) {
                     return;
                 }
                 if (isPeriodFilterShortcutBlockedTarget(event.target)) {
@@ -2016,6 +2525,12 @@
                 if (key >= '0' && key <= '9') {
                     event.preventDefault();
                     event.stopPropagation();
+                    if (isNonexistFilterMode(periodFilterMode) && nonexistNumInput) {
+                        setFilterPopupPositionText(nonexistNumInput, '');
+                        nonexistNumInput.focus({ preventScroll: true });
+                        tryAppendFilterPopupNonexistDigit(key);
+                        return;
+                    }
                     const wrap = el('filterPopupPositionWrap');
                     if (wrap) {
                         wrap.classList.remove('hidden');
@@ -2031,15 +2546,31 @@
             const normalized = normalizeFilterMode(mode);
             let total = 0;
             if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1') {
-                total = filterModeCounts[normalized] ?? 0;
+                if (isPreview && isNonexistFilterMode(normalized)) {
+                    total = getFilterMatchingIndicesForMode(normalized).length;
+                } else {
+                    total = filterModeCounts[normalized] ?? 0;
+                }
             }
 
             const label = getFilterModeTitleHint(normalized);
             let title = `Có ${total} kỳ khớp ${label}`;
+            if (isNonexistFilterMode(normalized) && filterNonexistStyles.length) {
+                const styles = getNonexistFilterStyleLabelList();
+                if (isNonexistFilterNumEmpty()) {
+                    title = `Có ${total} kỳ có số xanh lá (${styles}) trong nonexist`;
+                } else {
+                    title = `Có ${total} kỳ có số ${filterNonexistNum} xanh lá (${styles}) trong nonexist`;
+                }
+            }
             if (!periodFilterEnabled) {
                 title = 'Số kỳ khớp mode';
             } else if (isPreview) {
-                title = `Xem trước: ${total} kỳ khớp ${label}`;
+                title = isNonexistFilterMode(normalized) && filterNonexistStyles.length
+                    ? (isNonexistFilterNumEmpty()
+                        ? `Xem trước: ${total} kỳ có số xanh lá (${getNonexistFilterStyleLabelList()}) trong nonexist`
+                        : `Xem trước: ${total} kỳ có số ${filterNonexistNum} xanh lá (${getNonexistFilterStyleLabelList()}) trong nonexist`)
+                    : `Xem trước: ${total} kỳ khớp ${label}`;
             }
 
             const toolbar = getPeriodFilterPicker('toolbar').countEl;
@@ -2180,6 +2711,7 @@
             fitPeriodFilterModeBtnWidth();
             highlightPeriodFilterModeMenu(null);
             updatePeriodFilterMatchCount();
+            syncFilterPopupNonexistToolsUi();
         }
 
         function loadFilterPopupLayout() {
@@ -2245,16 +2777,17 @@
                 return;
             }
 
-            const rect = dock.getBoundingClientRect();
-            if (rect.width < FILTER_POPUP_MIN_WIDTH || rect.height < FILTER_POPUP_MIN_HEIGHT) {
+            const dockRect = dock.getBoundingClientRect();
+            const panelRect = panel.getBoundingClientRect();
+            if (panelRect.width < FILTER_POPUP_MIN_WIDTH || panelRect.height < FILTER_POPUP_MIN_HEIGHT) {
                 return;
             }
 
             const layout = {
-                left: Math.round(rect.left),
-                top: Math.round(rect.top),
-                width: Math.round(rect.width),
-                height: Math.round(rect.height)
+                left: Math.round(dockRect.left),
+                top: Math.round(dockRect.top),
+                width: Math.round(panelRect.width),
+                height: Math.round(panelRect.height)
             };
 
             try {
@@ -2298,6 +2831,7 @@
                 refreshFilterPopup({ syncMain: false });
                 requestAnimationFrame(() => {
                     if (options.focusPopup) {
+                        rememberKeyboardFocusTarget('filter');
                         const wrap = el('filterTableWrap');
                         if (wrap) {
                             try {
@@ -2369,7 +2903,11 @@
                 return;
             }
             const isEmpty = sheetManager.isEmptyResultRow(row);
-            sheetManager.onRowClick(idx, isEmpty, null);
+            sheetManager.onRowClick(idx, isEmpty, null, {
+                skipSave: true,
+                fromFilterNav: true,
+                light: true
+            });
         }
 
         function scrollFilterPopupRowIntoView() {
@@ -2401,9 +2939,6 @@
             };
 
             ensureRowFullyVisible();
-            requestAnimationFrame(() => {
-                ensureRowFullyVisible();
-            });
         }
 
         function updateFilterPopupSelection() {
@@ -2432,17 +2967,218 @@
 
         function getFilterPopupNavStepFromKey(key) {
             const k = String(key || '');
-            if (k === 'ArrowDown' || k === 'ArrowRight' || k === 's' || k === 'S' || k === 'd' || k === 'D') {
+            if (k === 'ArrowDown' || k === 'ArrowRight') {
                 return 1;
             }
-            if (k === 'ArrowUp' || k === 'ArrowLeft' || k === 'w' || k === 'W' || k === 'a' || k === 'A') {
+            if (k === 'ArrowUp' || k === 'ArrowLeft') {
                 return -1;
             }
             return 0;
         }
 
+        function isLeftPaneNavKey(key) {
+            const k = String(key || '');
+            return k === 'w' || k === 'W' || k === 's' || k === 'S' ||
+                k === 'a' || k === 'A' || k === 'd' || k === 'D';
+        }
+
+        function isRightPaneArrowKey(key) {
+            const k = String(key || '');
+            return k === 'ArrowUp' || k === 'ArrowDown' || k === 'ArrowLeft' || k === 'ArrowRight';
+        }
+
+        function forwardLeftPaneNavKey(key) {
+            const frame = el('okFrame');
+            if (!frame || !frame.contentWindow) {
+                return false;
+            }
+            try {
+                frame.contentWindow.postMessage({ type: 'leftPaneNavKey', key: String(key || '') }, '*');
+                rememberKeyboardFocusTarget('left');
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function forwardLeftPaneToggleClear() {
+            const frame = el('okFrame');
+            if (!frame || !frame.contentWindow) {
+                return false;
+            }
+            try {
+                frame.contentWindow.postMessage({ type: 'leftPaneToggleClear' }, '*');
+                rememberKeyboardFocusTarget('left');
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        const RIGHT_PANE_NAV_COALESCE_MS = 180;
+        const rightPaneNavCoalesce = { mode: null, delta: 0, timer: null };
+
+        function getRightPaneArrowStepFromKey(key) {
+            return getFilterPopupNavStepFromKey(key);
+        }
+
+        function flushRightPaneNavCoalesce() {
+            if (rightPaneNavCoalesce.timer) {
+                clearTimeout(rightPaneNavCoalesce.timer);
+                rightPaneNavCoalesce.timer = null;
+            }
+            const mode = rightPaneNavCoalesce.mode;
+            const delta = rightPaneNavCoalesce.delta;
+            rightPaneNavCoalesce.mode = null;
+            rightPaneNavCoalesce.delta = 0;
+            if (!delta || !mode) {
+                return false;
+            }
+            if (mode === 'filter') {
+                return applyFilterPopupNavDelta(delta);
+            }
+            return applyMainTableNavDelta(delta);
+        }
+
+        function queueRightPaneNav(mode, step) {
+            const delta = Number(step) || 0;
+            if (!delta || (mode !== 'main' && mode !== 'filter')) {
+                return false;
+            }
+            if (rightPaneNavCoalesce.mode && rightPaneNavCoalesce.mode !== mode) {
+                flushRightPaneNavCoalesce();
+            }
+            rightPaneNavCoalesce.mode = mode;
+            rightPaneNavCoalesce.delta += delta;
+            clearTimeout(rightPaneNavCoalesce.timer);
+            rightPaneNavCoalesce.timer = setTimeout(flushRightPaneNavCoalesce, RIGHT_PANE_NAV_COALESCE_MS);
+            return true;
+        }
+
+        function applyMainTableNavDelta(delta) {
+            if (!sheetManager) {
+                return false;
+            }
+            const tableWrap = el('tableWrap');
+            if (!tableWrap) {
+                return false;
+            }
+            if (typeof sheetManager.stepSourceSheetRowByDelta !== 'function') {
+                return false;
+            }
+            const handled = sheetManager.stepSourceSheetRowByDelta(delta, tableWrap);
+            if (handled) {
+                rememberKeyboardFocusTarget('main');
+            }
+            return handled;
+        }
+
+        function applyFilterPopupNavDelta(delta) {
+            if (!periodFilterEnabled || filterPopupIndices.length === 0) {
+                return false;
+            }
+            const step = Number(delta) || 0;
+            if (!step) {
+                return false;
+            }
+            const pos = filterPopupIndices.indexOf(filterPopupActiveIdx);
+            const basePos = pos >= 0 ? pos : 0;
+            const nextPos = Math.max(0, Math.min(filterPopupIndices.length - 1, basePos + step));
+            if (filterPopupIndices[nextPos] === filterPopupActiveIdx) {
+                return false;
+            }
+            rememberKeyboardFocusTarget('filter');
+            filterPopupActiveIdx = filterPopupIndices[nextPos];
+            applyFilterPopupRowFocus(filterPopupActiveIdx);
+            scrollFilterPopupRowIntoView();
+            const positionInput = el('filterPopupPositionInput');
+            if (positionInput) {
+                const posText = String(nextPos + 1);
+                setFilterPopupPositionText(positionInput, posText);
+                setFilterPopupPositionInputWidth(positionInput, posText);
+            }
+            syncMainRowFromFilter(filterPopupActiveIdx);
+            return true;
+        }
+
+        function navigateRightPaneByArrowKey(key) {
+            const step = getRightPaneArrowStepFromKey(key);
+            if (!step) {
+                return false;
+            }
+            return queueRightPaneNav('main', step);
+        }
+
+        function initRightPanePointerFocusRouting() {
+            if (document.documentElement.dataset.rightPanePointerFocusBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.rightPanePointerFocusBound = '1';
+
+            const tableWrap = el('tableWrap');
+            if (tableWrap) {
+                tableWrap.addEventListener('mousedown', () => {
+                    rememberKeyboardFocusTarget('main');
+                }, true);
+            }
+
+            const filterDock = el('filterPopupDock');
+            if (filterDock) {
+                filterDock.addEventListener('mousedown', (event) => {
+                    if (event.target.closest('#tableWrap')) {
+                        return;
+                    }
+                    rememberKeyboardFocusTarget('filter');
+                }, true);
+            }
+
+            const filterWrap = el('filterTableWrap');
+            if (filterWrap) {
+                filterWrap.addEventListener('focusin', () => {
+                    rememberKeyboardFocusTarget('filter');
+                });
+            }
+        }
+
+        function initSplitPaneKeyboardRouting() {
+            if (document.documentElement.dataset.splitPaneKeyboardBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.splitPaneKeyboardBound = '1';
+
+            document.addEventListener('keydown', (event) => {
+                if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+                    return;
+                }
+
+                if (isRightPaneArrowKey(event.key)) {
+                    if (handleFilterPopupNavKeydown(event)) {
+                        return;
+                    }
+                    if (navigateRightPaneByArrowKey(event.key)) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    return;
+                }
+
+                if (event.key === 'q' || event.key === 'Q') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    forwardLeftPaneToggleClear();
+                    return;
+                }
+
+                if (isLeftPaneNavKey(event.key)) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    forwardLeftPaneNavKey(event.key);
+                }
+            }, true);
+        }
+
         function handleFilterPopupNavKeydown(event) {
-            if (!isFilterPopupNavActive()) {
+            if (!isFilterPopupNavActive() || !isRightPaneFilterKeyboardTarget()) {
                 return false;
             }
             if (isPeriodFilterShortcutBlockedTarget(event.target)) {
@@ -2453,29 +3189,13 @@
                 return false;
             }
             event.preventDefault();
-            event.stopPropagation();
-            navigateFilterPopup(step);
+            event.stopImmediatePropagation();
+            queueRightPaneNav('filter', step);
             return true;
         }
 
         function navigateFilterPopup(step) {
-            if (!periodFilterEnabled || filterPopupIndices.length === 0) {
-                return;
-            }
-            const pos = filterPopupIndices.indexOf(filterPopupActiveIdx);
-            const basePos = pos >= 0 ? pos : 0;
-            const nextPos = Math.max(0, Math.min(filterPopupIndices.length - 1, basePos + step));
-            filterPopupActiveIdx = filterPopupIndices[nextPos];
-            syncMainRowFromFilter(filterPopupActiveIdx);
-            applyFilterPopupRowFocus(filterPopupActiveIdx);
-            scrollFilterPopupRowIntoView();
-            const positionInput = el('filterPopupPositionInput');
-            if (positionInput) {
-                const posText = String(nextPos + 1);
-                setFilterPopupPositionText(positionInput, posText);
-                setFilterPopupPositionInputWidth(positionInput, posText);
-            }
-            updateFilterPopupMatchCount();
+            applyFilterPopupNavDelta(step);
         }
 
         function refreshFilterPopup(options = {}) {
@@ -2503,14 +3223,23 @@
                 return;
             }
 
-            filterPopupIndices = sheetManager.getFilterMatchingIndices(periodFilterMode);
+            filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
             filterPopupActiveIdx = resolveFilterPopupActiveIdx(filterPopupIndices);
+            if (isNonexistFilterMode(periodFilterMode)) {
+                filterModeCounts.nonexist = filterPopupIndices.length;
+                const menu = getPeriodFilterMenu();
+                const item = menu && menu.querySelector('.period-filter-mode-item[data-mode="nonexist"]');
+                const countSpan = item && item.querySelector('.period-filter-mode-item-count');
+                if (countSpan) {
+                    countSpan.textContent = String(filterModeCounts.nonexist ?? 0);
+                }
+            }
             updatePeriodFilterMatchCount();
+            syncFilterPopupNonexistToolsUi();
 
             if (filterPopupIndices.length === 0) {
                 syncPeriodFilterNavModeToIframe();
-                const hint = getFilterModeTitleHint(periodFilterMode);
-                wrap.innerHTML = '<div class="filter-popup-empty">Không có kỳ nào khớp ' + hint + '.</div>';
+                wrap.innerHTML = '<div class="filter-popup-empty">' + getFilterPopupEmptyMessage(periodFilterMode) + '</div>';
                 return;
             }
 
@@ -2520,8 +3249,11 @@
                 bindKeyboard: false,
                 applyWindowSelection: false,
                 onRowActivated: (idx) => {
+                    rememberKeyboardFocusTarget('filter');
                     filterPopupActiveIdx = idx;
                     applyFilterPopupRowFocus(idx);
+                    syncMainRowFromFilter(idx);
+                    scrollFilterPopupRowIntoView();
                     updateFilterPopupMatchCount();
                 }
             });
@@ -2553,25 +3285,33 @@
 
             const panel = el('filterPopupPanel');
 
+            function blockFilterPopupDblclickExpand(event) {
+                event.preventDefault();
+                event.stopPropagation();
+            }
+
+            header.addEventListener('dblclick', blockFilterPopupDblclickExpand);
+            if (panel) {
+                panel.addEventListener('dblclick', (event) => {
+                    if (event.target.closest('.filter-popup-filter-tools')) {
+                        return;
+                    }
+                    blockFilterPopupDblclickExpand(event);
+                });
+            }
+
             header.addEventListener('mousedown', (event) => {
                 if (event.button !== 0
                     || event.target.closest('#filterPopupClose')
                     || event.target.closest('.filter-popup-filter-tools')) {
                     return;
                 }
-                const rect = dock.getBoundingClientRect();
+                const geometry = pinFilterPopupGeometry(dock, panel);
                 dragging = true;
                 startX = event.clientX;
                 startY = event.clientY;
-                startLeft = rect.left;
-                startTop = rect.top;
-                dock.style.right = 'auto';
-                dock.style.left = `${startLeft}px`;
-                dock.style.top = `${startTop}px`;
-                if (panel) {
-                    panel.style.width = `${rect.width}px`;
-                    panel.style.height = `${rect.height}px`;
-                }
+                startLeft = geometry.left;
+                startTop = geometry.top;
                 event.preventDefault();
             });
 
@@ -2604,14 +3344,117 @@
             applyFilterPopupLayout();
         }
 
-        function initFilterPopupGlobalNav() {
-            if (document.documentElement.dataset.filterPopupGlobalNavBound === '1') {
+        function pinFilterPopupGeometry(dock, panel) {
+            const posRect = dock.getBoundingClientRect();
+            const sizeRect = panel.getBoundingClientRect();
+            dock.style.right = 'auto';
+            dock.style.left = `${Math.round(posRect.left)}px`;
+            dock.style.top = `${Math.round(posRect.top)}px`;
+            panel.style.width = `${Math.round(sizeRect.width)}px`;
+            panel.style.height = `${Math.round(sizeRect.height)}px`;
+            return {
+                left: posRect.left,
+                top: posRect.top,
+                width: sizeRect.width,
+                height: sizeRect.height
+            };
+        }
+
+        function applyFilterPopupResizeDelta(direction, start, dx, dy, dock, panel) {
+            let left = start.left;
+            let top = start.top;
+            let width = start.width;
+            let height = start.height;
+            const maxW = Math.max(FILTER_POPUP_MIN_WIDTH, window.innerWidth - 24);
+            const maxH = Math.max(FILTER_POPUP_MIN_HEIGHT, window.innerHeight - 24);
+
+            if (direction.includes('e')) {
+                width = Math.min(maxW, Math.max(FILTER_POPUP_MIN_WIDTH, start.width + dx));
+            }
+            if (direction.includes('w')) {
+                const nextW = Math.min(maxW, Math.max(FILTER_POPUP_MIN_WIDTH, start.width - dx));
+                left = start.left + (start.width - nextW);
+                width = nextW;
+            }
+            if (direction.includes('s')) {
+                height = Math.min(maxH, Math.max(FILTER_POPUP_MIN_HEIGHT, start.height + dy));
+            }
+            if (direction.includes('n')) {
+                const nextH = Math.min(maxH, Math.max(FILTER_POPUP_MIN_HEIGHT, start.height - dy));
+                top = start.top + (start.height - nextH);
+                height = nextH;
+            }
+
+            const maxLeft = Math.max(8, window.innerWidth - width - 8);
+            const maxTop = Math.max(8, window.innerHeight - height - 8);
+            left = Math.min(maxLeft, Math.max(8, left));
+            top = Math.min(maxTop, Math.max(8, top));
+
+            dock.style.left = `${Math.round(left)}px`;
+            dock.style.top = `${Math.round(top)}px`;
+            panel.style.width = `${Math.round(width)}px`;
+            panel.style.height = `${Math.round(height)}px`;
+        }
+
+        function initFilterPopupResize() {
+            const dock = el('filterPopupDock');
+            const panel = el('filterPopupPanel');
+            if (!dock || !panel || panel.dataset.resizeBound === '1') {
                 return;
             }
-            document.documentElement.dataset.filterPopupGlobalNavBound = '1';
-            document.addEventListener('keydown', (event) => {
-                handleFilterPopupNavKeydown(event);
-            }, true);
+            panel.dataset.resizeBound = '1';
+
+            let resizing = false;
+            let direction = '';
+            let start = null;
+
+            panel.querySelectorAll('.filter-popup-resize-handle').forEach((handle) => {
+                handle.addEventListener('mousedown', (event) => {
+                    if (event.button !== 0) {
+                        return;
+                    }
+                    direction = String(handle.dataset.resize || '');
+                    if (!direction) {
+                        return;
+                    }
+                    const geometry = pinFilterPopupGeometry(dock, panel);
+                    start = {
+                        left: geometry.left,
+                        top: geometry.top,
+                        width: geometry.width,
+                        height: geometry.height,
+                        x: event.clientX,
+                        y: event.clientY
+                    };
+                    resizing = true;
+                    event.preventDefault();
+                    event.stopPropagation();
+                });
+            });
+
+            document.addEventListener('mousemove', (event) => {
+                if (!resizing || !start) {
+                    return;
+                }
+                applyFilterPopupResizeDelta(
+                    direction,
+                    start,
+                    event.clientX - start.x,
+                    event.clientY - start.y,
+                    dock,
+                    panel
+                );
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (!resizing) {
+                    return;
+                }
+                resizing = false;
+                start = null;
+                direction = '';
+                scheduleSaveFilterPopupLayout();
+            });
         }
 
         function initFilterPopupKeyboard() {
@@ -2620,7 +3463,6 @@
                 return;
             }
             wrap.dataset.filterNavBound = '1';
-            initFilterPopupGlobalNav();
 
             wrap.addEventListener('keydown', (event) => {
                 if (!periodFilterEnabled || el('filterPopupDock')?.classList.contains('hidden')) {
@@ -2758,11 +3600,13 @@
             }
 
             initPeriodFilterModePicker();
+            initFilterPopupNonexistControls();
             initFilterPopupPositionInput();
             initPeriodFilterCtrlShortcut();
             syncPeriodFilterToolbarUi();
             initFilterPopupLayoutOnWindowResize();
             initFilterPopupDrag();
+            initFilterPopupResize();
             initFilterPopupKeyboard();
             if (periodFilterEnabled) {
                 refreshFilterPopup();
@@ -2936,6 +3780,8 @@
 
         document.addEventListener('DOMContentLoaded', () => {
             initParentSpaceSubmitShortcut();
+            initSplitPaneKeyboardRouting();
+            initRightPanePointerFocusRouting();
             initZoomControls();
             initSubmitRingToolbar();
             initPeriodFilterToolbar();
@@ -2979,7 +3825,7 @@
             const tableWrap = el('tableWrap');
             if (tableWrap) {
                 tableWrap.addEventListener('focusin', () => {
-                    rememberKeyboardFocusTarget('right');
+                    rememberKeyboardFocusTarget('main');
                 });
                 tableWrap.addEventListener('scroll', () => {
                     captureCurrentScrollPosition();
@@ -2995,8 +3841,13 @@
 
             // Listen for row clicks from sheet manager
             window.addEventListener('rowClicked', (e) => {
+                flushRightPaneNavCoalesce();
                 const detail = e.detail || {};
-                if (periodFilterEnabled && typeof detail.focusRowIndex === 'number') {
+                const fromFilterNav = !!detail.fromFilterNav;
+                if (!fromFilterNav) {
+                    rememberKeyboardFocusTarget('main');
+                }
+                if (periodFilterEnabled && !fromFilterNav && typeof detail.focusRowIndex === 'number') {
                     filterPopupActiveIdx = detail.focusRowIndex;
                     if (filterPopupIndices.includes(filterPopupActiveIdx)) {
                         applyFilterPopupRowFocus(filterPopupActiveIdx);
@@ -3007,9 +3858,11 @@
                 selectedLines = detail.selectedLines || [];
                 selectedNums.clear();
                 detail.selectedNums.forEach(n => selectedNums.add(n));
-                syncComboLogicUi();
-                renderSelectedLines();
-                renderSummaryTable();
+                if (!detail.light) {
+                    syncComboLogicUi();
+                    renderSelectedLines();
+                    renderSummaryTable();
+                }
 
                 // Send selected lines to iframe for updating submit state
                 const frame = el('okFrame');
@@ -3032,6 +3885,7 @@
                         lines: lines,
                         disableSubmit: isFocusEmpty,
                         submitActive: iframeSubmitActive,
+                        preserveSelection: fromFilterNav,
                         focusRowId: String(detail.clickedRowId || '').trim(),
                         focusRowIndex: detail.focusRowIndex,
                         focusNonexistHighlights: detail.focusNonexistHighlights || {},
@@ -3078,7 +3932,20 @@
                     if (!step) {
                         return;
                     }
-                    navigateFilterPopup(step);
+                    queueRightPaneNav('filter', step);
+                    return;
+                }
+                if (msg.type === 'rightPaneNavKey') {
+                    const frame = el('okFrame');
+                    if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
+                        return;
+                    }
+                    const arrowStep = getFilterPopupNavStepFromKey(msg.key);
+                    if (arrowStep && isFilterPopupNavActive() && isRightPaneFilterKeyboardTarget()) {
+                        queueRightPaneNav('filter', arrowStep);
+                        return;
+                    }
+                    navigateRightPaneByArrowKey(msg.key);
                     return;
                 }
                 if (msg.type === 'submitStateChanged') {

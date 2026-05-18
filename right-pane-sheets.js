@@ -98,6 +98,69 @@ class RightPaneSheetManager {
         this.noteCache = this.buildNotesFromRows(this.sourceRows || []);
         this.nonexistCache = this.buildNonexistFromRows(this.sourceRows || []);
         this.idFrequencyMap = this.buildIdFrequencyMapFromNotes(this.noteCache);
+        this.nonexistGreenFilterCache = null;
+        this.ensureNonexistGreenFilterCache();
+    }
+
+    /**
+     * Per-row green nonexist entries for filter (built once per data refresh).
+     * @returns {{ num: number, kind: string }[][]}
+     */
+    ensureNonexistGreenFilterCache() {
+        const rows = this.dataRows || [];
+        if (this.nonexistGreenFilterCache && this.nonexistGreenFilterCache.length === rows.length) {
+            return this.nonexistGreenFilterCache;
+        }
+        if (!this.nonexistCache || this.nonexistCache.length !== rows.length) {
+            this.refreshDerivedState();
+        }
+        const cache = new Array(rows.length);
+        for (let i = 0; i < rows.length; i++) {
+            cache[i] = this.isEmptyResultRow(rows[i])
+                ? []
+                : this.buildNonexistGreenEntriesForRow(i);
+        }
+        this.nonexistGreenFilterCache = cache;
+        return cache;
+    }
+
+    /**
+     * Green-highlighted numbers in one row's nonexist column (single visual-state pass).
+     */
+    buildNonexistGreenEntriesForRow(rowIndex) {
+        const row = (this.dataRows || [])[rowIndex];
+        if (!row) {
+            return [];
+        }
+
+        const nonexistMeta = this.getNonexistMetaForSourceRow(rowIndex, row);
+        const nonexistText = String(nonexistMeta.text || '').trim();
+        if (!nonexistText || nonexistText === 'N/A') {
+            return [];
+        }
+
+        const currentResult = row.result || row.Result || '';
+        const state = this.computeNonexistVisualState(rowIndex, nonexistText, currentResult);
+        if (!state) {
+            return [];
+        }
+
+        const entries = [];
+        const candidates = this.parseNums(nonexistText);
+        for (let i = 0; i < candidates.length; i++) {
+            const num = candidates[i];
+            const kind = this.getNonexistDisplayKindForNumber(
+                rowIndex,
+                num,
+                nonexistText,
+                currentResult,
+                state
+            );
+            if (this.isGreenNonexistDisplayKind(kind)) {
+                entries.push({ num, kind });
+            }
+        }
+        return entries;
     }
 
     /**
@@ -467,9 +530,39 @@ class RightPaneSheetManager {
         return this.shouldHighlightDateByPairWindow(rows, rowIndex);
     }
 
-    getFilterMatchingIndices(mode) {
+    getFilterMatchingIndices(mode, filterOptions = null) {
         const indices = [];
         const rows = this.dataRows || [];
+        if (mode === 'nonexist') {
+            const opts = filterOptions || {};
+            const numRaw = opts.num;
+            const num = (numRaw === null || numRaw === undefined || numRaw === '')
+                ? null
+                : parseInt(numRaw, 10);
+            const styles = Array.isArray(opts.styles) ? opts.styles : [];
+
+            if (styles.length === 0) {
+                return indices;
+            }
+
+            if (num === null || !Number.isFinite(num) || num < 1 || num > 35) {
+                for (let i = 0; i < rows.length; i++) {
+                    if (!this.isEmptyResultRow(rows[i])
+                        && this.rowMatchesNonexistGreenStyleFilter(i, styles, null)) {
+                        indices.push(i);
+                    }
+                }
+                return indices;
+            }
+
+            for (let i = 0; i < rows.length; i++) {
+                if (this.rowMatchesNonexistGreenStyleFilter(i, styles, num)) {
+                    indices.push(i);
+                }
+            }
+            return indices;
+        }
+
         for (let i = 0; i < rows.length; i++) {
             if (this.isEmptyResultRow(rows[i])) {
                 continue;
@@ -485,6 +578,90 @@ class RightPaneSheetManager {
             }
         }
         return indices;
+    }
+
+    /**
+     * Green (xanh lá) display kinds in the nonexist column.
+     */
+    isGreenNonexistDisplayKind(kind) {
+        return kind === 'green'
+            || kind === 'green-italic'
+            || kind === 'green-ul'
+            || kind === 'green-strike';
+    }
+
+    /**
+     * Whether a green nonexist number matches one selected style token.
+     * Each letter maps to one green variant only (B ≠ italic/underline/strike).
+     */
+    nonexistGreenKindMatchesStyle(kind, style) {
+        if (!this.isGreenNonexistDisplayKind(kind)) {
+            return false;
+        }
+        if (style === 'bold') {
+            return kind === 'green';
+        }
+        if (style === 'italic') {
+            return kind === 'green-italic';
+        }
+        if (style === 'underline') {
+            return kind === 'green-ul';
+        }
+        if (style === 'strikethrough') {
+            return kind === 'green-strike';
+        }
+        return false;
+    }
+
+    /**
+     * True when the row's nonexist column has at least one green-highlighted number.
+     */
+    rowHasAnyGreenNonexistNumber(rowIndex) {
+        const entries = this.ensureNonexistGreenFilterCache()[rowIndex];
+        return Array.isArray(entries) && entries.length > 0;
+    }
+
+    /**
+     * Match row nonexist: optional specificNum, or any green number matching a selected style (OR).
+     */
+    rowMatchesNonexistGreenStyleFilter(rowIndex, styles, specificNum = null) {
+        const styleList = Array.isArray(styles) ? styles : [];
+        if (styleList.length === 0) {
+            return false;
+        }
+
+        const row = (this.dataRows || [])[rowIndex];
+        if (!row || this.isEmptyResultRow(row)) {
+            return false;
+        }
+
+        const targetNum = specificNum === null || specificNum === undefined || specificNum === ''
+            ? null
+            : parseInt(specificNum, 10);
+        if (targetNum !== null && (!Number.isFinite(targetNum) || targetNum < 1 || targetNum > 35)) {
+            return false;
+        }
+
+        const greenEntries = this.ensureNonexistGreenFilterCache()[rowIndex] || [];
+        for (let i = 0; i < greenEntries.length; i++) {
+            const entry = greenEntries[i];
+            if (targetNum !== null && entry.num !== targetNum) {
+                continue;
+            }
+            for (let j = 0; j < styleList.length; j++) {
+                if (this.nonexistGreenKindMatchesStyle(entry.kind, styleList[j])) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * True when nonexist lists the number in green and it matches at least one selected style (OR).
+     */
+    rowMatchesNonexistStyleFilter(rowIndex, num, styles) {
+        return this.rowMatchesNonexistGreenStyleFilter(rowIndex, styles, num);
     }
 
     /**
@@ -567,7 +744,69 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Enable Enter-to-select-next-row keyboard navigation on source sheets.
+     * Step the active source-sheet row using arrow keys (right pane only).
+     * @returns {boolean} true when navigation was handled
+     */
+    stepSourceSheetRowByArrowKey(key, tableWrap) {
+        const normalized = String(key || '').toLowerCase();
+        const isStepForward = normalized === 'arrowdown' || normalized === 'arrowright';
+        const isStepBackward = normalized === 'arrowup' || normalized === 'arrowleft';
+        if (!isStepForward && !isStepBackward) {
+            return false;
+        }
+        const step = isStepForward ? 1 : -1;
+        return this.stepSourceSheetRowByDelta(step, tableWrap);
+    }
+
+    /**
+     * Jump the active source-sheet row by a signed row delta (coalesced arrow bursts).
+     * @returns {boolean} true when navigation was handled
+     */
+    stepSourceSheetRowByDelta(delta, tableWrap) {
+        const step = Number(delta) || 0;
+        if (!step) {
+            return false;
+        }
+
+        const wrap = tableWrap || document.getElementById('tableWrap');
+        if (!wrap) {
+            return false;
+        }
+
+        const activeSheetMeta = this.sheets[this.activeSheet] || {};
+        if (activeSheetMeta.kind === 'combo') {
+            return false;
+        }
+
+        const displayRows = this.dataRows || [];
+        if (displayRows.length === 0) {
+            return false;
+        }
+
+        const currentIdx = this.activeWindowRange && typeof this.activeWindowRange.target === 'number'
+            ? this.activeWindowRange.target
+            : -1;
+        if (currentIdx < 0) {
+            return false;
+        }
+
+        const nextIdx = Math.max(0, Math.min(displayRows.length - 1, currentIdx + step));
+        if (nextIdx === currentIdx) {
+            return false;
+        }
+
+        const nextRow = wrap.querySelector(`tbody tr[data-idx="${nextIdx}"]`);
+        if (!nextRow) {
+            return false;
+        }
+
+        nextRow.click();
+        this.centerActiveWindowInView(wrap);
+        return true;
+    }
+
+    /**
+     * Enable keyboard navigation on source sheets (arrow keys + Space).
      */
     bindSourceSheetKeyboardNavigation(tableWrap) {
         if (!tableWrap || tableWrap.dataset.enterNavBound === '1') {
@@ -580,10 +819,6 @@ class RightPaneSheetManager {
         }
 
         tableWrap.addEventListener('keydown', (event) => {
-            const key = String(event.key || '').toLowerCase();
-            const isStepForward = key === 'arrowdown' || key === 'arrowright' || key === 's' || key === 'd';
-            const isStepBackward = key === 'arrowup' || key === 'arrowleft' || key === 'w' || key === 'a';
-
             // Handle Space to toggle submit on iframe
             if (event.code === 'Space') {
                 event.preventDefault();
@@ -594,7 +829,9 @@ class RightPaneSheetManager {
                 return;
             }
 
-            if (!isStepForward && !isStepBackward) {
+            const key = String(event.key || '').toLowerCase();
+            const isArrow = key === 'arrowdown' || key === 'arrowright' || key === 'arrowup' || key === 'arrowleft';
+            if (!isArrow) {
                 return;
             }
 
@@ -609,37 +846,9 @@ class RightPaneSheetManager {
                 return;
             }
 
-            const activeSheetMeta = this.sheets[this.activeSheet] || {};
-            if (activeSheetMeta.kind === 'combo') {
-                return;
+            if (this.stepSourceSheetRowByArrowKey(event.key, tableWrap)) {
+                event.preventDefault();
             }
-
-            const displayRows = this.dataRows || [];
-            if (displayRows.length === 0) {
-                return;
-            }
-
-            const currentIdx = this.activeWindowRange && typeof this.activeWindowRange.target === 'number'
-                ? this.activeWindowRange.target
-                : -1;
-            if (currentIdx < 0) {
-                return;
-            }
-
-            const step = isStepForward ? 1 : -1;
-            const nextIdx = Math.max(0, Math.min(displayRows.length - 1, currentIdx + step));
-            if (nextIdx === currentIdx) {
-                return;
-            }
-
-            const nextRow = tableWrap.querySelector(`tbody tr[data-idx="${nextIdx}"]`);
-            if (!nextRow) {
-                return;
-            }
-
-            event.preventDefault();
-            nextRow.click();
-            this.centerActiveWindowInView(tableWrap);
         });
     }
 
@@ -1434,9 +1643,9 @@ class RightPaneSheetManager {
     /**
      * Highlight kind for one number in a nonexist list ('yellow' | 'red' | 'green' | 'green-ul' | 'green-italic' | '').
      */
-    getNonexistHighlightKindForNumber(rowIndex, num, nonexistText, currentResult) {
-        const state = this.computeNonexistVisualState(rowIndex, nonexistText, currentResult);
-        if (!state) {
+    getNonexistHighlightKindForNumber(rowIndex, num, nonexistText, currentResult, state = null) {
+        const visual = state || this.computeNonexistVisualState(rowIndex, nonexistText, currentResult);
+        if (!visual) {
             return '';
         }
 
@@ -1446,9 +1655,9 @@ class RightPaneSheetManager {
         }
 
         const valueText = String(value);
-        const isInDiff = !state.prevNonexistNums.has(value);
-        const isMatch = state.currentNums.has(value);
-        const isLongest = state.longestSet.has(valueText);
+        const isInDiff = !visual.prevNonexistNums.has(value);
+        const isMatch = visual.currentNums.has(value);
+        const isLongest = visual.longestSet.has(valueText);
 
         if (isLongest) {
             return isMatch ? 'green-ul' : 'red';
@@ -1468,9 +1677,9 @@ class RightPaneSheetManager {
     /**
      * Final display kind for one nonexist number (matches renderNonexistHtml priority).
      */
-    getNonexistDisplayKindForNumber(rowIndex, num, nonexistText, currentResult) {
-        const state = this.computeNonexistVisualState(rowIndex, nonexistText, currentResult);
-        if (!state) {
+    getNonexistDisplayKindForNumber(rowIndex, num, nonexistText, currentResult, state = null) {
+        const visual = state || this.computeNonexistVisualState(rowIndex, nonexistText, currentResult);
+        if (!visual) {
             return '';
         }
 
@@ -1479,8 +1688,14 @@ class RightPaneSheetManager {
             return '';
         }
 
-        const kind = this.getNonexistHighlightKindForNumber(rowIndex, num, nonexistText, currentResult);
-        const isMatch = state.currentNums.has(value);
+        const kind = this.getNonexistHighlightKindForNumber(
+            rowIndex,
+            num,
+            nonexistText,
+            currentResult,
+            visual
+        );
+        const isMatch = visual.currentNums.has(value);
         const longerOutside = this.isNonexistLongerOutsideWindow(rowIndex, value);
 
         if (kind === 'red') {
@@ -1512,11 +1727,18 @@ class RightPaneSheetManager {
             return {};
         }
         const currentResult = row.result || row.Result || '';
+        const state = this.computeNonexistVisualState(rowIndex, nonexistText, currentResult);
         const out = {};
         const candidates = this.parseNums(nonexistText);
         for (let i = 0; i < candidates.length; i++) {
             const num = candidates[i];
-            const kind = this.getNonexistDisplayKindForNumber(rowIndex, num, nonexistText, currentResult);
+            const kind = this.getNonexistDisplayKindForNumber(
+                rowIndex,
+                num,
+                nonexistText,
+                currentResult,
+                state
+            );
             if (kind) {
                 out[num] = kind;
             }
@@ -1873,7 +2095,7 @@ class RightPaneSheetManager {
     /**
      * Handle row click - dispatch to parent
      */
-    onRowClick(idx, isEmptyRow, event) {
+    onRowClick(idx, isEmptyRow, event, options = {}) {
         const start = Math.max(0, idx - 10);
         const slice = isEmptyRow ? this.dataRows.slice(start, idx) : this.dataRows.slice(start, idx + 1);
         const lines = slice.map((r, offset) => {
@@ -1923,7 +2145,9 @@ class RightPaneSheetManager {
             this.comboFocusRowId = focusCandidate.id || '';
         }
 
-        this.save();
+        if (!options.skipSave) {
+            this.save();
+        }
 
         const windowEnd = idx;
         const targetIdx = idx;
@@ -1931,7 +2155,7 @@ class RightPaneSheetManager {
 
         const tableWrap = document.getElementById('tableWrap');
         const activeSheetMeta = this.sheets[this.activeSheet] || {};
-        if (tableWrap && activeSheetMeta.kind !== 'combo') {
+        if (!options.skipCenter && tableWrap && activeSheetMeta.kind !== 'combo') {
             this.centerActiveWindowInView(tableWrap);
         }
 
@@ -1943,7 +2167,9 @@ class RightPaneSheetManager {
                 sheetName: this.activeSheet,
                 clickedRowId,
                 focusRowIndex: idx,
-                focusNonexistHighlights
+                focusNonexistHighlights,
+                fromFilterNav: !!options.fromFilterNav,
+                light: !!options.light
             }
         }));
     }
