@@ -3457,8 +3457,7 @@
             sheetManager.onRowClick(idx, isEmpty, null, {
                 skipSave: true,
                 fromFilterNav: true,
-                light: true,
-                skipCenter: true
+                light: true
             });
         }
 
@@ -3793,13 +3792,12 @@
                 return;
             }
             const wrap = el('filterTableWrap');
-            const tr = wrap && wrap.querySelector(`tbody tr[data-idx="${idx}"]`);
-            sheetManager.onRowClick(idx, tr && tr.dataset.empty === '1', event || null, {
-                skipSave: true,
-                fromFilterNav: true,
-                light: true,
-                skipCenter: true
-            });
+            rememberKeyboardFocusTarget('filter');
+            filterPopupActiveIdx = idx;
+            applyFilterPopupRowFocus(idx);
+            syncMainRowFromFilter(idx);
+            scrollFilterPopupRowIntoView();
+            updateFilterPopupMatchCount();
             try {
                 if (wrap) {
                     wrap.focus({ preventScroll: true });
@@ -3807,12 +3805,6 @@
             } catch (err) {
                 // ignore
             }
-            rememberKeyboardFocusTarget('filter');
-            filterPopupActiveIdx = idx;
-            applyFilterPopupRowFocus(idx);
-            syncMainRowFromFilter(idx);
-            scrollFilterPopupRowIntoView();
-            updateFilterPopupMatchCount();
         }
 
         function initFilterPopupTableClickDelegation() {
