@@ -101,6 +101,7 @@ class RightPaneSheetManager {
         this.nonexistCache = this.buildNonexistFromRows(this.sourceRows || []);
         this.idFrequencyMap = this.buildIdFrequencyMapFromNotes(this.noteCache);
         this.nonexistGreenFilterCache = null;
+        this.nonexistDisplayEntriesCache = null;
     }
 
     /** Rows used for sheet1 / nonexist filter (independent of active combo tab). */
@@ -171,6 +172,92 @@ class RightPaneSheetManager {
             }
         }
         return entries;
+    }
+
+    /**
+     * Map a nonexist display kind to a filter color bucket (green / red / purple / yellow).
+     */
+    getNonexistColorCategory(kind) {
+        if (this.isGreenNonexistDisplayKind(kind)) {
+            return 'green';
+        }
+        if (kind === 'red') {
+            return 'red';
+        }
+        if (kind === 'purple') {
+            return 'purple';
+        }
+        if (kind === 'yellow') {
+            return 'yellow';
+        }
+        return '';
+    }
+
+    /**
+     * Per-row nonexist numbers with final display color (all highlight kinds).
+     */
+    buildNonexistDisplayEntriesForRow(rowIndex) {
+        const row = this.getSourceSheetRows()[rowIndex];
+        if (!row) {
+            return [];
+        }
+
+        const nonexistMeta = this.getNonexistMetaForSourceRow(rowIndex, row);
+        const nonexistText = String(nonexistMeta.text || '').trim();
+        if (!nonexistText || nonexistText === 'N/A') {
+            return [];
+        }
+
+        const currentResult = row.result || row.Result || '';
+        const state = this.computeNonexistVisualState(rowIndex, nonexistText, currentResult);
+        if (!state) {
+            return [];
+        }
+
+        const entries = [];
+        const candidates = this.parseNums(nonexistText);
+        for (let i = 0; i < candidates.length; i++) {
+            const num = candidates[i];
+            const kind = this.getNonexistDisplayKindForNumber(
+                rowIndex,
+                num,
+                nonexistText,
+                currentResult,
+                state
+            );
+            const color = this.getNonexistColorCategory(kind);
+            if (color) {
+                entries.push({ num, kind, color });
+            }
+        }
+        return entries;
+    }
+
+    /**
+     * Cached per-row nonexist display entries for color filtering.
+     */
+    ensureNonexistDisplayEntriesCache() {
+        const rows = this.getSourceSheetRows();
+        if (this.nonexistDisplayEntriesCache && this.nonexistDisplayEntriesCache.length === rows.length) {
+            return this.nonexistDisplayEntriesCache;
+        }
+        if (!this.nonexistCache || this.nonexistCache.length !== rows.length) {
+            this.nonexistCache = this.buildNonexistFromRows(rows);
+        }
+        const cache = new Array(rows.length);
+        for (let i = 0; i < rows.length; i++) {
+            cache[i] = this.isEmptyResultRow(rows[i])
+                ? []
+                : this.buildNonexistDisplayEntriesForRow(i);
+        }
+        this.nonexistDisplayEntriesCache = cache;
+        this.nonexistGreenFilterCache = cache.map((entries) =>
+            (entries || []).filter((entry) => entry.color === 'green').map((entry) => ({
+                num: entry.num,
+                kind: entry.kind
+            }))
+        );
+        return cache;
     }
 
     /**
@@ -587,16 +674,19 @@ class RightPaneSheetManager {
             const num = (numRaw === null || numRaw === undefined || numRaw === '')
                 ? null
                 : parseInt(numRaw, 10);
+            const colors = Array.isArray(opts.colors)
+                ? opts.colors.filter((c) => ['green', 'red', 'purple', 'yellow'].includes(c))
+                : [];
             const styles = Array.isArray(opts.styles) ? opts.styles : [];
 
-            if (styles.length === 0) {
+            if (colors.length === 0) {
                 return indices;
             }
 
             if (num === null || !Number.isFinite(num) || num < 1 || num > 35) {
                 for (let i = 0; i < rows.length; i++) {
                     if (!this.isEmptyResultRow(rows[i])
-                        && this.rowMatchesNonexistGreenStyleFilter(i, styles, null)) {
+                        && this.rowMatchesNonexistColorFilter(i, colors, styles, null)) {
                         indices.push(i);
                     }
                 }
@@ -604,7 +694,7 @@ class RightPaneSheetManager {
             }
 
             for (let i = 0; i < rows.length; i++) {
-                if (this.rowMatchesNonexistGreenStyleFilter(i, styles, num)) {
+                if (this.rowMatchesNonexistColorFilter(i, colors, styles, num)) {
                     indices.push(i);
                 }
             }
@@ -726,8 +816,15 @@ class RightPaneSheetManager {
      * Match row nonexist: optional specificNum, or any green number matching a selected style (OR).
      */
     rowMatchesNonexistGreenStyleFilter(rowIndex, styles, specificNum = null) {
-        const styleList = Array.isArray(styles) ? styles : [];
-        if (styleList.length === 0) {
+        return this.rowMatchesNonexistColorFilter(rowIndex, ['green'], styles, specificNum);
+    }
+
+    /**
+     * Match row by selected nonexist colors. Green uses B/I/U/S toggles; red/purple/yellow are color-only.
+     */
+    rowMatchesNonexistColorFilter(rowIndex, colors, styles, specificNum = null) {
+        const colorList = Array.isArray(colors) ? colors : [];
+        if (colorList.length === 0) {
             return false;
         }
 
@@ -743,17 +840,29 @@ class RightPaneSheetManager {
             return false;
         }
 
-        const greenEntries = this.ensureNonexistGreenFilterCache()[rowIndex] || [];
-        for (let i = 0; i < greenEntries.length; i++) {
-            const entry = greenEntries[i];
+        const styleList = Array.isArray(styles) ? styles : [];
+        const entries = this.ensureNonexistDisplayEntriesCache()[rowIndex] || [];
+
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
             if (targetNum !== null && entry.num !== targetNum) {
                 continue;
             }
-            for (let j = 0; j < styleList.length; j++) {
-                if (this.nonexistGreenKindMatchesStyle(entry.kind, styleList[j])) {
-                    return true;
-                }
+            if (!colorList.includes(entry.color)) {
+                continue;
             }
+            if (entry.color === 'green') {
+                if (styleList.length === 0) {
+                    continue;
+                }
+                for (let j = 0; j < styleList.length; j++) {
+                    if (this.nonexistGreenKindMatchesStyle(entry.kind, styleList[j])) {
+                        return true;
+                    }
+                }
+                continue;
+            }
+            return true;
         }
         return false;
     }
@@ -936,26 +1045,7 @@ class RightPaneSheetManager {
                 return;
             }
 
-            const key = String(event.key || '').toLowerCase();
-            const isArrow = key === 'arrowdown' || key === 'arrowright' || key === 'arrowup' || key === 'arrowleft';
-            if (!isArrow) {
-                return;
-            }
-
-            const target = event.target;
-            const tag = target && target.tagName ? String(target.tagName).toUpperCase() : '';
-            if (target && (target.isContentEditable || tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON')) {
-                return;
-            }
-
-            const activeEl = document.activeElement;
-            if (activeEl && activeEl !== tableWrap && !tableWrap.contains(activeEl)) {
-                return;
-            }
-
-            if (this.stepSourceSheetRowByArrowKey(event.key, tableWrap)) {
-                event.preventDefault();
-            }
+            // Arrow keys: handled by index.html (preview per keypress, commit after coalesce).
         });
     }
 
@@ -1261,17 +1351,20 @@ class RightPaneSheetManager {
     /**
      * Apply a black border to the result/note/nonexist cells for the selected window.
      */
-    applyWindowSelection(startIdx, endIdx, targetIdx = null, tableWrapEl) {
+    applyWindowSelection(startIdx, endIdx, targetIdx = null, tableWrapEl, options = {}) {
         const tableWrap = tableWrapEl || document.getElementById('tableWrap');
         if (!tableWrap) {
             return;
         }
+        const previewOnly = !!(options && options.previewOnly);
 
         this.clearWindowSelection(tableWrap);
 
         if (startIdx === null || endIdx === null || endIdx < startIdx) {
             this.activeWindowRange = null;
-            this.refreshNonexistCellsForActiveWindow(tableWrap);
+            if (!previewOnly) {
+                this.refreshNonexistCellsForActiveWindow(tableWrap);
+            }
             return;
         }
 
@@ -1333,6 +1426,9 @@ class RightPaneSheetManager {
 
         const prevWindowRange = this.activeWindowRange;
         this.activeWindowRange = { start: startIdx, end: endIdx, target: targetIdx };
+        if (previewOnly) {
+            return;
+        }
         // Refresh nonexist HTML first; renderWindowLabels after so innerHTML does not strip labels.
         const refreshIndices = new Set();
         if (prevWindowRange && typeof prevWindowRange.start === 'number' && typeof prevWindowRange.end === 'number') {
@@ -1345,6 +1441,79 @@ class RightPaneSheetManager {
         }
         this.refreshNonexistCellsForRowIndices(tableWrap, refreshIndices);
         this.renderWindowLabels(startIdx, endIdx, tableWrap);
+    }
+
+    /**
+     * Arrow preview: move window/focus outline one row without loading row data.
+     */
+    previewSourceSheetRowByStep(step, tableWrap) {
+        const delta = Number(step) || 0;
+        if (!delta) {
+            return false;
+        }
+
+        const wrap = tableWrap || document.getElementById('tableWrap');
+        if (!wrap) {
+            return false;
+        }
+
+        const activeSheetMeta = this.sheets[this.activeSheet] || {};
+        if (activeSheetMeta.kind === 'combo') {
+            return false;
+        }
+
+        const displayRows = this.dataRows || [];
+        if (displayRows.length === 0) {
+            return false;
+        }
+
+        const currentIdx = this.activeWindowRange && typeof this.activeWindowRange.target === 'number'
+            ? this.activeWindowRange.target
+            : -1;
+        if (currentIdx < 0) {
+            return false;
+        }
+
+        const nextIdx = Math.max(0, Math.min(displayRows.length - 1, currentIdx + delta));
+        if (nextIdx === currentIdx) {
+            return false;
+        }
+
+        const start = Math.max(0, nextIdx - 10);
+        this.applyWindowSelection(start, nextIdx, nextIdx, wrap, { previewOnly: true });
+        this.centerActiveWindowInView(wrap);
+        return true;
+    }
+
+    /**
+     * After coalesced arrow burst: load the row at the current preview target.
+     */
+    commitSourceSheetRowAtTarget(tableWrap) {
+        const wrap = tableWrap || document.getElementById('tableWrap');
+        if (!wrap) {
+            return false;
+        }
+
+        const activeSheetMeta = this.sheets[this.activeSheet] || {};
+        if (activeSheetMeta.kind === 'combo') {
+            return false;
+        }
+
+        const targetIdx = this.activeWindowRange && typeof this.activeWindowRange.target === 'number'
+            ? this.activeWindowRange.target
+            : -1;
+        if (targetIdx < 0) {
+            return false;
+        }
+
+        const nextRow = wrap.querySelector(`tbody tr[data-idx="${targetIdx}"]`);
+        if (!nextRow) {
+            return false;
+        }
+
+        nextRow.click();
+        this.centerActiveWindowInView(wrap);
+        return true;
     }
 
     /**

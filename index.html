@@ -709,6 +709,66 @@
             box-sizing: border-box;
         }
 
+        .filter-popup-nonexist-color-picker {
+            display: inline-flex;
+            align-items: center;
+            flex-shrink: 0;
+            border-left: 1px solid #cbd5e1;
+            position: relative;
+        }
+
+        .filter-popup-nonexist-color-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            height: 24px;
+            min-width: 44px;
+            padding: 0 6px;
+            border: 1px solid #94a3b8;
+            border-radius: 3px;
+            background: #ffffff;
+            cursor: pointer;
+            box-sizing: border-box;
+        }
+
+        .filter-popup-nonexist-color-btn:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .filter-popup-nonexist-color-btn-inner {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            min-width: 24px;
+            min-height: 14px;
+        }
+
+        .filter-popup-nonexist-color-swatch {
+            display: inline-block;
+            width: 22px;
+            height: 12px;
+            border-radius: 2px;
+            box-sizing: border-box;
+            border: 1px solid rgba(15, 23, 42, 0.2);
+            flex-shrink: 0;
+        }
+
+        .filter-popup-nonexist-color-menu .period-filter-mode-item-label.filter-popup-nonexist-color-swatch {
+            flex: 0 0 auto;
+            min-width: 30px;
+        }
+
+        .filter-popup-nonexist-color-menu .period-filter-mode-item.selected .period-filter-mode-item-label {
+            outline: 2px solid #006400;
+            outline-offset: 1px;
+        }
+
+        .filter-popup-nonexist-style-wrap.disabled {
+            opacity: 0.45;
+            pointer-events: none;
+        }
+
         .period-filter-mode-item[data-mode="dateband"] .period-filter-mode-item-label.period-filter-dateband-swatch {
             flex: 0 0 auto;
         }
@@ -1065,7 +1125,12 @@
         }
 
         #filterTableWrap tr.filter-popup-row-focus td {
-            box-shadow: inset 0 0 0 2px #000000;
+            box-shadow: inset 0 0 0 2px #1d4ed8;
+        }
+
+        /* Ngăn nhóm id không liền kề (đỏ/tím): xám đậm, khác viền focus xanh */
+        #filterTableWrap tr.filter-popup-id-gap-before td {
+            border-top: 4px solid #64748b !important;
         }
 
         #filterTableWrap td.window-selected,
@@ -1456,8 +1521,18 @@
                         <span id="filterPopupNonexistNum" class="filter-popup-position-input filter-popup-nonexist-num"
                             tabindex="0" role="textbox" aria-label="Số nonexist 1-35"
                             title="Số 1-35 trong cột nonexist"></span>
+                        <div id="filterPopupNonexistColorPicker" class="filter-popup-nonexist-color-picker">
+                            <button type="button" id="filterPopupNonexistColorBtn" class="filter-popup-nonexist-color-btn"
+                                aria-haspopup="listbox" aria-expanded="false" title="Lọc theo màu nonexist">
+                                <span id="filterPopupNonexistColorBtnInner" class="filter-popup-nonexist-color-btn-inner"></span>
+                                <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
+                            </button>
+                            <ul id="filterPopupNonexistColorMenu"
+                                class="period-filter-mode-menu filter-popup-nonexist-color-menu hidden" role="listbox"
+                                aria-label="Màu nonexist"></ul>
+                        </div>
                         <div id="filterPopupNonexistStyleWrap" class="filter-popup-nonexist-style-wrap" role="group"
-                            aria-label="Kiểu chữ nonexist">
+                            aria-label="Kiểu chữ nonexist (chỉ xanh lá)">
                             <button type="button" class="filter-popup-nonexist-style-toggle" data-style="bold"
                                 aria-pressed="false" title="Bold">
                                 <span class="filter-popup-nonexist-style-toggle-letter" aria-hidden="true"></span>
@@ -1515,6 +1590,20 @@
         const FILTER_POPUP_LAYOUT_KEY = 'filterPopupLayout';
         const FILTER_NONEXIST_NUM_KEY = 'filterNonexistNum';
         const FILTER_NONEXIST_STYLES_KEY = 'filterNonexistStyles';
+        const FILTER_NONEXIST_COLORS_KEY = 'filterNonexistColors';
+        const NONEXIST_FILTER_COLORS = ['green', 'red', 'purple', 'yellow'];
+        const NONEXIST_FILTER_COLOR_TITLES = {
+            green: 'Xanh lá',
+            red: 'Đỏ',
+            purple: 'Tím',
+            yellow: 'Vàng'
+        };
+        const NONEXIST_FILTER_COLOR_CSS = {
+            green: 'background:rgb(0,80,0)',
+            red: 'background:rgb(255,0,0)',
+            purple: 'background:rgb(148,55,220)',
+            yellow: 'background:rgb(240,200,64)'
+        };
         const FILTER_NOTE_TAGS_KEY = 'filterNoteTags';
         const FILTER_NOTE_TAG_ALL = 'all';
         const FILTER_NOTE_TAG_VALUES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
@@ -1565,6 +1654,7 @@
         let filterPopupLayoutSaveTimer = null;
         let filterNonexistNum = null;
         let filterNonexistStyles = [];
+        let filterNonexistColors = ['green'];
         let filterNoteTags = [FILTER_NOTE_TAG_ALL];
         let filterNoteTagMenuCounts = {};
         let keyboardFocusTarget = 'right-main';
@@ -1910,10 +2000,88 @@
         }
 
         function getNonexistFilterOptions() {
+            const colors = filterNonexistColors.filter((c) => NONEXIST_FILTER_COLORS.includes(c));
             return {
                 num: filterNonexistNum,
-                styles: filterNonexistStyles.slice()
+                colors,
+                styles: colors.includes('green') ? filterNonexistStyles.slice() : []
             };
+        }
+
+        function isNonexistGreenFilterSelected() {
+            return filterNonexistColors.includes('green');
+        }
+
+        function shouldShowFilterPopupNonexistIdGapBorders() {
+            if (!periodFilterEnabled || !isNonexistFilterMode(periodFilterMode)) {
+                return false;
+            }
+            return filterNonexistColors.includes('red') || filterNonexistColors.includes('purple');
+        }
+
+        function getFilterPopupRowIdNumber(rowIndex) {
+            if (!sheetManager) {
+                return NaN;
+            }
+            const row = (sheetManager.dataRows || [])[rowIndex];
+            if (!row) {
+                return NaN;
+            }
+            const parsed = parseInt(String(row.id || row.ID || '').trim(), 10);
+            return Number.isFinite(parsed) ? parsed : NaN;
+        }
+
+        function applyFilterPopupNonexistIdGapBorders(wrap) {
+            if (!wrap) {
+                return;
+            }
+            wrap.querySelectorAll('tbody tr.filter-popup-id-gap-before').forEach((tr) => {
+                tr.classList.remove('filter-popup-id-gap-before');
+            });
+            if (!shouldShowFilterPopupNonexistIdGapBorders()) {
+                return;
+            }
+            const indices = filterPopupIndicesCached.length
+                ? filterPopupIndicesCached
+                : filterPopupIndices;
+            if (!indices || indices.length < 2) {
+                return;
+            }
+            for (let i = 1; i < indices.length; i++) {
+                const prevId = getFilterPopupRowIdNumber(indices[i - 1]);
+                const currId = getFilterPopupRowIdNumber(indices[i]);
+                if (!Number.isFinite(prevId) || !Number.isFinite(currId)) {
+                    continue;
+                }
+                if (currId - prevId !== 1) {
+                    const tr = wrap.querySelector(`tbody tr[data-idx="${indices[i]}"]`);
+                    if (tr) {
+                        tr.classList.add('filter-popup-id-gap-before');
+                    }
+                }
+            }
+        }
+
+        function hasActiveNonexistFilterCriteria() {
+            const colors = filterNonexistColors.filter((c) => NONEXIST_FILTER_COLORS.includes(c));
+            if (colors.length === 0) {
+                return false;
+            }
+            const onlyGreen = colors.length === 1 && colors[0] === 'green';
+            if (onlyGreen) {
+                return filterNonexistStyles.length > 0;
+            }
+            if (colors.includes('green')) {
+                return filterNonexistStyles.length > 0 || colors.some((c) => c !== 'green');
+            }
+            return true;
+        }
+
+        function getNonexistFilterColorLabelList() {
+            return filterNonexistColors
+                .filter((c) => NONEXIST_FILTER_COLORS.includes(c))
+                .map((c) => NONEXIST_FILTER_COLOR_TITLES[c] || c)
+                .join(', ');
         }
 
         function getFilterNoteTagMaxSelections(mode) {
@@ -2130,6 +2298,7 @@
 
         function openFilterPopupNoteTagMenu() {
             closePeriodFilterModeMenu();
+            closeFilterPopupNonexistColorMenu();
             const menu = el('filterPopupNoteTagMenu');
             const btn = el('filterPopupNoteTagBtn');
             const picker = el('filterPopupNoteTagPicker');
@@ -2282,6 +2451,7 @@
                     localStorage.setItem(FILTER_NONEXIST_NUM_KEY, String(filterNonexistNum));
                 }
                 localStorage.setItem(FILTER_NONEXIST_STYLES_KEY, JSON.stringify(filterNonexistStyles));
+                localStorage.setItem(FILTER_NONEXIST_COLORS_KEY, JSON.stringify(filterNonexistColors));
             } catch (e) { }
         }
 
@@ -2305,10 +2475,186 @@
                 } else {
                     filterNonexistStyles = [];
                 }
+                const savedColors = localStorage.getItem(FILTER_NONEXIST_COLORS_KEY);
+                if (savedColors) {
+                    const parsedColors = JSON.parse(savedColors);
+                    filterNonexistColors = Array.isArray(parsedColors)
+                        ? parsedColors.filter((c) => NONEXIST_FILTER_COLORS.includes(c))
+                        : ['green'];
+                } else {
+                    filterNonexistColors = filterNonexistStyles.length > 0 ? ['green'] : ['green'];
+                }
+                if (filterNonexistColors.length === 0) {
+                    filterNonexistColors = ['green'];
+                }
             } catch (e) {
                 filterNonexistNum = null;
                 filterNonexistStyles = [];
+                filterNonexistColors = ['green'];
             }
+        }
+
+        function syncFilterPopupNonexistColorBtn() {
+            const inner = el('filterPopupNonexistColorBtnInner');
+            const btn = el('filterPopupNonexistColorBtn');
+            if (!inner) {
+                return;
+            }
+            inner.innerHTML = '';
+            const selected = filterNonexistColors.filter((c) => NONEXIST_FILTER_COLORS.includes(c));
+            if (selected.length === 0) {
+                inner.textContent = '—';
+            } else {
+                for (const color of selected) {
+                    const sw = document.createElement('span');
+                    sw.className = 'filter-popup-nonexist-color-swatch';
+                    sw.style.cssText = NONEXIST_FILTER_COLOR_CSS[color] || '';
+                    sw.title = NONEXIST_FILTER_COLOR_TITLES[color] || color;
+                    inner.appendChild(sw);
+                }
+            }
+            if (btn) {
+                const label = getNonexistFilterColorLabelList();
+                btn.setAttribute('title', label ? `Màu: ${label}` : 'Lọc theo màu nonexist');
+            }
+        }
+
+        function highlightFilterPopupNonexistColorMenu() {
+            const menu = el('filterPopupNonexistColorMenu');
+            if (!menu) {
+                return;
+            }
+            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
+                const color = item.dataset.color || '';
+                item.classList.toggle('selected', filterNonexistColors.includes(color));
+            });
+        }
+
+        function buildFilterPopupNonexistColorMenu() {
+            const menu = el('filterPopupNonexistColorMenu');
+            if (!menu || menu.dataset.built === '1') {
+                highlightFilterPopupNonexistColorMenu();
+                return;
+            }
+            menu.dataset.built = '1';
+            menu.innerHTML = '';
+            for (const color of NONEXIST_FILTER_COLORS) {
+                const item = document.createElement('li');
+                item.className = 'period-filter-mode-item';
+                item.setAttribute('role', 'option');
+                item.dataset.color = color;
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'period-filter-mode-item-label filter-popup-nonexist-color-swatch';
+                labelSpan.style.cssText = NONEXIST_FILTER_COLOR_CSS[color] || '';
+                labelSpan.title = NONEXIST_FILTER_COLOR_TITLES[color] || color;
+                item.appendChild(labelSpan);
+                item.addEventListener('mousedown', (event) => event.preventDefault());
+                item.addEventListener('click', () => toggleFilterPopupNonexistColor(color));
+                menu.appendChild(item);
+            }
+            highlightFilterPopupNonexistColorMenu();
+        }
+
+        function positionFilterPopupNonexistColorMenu() {
+            const menu = el('filterPopupNonexistColorMenu');
+            const btn = el('filterPopupNonexistColorBtn');
+            if (!menu || !btn) {
+                return;
+            }
+            const rect = btn.getBoundingClientRect();
+            menu.style.left = `${Math.max(8, rect.left)}px`;
+            menu.style.top = `${rect.bottom + 2}px`;
+            menu.style.minWidth = `${Math.max(rect.width, 72)}px`;
+        }
+
+        function closeFilterPopupNonexistColorMenu() {
+            const menu = el('filterPopupNonexistColorMenu');
+            const btn = el('filterPopupNonexistColorBtn');
+            const picker = el('filterPopupNonexistColorPicker');
+            if (menu) {
+                menu.classList.add('hidden');
+                if (picker && menu.parentElement === document.body) {
+                    picker.appendChild(menu);
+                }
+            }
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+            }
+        }
+
+        function openFilterPopupNonexistColorMenu() {
+            closePeriodFilterModeMenu();
+            closeFilterPopupNoteTagMenu();
+            const menu = el('filterPopupNonexistColorMenu');
+            const btn = el('filterPopupNonexistColorBtn');
+            const picker = el('filterPopupNonexistColorPicker');
+            if (!menu || !btn || !picker) {
+                return;
+            }
+            buildFilterPopupNonexistColorMenu();
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
+            positionFilterPopupNonexistColorMenu();
+            menu.classList.remove('hidden');
+            btn.setAttribute('aria-expanded', 'true');
+        }
+
+        function toggleFilterPopupNonexistColor(color) {
+            if (!NONEXIST_FILTER_COLORS.includes(color)) {
+                return;
+            }
+            const idx = filterNonexistColors.indexOf(color);
+            if (idx >= 0) {
+                filterNonexistColors.splice(idx, 1);
+            } else {
+                filterNonexistColors.push(color);
+            }
+            if (filterNonexistColors.length === 0) {
+                filterNonexistColors = [color];
+            }
+            saveFilterNonexistSettings();
+            syncFilterPopupNonexistColorBtn();
+            highlightFilterPopupNonexistColorMenu();
+            applyNonexistFilterSettingsFromUi();
+        }
+
+        function initFilterPopupNonexistColorControls() {
+            const picker = el('filterPopupNonexistColorPicker');
+            const btn = el('filterPopupNonexistColorBtn');
+            const menu = el('filterPopupNonexistColorMenu');
+            if (!picker || !btn || !menu || picker.dataset.bound === '1') {
+                return;
+            }
+            picker.dataset.bound = '1';
+            picker.addEventListener('mousedown', (event) => event.stopPropagation());
+            picker.addEventListener('click', (event) => event.stopPropagation());
+            btn.addEventListener('mousedown', (event) => event.stopPropagation());
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (menu.classList.contains('hidden')) {
+                    openFilterPopupNonexistColorMenu();
+                } else {
+                    closeFilterPopupNonexistColorMenu();
+                }
+            });
+            menu.addEventListener('click', (event) => event.stopPropagation());
+            document.addEventListener('mousedown', (event) => {
+                if (menu.classList.contains('hidden')) {
+                    return;
+                }
+                const target = event.target;
+                if (picker.contains(target) || menu.contains(target)) {
+                    return;
+                }
+                closeFilterPopupNonexistColorMenu();
+            });
+            window.addEventListener('resize', () => {
+                if (!menu.classList.contains('hidden')) {
+                    positionFilterPopupNonexistColorMenu();
+                }
+            });
         }
 
         function syncFilterPopupNonexistToolsUi() {
@@ -2322,6 +2668,7 @@
                 const text = filterNonexistNum != null ? String(filterNonexistNum) : '';
                 setFilterPopupPositionText(numInput, text);
             }
+            syncFilterPopupNonexistColorBtn();
             syncFilterPopupNonexistStyleToggles();
             syncFilterPopupDropdownCounts();
         }
@@ -2350,7 +2697,10 @@
             if (!wrap) {
                 return;
             }
+            const greenOn = isNonexistGreenFilterSelected();
+            wrap.classList.toggle('disabled', !greenOn);
             wrap.querySelectorAll('.filter-popup-nonexist-style-toggle').forEach((btn) => {
+                btn.disabled = !greenOn;
                 const style = btn.dataset.style || '';
                 if (!style) {
                     return;
@@ -2366,6 +2716,9 @@
         }
 
         function toggleFilterPopupNonexistStyle(style) {
+            if (!isNonexistGreenFilterSelected()) {
+                return;
+            }
             const idx = filterNonexistStyles.indexOf(style);
             if (idx === -1) {
                 filterNonexistStyles.push(style);
@@ -2391,13 +2744,10 @@
             }
             const normalized = normalizeFilterMode(mode);
             if (isNonexistFilterMode(normalized)) {
-                if (!filterNonexistStyles.length) {
+                if (!hasActiveNonexistFilterCriteria()) {
                     return 0;
                 }
-                return sheetManager.getFilterMatchingIndices(normalized, {
-                    num: null,
-                    styles: filterNonexistStyles.slice()
-                }).length;
+                return sheetManager.getFilterMatchingIndices(normalized, getNonexistFilterOptions()).length;
             }
             return sheetManager.getFilterMatchingIndices(normalized, null).length;
         }
@@ -2516,14 +2866,19 @@
         function getFilterPopupEmptyMessage(mode) {
             const normalized = normalizeFilterMode(mode);
             if (isNonexistFilterMode(normalized)) {
-                if (!filterNonexistStyles.length) {
-                    return 'Chọn ít nhất một kiểu chữ (B, I, U, S).';
+                if (!filterNonexistColors.length) {
+                    return 'Chọn ít nhất một màu nonexist.';
                 }
+                if (!hasActiveNonexistFilterCriteria()) {
+                    return 'Chọn màu và ít nhất một kiểu chữ (B, I, U, S) khi lọc xanh lá.';
+                }
+                const colorLabel = getNonexistFilterColorLabelList();
                 const styles = getNonexistFilterStyleLabelList();
+                const styleHint = isNonexistGreenFilterSelected() && styles ? ` (${styles})` : '';
                 if (isNonexistFilterNumEmpty()) {
-                    return `Không có kỳ nào có số xanh lá (${styles}) trong nonexist.`;
+                    return `Không có kỳ nào có màu ${colorLabel}${styleHint} trong nonexist.`;
                 }
-                return `Không có kỳ nào có số ${filterNonexistNum} xanh lá (${styles}) trong nonexist.`;
+                return `Không có kỳ nào có số ${filterNonexistNum} màu ${colorLabel}${styleHint} trong nonexist.`;
             }
             const hint = getFilterModeTitleHint(normalized);
             const tags = getActiveNoteTagFilterValues();
@@ -2646,6 +3001,7 @@
 
         function openPeriodFilterModeMenu(anchor) {
             closeFilterPopupNoteTagMenu();
+            closeFilterPopupNonexistColorMenu();
             periodFilterMenuAnchor = anchor === 'popup' ? 'popup' : 'toolbar';
             const menu = getPeriodFilterMenu();
             const { modeBtn, picker } = getPeriodFilterPicker(periodFilterMenuAnchor);
@@ -2698,6 +3054,7 @@
             saveFilterNoteTagsSettings();
             closePeriodFilterModeMenu();
             closeFilterPopupNoteTagMenu();
+            closeFilterPopupNonexistColorMenu();
             rebuildFilterNoteTagMenuCounts();
             syncPeriodFilterToolbarUi();
             if (periodFilterEnabled) {
@@ -2880,6 +3237,13 @@
             if (noteTagLabel) {
                 title = `Có ${filteredTotal} / ${parentTotal} kỳ (${label}, note ${noteTagLabel})`;
             }
+            if (isNonexistFilterMode(normalized) && periodFilterEnabled) {
+                const colorLabel = getNonexistFilterColorLabelList();
+                const styles = getNonexistFilterStyleLabelList();
+                const styleHint = isNonexistGreenFilterSelected() && styles ? `, kiểu ${styles}` : '';
+                const numHint = isNonexistFilterNumEmpty() ? '' : `, số ${filterNonexistNum}`;
+                title = `Có ${filteredTotal} / ${parentTotal} kỳ nonexist (màu ${colorLabel}${styleHint}${numHint})`;
+            }
             if (!periodFilterEnabled) {
                 title = 'Số kỳ: vị trí / đã lọc / mode (All)';
             } else if (isPreview) {
@@ -3010,6 +3374,7 @@
             }
 
             syncFilterPopupNonexistToolsUi();
+            initFilterPopupNonexistColorControls();
         }
 
         function initFilterPopupPositionInput() {
@@ -3444,9 +3809,12 @@
             return -1;
         }
 
-        function syncMainRowFromFilter(idx) {
+        function syncMainRowFromFilter(idx, options = {}) {
             if (!sheetManager || typeof idx !== 'number' || idx < 0) {
                 return;
+            }
+            if (options.previewOnly) {
+                return previewMainTableNavToRowIndex(idx);
             }
             const rows = sheetManager.dataRows || [];
             const row = rows[idx];
@@ -3457,8 +3825,22 @@
             sheetManager.onRowClick(idx, isEmpty, null, {
                 skipSave: true,
                 fromFilterNav: true,
-                light: true
+                light: options.full !== true
             });
+        }
+
+        function previewMainTableNavToRowIndex(idx) {
+            if (!sheetManager || typeof idx !== 'number' || idx < 0) {
+                return false;
+            }
+            const tableWrap = el('tableWrap');
+            if (!tableWrap) {
+                return false;
+            }
+            const start = Math.max(0, idx - 10);
+            sheetManager.applyWindowSelection(start, idx, idx, tableWrap, { previewOnly: true });
+            sheetManager.centerActiveWindowInView(tableWrap);
+            return true;
         }
 
         function scrollFilterPopupRowIntoView() {
@@ -3567,7 +3949,7 @@
         }
 
         const RIGHT_PANE_NAV_COALESCE_MS = 48;
-        const rightPaneNavCoalesce = { mode: null, delta: 0, timer: null };
+        const rightPaneNavCoalesce = { mode: null, needsCommit: false, timer: null };
 
         function getRightPaneArrowStepFromKey(key) {
             return getFilterPopupNavStepFromKey(key);
@@ -3579,62 +3961,59 @@
                 rightPaneNavCoalesce.timer = null;
             }
             const mode = rightPaneNavCoalesce.mode;
-            const delta = rightPaneNavCoalesce.delta;
+            const needsCommit = rightPaneNavCoalesce.needsCommit;
             rightPaneNavCoalesce.mode = null;
-            rightPaneNavCoalesce.delta = 0;
-            if (!delta || !mode) {
+            rightPaneNavCoalesce.needsCommit = false;
+            if (!needsCommit || !mode) {
                 return false;
             }
             if (mode === 'filter') {
-                return applyFilterPopupNavDelta(delta);
+                return commitFilterPopupNav();
             }
-            return applyMainTableNavDelta(delta);
+            return commitMainTableNav();
         }
 
-        function queueRightPaneNav(mode, step) {
-            const delta = Number(step) || 0;
-            if (!delta || (mode !== 'main' && mode !== 'filter')) {
-                return false;
-            }
-            if (rightPaneNavCoalesce.mode && rightPaneNavCoalesce.mode !== mode) {
-                flushRightPaneNavCoalesce();
-            }
-            rightPaneNavCoalesce.mode = mode;
-            rightPaneNavCoalesce.delta += delta;
-            clearTimeout(rightPaneNavCoalesce.timer);
-            rightPaneNavCoalesce.timer = setTimeout(flushRightPaneNavCoalesce, RIGHT_PANE_NAV_COALESCE_MS);
-            return true;
-        }
-
-        function applyMainTableNavDelta(delta) {
+        function previewMainTableNavStep(step) {
             if (!sheetManager) {
                 return false;
             }
             const tableWrap = el('tableWrap');
-            if (!tableWrap) {
+            if (!tableWrap || typeof sheetManager.previewSourceSheetRowByStep !== 'function') {
                 return false;
             }
-            if (typeof sheetManager.stepSourceSheetRowByDelta !== 'function') {
-                return false;
-            }
-            const handled = sheetManager.stepSourceSheetRowByDelta(delta, tableWrap);
+            const handled = sheetManager.previewSourceSheetRowByStep(step, tableWrap);
             if (handled) {
                 rememberKeyboardFocusTarget('main');
             }
             return handled;
         }
 
-        function applyFilterPopupNavDelta(delta) {
+        function commitMainTableNav() {
+            if (!sheetManager) {
+                return false;
+            }
+            const tableWrap = el('tableWrap');
+            if (!tableWrap || typeof sheetManager.commitSourceSheetRowAtTarget !== 'function') {
+                return false;
+            }
+            const handled = sheetManager.commitSourceSheetRowAtTarget(tableWrap);
+            if (handled) {
+                rememberKeyboardFocusTarget('main');
+            }
+            return handled;
+        }
+
+        function previewFilterPopupNavStep(step) {
             if (!periodFilterEnabled || filterPopupIndices.length === 0) {
                 return false;
             }
-            const step = Number(delta) || 0;
-            if (!step) {
+            const delta = Number(step) || 0;
+            if (!delta) {
                 return false;
             }
             const pos = filterPopupIndices.indexOf(filterPopupActiveIdx);
             const basePos = pos >= 0 ? pos : 0;
-            const nextPos = Math.max(0, Math.min(filterPopupIndices.length - 1, basePos + step));
+            const nextPos = Math.max(0, Math.min(filterPopupIndices.length - 1, basePos + delta));
             if (filterPopupIndices[nextPos] === filterPopupActiveIdx) {
                 return false;
             }
@@ -3648,7 +4027,37 @@
                 setFilterPopupPositionText(positionInput, posText);
                 setFilterPopupPositionInputWidth(positionInput, posText);
             }
+            syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly: true });
+            return true;
+        }
+
+        function commitFilterPopupNav() {
+            if (!periodFilterEnabled || filterPopupIndices.length === 0 || filterPopupActiveIdx < 0) {
+                return false;
+            }
+            rememberKeyboardFocusTarget('filter');
             syncMainRowFromFilter(filterPopupActiveIdx);
+            updateFilterPopupMatchCount();
+            return true;
+        }
+
+        function queueRightPaneNav(mode, step) {
+            const delta = Number(step) || 0;
+            if (!delta || (mode !== 'main' && mode !== 'filter')) {
+                return false;
+            }
+            if (rightPaneNavCoalesce.mode && rightPaneNavCoalesce.mode !== mode) {
+                flushRightPaneNavCoalesce();
+            }
+            if (mode === 'filter') {
+                previewFilterPopupNavStep(delta);
+            } else {
+                previewMainTableNavStep(delta);
+            }
+            rightPaneNavCoalesce.mode = mode;
+            rightPaneNavCoalesce.needsCommit = true;
+            clearTimeout(rightPaneNavCoalesce.timer);
+            rightPaneNavCoalesce.timer = setTimeout(flushRightPaneNavCoalesce, RIGHT_PANE_NAV_COALESCE_MS);
             return true;
         }
 
@@ -3746,7 +4155,9 @@
         }
 
         function navigateFilterPopup(step) {
-            applyFilterPopupNavDelta(step);
+            if (previewFilterPopupNavStep(step)) {
+                commitFilterPopupNav();
+            }
         }
 
         function getFilterPopupRenderCacheKey() {
@@ -3756,11 +4167,13 @@
             const rowLen = (sheetManager.sourceRows || []).length;
             const tags = filterNoteTags.slice().sort().join(',');
             const styles = filterNonexistStyles.slice().sort().join(',');
+            const colors = filterNonexistColors.slice().sort().join(',');
             const num = filterNonexistNum != null ? String(filterNonexistNum) : '';
             return [
                 periodFilterMode,
                 tags,
                 num,
+                colors,
                 styles,
                 rowLen,
                 rightPaneZoom
@@ -3831,6 +4244,7 @@
                 wrap.innerHTML = filterPopupHtmlCache;
             }
             filterPopupIndices = filterPopupIndicesCached.slice();
+            applyFilterPopupNonexistIdGapBorders(wrap);
             filterPopupActiveIdx = resolveFilterPopupActiveIdx(filterPopupIndices);
             applyFilterPopupRowFocus(filterPopupActiveIdx);
             requestAnimationFrame(() => {
@@ -3880,6 +4294,7 @@
                 skipRowClickBind: true
             });
             filterPopupIndicesCached = filterPopupIndices.slice();
+            applyFilterPopupNonexistIdGapBorders(wrap);
             filterPopupHtmlCache = wrap.innerHTML;
             filterPopupRenderCacheKey = cacheKey;
             finishFilterPopupOpen({ syncMain });
