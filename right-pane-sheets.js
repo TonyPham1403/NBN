@@ -102,6 +102,10 @@ class RightPaneSheetManager {
         this.idFrequencyMap = this.buildIdFrequencyMapFromNotes(this.noteCache);
         this.nonexistGreenFilterCache = null;
         this.nonexistDisplayEntriesCache = null;
+        this.datebandFilterIndicesCache = null;
+        this.datebandFilterIndicesCacheRowLen = 0;
+        this.datebandRowDistCache = null;
+        this.datebandRowDistCacheRowLen = 0;
     }
 
     /** Rows used for sheet1 / nonexist filter (independent of active combo tab). */
@@ -665,6 +669,108 @@ class RightPaneSheetManager {
         return this.shouldHighlightDateByPairWindow(rows, rowIndex);
     }
 
+    /**
+     * Cached row indices with cyan date band (#00b0f0) for dateband filter mode.
+     */
+    ensureDatebandFilterIndicesCache() {
+        const rows = this.getSourceSheetRows();
+        if (this.datebandFilterIndicesCache && this.datebandFilterIndicesCacheRowLen === rows.length) {
+            return this.datebandFilterIndicesCache;
+        }
+
+        const indices = [];
+        for (let i = 0; i < rows.length; i++) {
+            if (!this.isEmptyResultRow(rows[i]) && this.rowHasCyanDateBand(rows, i)) {
+                indices.push(i);
+            }
+        }
+        this.datebandFilterIndicesCache = indices;
+        this.datebandFilterIndicesCacheRowLen = rows.length;
+        this.datebandRowDistCache = null;
+        this.datebandRowDistCacheRowLen = 0;
+        return indices;
+    }
+
+    /**
+     * x: groups for a dateband row — only from pair lines shown in the 10-row window
+     * (visible pair + match current result), using window pair_to_ids distances.
+     */
+    computeDatebandNoteDistancesForRow(rowIndex, rows, pairToIds) {
+        const dists = new Set();
+        const list = rows || this.getSourceSheetRows();
+        if (!this.rowHasCyanDateBand(list, rowIndex)) {
+            return dists;
+        }
+
+        const currentRow = list[rowIndex] || {};
+        const currentNums = this.parseMainNums(currentRow.result || currentRow.Result || '');
+        const rid = this.normalizeNumberKey(currentRow.id || currentRow.ID || '');
+        if (!rid || currentNums.length !== 5 || rowIndex < 10) {
+            return dists;
+        }
+
+        const windowRows = list.slice(Math.max(0, rowIndex - 10), rowIndex);
+        const visiblePairs = this.computePairsForRows(windowRows);
+        if (!visiblePairs.length) {
+            return dists;
+        }
+
+        const map = pairToIds || {};
+        for (let p = 0; p < visiblePairs.length; p++) {
+            const a = visiblePairs[p][0];
+            const b = visiblePairs[p][1];
+            if (!this.pairExists(currentNums, a, b)) {
+                continue;
+            }
+            const key = `${a},${b}`;
+            const arr = map[key] && map[key][rid];
+            if (!Array.isArray(arr) || !arr.length) {
+                continue;
+            }
+            for (let i = 0; i < arr.length; i++) {
+                const dist = parseInt(arr[i], 10);
+                if (dist >= 1 && dist <= 10) {
+                    dists.add(dist);
+                }
+            }
+        }
+        return dists;
+    }
+
+    ensureDatebandRowDistCache() {
+        const rows = this.getSourceSheetRows();
+        if (this.datebandRowDistCache && this.datebandRowDistCacheRowLen === rows.length) {
+            return this.datebandRowDistCache;
+        }
+
+        const cache = new Array(rows.length);
+        for (let i = 0; i < rows.length; i++) {
+            cache[i] = new Set();
+        }
+        const pairToIds = {};
+        this.accumulatePairToIdsFromRowWindows(rows, pairToIds);
+        const base = this.ensureDatebandFilterIndicesCache();
+        for (let b = 0; b < base.length; b++) {
+            const i = base[b];
+            cache[i] = this.computeDatebandNoteDistancesForRow(i, rows, pairToIds);
+        }
+        this.datebandRowDistCache = cache;
+        this.datebandRowDistCacheRowLen = rows.length;
+        return cache;
+    }
+
+    /**
+     * Dateband row belongs to group x: when a visible window pair for that row maps to distance x.
+     */
+    rowMatchesDatebandNoteDistFilter(rowIndex, dist) {
+        if (!Number.isFinite(dist) || dist < 1 || dist > 10) {
+            return false;
+        }
+        const cache = this.ensureDatebandRowDistCache();
+        const set = cache[rowIndex];
+        return set ? set.has(dist) : false;
+    }
+
     getFilterMatchingIndices(mode, filterOptions = null) {
         const indices = [];
         const rows = this.getSourceSheetRows();
@@ -705,14 +811,21 @@ class RightPaneSheetManager {
             ? (filterOptions.noteTags || []).filter((n) => Number.isFinite(n) && n >= 1 && n <= 10)
             : [];
 
+        if (mode === 'dateband') {
+            const base = this.ensureDatebandFilterIndicesCache();
+            const distFilter = noteTags.length > 0 ? noteTags[0] : null;
+            for (let b = 0; b < base.length; b++) {
+                const i = base[b];
+                if (distFilter !== null && !this.rowMatchesDatebandNoteDistFilter(i, distFilter)) {
+                    continue;
+                }
+                indices.push(i);
+            }
+            return indices;
+        }
+
         for (let i = 0; i < rows.length; i++) {
             if (this.isEmptyResultRow(rows[i])) {
-                continue;
-            }
-            if (mode === 'dateband') {
-                if (this.rowHasCyanDateBand(rows, i)) {
-                    indices.push(i);
-                }
                 continue;
             }
             if (this.inferModeForRowIndex(i) === mode) {

@@ -979,8 +979,58 @@
             background: #f8fafc;
         }
 
+        .filter-popup-filter-tools.sheet-tools-group {
+            align-items: stretch;
+        }
+
+        .filter-popup-filter-tools .filter-popup-title-label {
+            display: inline-flex;
+            align-items: center;
+            height: 24px;
+            line-height: 24px;
+            flex-shrink: 0;
+            box-sizing: border-box;
+        }
+
+        .filter-popup-filter-tools .period-filter-mode-picker,
+        .filter-popup-filter-tools .filter-popup-note-tag-picker {
+            display: inline-flex;
+            align-items: stretch;
+            align-self: stretch;
+            height: auto;
+        }
+
         .filter-popup-filter-tools .period-filter-mode-picker {
             border-left: none;
+        }
+
+        .filter-popup-filter-tools .filter-popup-title-label + .period-filter-mode-picker .period-filter-mode-btn {
+            border-left: 0;
+        }
+
+        .filter-popup-filter-tools .period-filter-mode-btn,
+        .filter-popup-filter-tools .filter-popup-note-tag-btn {
+            height: 100%;
+            min-height: 24px;
+            max-height: 24px;
+            box-sizing: border-box;
+            align-self: stretch;
+        }
+
+        .filter-popup-filter-tools .period-filter-mode-btn .period-filter-dateband-swatch {
+            display: inline-block;
+            width: 30px;
+            height: 14px;
+            min-width: 30px;
+            margin: 0;
+            vertical-align: middle;
+        }
+
+        .filter-popup-filter-tools .filter-popup-match-count {
+            height: 24px;
+            min-height: 24px;
+            align-self: stretch;
+            flex-shrink: 0;
         }
 
         .filter-popup-nonexist-tools {
@@ -988,6 +1038,9 @@
             align-items: center;
             gap: 4px;
             flex-shrink: 0;
+            align-self: stretch;
+            height: 24px;
+            box-sizing: border-box;
             border-left: 1px solid #cbd5e1;
             padding-left: 4px;
         }
@@ -1657,6 +1710,8 @@
         let filterNonexistColors = ['green'];
         let filterNoteTags = [FILTER_NOTE_TAG_ALL];
         let filterNoteTagMenuCounts = {};
+        let filterNoteTagCountRebuildTimer = null;
+        let filterNoteTagApplyTimer = null;
         let keyboardFocusTarget = 'right-main';
 
         function rememberKeyboardFocusTarget(target) {
@@ -2086,6 +2141,9 @@
 
         function getFilterNoteTagMaxSelections(mode) {
             const normalized = normalizeFilterMode(mode);
+            if (isDatebandFilterMode(normalized)) {
+                return 1;
+            }
             const pairMatch = /^pair(\d+)$/.exec(normalized);
             if (pairMatch) {
                 return parseInt(pairMatch[1], 10) || 1;
@@ -2213,11 +2271,12 @@
             if (btn) {
                 btn.disabled = !show;
                 const max = getFilterNoteTagMaxSelections(periodFilterMode);
+                const datebandHint = isDatebandFilterMode(periodFilterMode)
+                    ? 'Lọc dateband theo khoảng pair trong note: All hoặc một nhãn 1: … 10:'
+                    : `Lọc note (chọn tối đa ${max}): All hoặc 1: … 10:`;
                 btn.setAttribute(
                     'title',
-                    show
-                        ? `Lọc note (chọn tối đa ${max}): All hoặc 1: … 10:`
-                        : 'Lọc theo nhãn trong note'
+                    show ? datebandHint : 'Lọc theo nhãn trong note'
                 );
             }
             if (label) {
@@ -2306,13 +2365,13 @@
                 return;
             }
             buildFilterPopupNoteTagMenu();
-            rebuildFilterNoteTagMenuCounts();
+            updateFilterPopupNoteTagMenuItemCounts();
             if (menu.parentElement !== document.body) {
                 document.body.appendChild(menu);
             }
             positionFilterPopupNoteTagMenu();
             menu.classList.remove('hidden');
-            updateFilterPopupNoteTagMenuItemCounts();
+            scheduleRebuildFilterNoteTagMenuCounts();
             btn.setAttribute('aria-expanded', 'true');
         }
 
@@ -2334,14 +2393,18 @@
         function applyFilterNoteTagsFromUi() {
             saveFilterNoteTagsSettings();
             syncFilterPopupNoteTagUi();
-            if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1') {
-                if (isNonexistFilterMode(periodFilterMode)) {
-                    return;
+            clearTimeout(filterNoteTagApplyTimer);
+            filterNoteTagApplyTimer = setTimeout(() => {
+                filterNoteTagApplyTimer = null;
+                if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1') {
+                    if (isNonexistFilterMode(periodFilterMode)) {
+                        return;
+                    }
+                    refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
+                } else {
+                    updatePeriodFilterMatchCount();
                 }
-                refreshFilterPopup({ syncMain: false, immediateRender: true });
-            } else {
-                updatePeriodFilterMatchCount();
-            }
+            }, 64);
         }
 
         function toggleFilterPopupNoteTag(tag) {
@@ -2350,7 +2413,17 @@
                 return;
             }
 
-            if (tag === FILTER_NOTE_TAG_ALL) {
+            if (isDatebandFilterMode(periodFilterMode)) {
+                if (tag === FILTER_NOTE_TAG_ALL) {
+                    filterNoteTags = [FILTER_NOTE_TAG_ALL];
+                } else if (!FILTER_NOTE_TAG_VALUES.includes(tag)) {
+                    return;
+                } else if (filterNoteTags.length === 1 && filterNoteTags[0] === tag) {
+                    filterNoteTags = [FILTER_NOTE_TAG_ALL];
+                } else {
+                    filterNoteTags = [tag];
+                }
+            } else if (tag === FILTER_NOTE_TAG_ALL) {
                 filterNoteTags = [FILTER_NOTE_TAG_ALL];
             } else if (!FILTER_NOTE_TAG_VALUES.includes(tag)) {
                 return;
@@ -2371,8 +2444,7 @@
             normalizeFilterNoteTagsForMode(periodFilterMode);
             applyFilterNoteTagsFromUi();
             highlightFilterPopupNoteTagMenu();
-            rebuildFilterNoteTagMenuCounts();
-            updateFilterPopupNoteTagMenuItemCounts();
+            scheduleRebuildFilterNoteTagMenuCounts();
         }
 
         function initFilterPopupNoteTagControls() {
@@ -2737,7 +2809,15 @@
             return sheetManager.getFilterMatchingIndices(mode, getFilterOptionsForMode(mode));
         }
 
-        /** Count for main mode only (note tag All / nonexist without số cụ thể). */
+        /** Filter options for the mode “pool” (dropdown All): no note-tag sub-filter. */
+        function getFilterOptionsForParentCount(mode) {
+            if (isNonexistFilterMode(mode)) {
+                return getNonexistFilterOptions();
+            }
+            return null;
+        }
+
+        /** Total kỳ khớp mode khi note tag = All (không áp lọc phụ 1:…10:). */
         function getFilterParentCountForMode(mode) {
             if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
                 return 0;
@@ -2747,9 +2827,11 @@
                 if (!hasActiveNonexistFilterCriteria()) {
                     return 0;
                 }
-                return sheetManager.getFilterMatchingIndices(normalized, getNonexistFilterOptions()).length;
             }
-            return sheetManager.getFilterMatchingIndices(normalized, null).length;
+            return sheetManager.getFilterMatchingIndices(
+                normalized,
+                getFilterOptionsForParentCount(normalized)
+            ).length;
         }
 
         function getFilterNoteTagCountForTag(tag) {
@@ -2775,10 +2857,46 @@
             if (!sheetManager || sheetManager.activeSheet !== 'sheet1' || !supportsNoteTagFilter(periodFilterMode)) {
                 return;
             }
-            filterNoteTagMenuCounts[FILTER_NOTE_TAG_ALL] = getFilterParentCountForMode(periodFilterMode);
+            const mode = periodFilterMode;
+            if (isDatebandFilterMode(mode) && typeof sheetManager.ensureDatebandFilterIndicesCache === 'function') {
+                const base = sheetManager.ensureDatebandFilterIndicesCache();
+                const distCache = typeof sheetManager.ensureDatebandRowDistCache === 'function'
+                    ? sheetManager.ensureDatebandRowDistCache()
+                    : null;
+                filterNoteTagMenuCounts[FILTER_NOTE_TAG_ALL] = getFilterParentCountForMode(mode);
+                for (const tag of FILTER_NOTE_TAG_VALUES) {
+                    const num = parseInt(tag, 10);
+                    if (!Number.isFinite(num)) {
+                        filterNoteTagMenuCounts[tag] = 0;
+                        continue;
+                    }
+                    let count = 0;
+                    for (let b = 0; b < base.length; b++) {
+                        const rowIdx = base[b];
+                        if (distCache && distCache[rowIdx] && distCache[rowIdx].has(num)) {
+                            count++;
+                        } else if (typeof sheetManager.rowMatchesDatebandNoteDistFilter === 'function'
+                            && sheetManager.rowMatchesDatebandNoteDistFilter(rowIdx, num)) {
+                            count++;
+                        }
+                    }
+                    filterNoteTagMenuCounts[tag] = count;
+                }
+                return;
+            }
+            filterNoteTagMenuCounts[FILTER_NOTE_TAG_ALL] = getFilterParentCountForMode(mode);
             for (const tag of FILTER_NOTE_TAG_VALUES) {
                 filterNoteTagMenuCounts[tag] = getFilterNoteTagCountForTag(tag);
             }
+        }
+
+        function scheduleRebuildFilterNoteTagMenuCounts() {
+            clearTimeout(filterNoteTagCountRebuildTimer);
+            filterNoteTagCountRebuildTimer = setTimeout(() => {
+                filterNoteTagCountRebuildTimer = null;
+                rebuildFilterNoteTagMenuCounts();
+                updateFilterPopupNoteTagMenuItemCounts();
+            }, 150);
         }
 
         function updateFilterPopupNoteTagMenuItemCounts() {
@@ -3055,10 +3173,16 @@
             closePeriodFilterModeMenu();
             closeFilterPopupNoteTagMenu();
             closeFilterPopupNonexistColorMenu();
-            rebuildFilterNoteTagMenuCounts();
+            scheduleRebuildFilterNoteTagMenuCounts();
             syncPeriodFilterToolbarUi();
             if (periodFilterEnabled) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true });
+                const deferHeavy = isDatebandFilterMode(periodFilterMode) || supportsNoteTagFilter(periodFilterMode);
+                refreshFilterPopup({
+                    syncMain: false,
+                    immediateRender: !deferHeavy,
+                    deferHeavy,
+                    clearPopupNav: true
+                });
             }
             requestAnimationFrame(() => restoreKeyboardFocusTarget());
         }
@@ -3188,9 +3312,18 @@
             return true;
         }
 
+        function resetFilterPopupPositionUi() {
+            const positionInput = el('filterPopupPositionInput');
+            if (positionInput) {
+                setFilterPopupPositionText(positionInput, '');
+                setFilterPopupPositionInputWidth(positionInput, '');
+            }
+        }
+
         function clearFilterPopupListSelection() {
             filterPopupActiveIdx = -1;
             clearFilterPopupRowFocus();
+            resetFilterPopupPositionUi();
         }
 
         function syncFilterPopupMatchCountUi(mode, isPreview, total) {
@@ -3207,15 +3340,14 @@
             const label = getFilterModeTitleHint(normalized);
             const filteredTotal = getFilterPopupListTotal(total);
             const parentTotal = periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1'
-                ? (filterModeCounts[normalized] ?? getFilterParentCountForMode(normalized))
+                ? getFilterParentCountForMode(normalized)
                 : 0;
             const listPos = getFilterPopupListPosition();
             const isEditing = positionInput && document.activeElement === positionInput;
-            const inputHasDigits = positionInput && getFilterPopupPositionText(positionInput).length > 0;
             const showPosition = !isPreview
                 && periodFilterEnabled
                 && filteredTotal > 0
-                && (listPos > 0 || isEditing || inputHasDigits);
+                && (listPos > 0 || isEditing);
 
             filteredEl.textContent = String(filteredTotal);
             parentEl.textContent = String(parentTotal);
@@ -3224,10 +3356,7 @@
             }
             if (positionInput) {
                 if (!isEditing) {
-                    const nextText = showPosition && listPos > 0
-                        ? String(listPos)
-                        : (inputHasDigits ? getFilterPopupPositionText(positionInput) : '');
-                    setFilterPopupPositionText(positionInput, showPosition ? nextText : '');
+                    setFilterPopupPositionText(positionInput, listPos > 0 ? String(listPos) : '');
                 }
                 setFilterPopupPositionInputWidth(positionInput, getFilterPopupPositionText(positionInput));
             }
@@ -4243,12 +4372,21 @@
             if (!filterPopupHasLiveTable(wrap, getFilterPopupRenderCacheKey())) {
                 wrap.innerHTML = filterPopupHtmlCache;
             }
-            filterPopupIndices = filterPopupIndicesCached.slice();
+            filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
+            filterPopupIndicesCached = filterPopupIndices.slice();
             applyFilterPopupNonexistIdGapBorders(wrap);
-            filterPopupActiveIdx = resolveFilterPopupActiveIdx(filterPopupIndices);
-            applyFilterPopupRowFocus(filterPopupActiveIdx);
+            if (options.clearPopupNav) {
+                filterPopupActiveIdx = -1;
+                clearFilterPopupRowFocus();
+                resetFilterPopupPositionUi();
+            } else {
+                filterPopupActiveIdx = resolveFilterPopupActiveIdx(filterPopupIndices);
+                applyFilterPopupRowFocus(filterPopupActiveIdx);
+            }
             requestAnimationFrame(() => {
-                scrollFilterPopupRowIntoView();
+                if (filterPopupActiveIdx >= 0) {
+                    scrollFilterPopupRowIntoView();
+                }
                 updateFilterPopupMatchCount();
                 syncPeriodFilterNavModeToIframe();
             });
@@ -4320,7 +4458,13 @@
 
             filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
             filterPopupIndicesCached = filterPopupIndices.slice();
-            filterPopupActiveIdx = resolveFilterPopupActiveIdx(filterPopupIndices);
+            if (options.clearPopupNav) {
+                filterPopupActiveIdx = -1;
+                clearFilterPopupRowFocus();
+                resetFilterPopupPositionUi();
+            } else {
+                filterPopupActiveIdx = resolveFilterPopupActiveIdx(filterPopupIndices);
+            }
             syncFilterPopupHeaderUi();
 
             if (filterPopupIndices.length === 0) {
@@ -4377,16 +4521,25 @@
             const canReuseHtml = !forceRender && filterPopupHasLiveTable(wrap, cacheKey);
 
             if (canReuseHtml) {
-                applyFilterPopupFastOpen(wrap, { syncMain });
+                applyFilterPopupFastOpen(wrap, {
+                    syncMain,
+                    clearPopupNav: options.clearPopupNav === true
+                });
                 return;
             }
 
             if (!options.immediateRender && (popupWasHidden || options.deferHeavy)) {
-                requestAnimationFrame(() => refreshFilterPopupHeavy({ syncMain }));
+                requestAnimationFrame(() => refreshFilterPopupHeavy({
+                    syncMain,
+                    clearPopupNav: options.clearPopupNav === true
+                }));
                 return;
             }
 
-            refreshFilterPopupHeavy({ syncMain });
+            refreshFilterPopupHeavy({
+                syncMain,
+                clearPopupNav: options.clearPopupNav === true
+            });
         }
 
         function initFilterPopupDrag() {
