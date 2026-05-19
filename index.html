@@ -851,7 +851,9 @@
         }
 
         .filter-popup-dock.hidden {
-            display: none;
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
         }
 
         .filter-popup-panel {
@@ -1556,6 +1558,9 @@
         let periodFilterMenuAnchor = 'toolbar';
         let filterPopupIndices = [];
         let filterPopupActiveIdx = -1;
+        let filterPopupRenderCacheKey = '';
+        let filterPopupHtmlCache = '';
+        let filterPopupIndicesCached = [];
         let filterModeCounts = {};
         let filterPopupLayoutSaveTimer = null;
         let filterNonexistNum = null;
@@ -1730,7 +1735,7 @@
             }
 
             if (periodFilterEnabled) {
-                refreshFilterPopup({ syncMain: false });
+                refreshFilterPopup({ syncMain: false, immediateRender: true });
             }
 
             // Zoom changes row layout; re-anchor the 11-row window at the 60/40 split.
@@ -2164,7 +2169,7 @@
                 if (isNonexistFilterMode(periodFilterMode)) {
                     return;
                 }
-                refreshFilterPopup({ syncMain: false });
+                refreshFilterPopup({ syncMain: false, immediateRender: true });
             } else {
                 updatePeriodFilterMatchCount();
             }
@@ -2471,7 +2476,7 @@
             filterNonexistNum = nextNum;
             saveFilterNonexistSettings();
             if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
-                refreshFilterPopup({ syncMain: false });
+                refreshFilterPopup({ syncMain: false, immediateRender: true });
             } else {
                 rebuildNonexistFilterModeCountOnly();
                 updatePeriodFilterMatchCount();
@@ -2489,7 +2494,7 @@
             filterNonexistNum = parseFilterNonexistNumInput(nextText);
             saveFilterNonexistSettings();
             if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
-                refreshFilterPopup({ syncMain: false });
+                refreshFilterPopup({ syncMain: false, immediateRender: true });
             } else {
                 rebuildNonexistFilterModeCountOnly();
                 updatePeriodFilterMatchCount();
@@ -2501,7 +2506,7 @@
             commitFilterPopupNonexistNumFromUi();
             saveFilterNonexistSettings();
             if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
-                refreshFilterPopup({ syncMain: false });
+                refreshFilterPopup({ syncMain: false, immediateRender: true });
             } else {
                 rebuildNonexistFilterModeCountOnly();
                 updatePeriodFilterMatchCount();
@@ -2696,7 +2701,7 @@
             rebuildFilterNoteTagMenuCounts();
             syncPeriodFilterToolbarUi();
             if (periodFilterEnabled) {
-                refreshFilterPopup({ syncMain: false });
+                refreshFilterPopup({ syncMain: false, immediateRender: true });
             }
             requestAnimationFrame(() => restoreKeyboardFocusTarget());
         }
@@ -2845,7 +2850,7 @@
             const label = getFilterModeTitleHint(normalized);
             const filteredTotal = getFilterPopupListTotal(total);
             const parentTotal = periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1'
-                ? getFilterParentCountForMode(normalized)
+                ? (filterModeCounts[normalized] ?? getFilterParentCountForMode(normalized))
                 : 0;
             const listPos = getFilterPopupListPosition();
             const isEditing = positionInput && document.activeElement === positionInput;
@@ -3098,7 +3103,9 @@
             const normalized = normalizeFilterMode(mode);
             let filteredTotal = 0;
             if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1') {
-                filteredTotal = getFilterMatchingIndicesForMode(normalized).length;
+                filteredTotal = filterPopupIndices.length > 0
+                    ? filterPopupIndices.length
+                    : getFilterMatchingIndicesForMode(normalized).length;
             }
 
             syncFilterPopupMatchCountUi(mode, isPreview, filteredTotal);
@@ -3203,7 +3210,7 @@
             });
         }
 
-        function syncPeriodFilterToolbarUi() {
+        function syncPeriodFilterToolbarUi(light = false) {
             const toggleBtn = el('periodFilterToggleBtn');
             const toolbar = getPeriodFilterPicker('toolbar');
             const popup = getPeriodFilterPicker('popup');
@@ -3228,9 +3235,12 @@
             }
             applyPeriodFilterModeVisual(toolbar.modeLabel, periodFilterMode);
             applyPeriodFilterModeVisual(popup.modeLabel, periodFilterMode);
-
-            fitPeriodFilterModeBtnWidth();
             highlightPeriodFilterModeMenu(null);
+
+            if (light) {
+                return;
+            }
+            fitPeriodFilterModeBtnWidth();
             updatePeriodFilterMatchCount();
             syncFilterPopupNonexistToolsUi();
             syncFilterPopupNoteTagUi();
@@ -3322,7 +3332,10 @@
             if (!dock) {
                 return;
             }
-            applyFilterPopupLayout();
+            if (dock.dataset.layoutReady !== '1') {
+                applyFilterPopupLayout();
+                dock.dataset.layoutReady = '1';
+            }
             dock.classList.remove('hidden');
             dock.setAttribute('aria-hidden', 'false');
         }
@@ -3345,12 +3358,27 @@
                 } catch (e) { }
             }
 
-            syncPeriodFilterToolbarUi();
             closePeriodFilterModeMenu();
 
             if (periodFilterEnabled) {
-                rebuildFilterModeCounts();
-                refreshFilterPopup({ syncMain: false });
+                const wrap = el('filterTableWrap');
+                const cacheKey = getFilterPopupRenderCacheKey();
+                const hasLiveTable = filterPopupHasLiveTable(wrap, cacheKey);
+                openFilterPopup();
+                if (hasLiveTable) {
+                    filterPopupIndices = filterPopupIndicesCached.slice();
+                    filterPopupActiveIdx = resolveFilterPopupActiveIdx(filterPopupIndices);
+                    applyFilterPopupRowFocus(filterPopupActiveIdx);
+                    syncPeriodFilterToolbarUi(true);
+                    requestAnimationFrame(() => {
+                        scrollFilterPopupRowIntoView();
+                        updateFilterPopupMatchCount();
+                        syncPeriodFilterNavModeToIframe();
+                    });
+                } else {
+                    syncPeriodFilterToolbarUi(false);
+                    refreshFilterPopup({ syncMain: false, skipOpen: true, deferHeavy: true });
+                }
                 requestAnimationFrame(() => {
                     if (options.focusPopup) {
                         rememberKeyboardFocusTarget('filter');
@@ -3371,6 +3399,7 @@
 
             closeFilterPopup();
             syncPeriodFilterNavModeToIframe();
+            syncPeriodFilterToolbarUi(false);
             if (options.restoreFocus !== false) {
                 requestAnimationFrame(() => restoreKeyboardFocusTarget());
             }
@@ -3721,33 +3750,118 @@
             applyFilterPopupNavDelta(step);
         }
 
-        function refreshFilterPopup(options = {}) {
-            const syncMain = options.syncMain === true;
-            if (!periodFilterEnabled) {
-                closeFilterPopup();
-                syncPeriodFilterNavModeToIframe();
+        function getFilterPopupRenderCacheKey() {
+            if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
+                return '';
+            }
+            const rowLen = (sheetManager.sourceRows || []).length;
+            const tags = filterNoteTags.slice().sort().join(',');
+            const styles = filterNonexistStyles.slice().sort().join(',');
+            const num = filterNonexistNum != null ? String(filterNonexistNum) : '';
+            return [
+                periodFilterMode,
+                tags,
+                num,
+                styles,
+                rowLen,
+                rightPaneZoom
+            ].join('|');
+        }
+
+        function invalidateFilterPopupRenderCache() {
+            filterPopupRenderCacheKey = '';
+            filterPopupHtmlCache = '';
+            filterPopupIndicesCached = [];
+        }
+
+        function filterPopupHasLiveTable(wrap, cacheKey) {
+            if (!wrap || !filterPopupIndicesCached.length || !filterPopupHtmlCache) {
+                return false;
+            }
+            if (cacheKey && cacheKey !== filterPopupRenderCacheKey) {
+                return false;
+            }
+            const table = wrap.querySelector('table.sheet-data-table');
+            if (!table) {
+                return false;
+            }
+            return wrap.querySelectorAll('tbody tr[data-idx]').length === filterPopupIndicesCached.length;
+        }
+
+        function activateFilterPopupRow(idx, event) {
+            if (!sheetManager || typeof idx !== 'number' || idx < 0) {
                 return;
             }
-
-            openFilterPopup();
-
             const wrap = el('filterTableWrap');
-            if (!wrap || !sheetManager) {
-                syncPeriodFilterNavModeToIframe();
+            const tr = wrap && wrap.querySelector(`tbody tr[data-idx="${idx}"]`);
+            sheetManager.onRowClick(idx, tr && tr.dataset.empty === '1', event || null, {
+                skipSave: true,
+                fromFilterNav: true,
+                light: true,
+                skipCenter: true
+            });
+            try {
+                if (wrap) {
+                    wrap.focus({ preventScroll: true });
+                }
+            } catch (err) {
+                // ignore
+            }
+            rememberKeyboardFocusTarget('filter');
+            filterPopupActiveIdx = idx;
+            applyFilterPopupRowFocus(idx);
+            syncMainRowFromFilter(idx);
+            scrollFilterPopupRowIntoView();
+            updateFilterPopupMatchCount();
+        }
+
+        function initFilterPopupTableClickDelegation() {
+            const wrap = el('filterTableWrap');
+            if (!wrap || wrap.dataset.popupClickBound === '1') {
                 return;
             }
+            wrap.dataset.popupClickBound = '1';
+            wrap.addEventListener('click', (event) => {
+                if (!periodFilterEnabled) {
+                    return;
+                }
+                const tr = event.target.closest('tbody tr[data-idx]');
+                if (!tr || !wrap.contains(tr)) {
+                    return;
+                }
+                activateFilterPopupRow(Number(tr.dataset.idx), event);
+            });
+        }
 
-            if (sheetManager.activeSheet !== 'sheet1') {
-                filterPopupIndices = [];
-                filterPopupActiveIdx = -1;
-                wrap.innerHTML = '<div class="filter-popup-empty">Lọc chỉ áp dụng cho sheet dữ liệu chính.</div>';
-                updatePeriodFilterMatchCount();
-                syncPeriodFilterNavModeToIframe();
-                return;
+        function applyFilterPopupFastOpen(wrap, options = {}) {
+            wrap.style.setProperty('--right-table-zoom', String(rightPaneZoom));
+            if (!filterPopupHasLiveTable(wrap, getFilterPopupRenderCacheKey())) {
+                wrap.innerHTML = filterPopupHtmlCache;
             }
-
-            filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
+            filterPopupIndices = filterPopupIndicesCached.slice();
             filterPopupActiveIdx = resolveFilterPopupActiveIdx(filterPopupIndices);
+            applyFilterPopupRowFocus(filterPopupActiveIdx);
+            requestAnimationFrame(() => {
+                scrollFilterPopupRowIntoView();
+                updateFilterPopupMatchCount();
+                syncPeriodFilterNavModeToIframe();
+            });
+        }
+
+        function finishFilterPopupOpen(options = {}) {
+            const syncMain = options.syncMain === true;
+            clearFilterPopupRowFocus();
+            if (filterPopupActiveIdx >= 0) {
+                if (syncMain) {
+                    syncMainRowFromFilter(filterPopupActiveIdx);
+                }
+                applyFilterPopupRowFocus(filterPopupActiveIdx);
+                scrollFilterPopupRowIntoView();
+            }
+            syncPeriodFilterNavModeToIframe();
+        }
+
+        function syncFilterPopupHeaderUi() {
             if (isNonexistFilterMode(periodFilterMode)) {
                 filterModeCounts.nonexist = getFilterParentCountForMode('nonexist');
                 const menu = getPeriodFilterMenu();
@@ -3760,37 +3874,112 @@
             updatePeriodFilterMatchCount();
             syncFilterPopupNonexistToolsUi();
             syncFilterPopupNoteTagUi();
+        }
 
-            if (filterPopupIndices.length === 0) {
-                syncPeriodFilterNavModeToIframe();
-                wrap.innerHTML = '<div class="filter-popup-empty">' + getFilterPopupEmptyMessage(periodFilterMode) + '</div>';
-                return;
-            }
+        function buildFilterPopupTable(wrap, options = {}) {
+            const syncMain = options.syncMain === true;
+            const cacheKey = options.cacheKey || getFilterPopupRenderCacheKey();
 
             wrap.style.setProperty('--right-table-zoom', String(rightPaneZoom));
             sheetManager.renderSourceSheet(wrap, sheetManager.dataRows, {
                 indices: filterPopupIndices,
                 bindKeyboard: false,
                 applyWindowSelection: false,
-                onRowActivated: (idx) => {
-                    rememberKeyboardFocusTarget('filter');
-                    filterPopupActiveIdx = idx;
-                    applyFilterPopupRowFocus(idx);
-                    syncMainRowFromFilter(idx);
-                    scrollFilterPopupRowIntoView();
-                    updateFilterPopupMatchCount();
-                }
+                skipRowClickBind: true
             });
+            filterPopupIndicesCached = filterPopupIndices.slice();
+            filterPopupHtmlCache = wrap.innerHTML;
+            filterPopupRenderCacheKey = cacheKey;
+            finishFilterPopupOpen({ syncMain });
+        }
 
-            clearFilterPopupRowFocus();
-            if (filterPopupActiveIdx >= 0) {
-                if (syncMain) {
-                    syncMainRowFromFilter(filterPopupActiveIdx);
-                }
-                applyFilterPopupRowFocus(filterPopupActiveIdx);
-                scrollFilterPopupRowIntoView();
+        function refreshFilterPopupHeavy(options = {}) {
+            const syncMain = options.syncMain === true;
+            const wrap = el('filterTableWrap');
+            if (!wrap || !sheetManager) {
+                syncPeriodFilterNavModeToIframe();
+                return;
             }
-            syncPeriodFilterNavModeToIframe();
+
+            if (sheetManager.activeSheet !== 'sheet1') {
+                filterPopupIndices = [];
+                filterPopupActiveIdx = -1;
+                invalidateFilterPopupRenderCache();
+                wrap.innerHTML = '<div class="filter-popup-empty">Lọc chỉ áp dụng cho sheet dữ liệu chính.</div>';
+                updatePeriodFilterMatchCount();
+                syncPeriodFilterNavModeToIframe();
+                return;
+            }
+
+            filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
+            filterPopupIndicesCached = filterPopupIndices.slice();
+            filterPopupActiveIdx = resolveFilterPopupActiveIdx(filterPopupIndices);
+            syncFilterPopupHeaderUi();
+
+            if (filterPopupIndices.length === 0) {
+                invalidateFilterPopupRenderCache();
+                wrap.innerHTML = '<div class="filter-popup-empty">' + getFilterPopupEmptyMessage(periodFilterMode) + '</div>';
+                finishFilterPopupOpen({ syncMain });
+                return;
+            }
+
+            buildFilterPopupTable(wrap, {
+                syncMain,
+                cacheKey: getFilterPopupRenderCacheKey()
+            });
+        }
+
+        function prebuildFilterPopupCache() {
+            if (!periodFilterEnabled || !sheetManager || sheetManager.activeSheet !== 'sheet1') {
+                return;
+            }
+            const wrap = el('filterTableWrap');
+            if (!wrap) {
+                return;
+            }
+            const cacheKey = getFilterPopupRenderCacheKey();
+            if (cacheKey && cacheKey === filterPopupRenderCacheKey && filterPopupHtmlCache) {
+                return;
+            }
+            refreshFilterPopupHeavy({ syncMain: false });
+        }
+
+        function refreshFilterPopup(options = {}) {
+            const syncMain = options.syncMain === true;
+            const forceRender = options.forceRender === true;
+            const dock = el('filterPopupDock');
+            const popupWasHidden = !dock || dock.classList.contains('hidden');
+
+            if (!periodFilterEnabled) {
+                closeFilterPopup();
+                syncPeriodFilterNavModeToIframe();
+                return;
+            }
+
+            if (!options.skipOpen) {
+                openFilterPopup();
+            }
+
+            const wrap = el('filterTableWrap');
+            if (!wrap || !sheetManager) {
+                syncPeriodFilterNavModeToIframe();
+                return;
+            }
+
+            const cacheKey = getFilterPopupRenderCacheKey();
+            const canReuseHtml = !forceRender && filterPopupHasLiveTable(wrap, cacheKey);
+
+            if (canReuseHtml) {
+                applyFilterPopupFastOpen(wrap, { syncMain });
+                return;
+            }
+
+            if (!options.immediateRender && (popupWasHidden || options.deferHeavy)) {
+                requestAnimationFrame(() => refreshFilterPopupHeavy({ syncMain }));
+                return;
+            }
+
+            refreshFilterPopupHeavy({ syncMain });
         }
 
         function initFilterPopupDrag() {
@@ -4133,8 +4322,10 @@
             initFilterPopupDrag();
             initFilterPopupResize();
             initFilterPopupKeyboard();
+            initFilterPopupTableClickDelegation();
             if (periodFilterEnabled) {
-                refreshFilterPopup();
+                refreshFilterPopup({ deferHeavy: true });
+                requestAnimationFrame(() => prebuildFilterPopupCache());
             }
         }
 
@@ -4145,15 +4336,20 @@
                     sheetManager = new RightPaneSheetManager();
                 }
                 sheetManager.loadData(j);
+                invalidateFilterPopupRenderCache();
                 rebuildFilterModeCounts();
                 syncComboLogicUi();
                 renderTable();
                 renderSheetTabs();
+                if (periodFilterEnabled) {
+                    requestAnimationFrame(() => prebuildFilterPopupCache());
+                }
             }).catch(e => {
                 if (!sheetManager) {
                     sheetManager = new RightPaneSheetManager();
                 }
                 sheetManager.loadData([]);
+                invalidateFilterPopupRenderCache();
                 rebuildFilterModeCounts();
                 syncComboLogicUi();
                 renderTable();
@@ -4327,7 +4523,7 @@
                 if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1') {
                     requestAnimationFrame(() => {
                         if (sheetManager && sheetManager.activeSheet === 'sheet1') {
-                            refreshFilterPopup({ syncMain: false });
+                            refreshFilterPopup({ syncMain: false, immediateRender: true });
                         }
                     });
                 }

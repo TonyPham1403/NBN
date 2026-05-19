@@ -818,20 +818,26 @@ class RightPaneSheetManager {
         html += '</tbody></table>';
         tableWrap.innerHTML = html;
 
-        tableWrap.querySelectorAll('tbody tr').forEach(tr => {
-            tr.style.cursor = 'pointer';
-            tr.addEventListener('click', (e) => {
-                this.onRowClick(Number(tr.dataset.idx), tr.dataset.empty === '1', e);
-                try {
-                    tableWrap.focus({ preventScroll: true });
-                } catch (err) {
-                    // ignore focus failures
-                }
-                if (typeof options.onRowActivated === 'function') {
-                    options.onRowActivated(Number(tr.dataset.idx));
-                }
+        if (options.skipRowClickBind !== true) {
+            tableWrap.querySelectorAll('tbody tr').forEach(tr => {
+                tr.style.cursor = 'pointer';
+                tr.addEventListener('click', (e) => {
+                    this.onRowClick(Number(tr.dataset.idx), tr.dataset.empty === '1', e);
+                    try {
+                        tableWrap.focus({ preventScroll: true });
+                    } catch (err) {
+                        // ignore focus failures
+                    }
+                    if (typeof options.onRowActivated === 'function') {
+                        options.onRowActivated(Number(tr.dataset.idx));
+                    }
+                });
             });
-        });
+        } else {
+            tableWrap.querySelectorAll('tbody tr').forEach(tr => {
+                tr.style.cursor = 'pointer';
+            });
+        }
 
         if (applyWindowSelection && this.activeWindowRange) {
             const selectionRoot = options.selectionRoot || tableWrap;
