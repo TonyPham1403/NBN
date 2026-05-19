@@ -1325,9 +1325,19 @@ class RightPaneSheetManager {
             }
         }
 
+        const prevWindowRange = this.activeWindowRange;
         this.activeWindowRange = { start: startIdx, end: endIdx, target: targetIdx };
         // Refresh nonexist HTML first; renderWindowLabels after so innerHTML does not strip labels.
-        this.refreshNonexistCellsForActiveWindow(tableWrap);
+        const refreshIndices = new Set();
+        if (prevWindowRange && typeof prevWindowRange.start === 'number' && typeof prevWindowRange.end === 'number') {
+            for (let i = prevWindowRange.start; i <= prevWindowRange.end; i++) {
+                refreshIndices.add(i);
+            }
+        }
+        for (let i = startIdx; i <= endIdx; i++) {
+            refreshIndices.add(i);
+        }
+        this.refreshNonexistCellsForRowIndices(tableWrap, refreshIndices);
         this.renderWindowLabels(startIdx, endIdx, tableWrap);
     }
 
@@ -1686,9 +1696,9 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Re-render nonexist column so yellow x1.5 tracks the active sliding window (chuỗi 11 nonexist).
+     * Re-render nonexist cells for specific row indices (yellow x1.5 tracks active window).
      */
-    refreshNonexistCellsForActiveWindow(tableWrap) {
+    refreshNonexistCellsForRowIndices(tableWrap, rowIndices) {
         if (!tableWrap || this.activeSheet !== 'sheet1') {
             return;
         }
@@ -1700,7 +1710,18 @@ class RightPaneSheetManager {
         if (!this.nonexistCache || this.nonexistCache.length !== displayRows.length) {
             this.refreshDerivedState();
         }
-        for (let i = 0; i < displayRows.length; i++) {
+
+        const indices = rowIndices instanceof Set
+            ? rowIndices
+            : new Set(Array.isArray(rowIndices) ? rowIndices : []);
+        if (indices.size === 0) {
+            return;
+        }
+
+        for (const i of indices) {
+            if (i < 0 || i >= displayRows.length) {
+                continue;
+            }
             const tr = tableWrap.querySelector(`tbody tr[data-idx="${i}"]`);
             if (!tr) {
                 continue;
@@ -1714,6 +1735,20 @@ class RightPaneSheetManager {
             const result = row.result || row.Result || '';
             cell.innerHTML = this.renderNonexistHtml(i, nonexistMeta.text, result);
         }
+    }
+
+    /**
+     * Re-render nonexist column for the active sliding window (and previous window when it moves).
+     */
+    refreshNonexistCellsForActiveWindow(tableWrap) {
+        const refreshIndices = new Set();
+        const win = this.activeWindowRange;
+        if (win && typeof win.start === 'number' && typeof win.end === 'number') {
+            for (let i = win.start; i <= win.end; i++) {
+                refreshIndices.add(i);
+            }
+        }
+        this.refreshNonexistCellsForRowIndices(tableWrap, refreshIndices);
     }
 
     /**
@@ -2273,12 +2308,19 @@ class RightPaneSheetManager {
 
         if (this.activeSheet === 'sheet1') {
             const focusRow = this.dataRows[idx] || rowAtClick;
-            this.comboFocusRowId = String(focusRow.id || focusRow.ID || clickedRowId || '').trim();
+            const nextFocusId = String(focusRow.id || focusRow.ID || clickedRowId || '').trim();
+            const hadG1 = this.comboG1Enabled;
+            const comboStateChanged = this.comboFocusRowId !== nextFocusId
+                || this.comboFocusRowIndex !== idx
+                || (this.isEmptyResultRow(focusRow) && hadG1);
+            this.comboFocusRowId = nextFocusId;
             this.comboFocusRowIndex = idx;
             if (this.isEmptyResultRow(focusRow)) {
                 this.comboG1Enabled = false;
             }
-            window.dispatchEvent(new CustomEvent('comboControlsChanged', { detail: { sheet: this.activeSheet } }));
+            if (comboStateChanged) {
+                window.dispatchEvent(new CustomEvent('comboControlsChanged', { detail: { sheet: this.activeSheet } }));
+            }
         }
 
         if (!options.skipSave) {

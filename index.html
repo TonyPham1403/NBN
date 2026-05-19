@@ -3428,7 +3428,8 @@
             sheetManager.onRowClick(idx, isEmpty, null, {
                 skipSave: true,
                 fromFilterNav: true,
-                light: true
+                light: true,
+                skipCenter: true
             });
         }
 
@@ -3537,7 +3538,7 @@
             }
         }
 
-        const RIGHT_PANE_NAV_COALESCE_MS = 180;
+        const RIGHT_PANE_NAV_COALESCE_MS = 48;
         const rightPaneNavCoalesce = { mode: null, delta: 0, timer: null };
 
         function getRightPaneArrowStepFromKey(key) {
@@ -4353,8 +4354,10 @@
             });
 
             window.addEventListener('comboControlsChanged', () => {
-                renderTable();
-                syncComboLogicUi();
+                if (sheetManager && sheetManager.activeSheet === 'combo_1') {
+                    renderTable();
+                    syncComboLogicUi();
+                }
             });
 
             const tableWrap = el('tableWrap');
