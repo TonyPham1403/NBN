@@ -1258,6 +1258,40 @@
             return out;
         }
 
+        /** Numbers currently circled/selected on the left pane (max 5). */
+        function getLeftPaneCircledNums() {
+            const nums = [];
+            const effective = new Set();
+            if (submitActive) {
+                simulatedSelected.forEach(function (n) { effective.add(n); });
+            } else {
+                selected.forEach(function (n) { effective.add(n); });
+                simulatedSelected.forEach(function (n) { effective.add(n); });
+            }
+            if (pickOrder && pickOrder.length) {
+                pickOrder.forEach(function (n) {
+                    if (!isNaN(n) && effective.has(n) && nums.indexOf(n) === -1) {
+                        nums.push(n);
+                    }
+                });
+            }
+            Array.from(effective).sort(function (a, b) { return a - b; }).forEach(function (n) {
+                if (nums.indexOf(n) === -1) {
+                    nums.push(n);
+                }
+            });
+            return nums.slice(0, MAX_PICK_NUMBERS);
+        }
+
+        function notifyParentLeftCircledNums() {
+            try {
+                window.parent.postMessage({
+                    type: 'leftCircledNumsReady',
+                    nums: getLeftPaneCircledNums()
+                }, '*');
+            } catch (e) { }
+        }
+
         function applyAutoRingSelection(circleNums) {
             circleNums = (circleNums || []).filter(function (n) { return !isNaN(n); });
             if (!circleNums.length) return false;
@@ -1295,6 +1329,7 @@
                 if (isBlocked(n)) continue;
                 toggleNumber(n);
             }
+            try { notifyParentLeftCircledNums(); } catch (e) { }
             return true;
         }
 
@@ -1883,6 +1918,7 @@
             try { applySelectionAndBlockedInDOM(n); updateFloatingCopyButtons(); alignTableActionsAndCenter(); updateFocusIndicator(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); try { updateFocusIndicator(); } catch (ee) { } }
             try { persistSelectionMemoryForFocus(); } catch (e) { }
             try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
+            try { notifyParentLeftCircledNums(); } catch (e) { }
         }
 
         function onNumberCellClick(n, region, rowIdx) {
@@ -3815,6 +3851,7 @@
                 try { applySelectionAndBlockedInDOM(); updateFloatingCopyButtons(); alignTableActionsAndCenter(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); }
                 try { updateFocusIndicator(); } catch (e) { }
                 try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
+                try { notifyParentLeftCircledNums(); } catch (e) { }
             } catch (e) { console.error(e); }
         }
 
@@ -5084,13 +5121,27 @@
                                 try { applySubmitState(); } catch (e) { console.error(e); }
                                 try { applySelectionAndBlockedInDOM(); } catch (e) { }
                             }
+                            try { notifyParentLeftCircledNums(); } catch (e) { }
                         };
                         if (wasSubmitActive) {
                             runAutoRing();
                         } else {
                             requestAnimationFrame(runAutoRing);
                         }
+                    } else {
+                        requestAnimationFrame(function () {
+                            try { notifyParentLeftCircledNums(); } catch (e) { }
+                        });
                     }
+                } else if (msg.type === 'requestLeftCircledNums' && msg.nonce) {
+                    try {
+                        window.parent.postMessage({
+                            type: 'leftCircledNums',
+                            nonce: msg.nonce,
+                            nums: getLeftPaneCircledNums()
+                        }, '*');
+                    } catch (e) { }
+                    return;
                 } else if (msg.type === 'submitAutoCircleChanged') {
                     const wasEnabled = submitAutoCircleEnabled;
                     submitAutoCircleEnabled = !!msg.enabled;
@@ -5168,6 +5219,7 @@
                         try { alignTableActionsAndCenter(); } catch (e) { }
                         try { updateFloatingCopyButtons(); } catch (e) { }
                         try { updateFocusIndicator(); } catch (e) { }
+                        try { notifyParentLeftCircledNums(); } catch (e) { }
                     }
                     try { applySubmitState(); } catch (e) { }
                 } else if (msg.type === 'toggleSubmit') {

@@ -13,6 +13,7 @@ class RightPaneSheetManager {
         this.selectedNums = new Set();
         this.activeWindowRange = null;
         this.comboFocusRowId = '';
+        this.comboFocusRowIndex = -1;
         this.comboG1Enabled = false;
         this.comboH1Text = '';
         this.scrollPositions = {};
@@ -40,6 +41,7 @@ class RightPaneSheetManager {
                 this.sheets = data.sheets || { sheet1: { data: [], notes: {} } };
                 this.activeSheet = data.activeSheet || 'sheet1';
                 this.comboFocusRowId = data.comboFocusRowId || '';
+                this.comboFocusRowIndex = Number.isFinite(data.comboFocusRowIndex) ? data.comboFocusRowIndex : -1;
                 this.comboG1Enabled = !!data.comboG1Enabled;
                 this.comboH1Text = data.comboH1Text || '';
                 this.scrollPositions = data.scrollPositions || {};
@@ -209,12 +211,45 @@ class RightPaneSheetManager {
     }
 
     /**
+     * True when F1 points at the trailing / future row with no result (H1 sim only, G1 off).
+     */
+    isCombo1FocusEmptyResult() {
+        const sourceRows = this.sourceRows || [];
+        let row = this.getSourceRowById(this.comboFocusRowId);
+        if (!row && this.comboFocusRowIndex >= 0 && this.comboFocusRowIndex < sourceRows.length) {
+            row = sourceRows[this.comboFocusRowIndex];
+        }
+        if (row) {
+            return this.isEmptyResultRow(row);
+        }
+        const focusNum = this.parseRowId(this.comboFocusRowId);
+        if (focusNum === null) {
+            return false;
+        }
+        const latestValidRow = this.getLatestValidResultRow(sourceRows);
+        if (!latestValidRow) {
+            return true;
+        }
+        const latestNum = this.parseRowId(latestValidRow.id || latestValidRow.ID || '');
+        if (latestNum === null) {
+            return false;
+        }
+        return focusNum >= latestNum + 1;
+    }
+
+    /**
      * Build the current combo_1 focus, arrow, and styling state.
      */
     buildCombo1StyleContext() {
         const sourceRows = this.sourceRows || [];
         const fallbackRow = this.getLatestValidResultRow(sourceRows);
-        const focusRow = this.getSourceRowById(this.comboFocusRowId) || fallbackRow;
+        let focusRow = this.getSourceRowById(this.comboFocusRowId);
+        if (!focusRow && this.comboFocusRowIndex >= 0 && this.comboFocusRowIndex < sourceRows.length) {
+            focusRow = sourceRows[this.comboFocusRowIndex];
+        }
+        if (!focusRow) {
+            focusRow = fallbackRow;
+        }
         const focusId = focusRow ? (focusRow.id || focusRow.ID || '') : this.comboFocusRowId;
         const targetIndex = focusRow ? sourceRows.findIndex(row => this.normalizeNumberKey(row.id || row.ID || '') === this.normalizeNumberKey(focusRow.id || focusRow.ID || '')) : -1;
         const targetRow = targetIndex >= 0 ? sourceRows[targetIndex] || null : null;
@@ -237,10 +272,14 @@ class RightPaneSheetManager {
             (targetNonexistText && targetNonexistText !== 'N/A' ? this.parseNums(targetNonexistText) : []).map(num => String(num))
         );
         const h1Nums = this.parseNums(this.comboH1Text);
-        const showArrowsForTarget = !!this.comboG1Enabled;
+        const targetIsEmptyResult = targetRow ? this.isEmptyResultRow(targetRow) : this.isCombo1FocusEmptyResult();
         const targetHasResult = !!String(targetResult || '').trim();
-        const useH1Sim = h1Nums.length > 0 && (!showArrowsForTarget || !targetHasResult);
-        const arrowNums = showArrowsForTarget && targetHasResult ? targetNums : h1Nums.slice(0, 5);
+        const showArrowsForTarget = !!this.comboG1Enabled && !targetIsEmptyResult;
+        const useH1Sim = targetIsEmptyResult
+            || (h1Nums.length > 0 && (!showArrowsForTarget || !targetHasResult));
+        const arrowNums = targetIsEmptyResult
+            ? h1Nums.slice(0, 5)
+            : (showArrowsForTarget && targetHasResult ? targetNums : h1Nums.slice(0, 5));
         const arrowSet = new Set(arrowNums.map(num => String(num)));
 
         const freqWin = new Map();
@@ -300,6 +339,7 @@ class RightPaneSheetManager {
             arrowNums,
             arrowSet,
             showArrowsForTarget,
+            targetIsEmptyResult,
             useH1Sim,
             h1Nums,
             freqWin,
@@ -571,6 +611,10 @@ class RightPaneSheetManager {
             return indices;
         }
 
+        const noteTags = Array.isArray((filterOptions || {}).noteTags)
+            ? (filterOptions.noteTags || []).filter((n) => Number.isFinite(n) && n >= 1 && n <= 10)
+            : [];
+
         for (let i = 0; i < rows.length; i++) {
             if (this.isEmptyResultRow(rows[i])) {
                 continue;
@@ -582,10 +626,59 @@ class RightPaneSheetManager {
                 continue;
             }
             if (this.inferModeForRowIndex(i) === mode) {
+                if (noteTags.length > 0 && !this.rowMatchesNoteTagFilter(i, noteTags)) {
+                    continue;
+                }
                 indices.push(i);
             }
         }
         return indices;
+    }
+
+    /**
+     * Combined computed + raw note text for filtering.
+     */
+    getNoteTextForRowFilter(rowIndex) {
+        const rows = this.getSourceSheetRows();
+        const row = rows[rowIndex];
+        if (!row) {
+            return '';
+        }
+        const meta = this.getComputedNoteMeta(rowIndex, row);
+        const computed = (meta.text && meta.text !== '?') ? String(meta.text) : '';
+        const raw = String(row.note || row.Note || '').trim();
+        return [computed, raw].filter(Boolean).join(' ');
+    }
+
+    /**
+     * Note contains distance marker N:{...} (same shape as checknote notePat).
+     */
+    noteContainsDistColon(noteText, dist) {
+        if (!noteText || dist < 1 || dist > 10) {
+            return false;
+        }
+        const pat = new RegExp(`(?:^|[^0-9])${dist}\\s*:\\s*\\{`);
+        return pat.test(noteText);
+    }
+
+    /**
+     * Row note must contain every selected distance marker (AND).
+     */
+    rowMatchesNoteTagFilter(rowIndex, noteTags) {
+        const tags = Array.isArray(noteTags) ? noteTags : [];
+        if (tags.length === 0) {
+            return true;
+        }
+        const noteText = this.getNoteTextForRowFilter(rowIndex);
+        if (!noteText) {
+            return false;
+        }
+        for (let i = 0; i < tags.length; i++) {
+            if (!this.noteContainsDistColon(noteText, tags[i])) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -985,6 +1078,7 @@ class RightPaneSheetManager {
         const specialRows = runtime.specialRows || [];
         const comboState = runtime.comboState || this.buildCombo1StyleContext();
         const latestId = runtime.latestId || '';
+        const f1DisplayId = comboState.focusId || this.comboFocusRowId || latestId || '';
         const rowCount = Math.max(1 + comboRows.length, 1 + specialRows.length);
 
         let html = '<div class="combo-sheet-wrap">';
@@ -1050,8 +1144,10 @@ class RightPaneSheetManager {
             html += '<td class="cell-col-d blank-cell"></td>';
             html += '<td class="cell-col-e blank-cell"></td>';
             if (isHeaderRow) {
-                html += `<td class="cell-col-f combo-logic-focus-cell"><input id="comboF1CellInput" class="combo-cell-input" type="text" value="${this.escapeHtml(String(latestId || ''))}" aria-label="F1" /></td>`;
-                html += `<td class="cell-col-g" style="background:#f8fafc;"><label style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;"><input id="comboG1CellToggle" class="combo-cell-toggle" type="checkbox" aria-label="G1" ${this.comboG1Enabled ? 'checked' : ''} /></label></td>`;
+                html += `<td class="cell-col-f combo-logic-focus-cell"><input id="comboF1CellInput" class="combo-cell-input" type="text" value="${this.escapeHtml(String(f1DisplayId))}" aria-label="F1" /></td>`;
+                const g1Disabled = !!comboState.targetIsEmptyResult;
+                const g1Checked = !g1Disabled && !!this.comboG1Enabled;
+                html += `<td class="cell-col-g" style="background:#f8fafc;"><label style="display:flex;align-items:center;justify-content:center;width:100%;height:100%;"><input id="comboG1CellToggle" class="combo-cell-toggle" type="checkbox" aria-label="G1" ${g1Checked ? 'checked' : ''} ${g1Disabled ? 'disabled' : ''} title="${g1Disabled ? 'G1 tắt khi focus dòng không có result (chỉ giả lập H1)' : 'G1'}" /></label></td>`;
                 html += `<td class="cell-col-h blank-cell combo-logic-focus-cell"><input id="comboH1CellInput" class="combo-cell-input" type="text" value="${this.escapeHtml(this.comboH1Text || '')}" aria-label="H1" /></td>`;
             } else {
                 html += '<td class="cell-col-f"></td>';
@@ -1094,11 +1190,18 @@ class RightPaneSheetManager {
         if (g1Toggle && !g1Toggle.dataset.bound) {
             g1Toggle.dataset.bound = '1';
             g1Toggle.addEventListener('change', () => {
+                if (this.isCombo1FocusEmptyResult()) {
+                    g1Toggle.checked = false;
+                    this.comboG1Enabled = false;
+                    return;
+                }
                 this.comboG1Enabled = !!g1Toggle.checked;
                 this.save();
                 window.dispatchEvent(new CustomEvent('comboControlsChanged', { detail: { sheet: this.activeSheet } }));
             });
         }
+
+        this.syncCombo1HeaderControlStates(f1Input, g1Toggle, h1Input);
 
         if (h1Input && !h1Input.dataset.bound) {
             h1Input.dataset.bound = '1';
@@ -1112,6 +1215,23 @@ class RightPaneSheetManager {
                 this.save();
                 window.dispatchEvent(new CustomEvent('comboControlsChanged', { detail: { sheet: this.activeSheet } }));
             });
+        }
+    }
+
+    /**
+     * Sync F1/G1/H1 control enabled state (G1 locked on empty-result focus row).
+     */
+    syncCombo1HeaderControlStates(f1Input, g1Toggle, h1Input) {
+        const emptyFocus = this.isCombo1FocusEmptyResult();
+        if (g1Toggle) {
+            g1Toggle.disabled = emptyFocus;
+            g1Toggle.checked = emptyFocus ? false : !!this.comboG1Enabled;
+        }
+        if (f1Input) {
+            f1Input.disabled = false;
+        }
+        if (h1Input) {
+            h1Input.disabled = false;
         }
     }
 
@@ -1419,7 +1539,8 @@ class RightPaneSheetManager {
      * Get the computed note for a row, falling back to a raw note only if needed.
      */
     getComputedNoteMeta(rowIndex, row) {
-        if (!this.noteCache || this.noteCache.length !== this.dataRows.length) {
+        const sourceRowCount = this.getSourceSheetRows().length;
+        if (!this.noteCache || this.noteCache.length !== sourceRowCount) {
             this.refreshDerivedState();
         }
 
@@ -1437,7 +1558,8 @@ class RightPaneSheetManager {
      * Get the computed nonexist value for a row.
      */
     getComputedNonexistMeta(rowIndex, row) {
-        if (!this.nonexistCache || this.nonexistCache.length !== this.dataRows.length) {
+        const sourceRowCount = this.getSourceSheetRows().length;
+        if (!this.nonexistCache || this.nonexistCache.length !== sourceRowCount) {
             this.refreshDerivedState();
         }
 
@@ -1526,7 +1648,8 @@ class RightPaneSheetManager {
      * Streak of `num` in nonexist continues before this row's 10-period lookback window.
      */
     isNonexistLongerOutsideWindow(rowIndex, num) {
-        if (!this.nonexistCache || this.nonexistCache.length !== (this.dataRows || []).length) {
+        const sourceRowCount = this.getSourceSheetRows().length;
+        if (!this.nonexistCache || this.nonexistCache.length !== sourceRowCount) {
             this.refreshDerivedState();
         }
         const windowStart = this.getNonexistLookbackStart(rowIndex);
@@ -2148,9 +2271,14 @@ class RightPaneSheetManager {
             }
         }
 
-        if (this.activeSheet === 'sheet1' && this.selectedLines.length > 0) {
-            const focusCandidate = this.selectedLines[this.selectedLines.length - 1] || {};
-            this.comboFocusRowId = focusCandidate.id || '';
+        if (this.activeSheet === 'sheet1') {
+            const focusRow = this.dataRows[idx] || rowAtClick;
+            this.comboFocusRowId = String(focusRow.id || focusRow.ID || clickedRowId || '').trim();
+            this.comboFocusRowIndex = idx;
+            if (this.isEmptyResultRow(focusRow)) {
+                this.comboG1Enabled = false;
+            }
+            window.dispatchEvent(new CustomEvent('comboControlsChanged', { detail: { sheet: this.activeSheet } }));
         }
 
         if (!options.skipSave) {
@@ -2606,6 +2734,7 @@ class RightPaneSheetManager {
             sheets: this.sheets,
             activeSheet: this.activeSheet,
             comboFocusRowId: this.comboFocusRowId,
+            comboFocusRowIndex: this.comboFocusRowIndex,
             comboG1Enabled: this.comboG1Enabled,
             comboH1Text: this.comboH1Text,
             scrollPositions: this.scrollPositions
