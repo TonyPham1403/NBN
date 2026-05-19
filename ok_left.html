@@ -748,16 +748,26 @@
             font-weight: bold !important;
         }
 
+        .tableActions .actions-left {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+        }
+
         #resetBtn,
-        #submitBtn {
+        #submitBtn,
+        #blockBtn {
             font-size: 12px;
-            padding: 4px 8px;
+            padding: 4px 10px;
             font-weight: bold;
             cursor: pointer;
             margin: 0;
             background: none;
             border: 1px solid #ccc;
             border-radius: 6px;
+            min-height: 24px;
+            line-height: 1.2;
+            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
         }
 
         #mode {
@@ -795,6 +805,28 @@
             background: #2e7d32;
             color: #ffffff;
             border-color: #1b5e20;
+        }
+
+        /* Block toggle — ON: nền đen chữ trắng (chặn số theo mode) */
+        #blockBtn.active {
+            background: #111111;
+            color: #ffffff;
+            border-color: #111111;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+        }
+
+        /* Block OFF: viền nét đứt, nền sáng — không chặn, số vẫn bấm được */
+        #blockBtn:not(.active) {
+            background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+            color: #64748b;
+            border: 1px dashed #94a3b8;
+            box-shadow: none;
+        }
+
+        #blockBtn:not(.active):hover {
+            color: #334155;
+            border-color: #64748b;
+            background: #f8fafc;
         }
 
         /* Actions row directly above the left table (hidden until we align after scaling) */
@@ -991,7 +1023,8 @@
                 <div class="tableWrapper">
                     <div class="tableActions">
                         <div class="actions-left">
-                            <button id="submitBtn">Submit</button>
+                            <button id="submitBtn" type="button">Submit</button>
+                            <button id="blockBtn" type="button" aria-pressed="true">Block</button>
                         </div>
                         <div class="actions-right">
                             <input id="searchBox" maxlength="5" placeholder="search">
@@ -1073,6 +1106,8 @@
         let blockedSet = new Set();
         let simulatedSelected = new Set();
         let submitActive = false;
+        const BLOCK_FEATURE_KEY = 'leftPaneBlockEnabled';
+        let blockFeatureEnabled = true;
         let preserveSubmitOnNextProcess = false;
         let preserveSelectionOnNextProcess = false;
         let answerNums = [];
@@ -1633,8 +1668,102 @@
             }
         }
 
+        function isBlockFeatureEnabled() {
+            return blockFeatureEnabled !== false;
+        }
+
+        function loadBlockFeatureSetting() {
+            try {
+                const saved = localStorage.getItem(BLOCK_FEATURE_KEY);
+                blockFeatureEnabled = saved !== '0';
+            } catch (e) {
+                blockFeatureEnabled = true;
+            }
+        }
+
+        function saveBlockFeatureSetting() {
+            try {
+                localStorage.setItem(BLOCK_FEATURE_KEY, blockFeatureEnabled ? '1' : '0');
+            } catch (e) { }
+        }
+
+        function syncBlockBtnUi() {
+            const btn = document.getElementById('blockBtn');
+            if (!btn) {
+                return;
+            }
+            const on = isBlockFeatureEnabled();
+            btn.classList.toggle('active', on);
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            btn.setAttribute('title', on
+                ? 'Đang bật chặn số theo mode (nền đen). Bấm để tắt'
+                : 'Đang tắt chặn số — có thể chọn mọi số. Bấm để bật lại');
+        }
+
+        function clearSelectionWhenBlockTurnsOn() {
+            try {
+                selected = new Set();
+                transientSelected.clear();
+                if (!submitActive) {
+                    simulatedSelected.clear();
+                }
+                pickOrder = [];
+                if (submitActive) {
+                    try { syncPickOrderForSubmitState(); } catch (e) { }
+                }
+                selectionCleared = false;
+                clearedSelectionBackup = null;
+                clearedPickOrderBackup = null;
+                clearedFocusBackup = null;
+                currentPairIndex = -1;
+                currentTailIndex = -1;
+                undoEnabled = false;
+                undoWasCleared = false;
+                try {
+                    currentPhaseNumber = null;
+                    currentPhaseRow = null;
+                    lastClickedNumber = null;
+                    lastClickedRow = null;
+                    lastClickedRegion = null;
+                } catch (ee) { }
+                try { recomputePairsFromSelected(); } catch (e) { }
+                try { updateBlocked(); } catch (e) { }
+                try { refreshPairTailSelectionState(); } catch (e) { }
+                try {
+                    if (raw && document.getElementById('right') && document.getElementById('left')) {
+                        try { applySubmitState(); } catch (e) { }
+                    }
+                } catch (e) { }
+                try { applySelectionAndBlockedInDOM(); updateFloatingCopyButtons(); alignTableActionsAndCenter(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); }
+                try { updateFocusIndicator(); } catch (e) { }
+                try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
+                try { notifyParentLeftCircledNums(); } catch (e) { }
+            } catch (e) { console.error(e); }
+        }
+
+        function toggleBlockFeature() {
+            const wasEnabled = isBlockFeatureEnabled();
+            blockFeatureEnabled = !blockFeatureEnabled;
+            saveBlockFeatureSetting();
+            syncBlockBtnUi();
+            if (blockFeatureEnabled && !wasEnabled) {
+                clearSelectionWhenBlockTurnsOn();
+            } else {
+                updateBlocked();
+                try { applySelectionAndBlockedInDOM(); } catch (e) { }
+            }
+            try {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: 'blockFeatureChanged', enabled: blockFeatureEnabled }, '*');
+                }
+            } catch (e) { }
+        }
+
         function updateBlocked() {
             blockedSet.clear();
+            if (!isBlockFeatureEnabled()) {
+                return;
+            }
             let mode = document.getElementById("mode") ? document.getElementById("mode").value : null;
             if (!raw) return;
 
@@ -1738,7 +1867,7 @@
         // Compute blocked set given an arbitrary selection set (does not mutate globals)
         function computeBlockedForSelected(selSet) {
             let b = new Set();
-            if (!raw) return b;
+            if (!isBlockFeatureEnabled() || !raw) return b;
             let mode = document.getElementById("mode") ? document.getElementById("mode").value : null;
 
             let localFirstPair = null, localSecondPair = null, localThirdPair = null, localFourthPair = null, localFifthPair = null, localFirstTriple = null;
@@ -2173,6 +2302,7 @@
         }
         function isBlocked(n) {
             try {
+                if (!isBlockFeatureEnabled()) return false;
                 if (typeof blockedSet === 'undefined' || !blockedSet || !blockedSet.has(n)) return false;
                 if (submitActive) return !simulatedSelected.has(n);
                 return !selected.has(n) && !simulatedSelected.has(n);
@@ -4449,6 +4579,22 @@
                 }
             } catch (ee) { /* ignore */ }
         });
+
+        loadBlockFeatureSetting();
+        syncBlockBtnUi();
+
+        (function () {
+            try {
+                var bb = document.getElementById('blockBtn');
+                if (!bb) return;
+                bb.addEventListener('click', function (ev) {
+                    try {
+                        ev.preventDefault();
+                        toggleBlockFeature();
+                    } catch (e) { console.error(e); }
+                });
+            } catch (e) { }
+        })();
 
         // Submit button click: act like Space (toggle submit preview) and keep button style in sync
         (function () {
