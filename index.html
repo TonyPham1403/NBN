@@ -993,11 +993,15 @@
         }
 
         .filter-popup-filter-tools .period-filter-mode-picker,
-        .filter-popup-filter-tools .filter-popup-note-tag-picker {
+        .filter-popup-filter-tools .filter-popup-note-tag-picker:not(.hidden) {
             display: inline-flex;
             align-items: stretch;
             align-self: stretch;
             height: auto;
+        }
+
+        .filter-popup-filter-tools .filter-popup-note-tag-picker.hidden {
+            display: none !important;
         }
 
         .filter-popup-filter-tools .period-filter-mode-picker {
@@ -2156,6 +2160,9 @@
         }
 
         function supportsNoteTagFilter(mode) {
+            if (isNonexistFilterMode(mode)) {
+                return false;
+            }
             return getFilterNoteTagMaxSelections(mode) > 0;
         }
 
@@ -2265,6 +2272,9 @@
             const btn = el('filterPopupNoteTagBtn');
             const label = el('filterPopupNoteTagBtnLabel');
             const show = periodFilterEnabled && supportsNoteTagFilter(periodFilterMode);
+            if (!show) {
+                closeFilterPopupNoteTagMenu();
+            }
             if (picker) {
                 picker.classList.toggle('hidden', !show);
             }
@@ -3730,14 +3740,14 @@
             applyPeriodFilterModeVisual(toolbar.modeLabel, periodFilterMode);
             applyPeriodFilterModeVisual(popup.modeLabel, periodFilterMode);
             highlightPeriodFilterModeMenu(null);
+            syncFilterPopupNonexistToolsUi();
+            syncFilterPopupNoteTagUi();
 
             if (light) {
                 return;
             }
             fitPeriodFilterModeBtnWidth();
             updatePeriodFilterMatchCount();
-            syncFilterPopupNonexistToolsUi();
-            syncFilterPopupNoteTagUi();
         }
 
         function loadFilterPopupLayout() {
@@ -4383,6 +4393,7 @@
                 filterPopupActiveIdx = resolveFilterPopupActiveIdx(filterPopupIndices);
                 applyFilterPopupRowFocus(filterPopupActiveIdx);
             }
+            syncFilterPopupHeaderUi();
             requestAnimationFrame(() => {
                 if (filterPopupActiveIdx >= 0) {
                     scrollFilterPopupRowIntoView();
