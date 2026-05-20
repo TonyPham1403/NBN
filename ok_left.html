@@ -873,6 +873,7 @@
         }
 
         .pair-btn {
+            box-sizing: border-box;
             background: none;
             border: 1px solid #ccc;
             border-radius: 6px;
@@ -889,6 +890,65 @@
             background: #2e7d32;
             color: #ffffff;
             border-color: #1b5e20
+        }
+
+        /* Neon gợi ý cặp — thời lượng animation khớp PAIR_NEON_BORDER_PERIOD_S / PAIR_NEON_GLOW_PERIOD_S trong JS (syncPairNeonHintAnimations) */
+        .pair-btn.pair-neon-hint:not(.pair-selected) {
+            box-sizing: border-box;
+            position: relative;
+            z-index: 0;
+            border: 3px solid transparent;
+            padding: 1px 4px;
+            outline: none;
+            background-image:
+                linear-gradient(#ecfdf5, #ecfdf5),
+                linear-gradient(90deg,
+                    #14532d 0%,
+                    #15803d 10%,
+                    #22c55e 22%,
+                    #bef264 38%,
+                    #ecfccb 48%,
+                    #84cc16 52%,
+                    #4ade80 65%,
+                    #16a34a 82%,
+                    #052e16 100%);
+            background-size: 100% 100%, 340% 100%;
+            background-origin: border-box;
+            background-clip: padding-box, border-box;
+            box-shadow:
+                0 0 0 1px rgba(190, 242, 100, 0.65),
+                0 0 14px rgba(74, 222, 128, 0.95),
+                0 0 28px rgba(34, 197, 94, 0.55);
+            animation:
+                pair-neon-border-slide 1.25s linear infinite,
+                pair-neon-glow-pulse 0.9s ease-in-out infinite alternate;
+            transition: none;
+        }
+
+        @keyframes pair-neon-border-slide {
+            0% {
+                background-position: 0 0, 0% 0;
+            }
+
+            100% {
+                background-position: 0 0, 100% 0;
+            }
+        }
+
+        @keyframes pair-neon-glow-pulse {
+            0% {
+                box-shadow:
+                    0 0 0 1px rgba(190, 242, 100, 0.5),
+                    0 0 10px rgba(74, 222, 128, 0.75),
+                    0 0 22px rgba(34, 197, 94, 0.4);
+            }
+
+            100% {
+                box-shadow:
+                    0 0 0 2px rgba(217, 249, 157, 0.95),
+                    0 0 20px rgba(190, 242, 100, 1),
+                    0 0 36px rgba(74, 222, 128, 0.7);
+            }
         }
 
         /* pair/tail selected (green): giữ cyan / vàng như submit-highlight trên bảng 1 */
@@ -1143,6 +1203,8 @@
 
         // navigation / transient selection state
         let transientSelected = new Set();
+        /** Số quan sát cho neon pair: khoanh (toggleNumber) hoặc điều hướng WASD trên bảng — chỉ khi số đó có freq>=2 và còn trong selection. */
+        let pairNeonObserveNum = null;
         let currentPhaseNumber = null;
         let currentPhaseRow = null;
         let lastClickedRegion = 'left';
@@ -1210,6 +1272,7 @@
         let clearedSelectionBackup = null;
         let clearedPickOrderBackup = null;
         let clearedFocusBackup = null;
+        let clearedPairNeonObserveNumBackup = null;
         let selectionCleared = false;
 
         // quick-undo state for applyPair / quick clear
@@ -1247,6 +1310,7 @@
                 transientSelected.clear();
                 simulatedSelected.clear();
                 pickOrder = [];
+                pairNeonObserveNum = null;
                 currentPairIndex = -1;
                 currentTailIndex = -1;
                 selectionCleared = false;
@@ -1352,6 +1416,7 @@
             transientSelected.clear();
             simulatedSelected.clear();
             pickOrder = [];
+            pairNeonObserveNum = null;
             currentPairIndex = -1;
             currentTailIndex = -1;
             selectionCleared = false;
@@ -1479,6 +1544,7 @@
             return {
                 selected: Array.from(selected),
                 pickOrder: pickOrder ? pickOrder.slice() : [],
+                pairNeonObserveNum: pairNeonObserveNum,
                 currentPairIndex: currentPairIndex,
                 currentTailIndex: currentTailIndex,
                 currentPhaseNumber: currentPhaseNumber,
@@ -1499,6 +1565,15 @@
                 simulatedSelected.clear();
                 (snap.selected || []).forEach(function (n) { if (!isNaN(n)) selected.add(n); });
                 pickOrder = snap.pickOrder ? snap.pickOrder.slice() : [];
+                pairNeonObserveNum = null;
+                var po = snap.pairNeonObserveNum;
+                if (po != null && !isNaN(po) && raw && raw.freq) {
+                    try {
+                        if (selected.has(po) && (parseInt(raw.freq[po], 10) || 0) >= 2) {
+                            pairNeonObserveNum = po;
+                        }
+                    } catch (e) { }
+                }
                 currentPairIndex = typeof snap.currentPairIndex === 'number' ? snap.currentPairIndex : -1;
                 currentTailIndex = typeof snap.currentTailIndex === 'number' ? snap.currentTailIndex : -1;
                 currentPhaseNumber = snap.currentPhaseNumber != null ? snap.currentPhaseNumber : null;
@@ -1732,10 +1807,12 @@
                 if (submitActive) {
                     try { syncPickOrderForSubmitState(); } catch (e) { }
                 }
+                pairNeonObserveNum = null;
                 selectionCleared = false;
                 clearedSelectionBackup = null;
                 clearedPickOrderBackup = null;
                 clearedFocusBackup = null;
+                clearedPairNeonObserveNumBackup = null;
                 currentPairIndex = -1;
                 currentTailIndex = -1;
                 undoEnabled = false;
@@ -2019,6 +2096,7 @@
                 clearedSelectionBackup = null;
                 clearedPickOrderBackup = null;
                 clearedFocusBackup = null;
+                clearedPairNeonObserveNumBackup = null;
             }
             // Toggle state
             if (selected.has(n)) {
@@ -2048,6 +2126,19 @@
                 pickOrder.splice(idx, 1);
             }
 
+            try {
+                if (!submitActive && raw && raw.freq) {
+                    if (selected.has(n)) {
+                        const fPick = parseInt(raw.freq[n], 10) || 0;
+                        if (fPick >= 2 && pairNeonObserveNum === null) {
+                            pairNeonObserveNum = n;
+                        }
+                    } else if (pairNeonObserveNum === n) {
+                        pairNeonObserveNum = null;
+                    }
+                }
+            } catch (e) { }
+
             // Update only sequence-number cells in-place (have class `num`) to avoid repaint of index/footer cells
             try {
                 var numCells = document.querySelectorAll('.cell.num[data-num="' + n + '"]');
@@ -2062,6 +2153,11 @@
             try { refreshPairTailSelectionState(); } catch (e) { }
             // Apply minimal in-place DOM updates to avoid full rerender (prevents flicker)
             try { applySelectionAndBlockedInDOM(n); updateFloatingCopyButtons(); alignTableActionsAndCenter(); updateFocusIndicator(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); try { updateFocusIndicator(); } catch (ee) { } }
+            try {
+                requestAnimationFrame(function () {
+                    try { updatePairListNeonHints(); } catch (e2) { }
+                });
+            } catch (e) { }
             try { persistSelectionMemoryForFocus(); } catch (e) { }
             try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
             try { notifyParentLeftCircledNums(); } catch (e) { }
@@ -2129,6 +2225,7 @@
                 simulatedSelected.clear();
                 blockedSet.clear();
                 transientSelected.clear();
+                pairNeonObserveNum = null;
             }
             let rows = [];
             if (!rawText) { updateRender(); return; }
@@ -2195,6 +2292,7 @@
                     submitActive = false;
                     simulatedSelected.clear();
                     pickOrder = [];
+                    pairNeonObserveNum = null;
                     const sbEl = document.getElementById('submitBtn');
                     if (sbEl) sbEl.classList.remove('active');
                     const modeEl = document.getElementById('mode');
@@ -2241,6 +2339,11 @@
             recomputePairsFromSelected();
             updateBlocked();
             if (preserveSelectionOnNextProcess) {
+                try {
+                    if (!submitActive) {
+                        getPairNeonObservationNumber();
+                    }
+                } catch (e) { }
                 renderTable1();
                 renderTable2();
                 updateRenderLightweight();
@@ -2415,6 +2518,16 @@
             if (!raw) return;
             selected = new Set(); pickOrder = []; transientSelected.clear();
             selected.add(a); selected.add(b); pickOrder.push(a); pickOrder.push(b);
+            if (!submitActive && raw && raw.freq && pairNeonObserveNum != null) {
+                try {
+                    if (!selected.has(pairNeonObserveNum) ||
+                        (parseInt(raw.freq[pairNeonObserveNum], 10) || 0) < 2) {
+                        pairNeonObserveNum = null;
+                    }
+                } catch (e) {
+                    pairNeonObserveNum = null;
+                }
+            }
             // save quick undo snapshot
             undoPrevSelected = new Set(selected);
             undoPrevPickOrder = pickOrder.slice();
@@ -2424,8 +2537,12 @@
             try { pushPhaseHistory('pairAction', b, null); } catch (e) { }
             currentPairIndex = -1;
             if (currentPairs && currentPairs.length) { for (let i = 0; i < currentPairs.length; i++) { const p = currentPairs[i]; if (p && p[0] === a && p[1] === b) { currentPairIndex = i; break; } } }
-            const useLightRender = !!(opts && opts.lightRender);
-            recomputePairsFromSelected(); updateBlocked(); if (useLightRender) updateRenderLightweight(); else updateRender();
+            recomputePairsFromSelected(); updateBlocked();
+            if (opts && opts.fullRender) {
+                updateRender();
+            } else {
+                updateRenderLightweight();
+            }
             try { persistSelectionMemoryForFocus(); } catch (e) { }
         }
 
@@ -2436,7 +2553,16 @@
             currentPairIndex = idx;
             applyPair(p[0], p[1], opts);
             if (!(opts && opts.skipFocus)) {
-                setTimeout(() => { const btn = document.querySelector('.pair-btn[data-idx="' + idx + '"]'); if (btn) btn.focus(); }, 40);
+                setTimeout(() => {
+                    const btn = document.querySelector('.pair-btn[data-idx="' + idx + '"]');
+                    if (btn) btn.focus();
+                    try {
+                        requestAnimationFrame(() => {
+                            syncPairNeonHintAnimations();
+                            requestAnimationFrame(() => { syncPairNeonHintAnimations(); });
+                        });
+                    } catch (e) { }
+                }, 40);
             }
         }
 
@@ -2452,6 +2578,178 @@
         }
 
         function updatePairButtonsSelection(effective) { const el = document.getElementById('pairList'); if (!el) return; const btns = Array.from(el.querySelectorAll('.pair-btn')); btns.forEach((btn, i) => { const a = parseInt(btn.getAttribute('data-a'), 10); const b = parseInt(btn.getAttribute('data-b'), 10); if (effective && effective.has(a) && effective.has(b)) btn.classList.add('pair-selected'); else btn.classList.remove('pair-selected'); }); }
+
+        /** Có đủ dòng chuỗi để hiển thị pair — viền neon chỉ phụ thuộc dữ liệu, không phụ thuộc disableSubmit. */
+        function hasLeftPaneRecordForPairNeon() {
+            return !!(raw && Array.isArray(raw.lines) && raw.lines.length >= 10);
+        }
+
+        /** Số quan sát cho neon: khoanh (toggleNumber); WASD chỉ gán từ ô focus khi chưa có số hợp lệ — đã xác định thì giữ. Chỉ khi freq>=2 và còn trong selection. */
+        function getPairNeonObservationNumber() {
+            if (!raw || !raw.freq || submitActive) {
+                return null;
+            }
+            if (pairNeonObserveNum == null) {
+                return null;
+            }
+            try {
+                if (!selected.has(pairNeonObserveNum)) {
+                    pairNeonObserveNum = null;
+                    return null;
+                }
+                const fo = parseInt(raw.freq[pairNeonObserveNum], 10) || 0;
+                if (fo < 2) {
+                    pairNeonObserveNum = null;
+                    return null;
+                }
+                return pairNeonObserveNum;
+            } catch (e) {
+                pairNeonObserveNum = null;
+                return null;
+            }
+        }
+
+        /**
+         * Sau W/A/S/D trên bảng: chỉ gán số quan sát từ currentPhaseNumber khi chưa có số quan sát hợp lệ.
+         * Nếu đã xác định (còn trong selection, freq>=2) thì giữ nguyên; nếu trước đó không hợp lệ thì xóa rồi mới thử gán từ phase.
+         */
+        function syncPairNeonObserveNumFromPhaseAfterWasd() {
+            if (submitActive || !raw || !raw.freq) {
+                return;
+            }
+            try {
+                if (pairNeonObserveNum != null) {
+                    if (selected.has(pairNeonObserveNum)) {
+                        const fo = parseInt(raw.freq[pairNeonObserveNum], 10) || 0;
+                        if (fo >= 2) {
+                            return;
+                        }
+                    }
+                    pairNeonObserveNum = null;
+                }
+                if (currentPhaseNumber != null && selected.has(currentPhaseNumber)) {
+                    const f = parseInt(raw.freq[currentPhaseNumber], 10) || 0;
+                    pairNeonObserveNum = (f >= 2) ? currentPhaseNumber : null;
+                }
+            } catch (e) { }
+        }
+
+        function isNumClaimedForPairNeon(n, claimed, observed, effective) {
+            if (observed !== null && n === observed && effective.has(n)) {
+                return false;
+            }
+            return claimed.has(n);
+        }
+
+        /** Chu kỳ animation neon pair (khớp CSS) — dùng để animation-delay âm, mọi nút cùng pha. */
+        const PAIR_NEON_BORDER_PERIOD_S = 1.25;
+        const PAIR_NEON_GLOW_PERIOD_S = 0.9;
+
+        function syncPairNeonHintAnimations() {
+            const pairList = document.getElementById('pairList');
+            if (!pairList) {
+                return;
+            }
+            const neonBtns = pairList.querySelectorAll('.pair-btn.pair-neon-hint:not(.pair-selected)');
+            if (!neonBtns.length) {
+                return;
+            }
+            const t = performance.now() / 1000;
+            const d1 = -(t % PAIR_NEON_BORDER_PERIOD_S);
+            const d2 = -(t % PAIR_NEON_GLOW_PERIOD_S);
+            const delayStr = d1 + 's, ' + d2 + 's';
+            /* innerHTML / focus có thể restart animation lệch pha — tắt animation, reflow, bật lại từ CSS rồi gán delay chung */
+            neonBtns.forEach((btn) => {
+                btn.style.animation = 'none';
+            });
+            void pairList.offsetHeight;
+            neonBtns.forEach((btn) => {
+                btn.style.removeProperty('animation');
+            });
+            void pairList.offsetHeight;
+            neonBtns.forEach((btn) => {
+                btn.style.animationDelay = delayStr;
+            });
+        }
+
+        function scheduleSyncPairNeonHintAnimations() {
+            try { syncPairNeonHintAnimations(); } catch (e1) { }
+            try {
+                requestAnimationFrame(() => {
+                    try { syncPairNeonHintAnimations(); } catch (e2) { }
+                    requestAnimationFrame(() => {
+                        try { syncPairNeonHintAnimations(); } catch (e3) { }
+                    });
+                });
+            } catch (e4) { }
+        }
+
+        /**
+         * Viền neon trên các nút cặp: khi chưa submit, chỉ gợi ý các cặp chứa đúng số quan sát (freq>=2, đã xác định),
+         * không neon vì các số khoanh thêm sau đó. Khi submitActive, vẫn gợi ý theo simulated selection như cũ.
+         */
+        function updatePairListNeonHints() {
+            const pairList = document.getElementById('pairList');
+            if (!pairList) {
+                return;
+            }
+            const btns = Array.from(pairList.querySelectorAll('.pair-btn'));
+            if (!hasLeftPaneRecordForPairNeon() || !btns.length) {
+                btns.forEach((btn) => {
+                    btn.classList.remove('pair-neon-hint');
+                    btn.style.removeProperty('animation-delay');
+                });
+                return;
+            }
+            const effective = new Set();
+            if (submitActive) {
+                simulatedSelected.forEach((n) => effective.add(n));
+            } else {
+                selected.forEach((n) => effective.add(n));
+                simulatedSelected.forEach((n) => effective.add(n));
+                transientSelected.forEach((n) => effective.add(n));
+            }
+            const observed = (!submitActive && raw && raw.freq) ? getPairNeonObservationNumber() : null;
+            const claimed = new Set();
+            for (const btn of btns) {
+                const a = parseInt(btn.getAttribute('data-a'), 10);
+                const b = parseInt(btn.getAttribute('data-b'), 10);
+                if (Number.isFinite(a) && Number.isFinite(b) && effective.has(a) && effective.has(b)) {
+                    claimed.add(a);
+                    claimed.add(b);
+                }
+            }
+            for (const btn of btns) {
+                const a = parseInt(btn.getAttribute('data-a'), 10);
+                const b = parseInt(btn.getAttribute('data-b'), 10);
+                if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                    btn.classList.remove('pair-neon-hint');
+                    btn.style.removeProperty('animation-delay');
+                    continue;
+                }
+                if (effective.has(a) && effective.has(b)) {
+                    btn.classList.remove('pair-neon-hint');
+                    btn.style.removeProperty('animation-delay');
+                    continue;
+                }
+                let hitA;
+                let hitB;
+                if (submitActive) {
+                    hitA = effective.has(a) && !isNumClaimedForPairNeon(a, claimed, null, effective);
+                    hitB = effective.has(b) && !isNumClaimedForPairNeon(b, claimed, null, effective);
+                } else {
+                    hitA = observed !== null && effective.has(a) && a === observed && !isNumClaimedForPairNeon(a, claimed, observed, effective);
+                    hitB = observed !== null && effective.has(b) && b === observed && !isNumClaimedForPairNeon(b, claimed, observed, effective);
+                }
+                btn.classList.toggle('pair-neon-hint', !!(hitA || hitB));
+            }
+            btns.forEach((btn) => {
+                if (!btn.classList.contains('pair-neon-hint')) {
+                    btn.style.removeProperty('animation-delay');
+                }
+            });
+            scheduleSyncPairNeonHintAnimations();
+        }
 
         function syncPairTailWrapWidths() {
             const left = document.getElementById('left');
@@ -2479,8 +2777,13 @@
 
         function refreshPairTailSelectionState() {
             const effective = new Set();
-            if (submitActive) { simulatedSelected.forEach(n => effective.add(n)); }
-            else { selected.forEach(n => effective.add(n)); }
+            if (submitActive) {
+                simulatedSelected.forEach(n => effective.add(n));
+            } else {
+                selected.forEach(n => effective.add(n));
+                simulatedSelected.forEach(n => effective.add(n));
+                transientSelected.forEach(n => effective.add(n));
+            }
 
             updatePairButtonsSelection(effective);
 
@@ -2494,13 +2797,20 @@
                     else btn.classList.remove('pair-selected');
                 });
             }
+            try { updatePairListNeonHints(); } catch (e) { }
         }
 
         function updatePairList() {
             const el = document.getElementById('pairList'); if (!el) return;
             const pairs = computePairs() || [];
             currentPairs = pairs;
-            if (pairs.length === 0) { el.textContent = 'pair[0]:'; currentPairIndex = -1; return; }
+            if (pairs.length === 0) {
+                el.removeAttribute('data-pair-sig');
+                el.textContent = 'pair[0]:';
+                currentPairIndex = -1;
+                try { updatePairListNeonHints(); } catch (e) { }
+                return;
+            }
             const effective = new Set(); if (submitActive) { simulatedSelected.forEach(n => effective.add(n)); } else { selected.forEach(n => effective.add(n)); }
             const displayLines = raw.lines.slice(0, 10);
             const pairsWithMain = pairs.map(p => { const a = p[0], b = p[1]; const mains = []; for (let idx = 0; idx < displayLines.length; idx++) { const nums = getNumsFromLineObj(displayLines[idx]); if (nums.indexOf(a) !== -1 && nums.indexOf(b) !== -1) { mains.push(displayLines.length - idx); } } const main = (mains.length > 0) ? Math.min(...mains) : Infinity; return { pair: p, main }; });
@@ -2509,6 +2819,37 @@
             let firstMatch = -1;
             for (let i = 0; i < sortedPairs.length; i++) { const p = sortedPairs[i]; if (effective.has(p[0]) && effective.has(p[1])) { firstMatch = i; break; } }
             if (firstMatch >= 0) { if (currentPairIndex < 0) currentPairIndex = firstMatch; else { const cp = currentPairs[currentPairIndex]; if (!cp || !(effective.has(cp[0]) && effective.has(cp[1]))) currentPairIndex = firstMatch; } } else if (currentPairIndex >= 0) { const cp = currentPairs[currentPairIndex]; if (!cp || !(effective.has(cp[0]) && effective.has(cp[1]))) currentPairIndex = -1; }
+
+            const pairSig = sortedPairs.map(p => p[0] + ',' + p[1]).join('|');
+            const existingBtns = Array.from(el.querySelectorAll('.pair-btn'));
+            let reuseDom = false;
+            if (el.getAttribute('data-pair-sig') === pairSig && existingBtns.length === sortedPairs.length) {
+                reuseDom = true;
+                for (let i = 0; i < sortedPairs.length; i++) {
+                    const p = sortedPairs[i];
+                    const btn = existingBtns[i];
+                    if (!btn) { reuseDom = false; break; }
+                    const da = parseInt(btn.getAttribute('data-a'), 10);
+                    const db = parseInt(btn.getAttribute('data-b'), 10);
+                    if (da !== p[0] || db !== p[1]) { reuseDom = false; break; }
+                }
+            }
+            if (reuseDom) {
+                for (let i = 0; i < sortedPairs.length; i++) {
+                    const o = pairsWithMain[i];
+                    const main = isFinite(o.main) ? o.main : '-';
+                    const btn = existingBtns[i];
+                    btn.setAttribute('data-main', String(main));
+                    btn.setAttribute('data-idx', String(i));
+                }
+                try { refreshPairTailNumberStyles(); } catch (e) { }
+                updatePairButtonsSelection(effective);
+                try { updatePairListNeonHints(); } catch (e) { }
+                syncPairTailWrapWidths();
+                return;
+            }
+
+            el.setAttribute('data-pair-sig', pairSig);
             el.innerHTML = 'pair[' + sortedPairs.length + ']: ' + pairsWithMain.map((o, i) => {
                 const p = o.pair;
                 const a = p[0], b = p[1];
@@ -2518,6 +2859,7 @@
             const buttons = Array.from(el.querySelectorAll('.pair-btn'));
             buttons.forEach((btn, idx) => { btn.addEventListener('click', function (ev) { ev.preventDefault(); const a = parseInt(btn.getAttribute('data-a'), 10); const b = parseInt(btn.getAttribute('data-b'), 10); try { lastClickedRegion = 'pairList'; syncLeftKeyboardRegion('pairList'); lastClickedNumber = b; pushPhaseHistory('pairList', b, null); } catch (e) { } if (selected.has(a) && selected.has(b)) { toggleNumber(a); toggleNumber(b); currentPairIndex = -1; } else { applyPairByIndex(idx); } }); });
             updatePairButtonsSelection(effective);
+            try { updatePairListNeonHints(); } catch (e) { }
             syncPairTailWrapWidths();
         }
 
@@ -2654,6 +2996,7 @@
                 if (isNaN(a) || isNaN(b) || main == null) return;
                 btn.innerHTML = formatPairTailButtonLabel(main, a, b);
             });
+            try { scheduleSyncPairNeonHintAnimations(); } catch (e) { }
         }
 
         function syncLeftFreqZeroNonexistStylesInDOM() {
@@ -3928,12 +4271,14 @@
                         currentPhaseNumber: currentPhaseNumber,
                         currentPhaseRow: currentPhaseRow
                     };
+                    clearedPairNeonObserveNumBackup = pairNeonObserveNum;
                     // clear current selection
                     selected = new Set();
                     // also clear transient and simulated selections so focus indicator hides
                     transientSelected.clear();
                     simulatedSelected.clear();
                     pickOrder = [];
+                    pairNeonObserveNum = null;
                     selectionCleared = true;
                     // clear focus/phase state so arrow hides and nav doesn't auto-reselect
                     try {
@@ -3952,6 +4297,16 @@
                     clearedSelectionBackup = null;
                     clearedPickOrderBackup = null;
                     selectionCleared = false;
+                    pairNeonObserveNum = null;
+                    var obn = clearedPairNeonObserveNumBackup;
+                    clearedPairNeonObserveNumBackup = null;
+                    if (obn != null && !isNaN(obn) && raw && raw.freq) {
+                        try {
+                            if (selected.has(obn) && (parseInt(raw.freq[obn], 10) || 0) >= 2) {
+                                pairNeonObserveNum = obn;
+                            }
+                        } catch (e) { }
+                    }
                     // restore exact pre-clear focus first, then fallback to history/pickOrder
                     try {
                         var restored = false;
@@ -4017,6 +4372,7 @@
                 if (submitActive) {
                     preSubmitSelected = new Set(selected);
                     preSubmitOrder = pickOrder ? pickOrder.slice() : [];
+                    pairNeonObserveNum = null;
                     simulatedSelected.clear();
                     (answerNums || []).forEach(function (n) { simulatedSelected.add(n); });
                     syncPickOrderForSubmitState();
@@ -4066,8 +4422,14 @@
                 } else {
                     simulatedSelected.clear();
                     try {
-                        // Autoring is independent from submit preview — keep current autoring picks
-                        if (submitAutoCircleEnabled && autoRingPicked.size > 0) {
+                        // Khôi phục khoanh thủ công trước khi bật submit; chỉ dùng autoring khi lúc bật submit không có số nào được khoanh.
+                        var hadPreSubmitSelection = !!(preSubmitSelected && preSubmitSelected.size > 0);
+                        if (hadPreSubmitSelection) {
+                            selected = new Set(preSubmitSelected);
+                            if (preSubmitOrder && preSubmitOrder.length) {
+                                pickOrder = preSubmitOrder.slice();
+                            }
+                        } else if (submitAutoCircleEnabled && autoRingPicked.size > 0) {
                             selected.clear();
                             autoRingPicked.forEach(function (n) {
                                 if (!isNaN(n)) selected.add(n);
@@ -4094,6 +4456,7 @@
                     preSubmitOrder = null;
                     recomputePairsFromSelected();
                     updateBlocked();
+                    try { getPairNeonObservationNumber(); } catch (e) { }
                 }
                 // Try to apply submit state in-place to avoid full rerender and visual tearing
                 try {
@@ -4406,6 +4769,7 @@
                         syncLeftKeyboardRegion('right');
                         recomputePairsFromSelected();
                         updateBlocked();
+                        syncPairNeonObserveNumFromPhaseAfterWasd();
                         updateRenderLightweight();
                         return;
                     } else if (regionWS === 'left') {
@@ -4463,7 +4827,9 @@
                         selected.add(candL); transientSelected.add(candL); pickOrder.push(candL);
                         currentPhaseNumber = candL; lastClickedNumber = candL; lastClickedRegion = 'left';
                         syncLeftKeyboardRegion('left');
-                        recomputePairsFromSelected(); updateBlocked(); updateRenderLightweight(); return;
+                        recomputePairsFromSelected(); updateBlocked();
+                        syncPairNeonObserveNumFromPhaseAfterWasd();
+                        updateRenderLightweight(); return;
                     } else { return; }
                 }
 
@@ -4507,7 +4873,9 @@
                         }
                         selected.add(found); transientSelected.add(found); currentPhaseNumber = found; lastClickedNumber = found; lastClickedRegion = 'left';
                         syncLeftKeyboardRegion('left');
-                        recomputePairsFromSelected(); updateBlocked(); updateRenderLightweight(); return;
+                        recomputePairsFromSelected(); updateBlocked();
+                        syncPairNeonObserveNumFromPhaseAfterWasd();
+                        updateRenderLightweight(); return;
                     }
 
                     if (region === 'right') {
@@ -4538,14 +4906,16 @@
                         var liR = pickOrder.indexOf(lastR); if (liR !== -1) pickOrder[liR] = foundR; else pickOrder.push(foundR);
                         selected.add(foundR); lastClickedNumber = foundR; transientSelected.add(foundR); currentPhaseNumber = foundR; currentPhaseRow = row; lastClickedRow = row; lastClickedRegion = 'right';
                         syncLeftKeyboardRegion('right');
-                        recomputePairsFromSelected(); updateBlocked(); updateRenderLightweight(); return;
+                        recomputePairsFromSelected(); updateBlocked();
+                        syncPairNeonObserveNumFromPhaseAfterWasd();
+                        updateRenderLightweight(); return;
                     }
 
                     if (region === 'pairList') {
                         try {
                             if (!currentPairs || currentPairs.length === 0) return;
-                            if (dir === 1) { if (currentPairIndex < 0) applyPairByIndex(0, { lightRender: true, skipFocus: true }); else applyPairByIndex((currentPairIndex + 1) % currentPairs.length, { lightRender: true, skipFocus: true }); }
-                            else { if (currentPairIndex < 0) applyPairByIndex(currentPairs.length - 1, { lightRender: true, skipFocus: true }); else applyPairByIndex((currentPairIndex - 1 + currentPairs.length) % currentPairs.length, { lightRender: true, skipFocus: true }); }
+                            if (dir === 1) { if (currentPairIndex < 0) applyPairByIndex(0, { skipFocus: true }); else applyPairByIndex((currentPairIndex + 1) % currentPairs.length, { skipFocus: true }); }
+                            else { if (currentPairIndex < 0) applyPairByIndex(currentPairs.length - 1, { skipFocus: true }); else applyPairByIndex((currentPairIndex - 1 + currentPairs.length) % currentPairs.length, { skipFocus: true }); }
                             syncLeftKeyboardRegion('pairList');
                             return;
                         } catch (err) { }
@@ -4554,8 +4924,8 @@
                     if (region === 'tailList') {
                         try {
                             if (!currentTails || currentTails.length === 0) return;
-                            if (dir === 1) { if (currentTailIndex < 0) applyTailByIndex(0, { lightRender: true, skipFocus: true }); else applyTailByIndex((currentTailIndex + 1) % currentTails.length, { lightRender: true, skipFocus: true }); }
-                            else { if (currentTailIndex < 0) applyTailByIndex(currentTails.length - 1, { lightRender: true, skipFocus: true }); else applyTailByIndex((currentTailIndex - 1 + currentTails.length) % currentTails.length, { lightRender: true, skipFocus: true }); }
+                            if (dir === 1) { if (currentTailIndex < 0) applyTailByIndex(0, { skipFocus: true }); else applyTailByIndex((currentTailIndex + 1) % currentTails.length, { skipFocus: true }); }
+                            else { if (currentTailIndex < 0) applyTailByIndex(currentTails.length - 1, { skipFocus: true }); else applyTailByIndex((currentTailIndex - 1 + currentTails.length) % currentTails.length, { skipFocus: true }); }
                             syncLeftKeyboardRegion('tailList');
                             return;
                         } catch (err2) { }
@@ -5228,6 +5598,7 @@
                         transientSelected.clear();
                         simulatedSelected.clear();
                         pickOrder = [];
+                        pairNeonObserveNum = null;
                         currentPairIndex = -1;
                         currentTailIndex = -1;
                         currentPhaseNumber = null;
@@ -5325,6 +5696,7 @@
                         transientSelected.clear();
                         simulatedSelected.clear();
                         pickOrder = [];
+                        pairNeonObserveNum = null;
                         currentPairIndex = -1;
                         currentTailIndex = -1;
                         selectionCleared = false;
@@ -5362,6 +5734,7 @@
                         transientSelected.clear();
                         simulatedSelected.clear();
                         pickOrder = [];
+                        pairNeonObserveNum = null;
                         currentPairIndex = -1;
                         currentTailIndex = -1;
                         selectionCleared = false;
