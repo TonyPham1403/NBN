@@ -1011,6 +1011,7 @@
                             <option value="pair4">4 bộ 2</option>
                             <option value="pair5">5 bộ 2</option>
                             <option value="triple1">1 bộ 3</option>
+                            <option value="quad1">1 bộ 4</option>
                         </select>
                         <button id="pickBtn">Pick</button>
                         <span id="pickPreview" style="font-weight:normal;color:#333"></span>
@@ -1531,17 +1532,20 @@
                 if (!answerNums || answerNums.length < 5 || !raw) return;
                 var linesLocal = raw.lines || [];
                 var pairLines = 0;
+                var quadFound = false;
                 var tripleFound = false;
                 var singleLines = 0;
                 for (var i = 0; i < Math.min(linesLocal.length, 10); i++) {
                     var nums = getNumsFromLineObj(linesLocal[i]);
                     var matched = (answerNums || []).filter(function (n) { return nums.indexOf(n) !== -1; });
+                    if (matched.length >= 4) { quadFound = true; break; }
                     if (matched.length >= 3) { tripleFound = true; break; }
                     if (matched.length >= 2) pairLines++;
                     if (matched.length >= 1) singleLines++;
                 }
                 var newMode = null;
-                if (tripleFound) newMode = 'triple1';
+                if (quadFound) newMode = 'quad1';
+                else if (tripleFound) newMode = 'triple1';
                 else if (pairLines >= 5) newMode = 'pair5';
                 else if (pairLines >= 4) newMode = 'pair4';
                 else if (pairLines >= 3) newMode = 'pair3';
@@ -1610,11 +1614,18 @@
             let effective = new Set();
             if (submitActive) { simulatedSelected.forEach(n => effective.add(n)); }
             else { selected.forEach(n => effective.add(n)); simulatedSelected.forEach(n => effective.add(n)); }
-            // find triple first
+            // find multiset (quad before triple)
             for (let i = 0; i < Math.min(raw.lines.length, 10); i++) {
                 let nums = getNumsFromLineObj(raw.lines[i]);
                 let selInLine = nums.filter(x => effective.has(x));
-                if (selInLine.length >= 3) { firstTriple = selInLine.slice(0, 3); break; }
+                if (selInLine.length >= 4) { firstTriple = selInLine.slice(0, 4); break; }
+            }
+            if (!firstTriple) {
+                for (let i = 0; i < Math.min(raw.lines.length, 10); i++) {
+                    let nums = getNumsFromLineObj(raw.lines[i]);
+                    let selInLine = nums.filter(x => effective.has(x));
+                    if (selInLine.length >= 3) { firstTriple = selInLine.slice(0, 3); break; }
+                }
             }
             // find pairs in order
             let pairs = [];
@@ -1626,18 +1637,28 @@
             firstPair = pairs[0] || null; secondPair = pairs[1] || null; thirdPair = pairs[2] || null; fourthPair = pairs[3] || null; fifthPair = pairs[4] || null;
         }
 
-        /** triple1: chưa có chuỗi nào đủ 3 số chọn thì không block; sau đó mỗi chuỗi block phần còn lại khi đã có >= 2 số. */
-        function lineHasTripleFromSelection(lineIndex, isSelectedFn) {
+        /** triple1 / quad1: chưa có chuỗi đủ N số thì không block; sau đó mỗi chuỗi block phần còn lại khi đã chọn đủ ngưỡng dòng. */
+        function getMultisetBlockingConfig(mode) {
+            if (mode === 'quad1') {
+                return { activateMin: 4, lineBlockMin: 3 };
+            }
+            if (mode === 'triple1') {
+                return { activateMin: 3, lineBlockMin: 2 };
+            }
+            return null;
+        }
+
+        function lineHasMultisetFromSelection(lineIndex, isSelectedFn, activateMin) {
             if (!raw || typeof lineIndex !== 'number' || lineIndex < 0 || lineIndex >= 10) {
                 return false;
             }
             var nums = getNumsFromLineObj(raw.lines[lineIndex]);
             var selInLine = nums.filter(function (n) { return isSelectedFn(n); });
-            return selInLine.length >= 3;
+            return selInLine.length >= activateMin;
         }
 
-        function applyTriple1LineBlocking(nums, selInLine, blockedTarget) {
-            if (!nums || !selInLine || selInLine.length < 2) {
+        function applyMultisetLineBlocking(nums, selInLine, blockedTarget, lineBlockMin) {
+            if (!nums || !selInLine || selInLine.length < lineBlockMin) {
                 return;
             }
             nums.forEach(function (n) {
@@ -1647,24 +1668,24 @@
             });
         }
 
-        function applyTriple1BlockingForSelection(isSelectedFn, blockedTarget) {
-            if (!raw) {
+        function applyMultisetBlockingForSelection(isSelectedFn, blockedTarget, config) {
+            if (!raw || !config) {
                 return;
             }
-            var tripleLineIdx = -1;
+            var activateLineIdx = -1;
             for (var i = 0; i < Math.min(raw.lines.length, 10); i++) {
-                if (lineHasTripleFromSelection(i, isSelectedFn)) {
-                    tripleLineIdx = i;
+                if (lineHasMultisetFromSelection(i, isSelectedFn, config.activateMin)) {
+                    activateLineIdx = i;
                     break;
                 }
             }
-            if (tripleLineIdx < 0) {
+            if (activateLineIdx < 0) {
                 return;
             }
             for (var li = 0; li < Math.min(raw.lines.length, 10); li++) {
                 var nums = getNumsFromLineObj(raw.lines[li]);
                 var selInLine = nums.filter(function (n) { return isSelectedFn(n); });
-                applyTriple1LineBlocking(nums, selInLine, blockedTarget);
+                applyMultisetLineBlocking(nums, selInLine, blockedTarget, config.lineBlockMin);
             }
         }
 
@@ -1767,10 +1788,11 @@
             let mode = document.getElementById("mode") ? document.getElementById("mode").value : null;
             if (!raw) return;
 
-            if (mode === "triple1") {
-                applyTriple1BlockingForSelection(function (n) {
+            var multisetCfg = getMultisetBlockingConfig(mode);
+            if (multisetCfg) {
+                applyMultisetBlockingForSelection(function (n) {
                     return selected.has(n) || simulatedSelected.has(n);
-                }, blockedSet);
+                }, blockedSet, multisetCfg);
             } else if (mode === "pair1") {
                 let p = firstPair;
                 if (p) {
@@ -1817,8 +1839,8 @@
             // compute simulated-only blocks and union
             let simBlocked = new Set();
             if (raw) {
-                if (mode === "triple1") {
-                    applyTriple1BlockingForSelection(function (n) { return simulatedSelected.has(n); }, simBlocked);
+                if (multisetCfg) {
+                    applyMultisetBlockingForSelection(function (n) { return simulatedSelected.has(n); }, simBlocked, multisetCfg);
                 } else if (mode === "pair1") {
                     let p = null;
                     raw.lines.slice(0, 10).forEach(line => {
@@ -1877,12 +1899,6 @@
                     let selInLine = nums.filter(x => selSet.has(x));
                     if (selInLine.length >= 2) { localFirstPair = selInLine.slice(0, 2); break; }
                 }
-            } else if (mode === "triple1") {
-                for (let i = 0; i < Math.min(raw.lines.length, 10); i++) {
-                    let nums = getNumsFromLineObj(raw.lines[i]);
-                    let selInLine = nums.filter(x => selSet.has(x) || simulatedSelected.has(x));
-                    if (selInLine.length >= 3) { localFirstTriple = selInLine.slice(0, 3); break; }
-                }
             }
 
             if (isPairMode(mode)) {
@@ -1895,10 +1911,11 @@
                 localFirstPair = pairs[0] || null; localSecondPair = pairs[1] || null; localThirdPair = pairs[2] || null; localFourthPair = pairs[3] || null; localFifthPair = pairs[4] || null;
             }
 
-            if (mode === "triple1") {
-                applyTriple1BlockingForSelection(function (n) {
+            var multisetCfgSel = getMultisetBlockingConfig(mode);
+            if (multisetCfgSel) {
+                applyMultisetBlockingForSelection(function (n) {
                     return selSet.has(n) || simulatedSelected.has(n);
-                }, b);
+                }, b, multisetCfgSel);
             } else if (mode === "pair1") {
                 let p = localFirstPair;
                 if (p) {
@@ -1945,8 +1962,8 @@
             // union simBlocked
             let simBlocked = new Set();
             if (raw) {
-                if (mode === "triple1") {
-                    applyTriple1BlockingForSelection(function (n) { return simulatedSelected.has(n); }, simBlocked);
+                if (multisetCfgSel) {
+                    applyMultisetBlockingForSelection(function (n) { return simulatedSelected.has(n); }, simBlocked, multisetCfgSel);
                 } else if (mode === "pair1") {
                     let p = null;
                     raw.lines.slice(0, 10).forEach(line => {
@@ -4008,11 +4025,13 @@
                     if (raw && answerNums && answerNums.length) {
                         var linesLocal = raw.lines || [];
                         var pairLines = 0;
+                        var quadFound = false;
                         var tripleFound = false;
                         var singleLines = 0;
                         for (var i = 0; i < Math.min(linesLocal.length, 10); i++) {
                             var nums = getNumsFromLineObj(linesLocal[i]);
                             var matched = answerNums.filter(function (n) { return nums.includes(n); });
+                            if (matched.length >= 4) { quadFound = true; break; }
                             if (matched.length >= 3) { tripleFound = true; break; }
                             if (matched.length >= 2) pairLines++;
                         }
@@ -4023,7 +4042,8 @@
                         }
 
                         var newMode = null;
-                        if (tripleFound) newMode = 'triple1';
+                        if (quadFound) newMode = 'quad1';
+                        else if (tripleFound) newMode = 'triple1';
                         else if (pairLines >= 5) newMode = 'pair5';
                         else if (pairLines >= 4) newMode = 'pair4';
                         else if (pairLines >= 3) newMode = 'pair3';
@@ -4156,17 +4176,20 @@
                 try {
                     var linesLocal = raw ? raw.lines : [];
                     var pairLines = 0;
+                    var quadFound = false;
                     var tripleFound = false;
                     var singleLines = 0;
                     for (var i = 0; i < Math.min(linesLocal.length, 10); i++) {
                         var nums = getNumsFromLineObj(linesLocal[i]);
                         var matched = (answerNums || []).filter(function (n) { return nums.indexOf(n) !== -1; });
+                        if (matched.length >= 4) { quadFound = true; break; }
                         if (matched.length >= 3) { tripleFound = true; break; }
                         if (matched.length >= 2) pairLines++;
                         if (matched.length >= 1) singleLines++;
                     }
                     var newMode = null;
-                    if (tripleFound) newMode = 'triple1';
+                    if (quadFound) newMode = 'quad1';
+                    else if (tripleFound) newMode = 'triple1';
                     else if (pairLines >= 5) newMode = 'pair5';
                     else if (pairLines >= 4) newMode = 'pair4';
                     else if (pairLines >= 3) newMode = 'pair3';

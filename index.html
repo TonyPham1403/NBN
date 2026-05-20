@@ -1687,6 +1687,7 @@
             pair4: '4 bộ 2',
             pair5: '5 bộ 2',
             triple1: '1 bộ 3',
+            quad1: '1 bộ 4',
             dateband: '',
             nonexist: 'nonexist'
         };
@@ -2155,6 +2156,10 @@
             const tripleMatch = /^triple(\d+)$/.exec(normalized);
             if (tripleMatch) {
                 return parseInt(tripleMatch[1], 10) || 1;
+            }
+            const quadMatch = /^quad(\d+)$/.exec(normalized);
+            if (quadMatch) {
+                return parseInt(quadMatch[1], 10) || 1;
             }
             return 0;
         }

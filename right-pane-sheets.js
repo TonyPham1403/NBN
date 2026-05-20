@@ -618,6 +618,7 @@ class RightPaneSheetManager {
 
         const windowStart = Math.max(0, rowIndex - 10);
         let pairLines = 0;
+        let quadFound = false;
         let tripleFound = false;
         let singleLines = 0;
 
@@ -626,6 +627,10 @@ class RightPaneSheetManager {
             const lineRow = rows[windowStart + offset] || {};
             const nums = this.parseMainNums(lineRow.result || lineRow.Result || '');
             const matched = answerNums.filter(num => nums.includes(num));
+            if (matched.length >= 4) {
+                quadFound = true;
+                break;
+            }
             if (matched.length >= 3) {
                 tripleFound = true;
                 break;
@@ -638,6 +643,9 @@ class RightPaneSheetManager {
             }
         }
 
+        if (quadFound) {
+            return 'quad1';
+        }
         if (tripleFound) {
             return 'triple1';
         }
