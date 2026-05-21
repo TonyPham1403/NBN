@@ -4475,6 +4475,10 @@
                 if (isPeriodFilterShortcutBlockedTarget(event.target)) {
                     return;
                 }
+                const okFrame = el('okFrame');
+                if (okFrame && document.activeElement === okFrame) {
+                    return;
+                }
 
                 if (isRightPaneArrowKey(event.key)) {
                     if (handleFilterPopupNavKeydown(event)) {

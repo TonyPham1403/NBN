@@ -872,6 +872,12 @@
             box-shadow: inset 0 0 0 1px #1e88e5, 0 0 4px rgba(30, 136, 229, 0.15);
         }
 
+        /* Chuỗi pattern khớp ô search (multiset digit) — giống ok.py */
+        .search-hit {
+            background: gold !important;
+            font-weight: bold;
+        }
+
         .pair-btn {
             box-sizing: border-box;
             background: none;
@@ -1088,7 +1094,9 @@
                             <button id="blockBtn" type="button" aria-pressed="true">Block</button>
                         </div>
                         <div class="actions-right">
-                            <input id="searchBox" maxlength="5" placeholder="search">
+                            <input id="searchBox" type="text" inputmode="numeric" maxlength="5" placeholder="search"
+                                name="left-pane-pattern-search" autocomplete="off" autocorrect="off" autocapitalize="off"
+                                spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other">
                             <button id="resetBtn">Reset</button>
                         </div>
                     </div>
@@ -1284,6 +1292,35 @@
         let undoEnabled = false;
         let undoWasCleared = false;
 
+        /** Mỗi cặp (a,b): tập số mà lần bật pair đó *mới thêm* vào selection (không gồm số đã khoanh trước đó). Toggle tắt pair chỉ gỡ các số trong tập này. */
+        let pairContributionByPairKey = new Map();
+
+        function pairContributionKey(a, b) {
+            const x = Math.min(a, b);
+            const y = Math.max(a, b);
+            return x + ',' + y;
+        }
+
+        function clearPairContributionTracking() {
+            try { pairContributionByPairKey.clear(); } catch (e) { }
+        }
+
+        function removePairContributionForToggleOff(a, b) {
+            if (submitActive) return;
+            const key = pairContributionKey(a, b);
+            const contrib = pairContributionByPairKey.get(key);
+            if (contrib && contrib.size) {
+                Array.from(contrib).forEach(function (n) {
+                    try {
+                        if (selected.has(n)) {
+                            toggleNumber(n);
+                        }
+                    } catch (e) { }
+                });
+            }
+            pairContributionByPairKey.delete(key);
+        }
+
         // Helper: detect pair-mode and extract pair count (e.g., 'pair3' -> 3)
         function isPairMode(mode) { return typeof mode === 'string' && mode.startsWith('pair'); }
         function pairModeCount(mode) { if (!isPairMode(mode)) return 0; const v = parseInt(mode.slice(4), 10); return isNaN(v) ? 0 : v; }
@@ -1317,6 +1354,7 @@
             autoRingPicked.clear();
             if (!submitActive) {
                 selected.clear();
+                clearPairContributionTracking();
                 transientSelected.clear();
                 simulatedSelected.clear();
                 pickOrder = [];
@@ -1410,9 +1448,109 @@
             } catch (e) { }
         }
 
+        /**
+         * Sau khi tắt Submit và khôi phục khoanh thủ công (không qua applyAutoRingSelection):
+         * bật lại số quan sát neon từ selection hiện tại (freq>=2, ưu tiên tần suất cao).
+         */
+        function assignPairNeonObserveNumFromCurrentSelected() {
+            if (submitActive || !raw || !raw.freq) {
+                return;
+            }
+            pairNeonObserveNum = null;
+            var list = [];
+            try {
+                selected.forEach(function (n) {
+                    if (!isNaN(n) && ((parseInt(raw.freq[n], 10) || 0) >= 2)) {
+                        list.push(n);
+                    }
+                });
+            } catch (e0) {
+                return;
+            }
+            if (!list.length) {
+                return;
+            }
+            var best = null;
+            var bestF = -1;
+            for (var i = 0; i < list.length; i++) {
+                var nn = list[i];
+                var f = parseInt(raw.freq[nn], 10) || 0;
+                if (best == null || f > bestF || (f === bestF && nn < best)) {
+                    bestF = f;
+                    best = nn;
+                }
+            }
+            if (best != null) {
+                pairNeonObserveNum = best;
+            }
+        }
+
+        /**
+         * Sau autoring (submit off): xác định số quan sát cho neon pair từ đúng tập số autoring.
+         * Ưu tiên custom x nếu có trong tập và freq>=2; không thì số trong tập có freq cao nhất (>=2).
+         */
+        function assignPairNeonObserveNumFromAutoRingCircleNums(circleNums) {
+            if (submitActive || !raw || !raw.freq) {
+                return;
+            }
+            pairNeonObserveNum = null;
+            /* Dùng autoRingPicked (thứ tự sau sort ưu tiên tần suất) thay vì circleNums gốc */
+            var list = [];
+            try {
+                list = Array.from(autoRingPicked).filter(function (n) {
+                    return !isNaN(n) && selected.has(n);
+                });
+            } catch (e0) {
+                list = (circleNums || []).filter(function (n) {
+                    return !isNaN(n) && selected.has(n);
+                });
+            }
+            if (!list.length) {
+                return;
+            }
+            if (submitAutoCircleMode === 'custom') {
+                var cx = clampSubmitAutoCircleCustomX(submitAutoCircleCustomX);
+                if (list.indexOf(cx) !== -1) {
+                    var fc = parseInt(raw.freq[cx], 10) || 0;
+                    if (fc >= 2) {
+                        pairNeonObserveNum = cx;
+                        return;
+                    }
+                }
+            }
+            var best = null;
+            var bestF = -1;
+            for (var i = 0; i < list.length; i++) {
+                var nn = list[i];
+                var f = parseInt(raw.freq[nn], 10) || 0;
+                if (f < 2) {
+                    continue;
+                }
+                if (best == null || f > bestF || (f === bestF && nn < best)) {
+                    bestF = f;
+                    best = nn;
+                }
+            }
+            if (best != null) {
+                pairNeonObserveNum = best;
+            }
+        }
+
         function applyAutoRingSelection(circleNums) {
             circleNums = (circleNums || []).filter(function (n) { return !isNaN(n); });
             if (!circleNums.length) return false;
+
+            /* Khoanh trước số có tần suất cao — tránh đủ 5 slot toàn số freq thấp, bỏ lỡ số quan sát freq>=2 */
+            if (!submitActive && raw && raw.freq) {
+                circleNums.sort(function (a, b) {
+                    var fa = parseInt(raw.freq[a], 10) || 0;
+                    var fb = parseInt(raw.freq[b], 10) || 0;
+                    if (fb !== fa) {
+                        return fb - fa;
+                    }
+                    return a - b;
+                });
+            }
 
             autoRingPicked.clear();
             circleNums.forEach(function (n) { autoRingPicked.add(n); });
@@ -1420,6 +1558,7 @@
             if (submitActive) {
                 // Autoring picks are per focus id — never keep circles from a previous id
                 selected.clear();
+                clearPairContributionTracking();
                 circleNums.forEach(function (n) {
                     if (!isNaN(n)) selected.add(n);
                 });
@@ -1431,6 +1570,7 @@
             }
 
             selected.clear();
+            clearPairContributionTracking();
             transientSelected.clear();
             simulatedSelected.clear();
             pickOrder = [];
@@ -1442,12 +1582,14 @@
             recomputePairsFromSelected();
             updateBlocked();
 
-            circleNums.sort(function (a, b) { return a - b; });
             for (var i = 0; i < circleNums.length; i++) {
                 var n = circleNums[i];
                 if (isBlocked(n)) continue;
                 toggleNumber(n);
             }
+            try {
+                assignPairNeonObserveNumFromAutoRingCircleNums(circleNums);
+            } catch (eOb) { /* ignore */ }
             try { notifyParentLeftCircledNums(); } catch (e) { }
             return true;
         }
@@ -1579,6 +1721,7 @@
             if (!snap) return;
             try {
                 selected.clear();
+                clearPairContributionTracking();
                 transientSelected.clear();
                 simulatedSelected.clear();
                 (snap.selected || []).forEach(function (n) { if (!isNaN(n)) selected.add(n); });
@@ -1700,6 +1843,12 @@
             try { alignTableActionsAndCenter(); } catch (e) { }
             try { updateFloatingCopyButtons(); } catch (e) { }
             try { updateFocusIndicator(); } catch (e) { }
+            try {
+                if (!submitActive) {
+                    updatePairListNeonHints();
+                    scheduleSyncPairNeonHintAnimations();
+                }
+            } catch (eNe) { /* ignore */ }
         }
 
         function syncSubmitButtonAvailability() {
@@ -1830,6 +1979,7 @@
                     simulatedSelected.clear();
                 }
                 pickOrder = [];
+                clearPairContributionTracking();
                 if (submitActive) {
                     try { syncPickOrderForSubmitState(); } catch (e) { }
                 }
@@ -2252,6 +2402,7 @@
                 blockedSet.clear();
                 transientSelected.clear();
                 pairNeonObserveNum = null;
+                clearPairContributionTracking();
             }
             let rows = [];
             if (!rawText) { updateRender(); return; }
@@ -2287,6 +2438,12 @@
             }
             debugLog('process() rowsUsed length:', rowsUsed.length);
             if (rowsUsed.length < 10) { raw = null; updateRender(); return; }
+            try {
+                var elSearchClr = document.getElementById('searchBox');
+                if (elSearchClr) {
+                    elSearchClr.value = '';
+                }
+            } catch (eClr) { /* ignore */ }
             // compute simple freq and firstNums
             let linesSimple = rowsUsed.slice(0, 11).map(r => (r.result || '').split("|")[0]);
             let firstNums = linesSimple[0].split(",").map(x => parseInt(x, 10)).filter(n => !isNaN(n));
@@ -2446,6 +2603,24 @@
                 return true;
             } catch (e) { return false; }
         }
+
+        /** Cập nhật class search-hit trên bảng 2 — không innerHTML lại (tránh giật khi gõ search). */
+        function updateSearchHitHighlightsInTable2() {
+            try {
+                const right = document.getElementById('right');
+                if (!right) return;
+                const cells = right.querySelectorAll('tr.chuoi-pattern-row td.chuoi-pattern-label[data-chuoi-pattern]');
+                cells.forEach(function (td) {
+                    const pat = td.getAttribute('data-chuoi-pattern');
+                    if (pat == null || pat === '') {
+                        td.classList.remove('search-hit');
+                        return;
+                    }
+                    td.classList.toggle('search-hit', !!matchSearchPattern(pat));
+                });
+            } catch (e) { /* ignore */ }
+        }
+
         function isBlocked(n) {
             try {
                 if (!isBlockFeatureEnabled()) return false;
@@ -2540,10 +2715,111 @@
             return uniq;
         }
 
+        /**
+         * Trước khi áp dụng cặp (a,b): gỡ đóng góp của mọi cặp *khác* đã track.
+         * — Click chuyển giữa các pair (và tail pair): thay thế, không chồng thêm.
+         * — Số chỉ do khoanh bảng 1 / bảng 2 giữ nguyên (không nằm trong contrib cặp khác).
+         */
+        function removeOtherPairContributionsBeforeApply(a, b) {
+            if (submitActive) {
+                return;
+            }
+            if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                return;
+            }
+            const selfKey = pairContributionKey(a, b);
+            const keys = Array.from(pairContributionByPairKey.keys());
+            for (let ki = 0; ki < keys.length; ki++) {
+                const key = keys[ki];
+                if (!key || key === selfKey) {
+                    continue;
+                }
+                const parts = String(key).split(',');
+                const pa = parseInt(parts[0], 10);
+                const pb = parseInt(parts[1], 10);
+                if (!Number.isFinite(pa) || !Number.isFinite(pb)) {
+                    continue;
+                }
+                removePairContributionForToggleOff(pa, pb);
+            }
+        }
+
         function applyPair(a, b, opts) {
-            if (!raw) return;
-            selected = new Set(); pickOrder = []; transientSelected.clear();
-            selected.add(a); selected.add(b); pickOrder.push(a); pickOrder.push(b);
+            if (!raw || submitActive) {
+                return false;
+            }
+            if (selectionCleared) {
+                selectionCleared = false;
+                clearedSelectionBackup = null;
+                clearedPickOrderBackup = null;
+                clearedFocusBackup = null;
+                clearedPairNeonObserveNumBackup = null;
+            }
+            try {
+                removeOtherPairContributionsBeforeApply(a, b);
+            } catch (eRem) { /* ignore */ }
+            const beforeCap = new Set(selected);
+            const addsNeeded = [];
+            try {
+                for (let ci = 0; ci < 2; ci++) {
+                    const nn = ci === 0 ? a : b;
+                    if (isNaN(nn)) {
+                        continue;
+                    }
+                    try { if (isBlocked(nn)) continue; } catch (e) { }
+                    if (!beforeCap.has(nn)) {
+                        addsNeeded.push(nn);
+                    }
+                }
+            } catch (e) { }
+            if (beforeCap.size + addsNeeded.length > MAX_PICK_NUMBERS) {
+                return false;
+            }
+            transientSelected.clear();
+
+            const key = pairContributionKey(a, b);
+            const beforeSel = new Set(selected);
+            const beforeOrder = pickOrder ? pickOrder.slice() : [];
+
+            undoPrevSelected = new Set(beforeSel);
+            undoPrevPickOrder = beforeOrder;
+            undoPrevSimulated = new Set(simulatedSelected);
+            undoEnabled = true;
+            undoWasCleared = false;
+
+            let contrib = new Set(pairContributionByPairKey.get(key) || []);
+
+            const tryAdd = function (n) {
+                if (isNaN(n)) return;
+                try { if (isBlocked(n)) return; } catch (e) { }
+                if (beforeSel.has(n)) {
+                    return;
+                }
+                if (selected.size >= MAX_PICK_NUMBERS) {
+                    return;
+                }
+                selected.add(n);
+                contrib.add(n);
+                if (!pickOrder) pickOrder = [];
+                if (pickOrder.indexOf(n) === -1) {
+                    if (pickOrder.length >= MAX_PICK_NUMBERS) {
+                        try { pickOrder.shift(); } catch (e) { }
+                    }
+                    pickOrder.push(n);
+                }
+                try {
+                    if (!submitActive && raw && raw.freq) {
+                        const fPick = parseInt(raw.freq[n], 10) || 0;
+                        if (fPick >= 2 && pairNeonObserveNum === null) {
+                            pairNeonObserveNum = n;
+                        }
+                    }
+                } catch (e) { }
+            };
+            tryAdd(a);
+            tryAdd(b);
+            pairContributionByPairKey.set(key, contrib);
+
             if (!submitActive && raw && raw.freq && pairNeonObserveNum != null) {
                 try {
                     if (!selected.has(pairNeonObserveNum) ||
@@ -2554,30 +2830,44 @@
                     pairNeonObserveNum = null;
                 }
             }
-            // save quick undo snapshot
-            undoPrevSelected = new Set(selected);
-            undoPrevPickOrder = pickOrder.slice();
-            undoPrevSimulated = new Set(simulatedSelected);
-            undoEnabled = true; undoWasCleared = false;
-            currentPhaseNumber = b; currentPhaseRow = null;
+            currentPhaseNumber = b;
+            currentPhaseRow = null;
             try { pushPhaseHistory('pairAction', b, null); } catch (e) { }
             currentPairIndex = -1;
-            if (currentPairs && currentPairs.length) { for (let i = 0; i < currentPairs.length; i++) { const p = currentPairs[i]; if (p && p[0] === a && p[1] === b) { currentPairIndex = i; break; } } }
-            recomputePairsFromSelected(); updateBlocked();
+            if (currentPairs && currentPairs.length) {
+                for (let i = 0; i < currentPairs.length; i++) {
+                    const p = currentPairs[i];
+                    if (p && p[0] === a && p[1] === b) {
+                        currentPairIndex = i;
+                        break;
+                    }
+                }
+            }
+            recomputePairsFromSelected();
+            updateBlocked();
             if (opts && opts.fullRender) {
                 updateRender();
             } else {
                 updateRenderLightweight();
             }
+            try {
+                requestAnimationFrame(function () {
+                    try { updatePairListNeonHints(); } catch (e2) { }
+                });
+            } catch (e) { }
             try { persistSelectionMemoryForFocus(); } catch (e) { }
+            try { notifyParentLeftCircledNums(); } catch (e) { }
+            return true;
         }
 
         function applyPairByIndex(idx, opts) {
             if (!currentPairs || idx < 0 || idx >= currentPairs.length) return;
             const p = currentPairs[idx];
             if (!p) return;
+            if (!applyPair(p[0], p[1], opts)) {
+                return;
+            }
             currentPairIndex = idx;
-            applyPair(p[0], p[1], opts);
             if (!(opts && opts.skipFocus)) {
                 setTimeout(() => {
                     const btn = document.querySelector('.pair-btn[data-idx="' + idx + '"]');
@@ -2596,11 +2886,120 @@
             if (!currentTails || idx < 0 || idx >= currentTails.length) return;
             const t = currentTails[idx];
             if (!t) return;
+            if (!applyPair(t.a, t.b, opts)) {
+                return;
+            }
             currentTailIndex = idx;
-            applyPair(t.a, t.b, opts);
             if (!(opts && opts.skipFocus)) {
                 setTimeout(() => { const btn = document.querySelector('.tail-btn[data-tail-idx="' + idx + '"]'); if (btn) btn.focus(); }, 40);
             }
+        }
+
+        /**
+         * A/D trên vùng pairList: chỉ chuyển focus giữa các nút (ưu tiên có pair-neon-hint),
+         * không gọi applyPair — tránh no-op khi đủ 5 số hoặc cặp không áp dụng được.
+         */
+        function focusNavigatePairListByDir(dir) {
+            const pairList = document.getElementById('pairList');
+            if (!pairList || !currentPairs || currentPairs.length === 0) {
+                return false;
+            }
+            const allBtns = Array.from(pairList.querySelectorAll('.pair-btn'));
+            if (!allBtns.length) {
+                return false;
+            }
+            let candidates = allBtns.filter((btn) => btn.classList.contains('pair-neon-hint'));
+            if (!candidates.length) {
+                candidates = allBtns;
+            }
+            let i = candidates.findIndex((b) => b === document.activeElement);
+            if (i === -1) {
+                const curBtn = (currentPairIndex >= 0)
+                    ? pairList.querySelector('.pair-btn[data-idx="' + currentPairIndex + '"]')
+                    : null;
+                i = curBtn ? candidates.indexOf(curBtn) : -1;
+            }
+            let j;
+            if (i === -1) {
+                j = (dir > 0) ? 0 : (candidates.length - 1);
+            } else {
+                j = (i + dir + candidates.length) % candidates.length;
+            }
+            const target = candidates[j];
+            if (!target) {
+                return false;
+            }
+            const idx = parseInt(target.getAttribute('data-idx'), 10);
+            if (!Number.isFinite(idx)) {
+                return false;
+            }
+            try {
+                lastClickedRegion = 'pairList';
+                const b = parseInt(target.getAttribute('data-b'), 10);
+                if (Number.isFinite(b)) {
+                    lastClickedNumber = b;
+                }
+            } catch (e) { }
+            currentPairIndex = idx;
+            try {
+                target.focus();
+            } catch (e2) { }
+            try {
+                requestAnimationFrame(() => {
+                    try { syncPairNeonHintAnimations(); } catch (e3) { }
+                    requestAnimationFrame(() => {
+                        try { syncPairNeonHintAnimations(); } catch (e4) { }
+                    });
+                });
+            } catch (e5) { }
+            return true;
+        }
+
+        /**
+         * A/D trên vùng tailList: chỉ chuyển focus giữa các nút tail, không gọi applyPair.
+         */
+        function focusNavigateTailListByDir(dir) {
+            const tailList = document.getElementById('tailList');
+            if (!tailList || !currentTails || currentTails.length === 0) {
+                return false;
+            }
+            const candidates = Array.from(tailList.querySelectorAll('.pair-btn'));
+            if (!candidates.length) {
+                return false;
+            }
+            let i = candidates.findIndex((b) => b === document.activeElement);
+            if (i === -1) {
+                const curBtn = (currentTailIndex >= 0)
+                    ? tailList.querySelector('.tail-btn[data-tail-idx="' + currentTailIndex + '"]')
+                    : null;
+                i = curBtn ? candidates.indexOf(curBtn) : -1;
+            }
+            let j;
+            if (i === -1) {
+                j = (dir > 0) ? 0 : (candidates.length - 1);
+            } else {
+                j = (i + dir + candidates.length) % candidates.length;
+            }
+            const target = candidates[j];
+            if (!target) {
+                return false;
+            }
+            const idx = parseInt(target.getAttribute('data-tail-idx'), 10);
+            if (!Number.isFinite(idx)) {
+                return false;
+            }
+            try {
+                lastClickedRegion = 'tailList';
+                const b = parseInt(target.getAttribute('data-b'), 10);
+                if (Number.isFinite(b)) {
+                    lastClickedNumber = b;
+                }
+            } catch (e) { }
+            currentTailIndex = idx;
+            try {
+                target.focus();
+            } catch (e2) { }
+            return true;
         }
 
         function updatePairButtonsSelection(effective) { const el = document.getElementById('pairList'); if (!el) return; const btns = Array.from(el.querySelectorAll('.pair-btn')); btns.forEach((btn, i) => { const a = parseInt(btn.getAttribute('data-a'), 10); const b = parseInt(btn.getAttribute('data-b'), 10); if (effective && effective.has(a) && effective.has(b)) btn.classList.add('pair-selected'); else btn.classList.remove('pair-selected'); }); }
@@ -2883,7 +3282,25 @@
                 return `<button type="button" class="pair-btn" data-idx="${i}" data-a="${a}" data-b="${b}" data-main="${main}">${formatPairTailButtonLabel(main, a, b)}</button>`;
             }).join(' ');
             const buttons = Array.from(el.querySelectorAll('.pair-btn'));
-            buttons.forEach((btn, idx) => { btn.addEventListener('click', function (ev) { ev.preventDefault(); const a = parseInt(btn.getAttribute('data-a'), 10); const b = parseInt(btn.getAttribute('data-b'), 10); try { lastClickedRegion = 'pairList'; syncLeftKeyboardRegion('pairList'); lastClickedNumber = b; pushPhaseHistory('pairList', b, null); } catch (e) { } if (selected.has(a) && selected.has(b)) { toggleNumber(a); toggleNumber(b); currentPairIndex = -1; } else { applyPairByIndex(idx); } }); });
+            buttons.forEach((btn, idx) => {
+                btn.addEventListener('click', function (ev) {
+                    ev.preventDefault();
+                    const a = parseInt(btn.getAttribute('data-a'), 10);
+                    const b = parseInt(btn.getAttribute('data-b'), 10);
+                    try {
+                        lastClickedRegion = 'pairList';
+                        syncLeftKeyboardRegion('pairList');
+                        lastClickedNumber = b;
+                        pushPhaseHistory('pairList', b, null);
+                    } catch (e) { }
+                    if (selected.has(a) && selected.has(b)) {
+                        removePairContributionForToggleOff(a, b);
+                        currentPairIndex = -1;
+                    } else {
+                        applyPairByIndex(idx);
+                    }
+                });
+            });
             updatePairButtonsSelection(effective);
             try { updatePairListNeonHints(); } catch (e) { }
             syncPairTailWrapWidths();
@@ -3136,11 +3553,17 @@
                             ev.preventDefault();
                             const a = parseInt(btn.getAttribute('data-a'), 10);
                             const b = parseInt(btn.getAttribute('data-b'), 10);
-                            try { lastClickedRegion = 'tailList'; syncLeftKeyboardRegion('tailList'); lastClickedNumber = b; currentTailIndex = idx; pushPhaseHistory('tailList', b, null); } catch (e) { }
+                            try {
+                                lastClickedRegion = 'tailList';
+                                syncLeftKeyboardRegion('tailList');
+                                lastClickedNumber = b;
+                                pushPhaseHistory('tailList', b, null);
+                            } catch (e) { }
                             if (selected.has(a) && selected.has(b)) {
-                                toggleNumber(a); toggleNumber(b); currentTailIndex = -1;
-                            } else {
-                                applyPair(a, b);
+                                removePairContributionForToggleOff(a, b);
+                                currentTailIndex = -1;
+                            } else if (applyPair(a, b)) {
+                                currentTailIndex = idx;
                             }
                         });
                     });
@@ -3269,8 +3692,8 @@
                 const pattern = sortedFreq.join('');
                 const color = patternColorMap[pattern];
                 const searchClass = matchSearchPattern(pattern) ? 'search-hit' : '';
-                if (color) html += `<tr class="chuoi-pattern-row"><td class='${searchClass}' style='font-size:12px;font-weight:bold;color:${color}'>${pattern}</td>`;
-                else html += `<tr class="chuoi-pattern-row"><td class='${searchClass}' style='font-size:12px;'>${pattern}</td>`;
+                if (color) html += `<tr class="chuoi-pattern-row"><td class="chuoi-pattern-label ${searchClass}" data-chuoi-pattern="${pattern}" style='font-size:12px;font-weight:bold;color:${color}'>${pattern}</td>`;
+                else html += `<tr class="chuoi-pattern-row"><td class="chuoi-pattern-label ${searchClass}" data-chuoi-pattern="${pattern}" style='font-size:12px;'>${pattern}</td>`;
                 html += `<td class='${clickedChuoi.has(i) ? "chuoi-toggled-td" : ""}' style='font-size:12px;'>` + freqArr.map((f, idx) => { const n = nums[idx]; const clickAttr = (!submitActive && !isBlocked(n)) ? `onclick="onNumberCellClick(${n},'right',${i})"` : ''; const idxClass = 'cell index'; return `<span class="${idxClass}" data-num="${n}" ${clickAttr}>${f}</span>`; }).join('') + `</td></tr>`;
                 html += `<tr class="chuoi-gap-row"><td colspan="2"></td></tr>`;
             });
@@ -4306,6 +4729,7 @@
                     pickOrder = [];
                     pairNeonObserveNum = null;
                     selectionCleared = true;
+                    clearPairContributionTracking();
                     // clear focus/phase state so arrow hides and nav doesn't auto-reselect
                     try {
                         currentPhaseNumber = null;
@@ -4323,6 +4747,7 @@
                     clearedSelectionBackup = null;
                     clearedPickOrderBackup = null;
                     selectionCleared = false;
+                    clearPairContributionTracking();
                     pairNeonObserveNum = null;
                     var obn = clearedPairNeonObserveNumBackup;
                     clearedPairNeonObserveNumBackup = null;
@@ -4447,16 +4872,20 @@
                     updateBlocked();
                 } else {
                     simulatedSelected.clear();
+                    var restoreUsedAutoring = false;
                     try {
                         // Khôi phục khoanh thủ công trước khi bật submit; chỉ dùng autoring khi lúc bật submit không có số nào được khoanh.
                         var hadPreSubmitSelection = !!(preSubmitSelected && preSubmitSelected.size > 0);
                         if (hadPreSubmitSelection) {
                             selected = new Set(preSubmitSelected);
+                            clearPairContributionTracking();
                             if (preSubmitOrder && preSubmitOrder.length) {
                                 pickOrder = preSubmitOrder.slice();
                             }
                         } else if (submitAutoCircleEnabled && autoRingPicked.size > 0) {
+                            restoreUsedAutoring = true;
                             selected.clear();
+                            clearPairContributionTracking();
                             autoRingPicked.forEach(function (n) {
                                 if (!isNaN(n)) selected.add(n);
                             });
@@ -4465,12 +4894,22 @@
                                 .slice(0, MAX_PICK_NUMBERS);
                         } else if (preSubmitSelected) {
                             selected = new Set(preSubmitSelected);
+                            clearPairContributionTracking();
                             if (preSubmitOrder && preSubmitOrder.length) {
                                 pickOrder = preSubmitOrder.slice();
                             }
                         }
                         syncPickOrderForSubmitState();
                     } catch (e) { }
+                    try {
+                        if (restoreUsedAutoring) {
+                            assignPairNeonObserveNumFromAutoRingCircleNums(Array.from(autoRingPicked));
+                        } else if (selected && selected.size > 0) {
+                            assignPairNeonObserveNumFromCurrentSelected();
+                        } else {
+                            pairNeonObserveNum = null;
+                        }
+                    } catch (eNeonAs) { /* ignore */ }
                     if (modeSynced && userModeBeforeSubmit !== null && modeEl) {
                         modeEl.value = userModeBeforeSubmit;
                         modeEl.classList.remove('synced-mode');
@@ -4482,7 +4921,6 @@
                     preSubmitOrder = null;
                     recomputePairsFromSelected();
                     updateBlocked();
-                    try { getPairNeonObservationNumber(); } catch (e) { }
                 }
                 // Try to apply submit state in-place to avoid full rerender and visual tearing
                 try {
@@ -4939,20 +5377,18 @@
 
                     if (region === 'pairList') {
                         try {
-                            if (!currentPairs || currentPairs.length === 0) return;
-                            if (dir === 1) { if (currentPairIndex < 0) applyPairByIndex(0, { skipFocus: true }); else applyPairByIndex((currentPairIndex + 1) % currentPairs.length, { skipFocus: true }); }
-                            else { if (currentPairIndex < 0) applyPairByIndex(currentPairs.length - 1, { skipFocus: true }); else applyPairByIndex((currentPairIndex - 1 + currentPairs.length) % currentPairs.length, { skipFocus: true }); }
-                            syncLeftKeyboardRegion('pairList');
+                            if (focusNavigatePairListByDir(dir)) {
+                                syncLeftKeyboardRegion('pairList');
+                            }
                             return;
                         } catch (err) { }
                     }
 
                     if (region === 'tailList') {
                         try {
-                            if (!currentTails || currentTails.length === 0) return;
-                            if (dir === 1) { if (currentTailIndex < 0) applyTailByIndex(0, { skipFocus: true }); else applyTailByIndex((currentTailIndex + 1) % currentTails.length, { skipFocus: true }); }
-                            else { if (currentTailIndex < 0) applyTailByIndex(currentTails.length - 1, { skipFocus: true }); else applyTailByIndex((currentTailIndex - 1 + currentTails.length) % currentTails.length, { skipFocus: true }); }
-                            syncLeftKeyboardRegion('tailList');
+                            if (focusNavigateTailListByDir(dir)) {
+                                syncLeftKeyboardRegion('tailList');
+                            }
                             return;
                         } catch (err2) { }
                     }
@@ -4964,7 +5400,9 @@
             try {
                 var active = document.activeElement;
                 var activeTag = active ? active.tagName : '';
-                if (active && active.id !== 'searchBox' && (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || active.isContentEditable)) return;
+                /* Ô search: để trình duyệt xử lý toàn bộ phím (Backspace/Delete/xóa nhanh), không cướp Space/mũi tên/WASD */
+                if (active && active.id === 'searchBox') return;
+                if (active && (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || active.isContentEditable)) return;
 
                 if (e.key === 'q' || e.key === 'Q') {
                     toggleClearSelection();
@@ -5624,6 +6062,7 @@
                         autoRingPicked.clear();
                         if (newFk) autoRingVisitedIds.delete(newFk);
                         selected.clear();
+                        clearPairContributionTracking();
                         transientSelected.clear();
                         simulatedSelected.clear();
                         pickOrder = [];
@@ -5725,6 +6164,7 @@
                         selectionMemoryByFocusId.clear();
                         lastAutoRingFocusKey = '';
                         selected.clear();
+                        clearPairContributionTracking();
                         transientSelected.clear();
                         simulatedSelected.clear();
                         pickOrder = [];
@@ -5771,6 +6211,7 @@
 
                         // Clear all selections
                         selected.clear();
+                        clearPairContributionTracking();
                         transientSelected.clear();
                         simulatedSelected.clear();
                         pickOrder = [];
@@ -5812,6 +6253,39 @@
 
         // Wire input events
         document.getElementById('input').addEventListener('input', process);
+
+        (function wireSearchBoxAndModeLikeOkPy() {
+            try {
+                var sb = document.getElementById('searchBox');
+                if (sb) {
+                    sb.addEventListener('input', function () {
+                        try {
+                            var next = String(this.value || '').replace(/[^0-9]/g, '').slice(0, 5);
+                            if (this.value !== next) this.value = next;
+                        } catch (e1) { /* ignore */ }
+                        try {
+                            updateSearchHitHighlightsInTable2();
+                        } catch (e2) { /* ignore */ }
+                    });
+                }
+            } catch (eSb) { /* ignore */ }
+            try {
+                var modeEl = document.getElementById('mode');
+                if (modeEl) {
+                    modeEl.addEventListener('change', function () {
+                        try {
+                            var sbox = document.getElementById('searchBox');
+                            if (sbox) {
+                                sbox.value = '';
+                            }
+                        } catch (e0) { /* ignore */ }
+                        try {
+                            process();
+                        } catch (e1) { /* ignore */ }
+                    });
+                }
+            } catch (eMode) { /* ignore */ }
+        })();
 
         // Delegated click handlers: ensure clicks on number/index cells reach toggleNumber()
         // Skip calling toggleNumber when the element already has an inline onclick to avoid double-toggle
