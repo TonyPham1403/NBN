@@ -1600,7 +1600,7 @@
             --rt-scrollbar-btn-face: linear-gradient(180deg, #fafafa, #e3e3e3);
             --rt-scrollbar-btn-edge: #adadad;
             /* WebKit thumb: sàn tối thiểu (gậy dài hơn khi nội dung rất dài) */
-            --rt-scrollbar-thumb-min: 160px;
+            --rt-scrollbar-thumb-min: 96px;
             position: relative;
             flex: 1;
             min-height: 0;
@@ -1644,7 +1644,7 @@
             background: var(--rt-scrollbar-thumb);
             border-radius: 3px;
             border: 1px solid rgba(0, 0, 0, 0.12);
-            min-height: var(--rt-scrollbar-thumb-min, 160px);
+            min-height: var(--rt-scrollbar-thumb-min, 96px);
         }
 
         #tableWrap::-webkit-scrollbar-thumb:hover {
@@ -1686,7 +1686,7 @@
             background: transparent;
         }
 
-        .right-table-edge-jumps-spacer + .right-table-edge-jump-btn {
+        .right-table-edge-jumps-spacer+.right-table-edge-jump-btn {
             border-top: 1px solid var(--rt-scrollbar-btn-edge);
         }
 
@@ -1850,8 +1850,8 @@
                             class="right-table-edge-jump-btn right-table-edge-jump-btn--top"
                             title="Lên đầu bảng (smooth)" aria-label="Lên đầu bảng">⏮</button>
                         <button type="button" id="rightTableScrollStepUpBtn"
-                            class="right-table-edge-jump-btn right-table-edge-jump-btn--step"
-                            title="Cuộn lên một đoạn" aria-label="Cuộn lên một đoạn">▲</button>
+                            class="right-table-edge-jump-btn right-table-edge-jump-btn--step" title="Cuộn lên một đoạn"
+                            aria-label="Cuộn lên một đoạn">▲</button>
                         <div class="right-table-edge-jumps-spacer" aria-hidden="true"></div>
                         <button type="button" id="rightTableScrollStepDownBtn"
                             class="right-table-edge-jump-btn right-table-edge-jump-btn--step right-table-edge-jump-btn--step-down"

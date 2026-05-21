@@ -1098,8 +1098,9 @@
                         </div>
                         <div class="actions-right">
                             <input id="searchBox" type="text" inputmode="numeric" maxlength="5" placeholder="search"
-                                name="left-pane-pattern-search" autocomplete="off" autocorrect="off" autocapitalize="off"
-                                spellcheck="false" data-lpignore="true" data-1p-ignore="true" data-form-type="other">
+                                name="left-pane-pattern-search" autocomplete="off" autocorrect="off"
+                                autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true"
+                                data-form-type="other">
                             <button id="resetBtn">Reset</button>
                         </div>
                     </div>
@@ -1474,15 +1475,12 @@
             if (submitActive || !raw || !raw.freq) {
                 return;
             }
-            if (isPairSelectionOnlyLoneAppliedPairWithoutExtraCircles()) {
-                pairNeonObserveNum = null;
-                return;
-            }
+            const relaxedHint = isPairSelectionOnlyLoneAppliedPairWithoutExtraCircles();
             pairNeonObserveNum = null;
             var list = [];
             try {
                 selected.forEach(function (n) {
-                    if (!isNaN(n) && ((parseInt(raw.freq[n], 10) || 0) >= 2) && pairObserveNumWouldShowAnyNeonHint(n)) {
+                    if (!isNaN(n) && ((parseInt(raw.freq[n], 10) || 0) >= 2) && pairObserveNumWouldShowAnyNeonHint(n, relaxedHint)) {
                         list.push(n);
                     }
                 });
@@ -1515,10 +1513,7 @@
             if (submitActive || !raw || !raw.freq) {
                 return;
             }
-            if (isPairSelectionOnlyLoneAppliedPairWithoutExtraCircles()) {
-                pairNeonObserveNum = null;
-                return;
-            }
+            const relaxedHint = isPairSelectionOnlyLoneAppliedPairWithoutExtraCircles();
             pairNeonObserveNum = null;
             /* Dùng autoRingPicked (thứ tự sau sort ưu tiên tần suất) thay vì circleNums gốc */
             var list = [];
@@ -1538,7 +1533,7 @@
                 var cx = clampSubmitAutoCircleCustomX(submitAutoCircleCustomX);
                 if (list.indexOf(cx) !== -1) {
                     var fc = parseInt(raw.freq[cx], 10) || 0;
-                    if (fc >= 2 && pairObserveNumWouldShowAnyNeonHint(cx)) {
+                    if (fc >= 2 && pairObserveNumWouldShowAnyNeonHint(cx, relaxedHint)) {
                         pairNeonObserveNum = cx;
                         return;
                     }
@@ -1549,7 +1544,7 @@
             for (var i = 0; i < list.length; i++) {
                 var nn = list[i];
                 var f = parseInt(raw.freq[nn], 10) || 0;
-                if (f < 2 || !pairObserveNumWouldShowAnyNeonHint(nn)) {
+                if (f < 2 || !pairObserveNumWouldShowAnyNeonHint(nn, relaxedHint)) {
                     continue;
                 }
                 if (best == null || f > bestF || (f === bestF && nn < best)) {
@@ -2360,6 +2355,7 @@
                         }
                     } else if (pairNeonObserveNum === n) {
                         pairNeonObserveNum = null;
+                        try { assignPairNeonObserveNumFromCurrentSelected(); } catch (eAs) { /* ignore */ }
                     }
                 }
             } catch (e) { }
@@ -2810,6 +2806,57 @@
             }
         }
 
+        /**
+         * Sau Submit OFF map pair rỗng: selection có thể vẫn là {x,y} khớp một cặp trong danh sách
+         * nhưng không còn track contribution — applyPair(a,b) mới chỉ tryAdd nên chân cũ không bị gỡ.
+         * Khi selected đúng 2 số và trùng một cặp khác (a,b), gỡ mọi đầu của cặp đó không thuộc cặp đang áp.
+         */
+        function pruneSelectedLegsReplacedByApplyPair(a, b) {
+            if (submitActive || !Number.isFinite(a) || !Number.isFinite(b) || !selected) {
+                return;
+            }
+            const newEnds = new Set([a, b]);
+            const pairs = currentPairs;
+            if (!pairs || !pairs.length || selected.size !== 2) {
+                return;
+            }
+            for (let i = 0; i < pairs.length; i++) {
+                const p = pairs[i];
+                if (!p || p.length < 2) {
+                    continue;
+                }
+                const x = p[0];
+                const y = p[1];
+                if (x === a && y === b) {
+                    continue;
+                }
+                if (!selected.has(x) || !selected.has(y)) {
+                    continue;
+                }
+                const strip = function (n) {
+                    if (newEnds.has(n)) {
+                        return;
+                    }
+                    try {
+                        selected.delete(n);
+                    } catch (e0) { /* ignore */ }
+                    try {
+                        if (pickOrder && pickOrder.length) {
+                            let idx;
+                            while ((idx = pickOrder.indexOf(n)) !== -1) {
+                                pickOrder.splice(idx, 1);
+                            }
+                        }
+                    } catch (e1) { /* ignore */ }
+                    try { transientSelected.delete(n); } catch (e2) { /* ignore */ }
+                    try { simulatedSelected.delete(n); } catch (e3) { /* ignore */ }
+                };
+                strip(x);
+                strip(y);
+                return;
+            }
+        }
+
         function applyPair(a, b, opts) {
             if (!raw || submitActive) {
                 return false;
@@ -2825,6 +2872,9 @@
             try {
                 removeOtherPairContributionsBeforeApply(a, b);
             } catch (eRem) { /* ignore */ }
+            try {
+                pruneSelectedLegsReplacedByApplyPair(a, b);
+            } catch (ePrune) { /* ignore */ }
             const beforeCap = new Set(selected);
             const addsNeeded = [];
             try {
@@ -2891,14 +2941,6 @@
             tryAdd(b);
             pairContributionByPairKey.set(key, contrib);
 
-            if (!submitActive && raw && raw.freq) {
-                try {
-                    if (isPairSelectionOnlyLoneAppliedPairWithoutExtraCircles()) {
-                        pairNeonObserveNum = null;
-                    }
-                } catch (eLon) { }
-            }
-
             if (!submitActive && raw && raw.freq && pairNeonObserveNum != null) {
                 try {
                     if (!selected.has(pairNeonObserveNum) ||
@@ -2931,10 +2973,9 @@
             }
             if (!submitActive && raw && raw.freq && priorPairNeonObserveNum != null) {
                 try {
-                    if (!isPairSelectionOnlyLoneAppliedPairWithoutExtraCircles() &&
-                        selected.has(priorPairNeonObserveNum)) {
+                    if (selected.has(priorPairNeonObserveNum)) {
                         const foPr = parseInt(raw.freq[priorPairNeonObserveNum], 10) || 0;
-                        if (foPr >= 2) {
+                        if (foPr >= 2 && pairObserveNumWouldShowAnyNeonHint(priorPairNeonObserveNum, true)) {
                             pairNeonObserveNum = priorPairNeonObserveNum;
                         }
                     }
@@ -2944,7 +2985,10 @@
                 notePairNeonObserveContextFromEffectiveSize();
             } catch (eNote) { /* ignore */ }
             if (!submitActive && raw && raw.freq && isLoneAppliedPairOnlyGeometry() && !pairNeonObserveContextBeyondLonePair) {
-                pairNeonObserveNum = null;
+                if (pairNeonObserveNum != null &&
+                    !pairObserveNumWouldShowAnyNeonHint(pairNeonObserveNum, true)) {
+                    pairNeonObserveNum = null;
+                }
             }
             try {
                 requestAnimationFrame(function () {
@@ -3245,12 +3289,13 @@
          * Số `observed` chỉ là số quan sát nếu có ít nhất một nút cặp được phép gắn pair-neon-hint:
          * tồn tại cặp chứa observed, observed trong tập hiệu lực, và không phải cả hai đầu cặp đều đã khoanh.
          * (freq>=2 một mình không đủ nếu mọi cặp liên quan đều đã đủ khoanh → không neon.)
+         * @param {boolean} [ignoreLoneAmbiguous] — true: bỏ chặn lone mơ hồ (dùng khi đã có số quan sát, tránh tắt neon sau click pair đầu).
          */
-        function pairObserveNumWouldShowAnyNeonHint(observed) {
+        function pairObserveNumWouldShowAnyNeonHint(observed, ignoreLoneAmbiguous) {
             if (submitActive || observed == null || typeof observed !== 'number' || !Number.isFinite(observed)) {
                 return false;
             }
-            if (isPairSelectionOnlyLoneAppliedPairWithoutExtraCircles()) {
+            if (!ignoreLoneAmbiguous && isPairSelectionOnlyLoneAppliedPairWithoutExtraCircles()) {
                 return false;
             }
             if (!hasLeftPaneRecordForPairNeon() || !raw) {
@@ -3304,11 +3349,17 @@
             if (!raw || !raw.freq || submitActive) {
                 return null;
             }
-            if (isPairSelectionOnlyLoneAppliedPairWithoutExtraCircles()) {
-                pairNeonObserveNum = null;
-                return null;
-            }
             try {
+                /* Lone mơ hồ: vẫn trả về số quan sát nếu còn ít nhất một cặp neon (tránh mất neon ngay cú click pair đầu). */
+                if (isPairSelectionOnlyLoneAppliedPairWithoutExtraCircles()) {
+                    if (pairNeonObserveNum != null && selected.has(pairNeonObserveNum)) {
+                        const foLo = parseInt(raw.freq[pairNeonObserveNum], 10) || 0;
+                        if (foLo >= 2 && pairObserveNumWouldShowAnyNeonHint(pairNeonObserveNum, true)) {
+                            return pairNeonObserveNum;
+                        }
+                    }
+                    return null;
+                }
                 if (pairNeonObserveNum != null) {
                     if (!selected.has(pairNeonObserveNum)) {
                         pairNeonObserveNum = null;
@@ -3342,7 +3393,6 @@
             }
             try {
                 if (isPairSelectionOnlyLoneAppliedPairWithoutExtraCircles()) {
-                    pairNeonObserveNum = null;
                     return;
                 }
                 if (pairNeonObserveNum != null) {
@@ -3423,6 +3473,7 @@
                 btns.forEach((btn) => {
                     btn.classList.remove('pair-neon-hint');
                     btn.style.removeProperty('animation-delay');
+                    btn.style.removeProperty('animation');
                 });
                 return;
             }
@@ -3450,6 +3501,7 @@
                 if (!Number.isFinite(a) || !Number.isFinite(b)) {
                     btn.classList.remove('pair-neon-hint');
                     btn.style.removeProperty('animation-delay');
+                    btn.style.removeProperty('animation');
                     continue;
                 }
                 let hitA;
@@ -3466,6 +3518,7 @@
             btns.forEach((btn) => {
                 if (!btn.classList.contains('pair-neon-hint')) {
                     btn.style.removeProperty('animation-delay');
+                    btn.style.removeProperty('animation');
                 }
             });
             scheduleSyncPairNeonHintAnimations();
@@ -5212,6 +5265,9 @@
                         }
                         syncPickOrderForSubmitState();
                     } catch (e) { }
+                    try {
+                        notePairNeonObserveContextFromEffectiveSize();
+                    } catch (eNoteCtx) { /* ignore */ }
                     try {
                         if (restoreUsedAutoring) {
                             assignPairNeonObserveNumFromAutoRingCircleNums(Array.from(autoRingPicked));
