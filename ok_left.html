@@ -881,21 +881,24 @@
         .pair-btn {
             box-sizing: border-box;
             background: none;
-            border: 1px solid #ccc;
+            border: 3px solid transparent;
             border-radius: 6px;
-            padding: 3px 6px;
+            padding: 1px 4px;
             margin: 2px;
             cursor: pointer;
             font-size: 12px;
             display: inline-flex;
             align-items: center;
-            height: 24px
+            height: 24px;
+            /* Cùng khung với .pair-neon-hint (border 3px + padding 1px 4px) — viền xám mỏng bằng inset, tránh đổi width khi bật/tắt neon */
+            box-shadow: inset 0 0 0 1px #ccc;
         }
 
         .pair-btn.pair-selected {
             background: #2e7d32;
             color: #ffffff;
-            border-color: #1b5e20
+            border: 3px solid #1b5e20;
+            box-shadow: none;
         }
 
         /* Neon gợi ý cặp — thời lượng animation khớp PAIR_NEON_BORDER_PERIOD_S / PAIR_NEON_GLOW_PERIOD_S trong JS (syncPairNeonHintAnimations) */

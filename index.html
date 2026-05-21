@@ -1592,12 +1592,15 @@
 
         /* Bọc #tableWrap: nút go top/bottom — không thể “gắn” vào thanh OS; làm trùng cột + màu thanh WebKit/Fx */
         .right-table-viewport-wrap {
-            --rt-scrollbar-w: 12px;
+            /* Cột thumb + rail; tránh scrollbar-width: thin (Chrome 121+ có thể ép mỏng, bỏ qua ::-webkit-scrollbar width) */
+            --rt-scrollbar-w: 18px;
             --rt-scrollbar-track: #e8e8e8;
             --rt-scrollbar-thumb: #c1c1c1;
             --rt-scrollbar-thumb-hover: #a8a8a8;
             --rt-scrollbar-btn-face: linear-gradient(180deg, #fafafa, #e3e3e3);
             --rt-scrollbar-btn-edge: #adadad;
+            /* WebKit thumb: sàn tối thiểu (gậy dài hơn khi nội dung rất dài) */
+            --rt-scrollbar-thumb-min: 160px;
             position: relative;
             flex: 1;
             min-height: 0;
@@ -1622,12 +1625,13 @@
             /* help programmatic scrollIntoView honor bottom offset */
             scroll-padding-bottom: 72px;
             scrollbar-gutter: stable;
-            scrollbar-width: thin;
+            /* auto: để WebKit dùng width từ ::-webkit-scrollbar; Firefox dùng thanh mặc định (đủ rộng) thay vì thin */
+            scrollbar-width: auto;
             scrollbar-color: var(--rt-scrollbar-thumb) var(--rt-scrollbar-track);
         }
 
         #tableWrap::-webkit-scrollbar {
-            width: var(--rt-scrollbar-w);
+            width: var(--rt-scrollbar-w, 18px);
         }
 
         #tableWrap::-webkit-scrollbar-track {
@@ -1640,6 +1644,7 @@
             background: var(--rt-scrollbar-thumb);
             border-radius: 3px;
             border: 1px solid rgba(0, 0, 0, 0.12);
+            min-height: var(--rt-scrollbar-thumb-min, 160px);
         }
 
         #tableWrap::-webkit-scrollbar-thumb:hover {
@@ -1659,11 +1664,11 @@
             top: 0;
             right: 0;
             bottom: 0;
-            width: var(--rt-scrollbar-w);
+            width: var(--rt-scrollbar-w, 18px);
             display: flex;
             flex-direction: column;
             justify-content: flex-start;
-            align-items: stretch;
+            align-items: center;
             padding: 0;
             box-sizing: border-box;
             pointer-events: none;
@@ -1674,6 +1679,9 @@
         .right-table-edge-jumps-spacer {
             flex: 1 1 auto;
             min-height: 0;
+            align-self: stretch;
+            width: 100%;
+            min-width: 100%;
             pointer-events: none;
             background: transparent;
         }
@@ -1686,15 +1694,15 @@
             pointer-events: auto;
             flex: 0 0 auto;
             width: 100%;
-            height: 11px;
-            min-height: 11px;
+            height: 12px;
+            min-height: 12px;
             padding: 0;
             margin: 0;
             border: none;
             border-radius: 0;
             background: var(--rt-scrollbar-btn-face);
             color: #2a2a2a;
-            font-size: 6px;
+            font-size: 7px;
             line-height: 1;
             cursor: pointer;
             display: flex;
@@ -1705,10 +1713,19 @@
             border-bottom: 1px solid var(--rt-scrollbar-btn-edge);
         }
 
-        .right-table-edge-jump-btn--step {
-            font-size: 7px;
+        /* Cùng bề + căn giữa cột thumb (▲▼ và ⏮); hẹp 4px tổng ≈ vùng thumb sau viền 1px */
+        .right-table-edge-jump-btn--step,
+        .right-table-edge-jump-btn--top,
+        .right-table-edge-jump-btn--bottom {
+            width: calc(var(--rt-scrollbar-w, 18px) - 4px);
+            min-width: 12px;
         }
 
+        .right-table-edge-jump-btn--step {
+            font-size: 8px;
+        }
+
+        /* Gương trên/dưới: ▼ không border dưới (viền với ⏮ = inset trên nút dưới); ▲ giữ border dưới tới spacer — đối xứng với border trên ▼ */
         .right-table-edge-jump-btn--step-down {
             border-bottom: none;
         }
@@ -1730,20 +1747,32 @@
             cursor: default;
         }
 
-        /* ⏮ xoay: nút trên = lên đầu, nút dưới = xuống cuối; box-shadow thay border-top để không lệch tâm */
+        /* ⏮ xoay: nút trên = lên đầu, nút dưới = xuống cuối; overflow tránh viền nền lòi khi xoay */
         .right-table-edge-jump-btn--top,
         .right-table-edge-jump-btn--bottom {
             transform-origin: 50% 50%;
+            overflow: hidden;
         }
 
+        /* ⏮ trên: gương với ⏮ dưới — viền trong = inset cạnh đối diện (dưới vs trên) */
         .right-table-edge-jump-btn--top {
             transform: rotate(90deg);
+            border-bottom: none;
+            box-shadow: inset 0 -1px 0 0 var(--rt-scrollbar-btn-edge);
         }
 
         .right-table-edge-jump-btn--bottom {
             transform: rotate(-90deg);
             border-top: none;
             box-shadow: inset 0 1px 0 0 var(--rt-scrollbar-btn-edge);
+        }
+
+        .right-table-edge-jump-btn--top:hover:not(:disabled) {
+            background: linear-gradient(0deg, #ffffff, #ececec);
+        }
+
+        .right-table-edge-jump-btn--top:active:not(:disabled) {
+            background: linear-gradient(0deg, #e8e8e8, #d8d8d8);
         }
 
         #filterTableWrap {
