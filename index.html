@@ -154,7 +154,7 @@
 
         select,
         button,
-        input[type=text]:not(.filter-popup-position-input) {
+        input[type=text]:not(.filter-popup-position-input):not(.submit-ring-x-input) {
             padding: 8px;
             border-radius: 6px;
             border: 1px solid #26343f;
@@ -485,6 +485,115 @@
             opacity: 1 !important;
             filter: none !important;
             -webkit-text-fill-color: inherit !important;
+        }
+
+        /* Ô x + nút ▴▾: dính dropdown autoring, cùng chiều cao 24px như filter nonexist */
+        #submitRingCustomXWrap {
+            display: inline-flex;
+            flex-direction: row;
+            align-items: stretch;
+            align-self: stretch;
+            flex: 0 0 auto;
+            min-width: 0;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            border-left: 1px solid #cbd5e1;
+            background: #ffffff;
+            box-sizing: border-box;
+        }
+
+        #submitRingCustomXWrap.hidden {
+            display: none !important;
+        }
+
+        .submit-ring-x-input {
+            box-sizing: border-box;
+            width: 30px;
+            min-width: 30px;
+            max-width: 30px;
+            height: 24px;
+            margin: 0;
+            padding: 0 3px;
+            border: 0;
+            border-radius: 0;
+            background: #ffffff !important;
+            color: #0f172a !important;
+            font-size: 12px;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            line-height: 24px;
+            text-align: center;
+            vertical-align: middle;
+            outline: none;
+            box-shadow: none;
+        }
+
+        .submit-ring-x-input:focus {
+            box-shadow: inset 0 0 0 1px #2563eb;
+        }
+
+        .submit-ring-x-input:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .submit-ring-x-spin {
+            display: flex;
+            flex-direction: column;
+            flex: 0 0 auto;
+            width: 16px;
+            min-width: 16px;
+            border-left: 1px solid #cbd5e1;
+            box-sizing: border-box;
+        }
+
+        #submitRingCustomXWrap .submit-ring-x-spin-btn {
+            flex: 1 1 50%;
+            min-height: 0;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: #006400 !important;
+            color: #ffffff !important;
+            font-size: 7px;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+        }
+
+        #submitRingCustomXWrap .submit-ring-x-spin-btn + .submit-ring-x-spin-btn {
+            border-top: 1px solid rgba(255, 255, 255, 0.35);
+        }
+
+        #submitRingCustomXWrap .submit-ring-x-spin-btn:hover:not(:disabled) {
+            background: #047857 !important;
+        }
+
+        #submitRingCustomXWrap .submit-ring-x-spin-btn:active:not(:disabled) {
+            background: #065f46 !important;
+        }
+
+        #submitRingCustomXWrap .submit-ring-x-spin-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .visually-hidden {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
         }
 
         .sheet-tools-mode-wrap.disabled {
@@ -1515,13 +1624,26 @@
                             title="Bật/tắt khoanh tự động cho 5 số submit"
                             aria-label="Toggle auto circle submit numbers"></button>
                         <div id="submitRingModeWrap" class="sheet-tools-mode-wrap"
-                            title="Chọn kiểu khoanh: max hoặc min">
+                            title="Chọn kiểu khoanh: max, min hoặc x cố định (1–35)">
                             <span id="submitRingModeValue" class="sheet-tools-mode-value">MAX</span>
-                            <select id="submitRingModeSelect" title="Chọn kiểu khoanh: max hoặc min"
+                            <select id="submitRingModeSelect" title="Chọn kiểu khoanh: max, min hoặc x (1–35)"
                                 aria-label="Submit auto circle mode">
                                 <option value="max">max</option>
                                 <option value="min">min</option>
+                                <option value="custom">x</option>
                             </select>
+                        </div>
+                        <div id="submitRingCustomXWrap" class="submit-ring-x-adjoin hidden" title="Số x (1–35)">
+                            <label for="submitRingCustomXInput" class="visually-hidden">x 1–35</label>
+                            <input id="submitRingCustomXInput" class="submit-ring-x-input" type="text"
+                                inputmode="numeric" maxlength="2" pattern="[0-9]*" autocomplete="off" spellcheck="false"
+                                aria-label="Giá trị x autoring từ 1 đến 35" />
+                            <div class="submit-ring-x-spin" role="group" aria-label="Tăng giảm x">
+                                <button type="button" id="submitRingCustomXInc" class="submit-ring-x-spin-btn"
+                                    title="Tăng x" aria-label="Tăng x">▴</button>
+                                <button type="button" id="submitRingCustomXDec" class="submit-ring-x-spin-btn"
+                                    title="Giảm x" aria-label="Giảm x">▾</button>
+                            </div>
                         </div>
                     </div>
                     <div class="sheet-tools-group filter-tools-group">
@@ -1642,6 +1764,7 @@
         const RIGHT_ZOOM_STEP = 0.05;
         const SUBMIT_RING_ENABLED_KEY = 'submitRingEnabled';
         const SUBMIT_RING_MODE_KEY = 'submitRingMode';
+        const SUBMIT_RING_CUSTOM_X_KEY = 'submitRingCustomX';
         const PERIOD_FILTER_ENABLED_KEY = 'periodFilterEnabled';
         const PERIOD_FILTER_MODE_KEY = 'periodFilterMode';
         const FILTER_POPUP_LAYOUT_KEY = 'filterPopupLayout';
@@ -1700,6 +1823,8 @@
         let rightPaneZoom = 1;
         let submitRingEnabled = false;
         let submitRingMode = 'max';
+        /** Giá trị x (1–35) khi autoring chế độ custom */
+        let submitRingCustomX = 15;
         let periodFilterEnabled = false;
         let periodFilterMode = 'pair1';
         let periodFilterMenuAnchor = 'toolbar';
@@ -1930,15 +2055,26 @@
             applyRightPaneZoom(rightPaneZoom, false);
         }
 
+        function clampRingCustomX(v) {
+            const n = parseInt(String(v), 10);
+            if (Number.isNaN(n)) return 15;
+            return Math.min(35, Math.max(1, n));
+        }
+
         function sendSubmitRingConfigToIframe() {
             const frame = el('okFrame');
             if (!frame || !frame.contentWindow) {
                 return;
             }
+            const mode =
+                submitRingMode === 'min' || submitRingMode === 'max' || submitRingMode === 'custom'
+                    ? submitRingMode
+                    : 'max';
             frame.contentWindow.postMessage({
                 type: 'submitAutoCircleChanged',
                 enabled: !!submitRingEnabled,
-                mode: submitRingMode === 'min' ? 'min' : 'max'
+                mode,
+                customX: clampRingCustomX(submitRingCustomX)
             }, '*');
         }
 
@@ -1947,28 +2083,59 @@
             const modeSelect = el('submitRingModeSelect');
             const modeWrap = el('submitRingModeWrap');
             const modeValue = el('submitRingModeValue');
+            const customWrap = el('submitRingCustomXWrap');
+            const customInput = el('submitRingCustomXInput');
+            const customDec = el('submitRingCustomXDec');
+            const customInc = el('submitRingCustomXInc');
             const modeHighlighted = submitRingEnabled || iframeSubmitActive;
+            submitRingCustomX = clampRingCustomX(submitRingCustomX);
+            const xControlsDisabled = !submitRingEnabled || submitRingMode !== 'custom';
             if (toggleBtn) {
+                const modeLabel =
+                    submitRingMode === 'custom' ? `x=${submitRingCustomX}` : submitRingMode;
                 toggleBtn.classList.toggle('active', submitRingEnabled);
                 toggleBtn.setAttribute(
                     'title',
                     submitRingEnabled
-                        ? `Đang bật khoanh tự động (${submitRingMode}). Bấm để tắt`
+                        ? `Đang bật khoanh tự động (${modeLabel}). Bấm để tắt`
                         : 'Đang tắt khoanh tự động. Bấm để bật'
                 );
             }
             if (modeSelect) {
-                modeSelect.value = submitRingMode;
+                const v =
+                    submitRingMode === 'min' || submitRingMode === 'max' || submitRingMode === 'custom'
+                        ? submitRingMode
+                        : 'max';
+                modeSelect.value = v;
                 modeSelect.disabled = !submitRingEnabled;
-                modeSelect.setAttribute('title', `Chế độ hiện tại: ${submitRingMode}`);
+                modeSelect.setAttribute('title', `Chế độ hiện tại: ${v}`);
             }
             if (modeValue) {
-                modeValue.textContent = (submitRingMode || 'max').toUpperCase();
+                modeValue.textContent =
+                    submitRingMode === 'custom'
+                        ? `X=${submitRingCustomX}`
+                        : String(submitRingMode || 'max').toUpperCase();
             }
             if (modeWrap) {
                 modeWrap.classList.toggle('disabled', !submitRingEnabled);
                 modeWrap.classList.toggle('enabled', modeHighlighted);
-                modeWrap.setAttribute('title', `Chế độ khoanh: ${submitRingMode}`);
+                modeWrap.setAttribute(
+                    'title',
+                    `Chế độ khoanh: ${submitRingMode === 'custom' ? 'x=' + submitRingCustomX : submitRingMode}`
+                );
+            }
+            if (customWrap) {
+                customWrap.classList.toggle('hidden', submitRingMode !== 'custom');
+            }
+            if (customInput) {
+                customInput.value = String(submitRingCustomX);
+                customInput.disabled = xControlsDisabled;
+            }
+            if (customDec) {
+                customDec.disabled = xControlsDisabled;
+            }
+            if (customInc) {
+                customInc.disabled = xControlsDisabled;
             }
         }
 
@@ -1976,15 +2143,26 @@
             try {
                 const savedEnabled = localStorage.getItem(SUBMIT_RING_ENABLED_KEY);
                 const savedMode = localStorage.getItem(SUBMIT_RING_MODE_KEY);
+                const savedX = localStorage.getItem(SUBMIT_RING_CUSTOM_X_KEY);
                 submitRingEnabled = savedEnabled === '1';
-                submitRingMode = (savedMode === 'min' || savedMode === 'max') ? savedMode : 'max';
+                submitRingMode =
+                    savedMode === 'min' || savedMode === 'max' || savedMode === 'custom' ? savedMode : 'max';
+                if (savedX != null && savedX !== '') {
+                    submitRingCustomX = clampRingCustomX(savedX);
+                } else {
+                    submitRingCustomX = 15;
+                }
             } catch (e) {
                 submitRingEnabled = false;
                 submitRingMode = 'max';
+                submitRingCustomX = 15;
             }
 
             const toggleBtn = el('autoringToggleBtn');
             const modeSelect = el('submitRingModeSelect');
+            const customInput = el('submitRingCustomXInput');
+            const customDec = el('submitRingCustomXDec');
+            const customInc = el('submitRingCustomXInc');
             if (toggleBtn) {
                 toggleBtn.addEventListener('mousedown', (e) => {
                     e.preventDefault();
@@ -1999,11 +2177,54 @@
             }
             if (modeSelect) {
                 modeSelect.addEventListener('change', () => {
-                    submitRingMode = modeSelect.value === 'min' ? 'min' : 'max';
+                    const v = modeSelect.value;
+                    submitRingMode = v === 'min' || v === 'max' || v === 'custom' ? v : 'max';
                     try { localStorage.setItem(SUBMIT_RING_MODE_KEY, submitRingMode); } catch (e) { }
                     syncSubmitRingToolbarUi();
                     sendSubmitRingConfigToIframe();
                     requestAnimationFrame(() => restoreKeyboardFocusTarget());
+                });
+            }
+            if (customInput) {
+                const persistX = () => {
+                    submitRingCustomX = clampRingCustomX(customInput.value);
+                    customInput.value = String(submitRingCustomX);
+                    try {
+                        localStorage.setItem(SUBMIT_RING_CUSTOM_X_KEY, String(submitRingCustomX));
+                    } catch (e) { /* ignore */ }
+                    syncSubmitRingToolbarUi();
+                    sendSubmitRingConfigToIframe();
+                };
+                customInput.addEventListener('input', () => {
+                    const digits = String(customInput.value || '').replace(/\D/g, '').slice(0, 2);
+                    if (customInput.value !== digits) {
+                        customInput.value = digits;
+                    }
+                });
+                customInput.addEventListener('change', persistX);
+                customInput.addEventListener('blur', persistX);
+            }
+            const bumpRingCustomX = (delta) => {
+                if (!submitRingEnabled || submitRingMode !== 'custom') {
+                    return;
+                }
+                submitRingCustomX = clampRingCustomX(submitRingCustomX + delta);
+                try {
+                    localStorage.setItem(SUBMIT_RING_CUSTOM_X_KEY, String(submitRingCustomX));
+                } catch (e) { /* ignore */ }
+                syncSubmitRingToolbarUi();
+                sendSubmitRingConfigToIframe();
+            };
+            if (customDec) {
+                customDec.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    bumpRingCustomX(-1);
+                });
+            }
+            if (customInc) {
+                customInc.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    bumpRingCustomX(1);
                 });
             }
 
@@ -5200,7 +5421,8 @@
                         focusRowIndex: detail.focusRowIndex,
                         focusNonexistHighlights: detail.focusNonexistHighlights || {},
                         submitAutoCircleEnabled: submitRingEnabled,
-                        submitAutoCircleMode: submitRingMode
+                        submitAutoCircleMode: submitRingMode,
+                        submitAutoCircleCustomX: clampRingCustomX(submitRingCustomX)
                     }, '*');
                 }
                 if (sheetManager && sheetManager.activeSheet === 'combo_1') {

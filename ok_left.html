@@ -1189,6 +1189,8 @@
         let currentTailIndex = -1;
         let submitAutoCircleEnabled = false;
         let submitAutoCircleMode = 'max';
+        /** Khi mode === 'custom': khoanh đúng một số x (1–35), không phụ thuộc tần suất trong đáp án. */
+        let submitAutoCircleCustomX = 15;
         /** Track draw ids (right-pane focus row) that already received one-shot auto ring */
         let autoRingVisitedIds = new Set();
         let autoRingPicked = new Set();
@@ -1303,6 +1305,14 @@
             return getAnswerNumsFromCurrentLine11();
         }
 
+        function clampSubmitAutoCircleCustomX(v) {
+            const n = parseInt(v, 10);
+            if (isNaN(n)) return 15;
+            if (n < 1) return 1;
+            if (n > 35) return 35;
+            return n;
+        }
+
         function clearAutoRingSelectionVisuals() {
             autoRingPicked.clear();
             if (!submitActive) {
@@ -1327,8 +1337,16 @@
 
         function getSubmitAutoCircleSet() {
             const out = new Set();
+            if (!submitAutoCircleEnabled || !raw || !raw.freq) {
+                return out;
+            }
+            if (submitAutoCircleMode === 'custom') {
+                const x = clampSubmitAutoCircleCustomX(submitAutoCircleCustomX);
+                out.add(x);
+                return out;
+            }
             var ansSrc = getAnswerNumsForAutoring();
-            if (!submitAutoCircleEnabled || !raw || !raw.freq || !ansSrc.length) {
+            if (!ansSrc.length) {
                 return out;
             }
 
@@ -1642,7 +1660,11 @@
         function maybeApplySubmitAutoRingAfterProcess(focusRowIdRaw) {
             try {
                 if (!submitAutoCircleEnabled || !raw) return;
-                if (disableSubmitForCurrentData || !hasCurrentLine11Result()) {
+                if (disableSubmitForCurrentData) {
+                    clearAutoRingSelectionVisuals();
+                    return;
+                }
+                if (submitAutoCircleMode !== 'custom' && !hasCurrentLine11Result()) {
                     clearAutoRingSelectionVisuals();
                     return;
                 }
@@ -1652,7 +1674,7 @@
                 if (autoRingVisitedIds.has(fk)) return;
 
                 var ans = getAnswerNumsFromCurrentLine11();
-                if (ans.length >= 5) {
+                if (submitAutoCircleMode !== 'custom' && ans.length >= 5) {
                     syncModeFromAnswerNums(ans);
                 }
 
@@ -1667,13 +1689,17 @@
 
                 autoRingVisitedIds.add(fk);
 
-                try { updatePairList(); } catch (e) { }
-                try { refreshPairTailSelectionState(); } catch (e) { }
-                try { applySelectionAndBlockedInDOM(); } catch (e) { }
-                try { alignTableActionsAndCenter(); } catch (e) { }
-                try { updateFloatingCopyButtons(); } catch (e) { }
-                try { updateFocusIndicator(); } catch (e) { }
+                applyAutoringDomAfterSelection();
             } catch (e) { console.error(e); }
+        }
+
+        function applyAutoringDomAfterSelection() {
+            try { updatePairList(); } catch (e) { }
+            try { refreshPairTailSelectionState(); } catch (e) { }
+            try { applySelectionAndBlockedInDOM(); } catch (e) { }
+            try { alignTableActionsAndCenter(); } catch (e) { }
+            try { updateFloatingCopyButtons(); } catch (e) { }
+            try { updateFocusIndicator(); } catch (e) { }
         }
 
         function syncSubmitButtonAvailability() {
@@ -5570,8 +5596,11 @@
                     if (typeof msg.submitAutoCircleEnabled === 'boolean') {
                         submitAutoCircleEnabled = msg.submitAutoCircleEnabled;
                     }
-                    if (msg.submitAutoCircleMode === 'min' || msg.submitAutoCircleMode === 'max') {
+                    if (msg.submitAutoCircleMode === 'min' || msg.submitAutoCircleMode === 'max' || msg.submitAutoCircleMode === 'custom') {
                         submitAutoCircleMode = msg.submitAutoCircleMode;
+                    }
+                    if (msg.submitAutoCircleCustomX !== undefined && msg.submitAutoCircleCustomX !== null && msg.submitAutoCircleCustomX !== '') {
+                        submitAutoCircleCustomX = clampSubmitAutoCircleCustomX(msg.submitAutoCircleCustomX);
                     }
                     disableSubmitForCurrentData = !!msg.disableSubmit;
                     syncSubmitButtonAvailability();
@@ -5685,7 +5714,10 @@
                 } else if (msg.type === 'submitAutoCircleChanged') {
                     const wasEnabled = submitAutoCircleEnabled;
                     submitAutoCircleEnabled = !!msg.enabled;
-                    submitAutoCircleMode = (msg.mode === 'min') ? 'min' : 'max';
+                    submitAutoCircleMode = (msg.mode === 'min') ? 'min' : ((msg.mode === 'custom') ? 'custom' : 'max');
+                    if (msg.customX !== undefined && msg.customX !== null && msg.customX !== '') {
+                        submitAutoCircleCustomX = clampSubmitAutoCircleCustomX(msg.customX);
+                    }
 
                     if (submitAutoCircleEnabled && !wasEnabled && raw) {
                         // When autoring is turned ON, clear current selections and apply autoring immediately
@@ -5711,18 +5743,26 @@
                                     ans = ansLine.split(',').map(function (x) { return parseInt(x, 10); }).filter(function (n) { return !isNaN(n); });
                                 }
                             }
-                            if (ans.length >= 5) {
+                            if (submitAutoCircleMode !== 'custom' && ans.length >= 5) {
                                 try { syncModeFromAnswerNums(ans); } catch (e) { }
                             }
                             applyAutoRingSelection(circleNums);
                         }
 
-                        try { updatePairList(); } catch (e) { }
-                        try { refreshPairTailSelectionState(); } catch (e) { }
-                        try { applySelectionAndBlockedInDOM(); } catch (e) { }
-                        try { alignTableActionsAndCenter(); } catch (e) { }
-                        try { updateFloatingCopyButtons(); } catch (e) { }
-                        try { updateFocusIndicator(); } catch (e) { }
+                        applyAutoringDomAfterSelection();
+                    } else if (submitAutoCircleEnabled && wasEnabled && raw) {
+                        // Đổi max/min/x hoặc giá trị x khi autoring vẫn bật: cập nhật khoanh ngay
+                        var circleNumsCfg = Array.from(getSubmitAutoCircleSet()).filter(function (n) { return !isNaN(n); });
+                        if (circleNumsCfg.length > 0) {
+                            var ansCfg = getAnswerNumsFromCurrentLine11();
+                            if (submitAutoCircleMode !== 'custom' && ansCfg.length >= 5) {
+                                try { syncModeFromAnswerNums(ansCfg); } catch (e) { }
+                            }
+                            applyAutoRingSelection(circleNumsCfg);
+                        } else {
+                            try { clearAutoRingSelectionVisuals(); } catch (e) { }
+                        }
+                        applyAutoringDomAfterSelection();
                     } else if (!submitAutoCircleEnabled && wasEnabled) {
                         try { autoRingPicked.clear(); } catch (e) { }
                         try { autoRingVisitedIds.clear(); } catch (e) { }
