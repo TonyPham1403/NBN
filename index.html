@@ -257,6 +257,15 @@
             height: 36px;
             display: flex;
             align-items: center;
+            /* Ẩn thanh cuộn ngang; vẫn cuộn bằng wheel / kéo (xem initSheetTabsHorizontalScroll) */
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .sheet-tabs-container::-webkit-scrollbar {
+            display: none;
+            width: 0;
+            height: 0;
         }
 
         .sheet-tabs-bar {
@@ -567,7 +576,7 @@
             box-sizing: border-box;
         }
 
-        #submitRingCustomXWrap .submit-ring-x-spin-btn + .submit-ring-x-spin-btn {
+        #submitRingCustomXWrap .submit-ring-x-spin-btn+.submit-ring-x-spin-btn {
             border-top: 1px solid rgba(255, 255, 255, 0.35);
         }
 
@@ -1117,7 +1126,7 @@
             border-left: none;
         }
 
-        .filter-popup-filter-tools .filter-popup-title-label + .period-filter-mode-picker .period-filter-mode-btn {
+        .filter-popup-filter-tools .filter-popup-title-label+.period-filter-mode-picker .period-filter-mode-btn {
             border-left: 0;
         }
 
@@ -1581,15 +1590,160 @@
             font-style: italic;
         }
 
-        #tableWrap {
+        /* Bọc #tableWrap: nút go top/bottom — không thể “gắn” vào thanh OS; làm trùng cột + màu thanh WebKit/Fx */
+        .right-table-viewport-wrap {
+            --rt-scrollbar-w: 12px;
+            --rt-scrollbar-track: #e8e8e8;
+            --rt-scrollbar-thumb: #c1c1c1;
+            --rt-scrollbar-thumb-hover: #a8a8a8;
+            --rt-scrollbar-btn-face: linear-gradient(180deg, #fafafa, #e3e3e3);
+            --rt-scrollbar-btn-edge: #adadad;
+            position: relative;
             flex: 1;
             min-height: 0;
+            min-width: 0;
+            margin-top: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
+        #tableWrap {
+            flex: 1;
+            min-width: 0;
+            min-height: 0;
+            width: 100%;
             overflow: auto;
             margin-top: 0;
+            /* WebKit: margin track (inset đo bằng JS); chỉ width trên ::-webkit-scrollbar dọc */
+            --rt-thumb-track-inset-top: 24px;
+            --rt-thumb-track-inset-bottom: 24px;
             /* Ensure the final table row can scroll above the tabs/zoom bar */
             padding-bottom: 80px;
             /* help programmatic scrollIntoView honor bottom offset */
             scroll-padding-bottom: 72px;
+            scrollbar-gutter: stable;
+            scrollbar-width: thin;
+            scrollbar-color: var(--rt-scrollbar-thumb) var(--rt-scrollbar-track);
+        }
+
+        #tableWrap::-webkit-scrollbar {
+            width: var(--rt-scrollbar-w);
+        }
+
+        #tableWrap::-webkit-scrollbar-track {
+            background: var(--rt-scrollbar-track);
+            margin-top: var(--rt-thumb-track-inset-top);
+            margin-bottom: var(--rt-thumb-track-inset-bottom);
+        }
+
+        #tableWrap::-webkit-scrollbar-thumb {
+            background: var(--rt-scrollbar-thumb);
+            border-radius: 3px;
+            border: 1px solid rgba(0, 0, 0, 0.12);
+        }
+
+        #tableWrap::-webkit-scrollbar-thumb:hover {
+            background: var(--rt-scrollbar-thumb-hover);
+        }
+
+        /* Ẩn nút mũi tên gốc WebKit để xếp: [go-top][▲][thumb][▼][go-bottom] trong cùng cột */
+        #tableWrap::-webkit-scrollbar-button {
+            display: none;
+            height: 0;
+            width: 0;
+        }
+
+        /* Cột nút: flex từ trên xuống; giữa là spacer xuyên click tới thumb */
+        .right-table-edge-jumps {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: var(--rt-scrollbar-w);
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            align-items: stretch;
+            padding: 0;
+            box-sizing: border-box;
+            pointer-events: none;
+            z-index: 1;
+            background: transparent;
+        }
+
+        .right-table-edge-jumps-spacer {
+            flex: 1 1 auto;
+            min-height: 0;
+            pointer-events: none;
+            background: transparent;
+        }
+
+        .right-table-edge-jumps-spacer + .right-table-edge-jump-btn {
+            border-top: 1px solid var(--rt-scrollbar-btn-edge);
+        }
+
+        .right-table-edge-jump-btn {
+            pointer-events: auto;
+            flex: 0 0 auto;
+            width: 100%;
+            height: 11px;
+            min-height: 11px;
+            padding: 0;
+            margin: 0;
+            border: none;
+            border-radius: 0;
+            background: var(--rt-scrollbar-btn-face);
+            color: #2a2a2a;
+            font-size: 6px;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: none;
+            box-sizing: border-box;
+            border-bottom: 1px solid var(--rt-scrollbar-btn-edge);
+        }
+
+        .right-table-edge-jump-btn--step {
+            font-size: 7px;
+        }
+
+        .right-table-edge-jump-btn--step-down {
+            border-bottom: none;
+        }
+
+        .right-table-edge-jump-btn--jumpEnd {
+            border-bottom: none;
+        }
+
+        .right-table-edge-jump-btn:hover:not(:disabled) {
+            background: linear-gradient(180deg, #ffffff, #ececec);
+        }
+
+        .right-table-edge-jump-btn:active:not(:disabled) {
+            background: linear-gradient(180deg, #e8e8e8, #d8d8d8);
+        }
+
+        .right-table-edge-jump-btn:disabled {
+            opacity: 0.35;
+            cursor: default;
+        }
+
+        /* ⏮ xoay: nút trên = lên đầu, nút dưới = xuống cuối; box-shadow thay border-top để không lệch tâm */
+        .right-table-edge-jump-btn--top,
+        .right-table-edge-jump-btn--bottom {
+            transform-origin: 50% 50%;
+        }
+
+        .right-table-edge-jump-btn--top {
+            transform: rotate(90deg);
+        }
+
+        .right-table-edge-jump-btn--bottom {
+            transform: rotate(-90deg);
+            border-top: none;
+            box-shadow: inset 0 1px 0 0 var(--rt-scrollbar-btn-edge);
         }
 
         #filterTableWrap {
@@ -1660,7 +1814,24 @@
                         </div>
                     </div>
                 </div>
-                <div id="tableWrap" class="right-table-viewport" style="flex:1;overflow:auto;margin-top:0"></div>
+                <div class="right-table-viewport-wrap">
+                    <div id="tableWrap" class="right-table-viewport"></div>
+                    <div class="right-table-edge-jumps" role="presentation">
+                        <button type="button" id="rightTableScrollJumpTopBtn"
+                            class="right-table-edge-jump-btn right-table-edge-jump-btn--top"
+                            title="Lên đầu bảng (smooth)" aria-label="Lên đầu bảng">⏮</button>
+                        <button type="button" id="rightTableScrollStepUpBtn"
+                            class="right-table-edge-jump-btn right-table-edge-jump-btn--step"
+                            title="Cuộn lên một đoạn" aria-label="Cuộn lên một đoạn">▲</button>
+                        <div class="right-table-edge-jumps-spacer" aria-hidden="true"></div>
+                        <button type="button" id="rightTableScrollStepDownBtn"
+                            class="right-table-edge-jump-btn right-table-edge-jump-btn--step right-table-edge-jump-btn--step-down"
+                            title="Cuộn xuống một đoạn" aria-label="Cuộn xuống một đoạn">▼</button>
+                        <button type="button" id="rightTableScrollJumpBottomBtn"
+                            class="right-table-edge-jump-btn right-table-edge-jump-btn--bottom right-table-edge-jump-btn--jumpEnd"
+                            title="Xuống cuối bảng (smooth)" aria-label="Xuống cuối bảng">⏮</button>
+                    </div>
+                </div>
                 <div id="sheetTabsContainer" class="sheet-tabs-container"></div>
                 <div class="sheet-zoom-bar">
                     <div class="zoom-toolbar" aria-label="Zoom controls">
@@ -1693,17 +1864,20 @@
                             <span id="filterPopupNoteTagBtnLabel">All</span>
                             <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
                         </button>
-                        <ul id="filterPopupNoteTagMenu" class="period-filter-mode-menu filter-popup-note-tag-menu hidden"
-                            role="listbox" aria-label="Lọc note theo khoảng cách"></ul>
+                        <ul id="filterPopupNoteTagMenu"
+                            class="period-filter-mode-menu filter-popup-note-tag-menu hidden" role="listbox"
+                            aria-label="Lọc note theo khoảng cách"></ul>
                     </div>
                     <div id="filterPopupNonexistTools" class="filter-popup-nonexist-tools hidden">
                         <span id="filterPopupNonexistNum" class="filter-popup-position-input filter-popup-nonexist-num"
                             tabindex="0" role="textbox" aria-label="Số nonexist 1-35"
                             title="Số 1-35 trong cột nonexist"></span>
                         <div id="filterPopupNonexistColorPicker" class="filter-popup-nonexist-color-picker">
-                            <button type="button" id="filterPopupNonexistColorBtn" class="filter-popup-nonexist-color-btn"
-                                aria-haspopup="listbox" aria-expanded="false" title="Lọc theo màu nonexist">
-                                <span id="filterPopupNonexistColorBtnInner" class="filter-popup-nonexist-color-btn-inner"></span>
+                            <button type="button" id="filterPopupNonexistColorBtn"
+                                class="filter-popup-nonexist-color-btn" aria-haspopup="listbox" aria-expanded="false"
+                                title="Lọc theo màu nonexist">
+                                <span id="filterPopupNonexistColorBtnInner"
+                                    class="filter-popup-nonexist-color-btn-inner"></span>
                                 <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
                             </button>
                             <ul id="filterPopupNonexistColorMenu"
@@ -2022,6 +2196,12 @@
                     sheetManager.centerActiveWindowInView(wrap);
                 }
             }
+
+            try {
+                if (typeof window.__syncRightTableThumbTrackInsets === 'function') {
+                    requestAnimationFrame(() => window.__syncRightTableThumbTrackInsets());
+                }
+            } catch (eZ) { /* ignore */ }
         }
 
         function initZoomControls() {
@@ -2053,6 +2233,131 @@
             }
 
             applyRightPaneZoom(rightPaneZoom, false);
+        }
+
+        /** Hàng tab sheet: ẩn scrollbar ngang; wheel dọc → cuộn ngang khi cần */
+        function initSheetTabsHorizontalScroll() {
+            const tabs = el('sheetTabsContainer');
+            if (!tabs || tabs.dataset.sheetTabsWheelBound === '1') {
+                return;
+            }
+            tabs.dataset.sheetTabsWheelBound = '1';
+            tabs.addEventListener('wheel', (e) => {
+                if (!tabs || tabs.scrollWidth <= tabs.clientWidth + 1) {
+                    return;
+                }
+                if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) {
+                    return;
+                }
+                e.preventDefault();
+                tabs.scrollLeft += e.deltaY;
+            }, { passive: false });
+        }
+
+        /**
+         * Cột thanh #tableWrap: [go-top][▲] | thumb | [▼][go-bottom].
+         * WebKit: margin track co vùng thumb (KHÔNG set height trên ::-webkit-scrollbar dọc — 12px làm thumb “mất”).
+         */
+        function initRightTableScrollEdgeJumps() {
+            const wrap = el('tableWrap');
+            const jumpTop = el('rightTableScrollJumpTopBtn');
+            const stepUp = el('rightTableScrollStepUpBtn');
+            const stepDown = el('rightTableScrollStepDownBtn');
+            const jumpBottom = el('rightTableScrollJumpBottomBtn');
+            if (!wrap || !jumpTop || !stepUp || !stepDown || !jumpBottom) {
+                return;
+            }
+            if (wrap.dataset.rightScrollEdgeJumpsBound === '1') {
+                return;
+            }
+            wrap.dataset.rightScrollEdgeJumpsBound = '1';
+
+            const stepPixels = () => Math.max(48, Math.round(wrap.clientHeight * 0.22));
+
+            const rail = wrap && wrap.parentElement
+                ? wrap.parentElement.querySelector('.right-table-edge-jumps')
+                : null;
+            const spacer = rail ? rail.querySelector('.right-table-edge-jumps-spacer') : null;
+
+            const syncThumbTrackInsets = () => {
+                if (!rail || !spacer) {
+                    return;
+                }
+                try {
+                    const rr = rail.getBoundingClientRect();
+                    const sr = spacer.getBoundingClientRect();
+                    let topPx = Math.max(0, Math.round(sr.top - rr.top)) + 2;
+                    let botPx = Math.max(0, Math.round(rr.bottom - sr.bottom)) + 2;
+                    /* Tránh đo lệch / viewport thấp làm margin quá lớn → thumb biến mất */
+                    const ch = wrap.clientHeight || 0;
+                    const maxEach = Math.max(28, Math.floor((ch - 40) / 2));
+                    topPx = Math.min(topPx, maxEach);
+                    botPx = Math.min(botPx, maxEach);
+                    wrap.style.setProperty('--rt-thumb-track-inset-top', `${topPx}px`);
+                    wrap.style.setProperty('--rt-thumb-track-inset-bottom', `${botPx}px`);
+                } catch (eIn) { /* ignore */ }
+            };
+
+            window.__syncRightTableThumbTrackInsets = syncThumbTrackInsets;
+
+            const syncBtns = () => {
+                const maxScroll = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+                const y = wrap.scrollTop;
+                if (maxScroll <= 1) {
+                    jumpTop.disabled = true;
+                    stepUp.disabled = true;
+                    stepDown.disabled = true;
+                    jumpBottom.disabled = true;
+                    return;
+                }
+                jumpTop.disabled = y <= 1;
+                stepUp.disabled = y <= 1;
+                stepDown.disabled = y >= maxScroll - 1;
+                jumpBottom.disabled = y >= maxScroll - 1;
+            };
+
+            jumpTop.addEventListener('click', () => {
+                wrap.scrollTo({ top: 0, left: wrap.scrollLeft, behavior: 'smooth' });
+            });
+            jumpBottom.addEventListener('click', () => {
+                const maxScroll = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
+                wrap.scrollTo({ top: maxScroll, left: wrap.scrollLeft, behavior: 'smooth' });
+            });
+            stepUp.addEventListener('click', () => {
+                wrap.scrollBy({ top: -stepPixels(), left: 0, behavior: 'auto' });
+            });
+            stepDown.addEventListener('click', () => {
+                wrap.scrollBy({ top: stepPixels(), left: 0, behavior: 'auto' });
+            });
+
+            wrap.addEventListener('scroll', () => syncBtns(), { passive: true });
+            window.addEventListener('resize', () => {
+                requestAnimationFrame(() => {
+                    syncThumbTrackInsets();
+                    syncBtns();
+                });
+            });
+            try {
+                const ro = new ResizeObserver(() => {
+                    syncThumbTrackInsets();
+                    syncBtns();
+                });
+                ro.observe(wrap);
+                if (rail) {
+                    ro.observe(rail);
+                }
+            } catch (e) { /* ignore */ }
+
+            requestAnimationFrame(() => {
+                syncThumbTrackInsets();
+                syncBtns();
+            });
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    syncThumbTrackInsets();
+                    syncBtns();
+                });
+            });
         }
 
         function clampRingCustomX(v) {
@@ -5303,6 +5608,8 @@
             initSplitPaneKeyboardRouting();
             initRightPanePointerFocusRouting();
             initZoomControls();
+            initSheetTabsHorizontalScroll();
+            initRightTableScrollEdgeJumps();
             initSubmitRingToolbar();
             initPeriodFilterToolbar();
             loadData();
