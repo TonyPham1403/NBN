@@ -2591,9 +2591,14 @@
         // Helper utilities used by renderTable1/renderTable2
         const clickedChuoi = new Set();
         function toggleChuoi(i) { if (clickedChuoi.has(i)) clickedChuoi.delete(i); else clickedChuoi.add(i); renderTable2(); }
-        function matchSearchPattern(pattern) {
+        function matchSearchPattern(pattern, searchDigitsCached) {
             try {
-                let val = document.getElementById('searchBox')?.value.trim().replace(/[^0-9]/g, '').slice(0, 5) || '';
+                let val;
+                if (searchDigitsCached !== undefined && searchDigitsCached !== null) {
+                    val = String(searchDigitsCached).replace(/[^0-9]/g, '').slice(0, 5);
+                } else {
+                    val = document.getElementById('searchBox')?.value.trim().replace(/[^0-9]/g, '').slice(0, 5) || '';
+                }
                 if (!val) return false;
                 const need = {};
                 for (const c of val) need[c] = (need[c] || 0) + 1;
@@ -2609,6 +2614,8 @@
             try {
                 const right = document.getElementById('right');
                 if (!right) return;
+                const sb = document.getElementById('searchBox');
+                const valOnce = sb ? String(sb.value || '').replace(/[^0-9]/g, '').slice(0, 5) : '';
                 const cells = right.querySelectorAll('tr.chuoi-pattern-row td.chuoi-pattern-label[data-chuoi-pattern]');
                 cells.forEach(function (td) {
                     const pat = td.getAttribute('data-chuoi-pattern');
@@ -2616,7 +2623,7 @@
                         td.classList.remove('search-hit');
                         return;
                     }
-                    td.classList.toggle('search-hit', !!matchSearchPattern(pat));
+                    td.classList.toggle('search-hit', !!matchSearchPattern(pat, valOnce));
                 });
             } catch (e) { /* ignore */ }
         }
@@ -5400,12 +5407,17 @@
             try {
                 var active = document.activeElement;
                 var activeTag = active ? active.tagName : '';
-                /* Ô search: để trình duyệt xử lý toàn bộ phím (Backspace/Delete/xóa nhanh), không cướp Space/mũi tên/WASD */
-                if (active && active.id === 'searchBox') return;
+                /* Ô search chỉ nhận số: mọi phím khác (trừ Q/Space đã xử lý trên sb keydown capture) không kích hoạt shortcut document */
+                if (active && active.id === 'searchBox') {
+                    return;
+                }
                 if (active && (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || active.isContentEditable)) return;
 
-                if (e.key === 'q' || e.key === 'Q') {
-                    toggleClearSelection();
+                if ((e.code === 'KeyQ' || e.key === 'q' || e.key === 'Q') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                    try {
+                        if (submitActive) toggleSubmitOnSpace();
+                        toggleClearSelection();
+                    } catch (eQ) { /* ignore */ }
                     e.preventDefault();
                     return;
                 }
@@ -6021,7 +6033,10 @@
                 }
 
                 if (msg.type === 'leftPaneToggleClear') {
-                    toggleClearSelection();
+                    try {
+                        if (submitActive) toggleSubmitOnSpace();
+                        toggleClearSelection();
+                    } catch (eTgl) { /* ignore */ }
                     return;
                 }
 
@@ -6257,15 +6272,42 @@
         (function wireSearchBoxAndModeLikeOkPy() {
             try {
                 var sb = document.getElementById('searchBox');
+                var searchHitHighlightRaf = null;
                 if (sb) {
+                    sb.addEventListener('keydown', function (e) {
+                        /* KeyQ: physical Q (ổn định hơn e.key khi IME / layout); không dùng kèm Ctrl/Alt/Meta */
+                        var plainQ = (e.code === 'KeyQ' || e.key === 'q' || e.key === 'Q') && !e.ctrlKey && !e.metaKey && !e.altKey;
+                        if (plainQ) {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            try {
+                                /* toggleClearSelection() bỏ qua khi submit preview — Space thì vẫn bật/tắt submit nên cảm giác "chỉ Space ăn" */
+                                if (submitActive) toggleSubmitOnSpace();
+                                toggleClearSelection();
+                            } catch (e0) { /* ignore */ }
+                            return;
+                        }
+                        if (e.code === 'Space' || e.key === ' ') {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            try { toggleSubmitOnSpace(); } catch (e1) { /* ignore */ }
+                            return;
+                        }
+                    }, true);
                     sb.addEventListener('input', function () {
                         try {
                             var next = String(this.value || '').replace(/[^0-9]/g, '').slice(0, 5);
                             if (this.value !== next) this.value = next;
                         } catch (e1) { /* ignore */ }
-                        try {
-                            updateSearchHitHighlightsInTable2();
-                        } catch (e2) { /* ignore */ }
+                        if (searchHitHighlightRaf != null) {
+                            cancelAnimationFrame(searchHitHighlightRaf);
+                        }
+                        searchHitHighlightRaf = requestAnimationFrame(function () {
+                            searchHitHighlightRaf = null;
+                            try {
+                                updateSearchHitHighlightsInTable2();
+                            } catch (e2) { /* ignore */ }
+                        });
                     });
                 }
             } catch (eSb) { /* ignore */ }

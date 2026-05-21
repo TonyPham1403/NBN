@@ -4491,7 +4491,7 @@
                     return;
                 }
 
-                if (event.key === 'q' || event.key === 'Q') {
+                if ((event.code === 'KeyQ' || event.key === 'q' || event.key === 'Q') && !event.ctrlKey && !event.metaKey && !event.altKey) {
                     event.preventDefault();
                     event.stopPropagation();
                     forwardLeftPaneToggleClear();
