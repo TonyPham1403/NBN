@@ -1216,7 +1216,7 @@
 
         // navigation / transient selection state
         let transientSelected = new Set();
-        /** Số quan sát cho neon pair: khoanh (toggleNumber) hoặc điều hướng WASD trên bảng — chỉ khi số đó có freq>=2 và còn trong selection. */
+        /** Số quan sát cho neon pair: freq>=2, còn khoanh, và có ít nhất một cặp được gợi ý neon; không thì chọn số khoanh khác (logic assign/getPairNeon). */
         let pairNeonObserveNum = null;
         let currentPhaseNumber = null;
         let currentPhaseRow = null;
@@ -1453,7 +1453,7 @@
 
         /**
          * Sau khi tắt Submit và khôi phục khoanh thủ công (không qua applyAutoRingSelection):
-         * bật lại số quan sát neon từ selection hiện tại (freq>=2, ưu tiên tần suất cao).
+         * bật lại số quan sát neon từ selection hiện tại (freq>=2, có ít nhất một pair neon; ưu tiên tần suất cao).
          */
         function assignPairNeonObserveNumFromCurrentSelected() {
             if (submitActive || !raw || !raw.freq) {
@@ -1463,7 +1463,7 @@
             var list = [];
             try {
                 selected.forEach(function (n) {
-                    if (!isNaN(n) && ((parseInt(raw.freq[n], 10) || 0) >= 2)) {
+                    if (!isNaN(n) && ((parseInt(raw.freq[n], 10) || 0) >= 2) && pairObserveNumWouldShowAnyNeonHint(n)) {
                         list.push(n);
                     }
                 });
@@ -1490,7 +1490,7 @@
 
         /**
          * Sau autoring (submit off): xác định số quan sát cho neon pair từ đúng tập số autoring.
-         * Ưu tiên custom x nếu có trong tập và freq>=2; không thì số trong tập có freq cao nhất (>=2).
+         * Ưu tiên custom x nếu có trong tập, freq>=2 và có neon pair; không thì số trong tập có freq cao nhất (>=2) và có neon pair.
          */
         function assignPairNeonObserveNumFromAutoRingCircleNums(circleNums) {
             if (submitActive || !raw || !raw.freq) {
@@ -1515,7 +1515,7 @@
                 var cx = clampSubmitAutoCircleCustomX(submitAutoCircleCustomX);
                 if (list.indexOf(cx) !== -1) {
                     var fc = parseInt(raw.freq[cx], 10) || 0;
-                    if (fc >= 2) {
+                    if (fc >= 2 && pairObserveNumWouldShowAnyNeonHint(cx)) {
                         pairNeonObserveNum = cx;
                         return;
                     }
@@ -1526,7 +1526,7 @@
             for (var i = 0; i < list.length; i++) {
                 var nn = list[i];
                 var f = parseInt(raw.freq[nn], 10) || 0;
-                if (f < 2) {
+                if (f < 2 || !pairObserveNumWouldShowAnyNeonHint(nn)) {
                     continue;
                 }
                 if (best == null || f > bestF || (f === bestF && nn < best)) {
@@ -1733,10 +1733,13 @@
                 var po = snap.pairNeonObserveNum;
                 if (po != null && !isNaN(po) && raw && raw.freq) {
                     try {
-                        if (selected.has(po) && (parseInt(raw.freq[po], 10) || 0) >= 2) {
+                        if (selected.has(po) && (parseInt(raw.freq[po], 10) || 0) >= 2 && pairObserveNumWouldShowAnyNeonHint(po)) {
                             pairNeonObserveNum = po;
                         }
                     } catch (e) { }
+                }
+                if (pairNeonObserveNum == null) {
+                    try { assignPairNeonObserveNumFromCurrentSelected(); } catch (eAssign) { }
                 }
                 currentPairIndex = typeof snap.currentPairIndex === 'number' ? snap.currentPairIndex : -1;
                 currentTailIndex = typeof snap.currentTailIndex === 'number' ? snap.currentTailIndex : -1;
@@ -2309,7 +2312,7 @@
                 if (!submitActive && raw && raw.freq) {
                     if (selected.has(n)) {
                         const fPick = parseInt(raw.freq[n], 10) || 0;
-                        if (fPick >= 2 && pairNeonObserveNum === null) {
+                        if (fPick >= 2 && pairNeonObserveNum === null && pairObserveNumWouldShowAnyNeonHint(n)) {
                             pairNeonObserveNum = n;
                         }
                     } else if (pairNeonObserveNum === n) {
@@ -2820,7 +2823,7 @@
                 try {
                     if (!submitActive && raw && raw.freq) {
                         const fPick = parseInt(raw.freq[n], 10) || 0;
-                        if (fPick >= 2 && pairNeonObserveNum === null) {
+                        if (fPick >= 2 && pairNeonObserveNum === null && pairObserveNumWouldShowAnyNeonHint(n)) {
                             pairNeonObserveNum = n;
                         }
                     }
@@ -2833,7 +2836,8 @@
             if (!submitActive && raw && raw.freq && pairNeonObserveNum != null) {
                 try {
                     if (!selected.has(pairNeonObserveNum) ||
-                        (parseInt(raw.freq[pairNeonObserveNum], 10) || 0) < 2) {
+                        (parseInt(raw.freq[pairNeonObserveNum], 10) || 0) < 2 ||
+                        !pairObserveNumWouldShowAnyNeonHint(pairNeonObserveNum)) {
                         pairNeonObserveNum = null;
                     }
                 } catch (e) {
@@ -3019,22 +3023,101 @@
             return !!(raw && Array.isArray(raw.lines) && raw.lines.length >= 10);
         }
 
-        /** Số quan sát cho neon: khoanh (toggleNumber); WASD chỉ gán từ ô focus khi chưa có số hợp lệ — đã xác định thì giữ. Chỉ khi freq>=2 và còn trong selection. */
+        /** Tập hiệu lực cho neon pair — giống updatePairListNeonHints. */
+        function getEffectiveSelectionSetForPairNeon() {
+            const effective = new Set();
+            if (submitActive) {
+                simulatedSelected.forEach((n) => effective.add(n));
+            } else {
+                selected.forEach((n) => effective.add(n));
+                simulatedSelected.forEach((n) => effective.add(n));
+                transientSelected.forEach((n) => effective.add(n));
+            }
+            return effective;
+        }
+
+        function isNumClaimedForPairNeon(n, claimed, observed, effective) {
+            if (observed !== null && n === observed && effective.has(n)) {
+                return false;
+            }
+            return claimed.has(n);
+        }
+
+        /**
+         * Số `observed` chỉ là số quan sát nếu có ít nhất một nút cặp được phép gắn pair-neon-hint:
+         * tồn tại cặp chứa observed, observed trong tập hiệu lực, và không phải cả hai đầu cặp đều đã khoanh.
+         * (freq>=2 một mình không đủ nếu mọi cặp liên quan đều đã đủ khoanh → không neon.)
+         */
+        function pairObserveNumWouldShowAnyNeonHint(observed) {
+            if (submitActive || observed == null || typeof observed !== 'number' || !Number.isFinite(observed)) {
+                return false;
+            }
+            if (!hasLeftPaneRecordForPairNeon() || !raw) {
+                return false;
+            }
+            const effective = getEffectiveSelectionSetForPairNeon();
+            if (!effective.has(observed)) {
+                return false;
+            }
+            const pairs = computePairs();
+            if (!pairs || !pairs.length) {
+                return false;
+            }
+            const claimed = new Set();
+            for (let i = 0; i < pairs.length; i++) {
+                const p = pairs[i];
+                if (!p || p.length < 2) {
+                    continue;
+                }
+                const a = p[0];
+                const b = p[1];
+                if (Number.isFinite(a) && Number.isFinite(b) && effective.has(a) && effective.has(b)) {
+                    claimed.add(a);
+                    claimed.add(b);
+                }
+            }
+            for (let i = 0; i < pairs.length; i++) {
+                const p = pairs[i];
+                if (!p || p.length < 2) {
+                    continue;
+                }
+                const a = p[0];
+                const b = p[1];
+                if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                    continue;
+                }
+                if (effective.has(a) && effective.has(b)) {
+                    continue;
+                }
+                const hitA = observed !== null && effective.has(a) && a === observed && !isNumClaimedForPairNeon(a, claimed, observed, effective);
+                const hitB = observed !== null && effective.has(b) && b === observed && !isNumClaimedForPairNeon(b, claimed, observed, effective);
+                if (hitA || hitB) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /** Số quan sát cho neon: freq>=2, còn khoanh, và có ít nhất một gợi ý neon trên pair; nếu không còn hợp lệ thì chọn lại từ các số khoanh (freq, như assignPairNeonObserveNumFromCurrentSelected). */
         function getPairNeonObservationNumber() {
             if (!raw || !raw.freq || submitActive) {
                 return null;
             }
-            if (pairNeonObserveNum == null) {
-                return null;
-            }
             try {
-                if (!selected.has(pairNeonObserveNum)) {
-                    pairNeonObserveNum = null;
-                    return null;
+                if (pairNeonObserveNum != null) {
+                    if (!selected.has(pairNeonObserveNum)) {
+                        pairNeonObserveNum = null;
+                    } else {
+                        const fo = parseInt(raw.freq[pairNeonObserveNum], 10) || 0;
+                        if (fo < 2 || !pairObserveNumWouldShowAnyNeonHint(pairNeonObserveNum)) {
+                            pairNeonObserveNum = null;
+                        }
+                    }
                 }
-                const fo = parseInt(raw.freq[pairNeonObserveNum], 10) || 0;
-                if (fo < 2) {
-                    pairNeonObserveNum = null;
+                if (pairNeonObserveNum == null) {
+                    assignPairNeonObserveNumFromCurrentSelected();
+                }
+                if (pairNeonObserveNum == null) {
                     return null;
                 }
                 return pairNeonObserveNum;
@@ -3046,7 +3129,7 @@
 
         /**
          * Sau W/A/S/D trên bảng: chỉ gán số quan sát từ currentPhaseNumber khi chưa có số quan sát hợp lệ.
-         * Nếu đã xác định (còn trong selection, freq>=2) thì giữ nguyên; nếu trước đó không hợp lệ thì xóa rồi mới thử gán từ phase.
+         * Nếu đã xác định (còn trong selection, freq>=2, có neon pair) thì giữ; không thì xóa rồi thử gán từ phase.
          */
         function syncPairNeonObserveNumFromPhaseAfterWasd() {
             if (submitActive || !raw || !raw.freq) {
@@ -3056,7 +3139,7 @@
                 if (pairNeonObserveNum != null) {
                     if (selected.has(pairNeonObserveNum)) {
                         const fo = parseInt(raw.freq[pairNeonObserveNum], 10) || 0;
-                        if (fo >= 2) {
+                        if (fo >= 2 && pairObserveNumWouldShowAnyNeonHint(pairNeonObserveNum)) {
                             return;
                         }
                     }
@@ -3064,16 +3147,13 @@
                 }
                 if (currentPhaseNumber != null && selected.has(currentPhaseNumber)) {
                     const f = parseInt(raw.freq[currentPhaseNumber], 10) || 0;
-                    pairNeonObserveNum = (f >= 2) ? currentPhaseNumber : null;
+                    if (f >= 2 && pairObserveNumWouldShowAnyNeonHint(currentPhaseNumber)) {
+                        pairNeonObserveNum = currentPhaseNumber;
+                    } else {
+                        pairNeonObserveNum = null;
+                    }
                 }
             } catch (e) { }
-        }
-
-        function isNumClaimedForPairNeon(n, claimed, observed, effective) {
-            if (observed !== null && n === observed && effective.has(n)) {
-                return false;
-            }
-            return claimed.has(n);
         }
 
         /** Chu kỳ animation neon pair (khớp CSS) — dùng để animation-delay âm, mọi nút cùng pha. */
@@ -3120,8 +3200,9 @@
         }
 
         /**
-         * Viền neon trên các nút cặp: khi chưa submit, chỉ gợi ý các cặp chứa đúng số quan sát (freq>=2, đã xác định),
-         * không neon vì các số khoanh thêm sau đó. Khi submitActive, vẫn gợi ý theo simulated selection như cũ.
+         * Viền neon trên các nút cặp: khi chưa submit, chỉ gợi ý các cặp chứa đúng số quan sát
+         * (freq>=2, còn khoanh, và có ít nhất một gợi ý neon — getPairNeonObservationNumber).
+         * Khi submitActive, vẫn gợi ý theo simulated selection như cũ.
          */
         function updatePairListNeonHints() {
             const pairList = document.getElementById('pairList');
@@ -4763,10 +4844,13 @@
                     clearedPairNeonObserveNumBackup = null;
                     if (obn != null && !isNaN(obn) && raw && raw.freq) {
                         try {
-                            if (selected.has(obn) && (parseInt(raw.freq[obn], 10) || 0) >= 2) {
+                            if (selected.has(obn) && (parseInt(raw.freq[obn], 10) || 0) >= 2 && pairObserveNumWouldShowAnyNeonHint(obn)) {
                                 pairNeonObserveNum = obn;
                             }
                         } catch (e) { }
+                    }
+                    if (pairNeonObserveNum == null) {
+                        try { assignPairNeonObserveNumFromCurrentSelected(); } catch (eAssign) { }
                     }
                     // restore exact pre-clear focus first, then fallback to history/pickOrder
                     try {
