@@ -143,6 +143,15 @@
             opacity: 1;
         }
 
+        /* Submit preview: tạm ẩn vòng khoanh quanh số; viền chuỗi xanh theo đáp án submit (class chuỗi khác). */
+        body.submit-preview-active .cell.num.selected::after,
+        body.submit-preview-active .cell.num.auto-circled::after {
+            opacity: 0 !important;
+            border-color: transparent !important;
+            box-shadow: none !important;
+            transform: translate(-50%, -50%) scale(0.98);
+        }
+
         .cell.num.auto-circled::after {
             border-color: rgba(255, 0, 0, 0.95);
             box-shadow: 0 0 6px rgba(255, 0, 0, 0.12);
@@ -510,6 +519,7 @@
             flex: 1 1 0;
             min-width: 0;
             margin-left: 0;
+            --chuoi-pair-tracked-frame: rgba(0, 150, 55, 0.9);
         }
 
         #right td,
@@ -543,6 +553,23 @@
             position: relative;
             z-index: 2;
             pointer-events: none;
+        }
+
+        /* Một cặp track trong kỳ: viền xanh quanh cả khối Chuỗi (nhãn + hàng số + pattern). */
+        #right tr.chuoi-main-row.chuoi-pair-tracked-solo>td:first-child {
+            box-shadow: inset 0 3px 0 0 var(--chuoi-pair-tracked-frame), inset 3px 0 0 0 var(--chuoi-pair-tracked-frame);
+        }
+
+        #right tr.chuoi-main-row.chuoi-pair-tracked-solo>td:nth-child(2) {
+            box-shadow: inset 0 3px 0 0 var(--chuoi-pair-tracked-frame), inset -3px 0 0 0 var(--chuoi-pair-tracked-frame);
+        }
+
+        #right tr.chuoi-pattern-row.chuoi-pair-tracked-solo>td:first-child {
+            box-shadow: inset 3px 0 0 0 var(--chuoi-pair-tracked-frame), inset 0 -3px 0 0 var(--chuoi-pair-tracked-frame);
+        }
+
+        #right tr.chuoi-pattern-row.chuoi-pair-tracked-solo>td:nth-child(2) {
+            box-shadow: inset -3px 0 0 0 var(--chuoi-pair-tracked-frame), inset 0 -3px 0 0 var(--chuoi-pair-tracked-frame);
         }
 
         /* Make Chuỗi rows feel taller by enlarging the visible label and numbers slightly.
@@ -1237,6 +1264,12 @@
 
         function getLeftKeyboardNavRegion() {
             try {
+                // Prefer explicit pair/tail region from last click (leftKeyboardRegion) over
+                // document.activeElement — a stale applyPairByIndex focus timeout can move focus
+                // to #pairList after the user clicked tail, which wrongly routed A/D to pair nav.
+                if (leftKeyboardRegion === 'pairList' || leftKeyboardRegion === 'tailList') {
+                    return leftKeyboardRegion;
+                }
                 var el = document.activeElement;
                 if (el && el.closest) {
                     if (el.closest('#pairList .pair-btn')) {
@@ -2382,7 +2415,9 @@
             try { updateBlocked(); } catch (e) { }
             try { refreshPairTailSelectionState(); } catch (e) { }
             // Apply minimal in-place DOM updates to avoid full rerender (prevents flicker)
-            try { applySelectionAndBlockedInDOM(n); updateFloatingCopyButtons(); alignTableActionsAndCenter(); updateFocusIndicator(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); try { updateFocusIndicator(); } catch (ee) { } }
+            try {
+                applySelectionAndBlockedInDOM(n); updateFloatingCopyButtons(); alignTableActionsAndCenter(); updateFocusIndicator();
+            } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); try { updateFocusIndicator(); } catch (ee) { } }
             try {
                 requestAnimationFrame(function () {
                     try { updatePairListNeonHints(); } catch (e2) { }
@@ -2443,6 +2478,7 @@
                 });
                 // Update pair/tail styling to match new selection state
                 try { refreshPairTailSelectionState(); } catch (e) { }
+                try { syncChuoiPairTrackedSoloInDOM(); } catch (eCh) { /* ignore */ }
             } catch (e) { console.error(e); }
         }
 
@@ -2728,6 +2764,24 @@
                     if (mains.length === 0) continue;
                     let allMainsOk = true;
                     for (const mainIdx of mains) {
+                        /* Đếm adjacency hình học phía trên main: a,b nằm hai hàng của cùng một cạnh liền kề,
+                           không cùng một hàng của cạnh đó. Nếu đúng 2 cạnh như vậy thì không đưa cặp vào pair. */
+                        let adjAboveCrossCount = 0;
+                        for (const p of adjPairs) {
+                            if (p.bottom >= mainIdx) {
+                                continue;
+                            }
+                            if ((sets[p.top].has(a) && sets[p.bottom].has(b)) || (sets[p.top].has(b) && sets[p.bottom].has(a))) {
+                                if (!((sets[p.top].has(a) && sets[p.top].has(b)) || (sets[p.bottom].has(a) && sets[p.bottom].has(b)))) {
+                                    adjAboveCrossCount++;
+                                }
+                            }
+                        }
+                        if (adjAboveCrossCount === 2) {
+                            allMainsOk = false;
+                            break;
+                        }
+
                         let aboveFound = false;
                         for (const p of adjPairs) {
                             if (p.bottom < mainIdx) {
@@ -3094,7 +3148,8 @@
         }
 
         /**
-         * A/D trên vùng tailList: chỉ chuyển focus giữa các nút tail, không gọi applyPair.
+         * A/D trên vùng tailList: chọn tail trước/sau — cùng logic click tail (applyPair / gỡ cặp),
+         * để bảng và strip cập nhật; không chỉ đổi focus.
          */
         function focusNavigateTailListByDir(dir) {
             const tailList = document.getElementById('tailList');
@@ -3126,24 +3181,32 @@
                 return false;
             }
             const idx = parseInt(target.getAttribute('data-tail-idx'), 10);
-            if (!Number.isFinite(idx)) {
+            const a = parseInt(target.getAttribute('data-a'), 10);
+            const b = parseInt(target.getAttribute('data-b'), 10);
+            if (!Number.isFinite(idx) || !Number.isFinite(a) || !Number.isFinite(b)) {
                 return false;
             }
             try {
                 lastClickedRegion = 'tailList';
-                const b = parseInt(target.getAttribute('data-b'), 10);
-                if (Number.isFinite(b)) {
-                    lastClickedNumber = b;
-                }
+                syncLeftKeyboardRegion('tailList');
+                lastClickedNumber = b;
+                pushPhaseHistory('tailList', b, null);
             } catch (e) { }
-            currentTailIndex = idx;
+            if (selected.has(a) && selected.has(b)) {
+                removePairContributionForToggleOff(a, b);
+                currentTailIndex = -1;
+            } else if (!applyPair(a, b)) {
+                return false;
+            } else {
+                currentTailIndex = idx;
+            }
             try {
                 target.focus();
             } catch (e2) { }
             return true;
         }
 
-        /** Nền pair-selected (#2e7d32): khi đã có ít nhất một cặp track trong map, chỉ nút có key đó; map rỗng thì mọi cặp đủ 2 số trong tập hiệu lực vẫn xanh (khoanh tay chưa qua pair). */
+        /** Nền pair-selected (#2e7d32): mọi nút cặp có cả hai đầu trong tập hiệu lực đều xanh — kể cả nhiều cặp khoanh tay; không còn giới hạn “chỉ cặp có trong map pairContribution”. */
         function pairTailButtonShouldShowPairSelected(a, b, effective) {
             if (!effective) {
                 return false;
@@ -3151,14 +3214,6 @@
             if (!Number.isFinite(a) || !Number.isFinite(b) || !effective.has(a) || !effective.has(b)) {
                 return false;
             }
-            if (submitActive) {
-                return true;
-            }
-            try {
-                if (pairContributionByPairKey && pairContributionByPairKey.size > 0) {
-                    return pairContributionByPairKey.has(pairContributionKey(a, b));
-                }
-            } catch (e) { /* ignore */ }
             return true;
         }
 
@@ -3940,6 +3995,96 @@
             } catch (e) { }
         }
 
+        /** Dòng chuỗi (0..9) đầu tiên có cả hai số a,b trong kết quả 5 số. */
+        function findChuoiDisplayLineIndexContainingBoth(a, b) {
+            if (!raw || !Array.isArray(raw.lines) || raw.lines.length < 10) {
+                return null;
+            }
+            if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                return null;
+            }
+            const displayLines = raw.lines.slice(0, 10);
+            for (let i = 0; i < displayLines.length; i++) {
+                const nums = getNumsFromLineObj(displayLines[i]);
+                if (nums.indexOf(a) !== -1 && nums.indexOf(b) !== -1) {
+                    return i;
+                }
+            }
+            return null;
+        }
+
+        /**
+         * Mọi dòng chuỗi (0..9) chứa một cặp đang được thể hiện trên strip **pair** (#pairList), không tính tail:
+         * `pairTailButtonShouldShowPairSelected` + `computePairs` (bỏ `computeTails`).
+         * Submit ON: tập hiệu lực = simulated (đáp án preview).
+         */
+        function getTrackedPairChuoiLineIndicesSet() {
+            const out = new Set();
+            if (!raw || !Array.isArray(raw.lines) || raw.lines.length < 10) {
+                return out;
+            }
+            let eff;
+            try {
+                eff = getEffectiveSelectionSetForPairNeon();
+            } catch (eEff) {
+                return out;
+            }
+            if (!eff || eff.size < 2) {
+                return out;
+            }
+            function addLineForPair(a, b) {
+                if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                    return;
+                }
+                if (!pairTailButtonShouldShowPairSelected(a, b, eff)) {
+                    return;
+                }
+                const li = findChuoiDisplayLineIndexContainingBoth(a, b);
+                if (li !== null) {
+                    out.add(li);
+                }
+            }
+            try {
+                const pairs = computePairs() || [];
+                for (let pi = 0; pi < pairs.length; pi++) {
+                    const p = pairs[pi];
+                    if (!p || p.length < 2) {
+                        continue;
+                    }
+                    addLineForPair(p[0], p[1]);
+                }
+            } catch (eP) { /* ignore */ }
+            return out;
+        }
+
+        /** Gắn/gỡ class viền chuỗi tại chỗ — chỉ theo cặp trên #pairList (không tail). Submit ON: theo simulated. */
+        function syncChuoiPairTrackedSoloInDOM() {
+            try {
+                try {
+                    if (document.body) {
+                        document.body.classList.toggle('submit-preview-active', !!submitActive);
+                    }
+                } catch (eB) { /* ignore */ }
+                const right = document.getElementById('right');
+                if (!right) {
+                    return;
+                }
+                const trackedSet = getTrackedPairChuoiLineIndicesSet();
+                const mains = right.querySelectorAll('tr.chuoi-main-row');
+                const patterns = right.querySelectorAll('tr.chuoi-pattern-row');
+                mains.forEach(function (tr, i) {
+                    try {
+                        tr.classList.toggle('chuoi-pair-tracked-solo', trackedSet.has(i));
+                    } catch (eTr) { /* ignore */ }
+                });
+                patterns.forEach(function (tr, i) {
+                    try {
+                        tr.classList.toggle('chuoi-pair-tracked-solo', trackedSet.has(i));
+                    } catch (eTr2) { /* ignore */ }
+                });
+            } catch (e) { /* ignore */ }
+        }
+
         function renderTable2() {
             const right = document.getElementById('right');
             if (!raw) {
@@ -3960,6 +4105,7 @@
                 }
                 html += '</table>';
                 right.innerHTML = html;
+                try { syncChuoiPairTrackedSoloInDOM(); } catch (eSc) { /* ignore */ }
                 // compute layout for scaffold
                 setTimeout(function () { computeAndApplyHeights(); }, 0);
                 return;
@@ -4054,6 +4200,7 @@
             });
             html += '</table>';
             right.innerHTML = html;
+            try { syncChuoiPairTrackedSoloInDOM(); } catch (eSync) { /* ignore */ }
             // compute heights/widths and position floating buttons after DOM updated
             setTimeout(function () { computeAndApplyHeights(); }, 0);
         }
@@ -6296,6 +6443,9 @@
                 });
 
                 syncLeftFreqZeroNonexistStylesInDOM();
+
+                try { refreshPairTailSelectionState(); } catch (eRf) { /* ignore */ }
+                try { syncChuoiPairTrackedSoloInDOM(); } catch (eSyncCh) { /* ignore */ }
 
                 // blocked classes already handled per-number above
                 try { updateFocusIndicator(); } catch (e) { }
