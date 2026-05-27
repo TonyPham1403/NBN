@@ -2367,15 +2367,21 @@ class RightPaneSheetManager {
 
     /**
      * Cửa sổ 10 dòng: index tăng theo thời gian (0 = xa nhất, 9 = sát kỳ hiện tại).
-     * Đếm biên kề (top, bot) mà (a,b) chỉ xuất hiện dạng "nghịch" theo chiều đọc từ dưới lên:
-     * dòng cũ (top) có a, dòng mới hơn (bot) có b — không có dạng lật (top b + bot a), không cả hai trên một hàng.
-     * (Dạng lật đó chính là "thuận" khi đọc từ sát kỳ lên; không được nhầm với rác.)
-     * ≥ 2 biên như vậy → coi cặp rác (bỏ khỏi pair / date #00b0f0).
+     * Đếm biên kề nghịch (top có a, bot có b) và lật nằm dưới mọi dòng main (top > mainIdx — đọc từ sát kỳ, vd. 222 8:{26,32}).
+     * ≥ 2 biên → cặp rác.
      */
     countOrderOnlyAdjacentBoundaries(sets, a, b) {
         if (!sets || sets.length < 2 || !Number.isFinite(a) || !Number.isFinite(b)) {
             return 0;
         }
+        const mains = [];
+        for (let idx = 0; idx < sets.length; idx++) {
+            if (sets[idx].has(a) && sets[idx].has(b)) {
+                mains.push(idx);
+            }
+        }
+        const mainMax = mains.length ? Math.max(...mains) : -1;
+        const soleMainOldest = mains.length === 1 && mains[0] === 0;
         let count = 0;
         for (let top = 0; top < sets.length - 1; top++) {
             const bot = top + 1;
@@ -2384,11 +2390,233 @@ class RightPaneSheetManager {
             }
             const order = sets[top].has(a) && sets[bot].has(b);
             const flip = sets[top].has(b) && sets[bot].has(a);
-            if (order && !flip) {
+            let nghich = order && !flip;
+            if (flip && !order && !soleMainOldest && top > mainMax && top >= mainMax + 5) {
+                nghich = true;
+            }
+            if (nghich) {
                 count++;
             }
         }
         return count;
+    }
+
+    crossingKindAtTop(sets, top, a, b) {
+        const bot = top + 1;
+        if (!sets || top < 0 || bot >= sets.length) {
+            return null;
+        }
+        if ((sets[top].has(a) && sets[top].has(b)) || (sets[bot].has(a) && sets[bot].has(b))) {
+            return null;
+        }
+        const order = sets[top].has(a) && sets[bot].has(b);
+        const flip = sets[top].has(b) && sets[bot].has(a);
+        if (order && !flip) {
+            return 'order';
+        }
+        if (flip && !order) {
+            return 'flip';
+        }
+        return null;
+    }
+
+    numInCrossingAtTop(sets, top, kind, n, a, b) {
+        const bot = top + 1;
+        if (kind === 'order') {
+            return (n === a && sets[top].has(a)) || (n === b && sets[bot].has(b));
+        }
+        if (kind === 'flip') {
+            return (n === b && sets[top].has(b)) || (n === a && sets[bot].has(a));
+        }
+        return false;
+    }
+
+    sameNumRecalledAcrossCrossings(sets, top1, kind1, top2, kind2, a, b) {
+        if (
+            this.numInCrossingAtTop(sets, top1, kind1, b, a, b) &&
+            this.numInCrossingAtTop(sets, top2, kind2, b, a, b)
+        ) {
+            return true;
+        }
+        if (
+            this.numInCrossingAtTop(sets, top1, kind1, a, a, b) &&
+            this.numInCrossingAtTop(sets, top2, kind2, a, a, b)
+        ) {
+            return true;
+        }
+        return false;
+    }
+
+    junkRecallBelowMain(sets, a, b, mainIdx) {
+        let t0 = null;
+        let k0 = null;
+        for (let top = mainIdx; top <= mainIdx + 1 && top < sets.length - 1; top++) {
+            const kind = this.crossingKindAtTop(sets, top, a, b);
+            if (!kind) {
+                continue;
+            }
+            t0 = top;
+            k0 = kind;
+            break;
+        }
+        if (t0 == null || t0 >= sets.length - 2) {
+            return false;
+        }
+        const k1 = this.crossingKindAtTop(sets, t0 + 1, a, b);
+        if (!k1) {
+            return false;
+        }
+        return this.sameNumRecalledAcrossCrossings(sets, t0, k0, t0 + 1, k1, a, b);
+    }
+
+    junkRecallAboveMain(sets, a, b, mainIdx) {
+        if (mainIdx < 1) {
+            return false;
+        }
+        const t0 = mainIdx - 1;
+        const k0 = this.crossingKindAtTop(sets, t0, a, b);
+        if (k0) {
+            const k1 = this.crossingKindAtTop(sets, t0 - 1, a, b);
+            if (k1 && this.sameNumRecalledAcrossCrossings(sets, t0 - 1, k1, t0, k0, a, b)) {
+                return true;
+            }
+        }
+        if (mainIdx >= 2 && mainIdx < sets.length - 1) {
+            let tFirst = null;
+            let kFirst = null;
+            for (let top = mainIdx - 1; top >= 0; top--) {
+                const kind = this.crossingKindAtTop(sets, top, a, b);
+                if (!kind) {
+                    continue;
+                }
+                tFirst = top;
+                kFirst = kind;
+                break;
+            }
+            if (tFirst != null && tFirst <= mainIdx - 3 && kFirst === 'order') {
+                const rowAbove = mainIdx - 1;
+                for (const n of [a, b]) {
+                    if (
+                        this.numInCrossingAtTop(sets, tFirst, kFirst, n, a, b) &&
+                        sets[rowAbove].has(n)
+                    ) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Gọi lại quá sát: hai biên cắt kề (155) hoặc cắt xa hơn + số lại ở hàng ngay kề main (182 3:{12,22}).
+     */
+    junkPairAdjacentRecallTooClose(sets, a, b) {
+        if (!sets || sets.length < 3 || !Number.isFinite(a) || !Number.isFinite(b)) {
+            return false;
+        }
+        const mains = [];
+        for (let idx = 0; idx < sets.length; idx++) {
+            if (sets[idx].has(a) && sets[idx].has(b)) {
+                mains.push(idx);
+            }
+        }
+        for (const mainIdx of mains) {
+            if (this.junkRecallBelowMain(sets, a, b, mainIdx)) {
+                return true;
+            }
+            if (this.junkRecallAboveMain(sets, a, b, mainIdx)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Chồng quanh biên: lật top=4 b trên freq4/2; thuận a trên f(a)=3 (top≠6 cần f(b)=2; top=6 rác khi f(b)≠2 và (a,b) cùng dòng idx 0); lật top=6 b trên f(b)=3 f(a)=2; lật b trên f(a)=f(b)=3 chỉ khi main duy nhất dòng sát kỳ; lật a dưới f(a)=3 (top=6 f(b)≤3; top≠6 f(b)=2 — 182 9:{3,11}).
+     * Cặp có số ≥6 hoặc cả hai ≥5 trong cửa sổ → bỏ thêm (junkPairIfAnyWindowFreqGe / junkPairIfBothWindowFreqGe).
+     */
+    junkStackedPairNumAboveCrossingAdjacent(sets, a, b, windowFreq) {
+        if (!sets || sets.length < 2 || !Number.isFinite(a) || !Number.isFinite(b)) {
+            return false;
+        }
+        const wf = windowFreq || {};
+        const f = (n) => (wf[n] != null ? Number(wf[n]) : 0) || 0;
+        const mains = [];
+        for (let idx = 0; idx < sets.length; idx++) {
+            if (sets[idx].has(a) && sets[idx].has(b)) {
+                mains.push(idx);
+            }
+        }
+        const onlyMainOnNewestRow = mains.length === 1 && mains[0] === sets.length - 1;
+        for (let top = 1; top < sets.length - 1; top++) {
+            const bot = top + 1;
+            if ((sets[top].has(a) && sets[top].has(b)) || (sets[bot].has(a) && sets[bot].has(b))) {
+                continue;
+            }
+            const flip = sets[top].has(b) && sets[bot].has(a);
+            const order = sets[top].has(a) && sets[bot].has(b);
+            if (flip && !order && top === 4) {
+                if (sets[top - 1].has(b) && sets[top].has(b) && f(b) === 4 && f(a) === 2) {
+                    return true;
+                }
+            }
+            if (order && !flip) {
+                if (sets[top - 1].has(a) && sets[top].has(a) && f(a) === 3) {
+                    if (top === 6) {
+                        if (f(b) !== 2 && sets[0].has(a) && sets[0].has(b)) {
+                            return true;
+                        }
+                    } else if (f(b) === 2) {
+                        return true;
+                    }
+                }
+            }
+            if (flip && !order && top === 6) {
+                if (sets[top - 1].has(b) && sets[top].has(b) && f(b) === 3 && f(a) === 2) {
+                    return true;
+                }
+            }
+            if (flip && !order && onlyMainOnNewestRow) {
+                if (sets[top - 1].has(b) && sets[top].has(b) && f(b) === 3 && f(a) === 3) {
+                    return true;
+                }
+            }
+            if (flip && !order && bot + 1 < sets.length) {
+                const aBelow = sets[bot].has(a) && sets[bot + 1].has(a) && f(a) === 3;
+                if (aBelow && top === 6 && f(b) <= 3) {
+                    return true;
+                }
+                if (aBelow && top !== 6 && f(b) === 2 && mains.some((m) => top >= m)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Cặp chứa số xuất hiện ≥ ge lần trong cửa sổ 10 dòng → rác (vd. 609: 35×6).
+     */
+    junkPairIfAnyWindowFreqGe(windowFreq, a, b, ge) {
+        const thr = ge != null ? ge : 6;
+        if (!windowFreq || !Number.isFinite(a) || !Number.isFinite(b)) {
+            return false;
+        }
+        const f = (n) => (windowFreq[n] != null ? Number(windowFreq[n]) : 0) || 0;
+        return f(a) >= thr || f(b) >= thr;
+    }
+
+    /**
+     * Cả hai số đều ≥ ge lần trong cửa sổ → rác (thống kê: không cùng freq≥5).
+     */
+    junkPairIfBothWindowFreqGe(windowFreq, a, b, ge) {
+        const thr = ge != null ? ge : 5;
+        if (!windowFreq || !Number.isFinite(a) || !Number.isFinite(b)) {
+            return false;
+        }
+        const f = (n) => (windowFreq[n] != null ? Number(windowFreq[n]) : 0) || 0;
+        return f(a) >= thr && f(b) >= thr;
     }
 
     /**
@@ -2507,6 +2735,18 @@ class RightPaneSheetManager {
 
                 if (allMainsOk) {
                     if (this.countOrderOnlyAdjacentBoundaries(sets, a, b) >= 2) {
+                        continue;
+                    }
+                    if (this.junkStackedPairNumAboveCrossingAdjacent(sets, a, b, windowFreq)) {
+                        continue;
+                    }
+                    if (this.junkPairIfAnyWindowFreqGe(windowFreq, a, b, 6)) {
+                        continue;
+                    }
+                    if (this.junkPairIfBothWindowFreqGe(windowFreq, a, b, 5)) {
+                        continue;
+                    }
+                    if (this.junkPairAdjacentRecallTooClose(sets, a, b)) {
                         continue;
                     }
                     out.push([a, b]);

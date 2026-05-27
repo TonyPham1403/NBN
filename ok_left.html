@@ -1575,6 +1575,34 @@
             return nums.slice(0, MAX_PICK_NUMBERS);
         }
 
+        /** Giữ pickOrder khớp selected (submit off): tránh thiếu số trong preview/search. */
+        function syncPickOrderFromSelected() {
+            if (submitActive) {
+                return;
+            }
+            if (!pickOrder) {
+                pickOrder = [];
+            }
+            const next = [];
+            pickOrder.forEach(function (n) {
+                if (!isNaN(n) && selected.has(n) && next.indexOf(n) === -1) {
+                    next.push(n);
+                }
+            });
+            Array.from(selected).sort(function (a, b) { return a - b; }).forEach(function (n) {
+                if (!isNaN(n) && next.indexOf(n) === -1) {
+                    next.push(n);
+                }
+            });
+            pickOrder = next.slice(0, MAX_PICK_NUMBERS);
+        }
+
+        function refreshLeftPickSelectionUi() {
+            try { syncPickOrderFromSelected(); } catch (e) { /* ignore */ }
+            try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { /* ignore */ }
+            try { notifyParentLeftCircledNums(); } catch (e) { /* ignore */ }
+        }
+
         function notifyParentLeftCircledNums() {
             try {
                 window.parent.postMessage({
@@ -1729,7 +1757,7 @@
             try {
                 assignPairNeonObserveNumFromAutoRingCircleNums(circleNums);
             } catch (eOb) { /* ignore */ }
-            try { notifyParentLeftCircledNums(); } catch (e) { }
+            try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
             return true;
         }
 
@@ -1818,7 +1846,7 @@
             }
             try { updateFocusIndicator(); } catch (e) { }
             try { refreshPairTailSelectionState(); } catch (e) { }
-            try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
+            try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
             try {
                 if (window.parent && window.parent !== window) {
                     window.parent.postMessage({ type: 'childFocus', region: 'left' }, '*');
@@ -2169,8 +2197,7 @@
                 } catch (e) { }
                 try { applySelectionAndBlockedInDOM(); updateFloatingCopyButtons(); alignTableActionsAndCenter(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); }
                 try { updateFocusIndicator(); } catch (e) { }
-                try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
-                try { notifyParentLeftCircledNums(); } catch (e) { }
+                try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
             } catch (e) { console.error(e); }
         }
 
@@ -2454,12 +2481,20 @@
                 try { pushPhaseHistory(lastClickedRegion || 'left', n, currentPhaseRow); } catch (e) { }
             }
             if (!pickOrder) pickOrder = [];
-            const idx = pickOrder.indexOf(n);
-            if (idx === -1) {
-                if (pickOrder.length >= MAX_PICK_NUMBERS) return;
-                pickOrder.push(n);
+            if (selected.has(n)) {
+                if (pickOrder.indexOf(n) === -1) {
+                    pickOrder = pickOrder.filter(function (x) { return selected.has(x); });
+                    while (pickOrder.length >= MAX_PICK_NUMBERS) {
+                        pickOrder.shift();
+                    }
+                    pickOrder.push(n);
+                }
             } else {
-                pickOrder.splice(idx, 1);
+                let rmIdx = pickOrder.indexOf(n);
+                while (rmIdx !== -1) {
+                    pickOrder.splice(rmIdx, 1);
+                    rmIdx = pickOrder.indexOf(n);
+                }
             }
 
             try {
@@ -2508,8 +2543,7 @@
                 });
             } catch (e) { }
             try { persistSelectionMemoryForFocus(); } catch (e) { }
-            try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
-            try { notifyParentLeftCircledNums(); } catch (e) { }
+            try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
         }
 
         function onNumberCellClick(n, region, rowIdx) {
@@ -2746,7 +2780,7 @@
             try { updatePairList(); } catch (e) { }
             try { refreshPairTailSelectionState(); } catch (e) { }
             try { updateFocusIndicator(); } catch (e) { }
-            try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
+            try { if (!submitActive) refreshLeftPickSelectionUi(); else if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { /* ignore */ }
             try { if (document.getElementById('checknoteTooltip')) refreshChecknoteTooltip(); } catch (e) { }
         }
 
@@ -2847,17 +2881,161 @@
             return tails.sort((x, y) => { const ix = x.idxs.length ? Math.min(...x.idxs) : Infinity; const iy = y.idxs.length ? Math.min(...y.idxs) : Infinity; if (ix !== iy) return ix - iy; if (x.a !== y.a) return x.a - y.a; return x.b - y.b; });
         }
 
-        // Compute pairs according to user's rules (copied from ok.py)
-        /** Biên kề: chỉ dạng nghịch (a dòng cũ idx nhỏ, b dòng mới idx lớn), không lật, không cùng hàng — ≥2 biên → bỏ cặp (rác, khớp right-pane). */
-        function countOrderOnlyAdjacentBoundaries(sets, a, b) {
-            if (!sets || sets.length < 2 || !Number.isFinite(a) || !Number.isFinite(b)) return 0;
-            let count = 0;
-            for (let top = 0; top < sets.length - 1; top++) {
+        function crossingKindAtTop(sets, top, a, b) {
+            const bot = top + 1;
+            if (!sets || top < 0 || bot >= sets.length) return null;
+            if ((sets[top].has(a) && sets[top].has(b)) || (sets[bot].has(a) && sets[bot].has(b))) return null;
+            const order = sets[top].has(a) && sets[bot].has(b);
+            const flip = sets[top].has(b) && sets[bot].has(a);
+            if (order && !flip) return 'order';
+            if (flip && !order) return 'flip';
+            return null;
+        }
+        function numInCrossingAtTop(sets, top, kind, n, a, b) {
+            const bot = top + 1;
+            if (kind === 'order') {
+                return (n === a && sets[top].has(a)) || (n === b && sets[bot].has(b));
+            }
+            if (kind === 'flip') {
+                return (n === b && sets[top].has(b)) || (n === a && sets[bot].has(a));
+            }
+            return false;
+        }
+        function sameNumRecalledAcrossCrossings(sets, top1, kind1, top2, kind2, a, b) {
+            for (const n of [a, b]) {
+                if (numInCrossingAtTop(sets, top1, kind1, n, a, b) && numInCrossingAtTop(sets, top2, kind2, n, a, b)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        function junkRecallBelowMain(sets, a, b, mainIdx) {
+            var t0 = null, k0 = null;
+            for (var top = mainIdx; top <= mainIdx + 1 && top < sets.length - 1; top++) {
+                var kind = crossingKindAtTop(sets, top, a, b);
+                if (!kind) continue;
+                t0 = top; k0 = kind; break;
+            }
+            if (t0 == null || t0 >= sets.length - 2) return false;
+            var k1 = crossingKindAtTop(sets, t0 + 1, a, b);
+            if (!k1) return false;
+            return sameNumRecalledAcrossCrossings(sets, t0, k0, t0 + 1, k1, a, b);
+        }
+        function junkRecallAboveMain(sets, a, b, mainIdx) {
+            if (mainIdx < 1) return false;
+            var t0 = mainIdx - 1;
+            var k0 = crossingKindAtTop(sets, t0, a, b);
+            if (k0) {
+                var k1 = crossingKindAtTop(sets, t0 - 1, a, b);
+                if (k1 && sameNumRecalledAcrossCrossings(sets, t0 - 1, k1, t0, k0, a, b)) return true;
+            }
+            if (mainIdx >= 2 && mainIdx < sets.length - 1) {
+                var tFirst = null, kFirst = null;
+                for (var top = mainIdx - 1; top >= 0; top--) {
+                    var kind = crossingKindAtTop(sets, top, a, b);
+                    if (!kind) continue;
+                    tFirst = top; kFirst = kind; break;
+                }
+                if (tFirst != null && tFirst <= mainIdx - 3 && kFirst === 'order') {
+                    var rowAbove = mainIdx - 1;
+                    for (var ni = 0; ni < 2; ni++) {
+                        var n = ni === 0 ? a : b;
+                        if (numInCrossingAtTop(sets, tFirst, kFirst, n, a, b) && sets[rowAbove].has(n)) return true;
+                    }
+                }
+            }
+            return false;
+        }
+        function junkPairAdjacentRecallTooClose(sets, a, b) {
+            if (!sets || sets.length < 3 || !Number.isFinite(a) || !Number.isFinite(b)) return false;
+            const mains = [];
+            for (let idx = 0; idx < sets.length; idx++) {
+                if (sets[idx].has(a) && sets[idx].has(b)) mains.push(idx);
+            }
+            for (const mainIdx of mains) {
+                if (junkRecallBelowMain(sets, a, b, mainIdx)) return true;
+                if (junkRecallAboveMain(sets, a, b, mainIdx)) return true;
+            }
+            return false;
+        }
+
+        /** Chồng: lật4 b; thuận a↑; lật6 b↑(3/2); lật b↑(3/3) chỉ main dòng sát; lật6 a↓; ≥6 / đôi≥5; gọi lại sát main. */
+        function junkStackedPairNumAboveCrossingAdjacent(sets, a, b, windowFreq) {
+            if (!sets || sets.length < 2 || !Number.isFinite(a) || !Number.isFinite(b)) return false;
+            const wf = windowFreq || {};
+            const f = (n) => (wf[n] != null ? Number(wf[n]) : 0) || 0;
+            const mains = [];
+            for (let idx = 0; idx < sets.length; idx++) {
+                if (sets[idx].has(a) && sets[idx].has(b)) mains.push(idx);
+            }
+            const onlyMainOnNewestRow = mains.length === 1 && mains[0] === sets.length - 1;
+            for (let top = 1; top < sets.length - 1; top++) {
                 const bot = top + 1;
                 if ((sets[top].has(a) && sets[top].has(b)) || (sets[bot].has(a) && sets[bot].has(b))) continue;
                 const order = sets[top].has(a) && sets[bot].has(b);
                 const flip = sets[top].has(b) && sets[bot].has(a);
-                if (order && !flip) count++;
+                if (flip && !order && top === 4) {
+                    if (sets[top - 1].has(b) && sets[top].has(b) && f(b) === 4 && f(a) === 2) return true;
+                }
+                if (order && !flip) {
+                    if (sets[top - 1].has(a) && sets[top].has(a) && f(a) === 3) {
+                        if (top === 6) {
+                            if (f(b) !== 2 && sets[0].has(a) && sets[0].has(b)) return true;
+                        } else if (f(b) === 2) {
+                            return true;
+                        }
+                    }
+                }
+                if (flip && !order && top === 6) {
+                    if (sets[top - 1].has(b) && sets[top].has(b) && f(b) === 3 && f(a) === 2) return true;
+                }
+                if (flip && !order && onlyMainOnNewestRow) {
+                    if (sets[top - 1].has(b) && sets[top].has(b) && f(b) === 3 && f(a) === 3) return true;
+                }
+                if (flip && !order && bot + 1 < sets.length) {
+                    var aBelow = sets[bot].has(a) && sets[bot + 1].has(a) && f(a) === 3;
+                    if (aBelow && top === 6 && f(b) <= 3) return true;
+                    if (aBelow && top !== 6 && f(b) === 2 && mains.some(function (m) { return top >= m; })) return true;
+                }
+            }
+            return false;
+        }
+
+        /** Cặp chứa số xuất hiện ≥ ge lần trong cửa sổ 10 dòng → rác (khớp right-pane; vd. 609: 35×6). */
+        function junkPairIfAnyWindowFreqGe(freqObj, a, b, ge) {
+            var thr = ge != null ? ge : 6;
+            if (!freqObj || !Number.isFinite(a) || !Number.isFinite(b)) return false;
+            function f(n) { return parseInt(freqObj[n], 10) || 0; }
+            return f(a) >= thr || f(b) >= thr;
+        }
+
+        /** Cả hai ≥ ge trong cửa sổ → rác (không cùng freq≥5). */
+        function junkPairIfBothWindowFreqGe(freqObj, a, b, ge) {
+            var thr = ge != null ? ge : 5;
+            if (!freqObj || !Number.isFinite(a) || !Number.isFinite(b)) return false;
+            function f(n) { return parseInt(freqObj[n], 10) || 0; }
+            return f(a) >= thr && f(b) >= thr;
+        }
+
+        // Compute pairs according to user's rules (copied from ok.py)
+        /** Biên kề nghịch (order) + lật dưới mọi main (đọc từ sát kỳ) — ≥2 biên → bỏ cặp (222 8:{26,32}). */
+        function countOrderOnlyAdjacentBoundaries(sets, a, b) {
+            if (!sets || sets.length < 2 || !Number.isFinite(a) || !Number.isFinite(b)) return 0;
+            var mains = [];
+            for (var mi = 0; mi < sets.length; mi++) {
+                if (sets[mi].has(a) && sets[mi].has(b)) mains.push(mi);
+            }
+            var mainMax = mains.length ? Math.max.apply(null, mains) : -1;
+            var soleMainOldest = mains.length === 1 && mains[0] === 0;
+            var count = 0;
+            for (var top = 0; top < sets.length - 1; top++) {
+                var bot = top + 1;
+                if ((sets[top].has(a) && sets[top].has(b)) || (sets[bot].has(a) && sets[bot].has(b))) continue;
+                var order = sets[top].has(a) && sets[bot].has(b);
+                var flip = sets[top].has(b) && sets[bot].has(a);
+                var nghich = order && !flip;
+                if (flip && !order && !soleMainOldest && top > mainMax && top >= mainMax + 5) nghich = true;
+                if (nghich) count++;
             }
             return count;
         }
@@ -2926,6 +3104,10 @@
                     }
                     if (allMainsOk) {
                         if (countOrderOnlyAdjacentBoundaries(sets, a, b) >= 2) continue;
+                        if (junkStackedPairNumAboveCrossingAdjacent(sets, a, b, raw && raw.freq)) continue;
+                        if (junkPairIfAnyWindowFreqGe(raw && raw.freq, a, b, 6)) continue;
+                        if (junkPairIfBothWindowFreqGe(raw && raw.freq, a, b, 5)) continue;
+                        if (junkPairAdjacentRecallTooClose(sets, a, b)) continue;
                         out.push([a, b]);
                     }
                 }
@@ -3084,8 +3266,9 @@
                 contrib.add(n);
                 if (!pickOrder) pickOrder = [];
                 if (pickOrder.indexOf(n) === -1) {
-                    if (pickOrder.length >= MAX_PICK_NUMBERS) {
-                        try { pickOrder.shift(); } catch (e) { }
+                    pickOrder = pickOrder.filter(function (x) { return selected.has(x); });
+                    while (pickOrder.length >= MAX_PICK_NUMBERS) {
+                        pickOrder.shift();
                     }
                     pickOrder.push(n);
                 }
@@ -3158,7 +3341,7 @@
                 });
             } catch (e) { }
             try { persistSelectionMemoryForFocus(); } catch (e) { }
-            try { notifyParentLeftCircledNums(); } catch (e) { }
+            try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
             return true;
         }
 
@@ -5531,8 +5714,7 @@
                 try { refreshPairTailSelectionState(); } catch (e) { }
                 try { applySelectionAndBlockedInDOM(); updateFloatingCopyButtons(); alignTableActionsAndCenter(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); }
                 try { updateFocusIndicator(); } catch (e) { }
-                try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
-                try { notifyParentLeftCircledNums(); } catch (e) { }
+                try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
             } catch (e) { console.error(e); }
         }
 
@@ -5660,7 +5842,7 @@
                         try { applySelectionAndBlockedInDOM(); } catch (e) { }
                         try { updatePairList(); } catch (e) { }
                         refreshPairTailSelectionState();
-                        try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
+                        try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
                         try {
                             if (window.parent && window.parent !== window) {
                                 window.parent.postMessage({ type: 'submitStateChanged', submitActive: submitActive }, '*');
@@ -5671,7 +5853,7 @@
                 } catch (e) { /* fallback below */ }
                 // fallback: full rerender when DOM not present
                 renderTable1(); renderTable2(); try { updatePairList(); } catch (e) { } try { refreshPairTailSelectionState(); } catch (e) { } alignTableActionsAndCenter(); updateFloatingCopyButtons();
-                try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
+                try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
                 try {
                     if (window.parent && window.parent !== window) {
                         window.parent.postMessage({ type: 'submitStateChanged', submitActive: submitActive }, '*');
