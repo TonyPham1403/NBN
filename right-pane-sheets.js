@@ -1018,6 +1018,8 @@ class RightPaneSheetManager {
         const rowIndices = Array.isArray(options.indices)
             ? options.indices.filter(i => i >= 0 && i < displayRows.length)
             : displayRows.map((_, i) => i);
+        const prevRecallFoldStats = this.computePrevPeriodRecallFoldStats(displayRows, rowIndices);
+        const prevRecallFoldPctLabel = this.formatPrevPeriodRecallFoldPct(prevRecallFoldStats);
 
         for (const i of rowIndices) {
             const row = displayRows[i];
@@ -1036,11 +1038,16 @@ class RightPaneSheetManager {
             let nonexistHtml = this.renderNonexistHtml(i, nonexistMeta.text, result);
             const idStyle = idBg ? ` style="background:${idBg};"` : '';
             const activeClass = highlightIdx === i ? ' filter-popup-row-active' : '';
+            const prevRecallFold = !isEmptyResultRow && this.recallsAtLeastOneFromImmediatePrevPeriod(displayRows, i);
+            const resultCellClass = 'cell-result' + (prevRecallFold ? ' has-prev-period-recall' : '');
+            const prevRecallFoldHit = prevRecallFold
+                ? `<span class="prev-period-recall-fold" data-pct="${this.escapeHtml(prevRecallFoldPctLabel)}"></span>`
+                : '';
 
             html += `<tr data-idx="${i}" class="data-row${activeClass}" data-has-result="${!!result}" data-empty="${isEmptyResultRow ? '1' : '0'}">
                 <td class="cell-date"${dateBg}>${date}</td>
                 <td class="cell-id"${idStyle}>${id}</td>
-                <td class="cell-result">${resultHtml}</td>
+                <td class="${resultCellClass}">${prevRecallFoldHit}${resultHtml}</td>
                 <td class="cell-note"${noteStyle}>${noteHtml}</td>
                 <td class="cell-nonexist">${nonexistHtml}</td>
             </tr>`;
@@ -1078,6 +1085,8 @@ class RightPaneSheetManager {
                 selectionRoot
             );
         }
+
+        bindPrevPeriodRecallFoldTooltipGlobal();
     }
 
     /**
@@ -2287,6 +2296,110 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Có thể so sánh gọi lại với kỳ liền trước (cả hai có đủ 5 số chính).
+     */
+    isEligibleForPrevPeriodRecallComparison(rows, rowIndex) {
+        const list = rows || [];
+        const idx = Number(rowIndex);
+        if (!Number.isFinite(idx) || idx < 1 || idx >= list.length) {
+            return false;
+        }
+        const curRow = list[idx];
+        const prevRow = list[idx - 1];
+        if (this.isEmptyResultRow(curRow) || this.isEmptyResultRow(prevRow)) {
+            return false;
+        }
+        const cur = this.parseMainNums(curRow.result || curRow.Result);
+        const prev = this.parseMainNums(prevRow.result || prevRow.Result);
+        return cur.length === 5 && prev.length === 5;
+    }
+
+    /**
+     * Kỳ tại rowIndex có ≥1 số chính (5 số trước |) trùng kỳ liền trước (cùng thứ tự data.json).
+     */
+    recallsAtLeastOneFromImmediatePrevPeriod(rows, rowIndex) {
+        const list = rows || [];
+        const idx = Number(rowIndex);
+        if (!Number.isFinite(idx) || idx < 1 || idx >= list.length) {
+            return false;
+        }
+        const curRow = list[idx];
+        const prevRow = list[idx - 1];
+        if (this.isEmptyResultRow(curRow) || this.isEmptyResultRow(prevRow)) {
+            return false;
+        }
+        const cur = this.parseMainNums(curRow.result || curRow.Result);
+        const prev = this.parseMainNums(prevRow.result || prevRow.Result);
+        if (cur.length !== 5 || prev.length !== 5) {
+            return false;
+        }
+        const prevSet = new Set(prev);
+        for (let i = 0; i < cur.length; i++) {
+            if (prevSet.has(cur[i])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * % kỳ có corner fold trong mẫu rowIndices (bảng đầy đủ hoặc tập lọc Ctrl popup).
+     */
+    computePrevPeriodRecallFoldStats(rows, rowIndices) {
+        const list = rows || [];
+        const indices = Array.isArray(rowIndices)
+            ? rowIndices.filter(i => i >= 0 && i < list.length)
+            : list.map((_, i) => i);
+        let eligible = 0;
+        let withRecall = 0;
+        for (let k = 0; k < indices.length; k++) {
+            const i = indices[k];
+            if (!this.isEligibleForPrevPeriodRecallComparison(list, i)) {
+                continue;
+            }
+            eligible++;
+            if (this.recallsAtLeastOneFromImmediatePrevPeriod(list, i)) {
+                withRecall++;
+            }
+        }
+        return {
+            eligible,
+            withRecall,
+            pct: eligible > 0 ? (withRecall / eligible) * 100 : null
+        };
+    }
+
+    formatPrevPeriodRecallFoldPct(stats) {
+        if (!stats || !stats.eligible) {
+            return '—';
+        }
+        const rounded = Math.round(stats.pct * 10) / 10;
+        return rounded.toFixed(1) + '%';
+    }
+
+    /**
+     * Cập nhật tooltip % trên góc fold (sau lọc popup khi tái dùng HTML cache).
+     */
+    applyPrevPeriodRecallFoldTooltips(tableWrap, rows, rowIndices) {
+        if (!tableWrap) {
+            return null;
+        }
+        const stats = this.computePrevPeriodRecallFoldStats(rows, rowIndices);
+        const pctLabel = this.formatPrevPeriodRecallFoldPct(stats);
+        tableWrap.querySelectorAll('td.cell-result.has-prev-period-recall').forEach(function (cell) {
+            let hit = cell.querySelector('.prev-period-recall-fold');
+            if (!hit) {
+                hit = document.createElement('span');
+                hit.className = 'prev-period-recall-fold';
+                cell.insertBefore(hit, cell.firstChild);
+            }
+            hit.setAttribute('data-pct', pctLabel);
+            hit.removeAttribute('title');
+        });
+        return stats;
+    }
+
+    /**
      * Parse a row id into a number.
      */
     parseRowId(value) {
@@ -3382,6 +3495,108 @@ class RightPaneSheetManager {
             return false;
         }
     }
+}
+
+let prevRecallFoldTooltipEl = null;
+let prevRecallFoldTooltipShowTimer = null;
+let prevRecallFoldTooltipHoverTarget = null;
+const PREV_RECALL_FOLD_TOOLTIP_SHOW_MS = 35;
+
+function ensurePrevRecallFoldTooltipEl() {
+    if (prevRecallFoldTooltipEl && prevRecallFoldTooltipEl.isConnected) {
+        return prevRecallFoldTooltipEl;
+    }
+    prevRecallFoldTooltipEl = document.getElementById('prevRecallFoldTooltip');
+    if (!prevRecallFoldTooltipEl) {
+        prevRecallFoldTooltipEl = document.createElement('div');
+        prevRecallFoldTooltipEl.id = 'prevRecallFoldTooltip';
+        prevRecallFoldTooltipEl.className = 'prev-recall-fold-tooltip';
+        prevRecallFoldTooltipEl.setAttribute('role', 'tooltip');
+        document.body.appendChild(prevRecallFoldTooltipEl);
+    }
+    return prevRecallFoldTooltipEl;
+}
+
+function hidePrevRecallFoldTooltip() {
+    clearTimeout(prevRecallFoldTooltipShowTimer);
+    prevRecallFoldTooltipShowTimer = null;
+    prevRecallFoldTooltipHoverTarget = null;
+    if (prevRecallFoldTooltipEl) {
+        prevRecallFoldTooltipEl.classList.remove('is-visible');
+    }
+}
+
+function showPrevRecallFoldTooltip(hit, text, clientX, clientY) {
+    const tip = ensurePrevRecallFoldTooltipEl();
+    tip.textContent = text;
+    tip.classList.add('is-visible');
+
+    const rect = hit.getBoundingClientRect();
+    const offsetX = 16;
+    const offsetY = 20;
+    let left = (typeof clientX === 'number' ? clientX : rect.right) + offsetX;
+    let top = (typeof clientY === 'number' ? clientY : rect.top) + offsetY;
+
+    const pad = 6;
+    const tipW = tip.offsetWidth;
+    const tipH = tip.offsetHeight;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    if (left + tipW + pad > vw) {
+        left = Math.max(pad, (typeof clientX === 'number' ? clientX : rect.left) - tipW - 8);
+    }
+    if (top + tipH + pad > vh) {
+        top = Math.max(pad, (typeof clientY === 'number' ? clientY : rect.bottom) - tipH - 8);
+    }
+
+    tip.style.left = Math.round(left) + 'px';
+    tip.style.top = Math.round(top) + 'px';
+}
+
+function bindPrevPeriodRecallFoldTooltipGlobal() {
+    if (document.documentElement.dataset.prevRecallFoldTipBound === '1') {
+        return;
+    }
+    document.documentElement.dataset.prevRecallFoldTipBound = '1';
+
+    document.addEventListener('mouseover', function (event) {
+        const hit = event.target && event.target.closest
+            ? event.target.closest('.prev-period-recall-fold')
+            : null;
+        if (!hit) {
+            return;
+        }
+        const pct = hit.getAttribute('data-pct') || '';
+        if (!pct) {
+            return;
+        }
+        if (prevRecallFoldTooltipHoverTarget === hit) {
+            return;
+        }
+        prevRecallFoldTooltipHoverTarget = hit;
+        clearTimeout(prevRecallFoldTooltipShowTimer);
+        const mx = event.clientX;
+        const my = event.clientY;
+        prevRecallFoldTooltipShowTimer = setTimeout(function () {
+            if (prevRecallFoldTooltipHoverTarget === hit) {
+                showPrevRecallFoldTooltip(hit, pct, mx, my);
+            }
+        }, PREV_RECALL_FOLD_TOOLTIP_SHOW_MS);
+    }, true);
+
+    document.addEventListener('mouseout', function (event) {
+        const hit = event.target && event.target.closest
+            ? event.target.closest('.prev-period-recall-fold')
+            : null;
+        if (!hit) {
+            return;
+        }
+        const to = event.relatedTarget;
+        if (to && hit.contains(to)) {
+            return;
+        }
+        hidePrevRecallFoldTooltip();
+    }, true);
 }
 
 // Export for use in index.html
