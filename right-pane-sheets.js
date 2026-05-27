@@ -2366,6 +2366,32 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Cửa sổ 10 dòng: index tăng theo thời gian (0 = xa nhất, 9 = sát kỳ hiện tại).
+     * Đếm biên kề (top, bot) mà (a,b) chỉ xuất hiện dạng "nghịch" theo chiều đọc từ dưới lên:
+     * dòng cũ (top) có a, dòng mới hơn (bot) có b — không có dạng lật (top b + bot a), không cả hai trên một hàng.
+     * (Dạng lật đó chính là "thuận" khi đọc từ sát kỳ lên; không được nhầm với rác.)
+     * ≥ 2 biên như vậy → coi cặp rác (bỏ khỏi pair / date #00b0f0).
+     */
+    countOrderOnlyAdjacentBoundaries(sets, a, b) {
+        if (!sets || sets.length < 2 || !Number.isFinite(a) || !Number.isFinite(b)) {
+            return 0;
+        }
+        let count = 0;
+        for (let top = 0; top < sets.length - 1; top++) {
+            const bot = top + 1;
+            if ((sets[top].has(a) && sets[top].has(b)) || (sets[bot].has(a) && sets[bot].has(b))) {
+                continue;
+            }
+            const order = sets[top].has(a) && sets[bot].has(b);
+            const flip = sets[top].has(b) && sets[bot].has(a);
+            if (order && !flip) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    /**
      * Compute visible pair candidates for a 10-row window using the same
      * rules as the left pane pair list.
      */
@@ -2480,6 +2506,9 @@ class RightPaneSheetManager {
                 }
 
                 if (allMainsOk) {
+                    if (this.countOrderOnlyAdjacentBoundaries(sets, a, b) >= 2) {
+                        continue;
+                    }
                     out.push([a, b]);
                 }
             }

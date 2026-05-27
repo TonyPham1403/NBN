@@ -2848,6 +2848,20 @@
         }
 
         // Compute pairs according to user's rules (copied from ok.py)
+        /** Biên kề: chỉ dạng nghịch (a dòng cũ idx nhỏ, b dòng mới idx lớn), không lật, không cùng hàng — ≥2 biên → bỏ cặp (rác, khớp right-pane). */
+        function countOrderOnlyAdjacentBoundaries(sets, a, b) {
+            if (!sets || sets.length < 2 || !Number.isFinite(a) || !Number.isFinite(b)) return 0;
+            let count = 0;
+            for (let top = 0; top < sets.length - 1; top++) {
+                const bot = top + 1;
+                if ((sets[top].has(a) && sets[top].has(b)) || (sets[bot].has(a) && sets[bot].has(b))) continue;
+                const order = sets[top].has(a) && sets[bot].has(b);
+                const flip = sets[top].has(b) && sets[bot].has(a);
+                if (order && !flip) count++;
+            }
+            return count;
+        }
+
         function computePairs() {
             if (!raw || !raw.lines || getRawDisplayLines().length < 10) return [];
             const display = getRawDisplayLines();
@@ -2910,7 +2924,10 @@
                         }
                         if (!foundForThisMain) { allMainsOk = false; break; }
                     }
-                    if (allMainsOk) out.push([a, b]);
+                    if (allMainsOk) {
+                        if (countOrderOnlyAdjacentBoundaries(sets, a, b) >= 2) continue;
+                        out.push([a, b]);
+                    }
                 }
             }
             const seen = new Set(); const uniq = [];
