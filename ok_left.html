@@ -706,6 +706,15 @@
             font-weight: bold
         }
 
+        /* freq=1 + chuỗi 11/12 — nghiêng rõ: italic + skew */
+        #left .cell.num.freq1-ch11-12-italic,
+        #right .cell.num.freq1-ch11-12-italic {
+            font-style: italic;
+            display: inline-block;
+            transform: skewX(-12deg);
+            transform-origin: center center;
+        }
+
         /* freq 0 row: per-number colors like right-pane renderNonexistHtml */
         .cell.num.left-nx-yellow {
             color: rgb(240, 200, 64);
@@ -1197,9 +1206,82 @@
             return s.split(",").map(x => parseInt(x, 10)).filter(n => !isNaN(n));
         }
 
+        /**
+         * Chuỗi 11 & 12: hai dòng ngay trên cửa sổ 10 (không gồm dòng đáp án).
+         * - Dữ liệu từ iframe parent: raw.contextPrefixCount = số dòng “chỉ để ngữ cảnh” đứng trước cửa sổ 10 (1 hoặc 2) → ch11/ch12 tại [prefix-1],[prefix-2].
+         * - Dán trực tiếp đủ dòng: ≥13 dòng → [10],[11]; 12 dòng → chỉ [10]; 11 dòng → không ch11/ch12.
+         */
+        function getCh11Ch12NumsSet() {
+            const set = new Set();
+            if (!raw || !Array.isArray(raw.lines)) return set;
+            const prefix = (typeof raw.contextPrefixCount === 'number' && raw.contextPrefixCount > 0)
+                ? raw.contextPrefixCount : 0;
+            if (prefix >= 2) {
+                getNumsFromLineObj(raw.lines[prefix - 2]).forEach(function (n) { set.add(n); });
+                getNumsFromLineObj(raw.lines[prefix - 1]).forEach(function (n) { set.add(n); });
+            } else if (prefix === 1) {
+                getNumsFromLineObj(raw.lines[0]).forEach(function (n) { set.add(n); });
+            } else {
+                const L = raw.lines.length;
+                if (L >= 13) {
+                    getNumsFromLineObj(raw.lines[10]).forEach(function (n) { set.add(n); });
+                    getNumsFromLineObj(raw.lines[11]).forEach(function (n) { set.add(n); });
+                } else if (L === 12) {
+                    getNumsFromLineObj(raw.lines[10]).forEach(function (n) { set.add(n); });
+                }
+            }
+            return set;
+        }
+
+        function getRawContextPrefixCount() {
+            if (!raw || typeof raw.contextPrefixCount !== 'number' || raw.contextPrefixCount < 0) return 0;
+            return raw.contextPrefixCount;
+        }
+
+        function getRawDisplayLines() {
+            if (!raw || !Array.isArray(raw.lines)) return [];
+            const s = getRawContextPrefixCount();
+            return raw.lines.slice(s, s + 10);
+        }
+
+        function getRawDisplayLineAt(displayIndex) {
+            if (!raw || !raw.lines || displayIndex < 0 || displayIndex > 9) return null;
+            const j = getRawContextPrefixCount() + displayIndex;
+            if (j >= raw.lines.length) return null;
+            return raw.lines[j] || null;
+        }
+
+        function getRawDisplayLineNumsAt(displayIndex) {
+            return getNumsFromLineObj(getRawDisplayLineAt(displayIndex));
+        }
+
+        /** Index dòng chứa 5 số đáp án submit trong raw.lines (sau ch11/ch12 khi đủ dòng). */
+        function getRawAnswerLineIndex() {
+            if (!raw || !Array.isArray(raw.lines)) return -1;
+            if (typeof raw.answerLineIndex === 'number' && raw.answerLineIndex >= 0) return raw.answerLineIndex;
+            const L = raw.lines.length;
+            if (L >= 13) return L - 1;
+            if (L === 12) return 11;
+            if (L >= 11) return 10;
+            return -1;
+        }
+
+        function getRawAnswerLineObj() {
+            const i = getRawAnswerLineIndex();
+            if (i < 0 || !raw || !raw.lines || i >= raw.lines.length) return null;
+            return raw.lines[i] || null;
+        }
+
+        /** freq==1 trong 10 chuỗi đầu VÀ số có mặt ở chuỗi 11 hoặc 12 → class in nghiêng bảng 1/2. */
+        function freqOneItalicFromCh11Ch12Class(n) {
+            if (!raw || !raw.freq) return '';
+            if ((parseInt(raw.freq[n], 10) || 0) !== 1) return '';
+            return getCh11Ch12NumsSet().has(n) ? ' freq1-ch11-12-italic' : '';
+        }
+
         const MAX_PICK_NUMBERS = 5;
 
-        let raw = null; // structure { lines: [...], freq: {...}, firstNums: [...] }
+        let raw = null; // { lines, freq, firstNums, answerLineIndex?, contextPrefixCount? }
         /** Per-number nonexist highlight kinds from right pane (yellow / red / green / default black) */
         let focusNonexistHighlights = {};
         let selected = new Set();
@@ -1236,6 +1318,8 @@
         /** Remember selection per focus id so revisiting a row restores user state */
         let selectionMemoryByFocusId = new Map();
         let lastAutoRingFocusKey = '';
+        /** Khi parent gửi setLines: số dòng chuỗi 12/11 đứng trước cửa sổ 10 trong chuỗi paste (0–2). */
+        let pendingContextPrefixCount = 0;
 
         // pair/triple tracking (ported from ok.py)
         let firstPair = null, secondPair = null, thirdPair = null, fourthPair = null, fifthPair = null, firstTriple = null;
@@ -1376,16 +1460,16 @@
         function isPairMode(mode) { return typeof mode === 'string' && mode.startsWith('pair'); }
         function pairModeCount(mode) { if (!isPairMode(mode)) return 0; const v = parseInt(mode.slice(4), 10); return isNaN(v) ? 0 : v; }
         function hasCurrentLine11Result() {
-            if (!raw || !Array.isArray(raw.lines) || raw.lines.length < 11) return false;
-            var eleventh = raw.lines[10] || {};
-            var ansLine = String(eleventh.result || '').split('|')[0].trim();
+            var alo = getRawAnswerLineObj();
+            if (!alo) return false;
+            var ansLine = String(alo.result || '').split('|')[0].trim();
             return ansLine.length > 0;
         }
 
         function getAnswerNumsFromCurrentLine11() {
             if (!hasCurrentLine11Result()) return [];
-            var eleventh = raw.lines[10] || {};
-            var ansLine = String(eleventh.result || '').split('|')[0].trim();
+            var alo = getRawAnswerLineObj();
+            var ansLine = String(alo.result || '').split('|')[0].trim();
             return ansLine.split(',').map(function (x) { return parseInt(x, 10); }).filter(function (n) { return !isNaN(n); });
         }
 
@@ -1938,21 +2022,21 @@
             if (submitActive) { simulatedSelected.forEach(n => effective.add(n)); }
             else { selected.forEach(n => effective.add(n)); simulatedSelected.forEach(n => effective.add(n)); }
             // find multiset (quad before triple)
-            for (let i = 0; i < Math.min(raw.lines.length, 10); i++) {
-                let nums = getNumsFromLineObj(raw.lines[i]);
+            for (let i = 0; i < 10; i++) {
+                let nums = getRawDisplayLineNumsAt(i);
                 let selInLine = nums.filter(x => effective.has(x));
                 if (selInLine.length >= 4) { firstTriple = selInLine.slice(0, 4); break; }
             }
             if (!firstTriple) {
-                for (let i = 0; i < Math.min(raw.lines.length, 10); i++) {
-                    let nums = getNumsFromLineObj(raw.lines[i]);
+                for (let i = 0; i < 10; i++) {
+                    let nums = getRawDisplayLineNumsAt(i);
                     let selInLine = nums.filter(x => effective.has(x));
                     if (selInLine.length >= 3) { firstTriple = selInLine.slice(0, 3); break; }
                 }
             }
             // find pairs in order
             let pairs = [];
-            raw.lines.slice(0, 10).forEach(line => {
+            getRawDisplayLines().forEach(line => {
                 let nums = getNumsFromLineObj(line);
                 let selInLine = nums.filter(x => effective.has(x));
                 if (selInLine.length >= 2) pairs.push(selInLine.slice(0, 2));
@@ -1975,7 +2059,7 @@
             if (!raw || typeof lineIndex !== 'number' || lineIndex < 0 || lineIndex >= 10) {
                 return false;
             }
-            var nums = getNumsFromLineObj(raw.lines[lineIndex]);
+            var nums = getNumsFromLineObj(raw.lines[getRawContextPrefixCount() + lineIndex]);
             var selInLine = nums.filter(function (n) { return isSelectedFn(n); });
             return selInLine.length >= activateMin;
         }
@@ -1996,7 +2080,7 @@
                 return;
             }
             var activateLineIdx = -1;
-            for (var i = 0; i < Math.min(raw.lines.length, 10); i++) {
+            for (var i = 0; i < 10; i++) {
                 if (lineHasMultisetFromSelection(i, isSelectedFn, config.activateMin)) {
                     activateLineIdx = i;
                     break;
@@ -2005,8 +2089,8 @@
             if (activateLineIdx < 0) {
                 return;
             }
-            for (var li = 0; li < Math.min(raw.lines.length, 10); li++) {
-                var nums = getNumsFromLineObj(raw.lines[li]);
+            for (var li = 0; li < 10; li++) {
+                var nums = getNumsFromLineObj(raw.lines[getRawContextPrefixCount() + li]);
                 var selInLine = nums.filter(function (n) { return isSelectedFn(n); });
                 applyMultisetLineBlocking(nums, selInLine, blockedTarget, config.lineBlockMin);
             }
@@ -2124,14 +2208,14 @@
             } else if (mode === "pair1") {
                 let p = firstPair;
                 if (p) {
-                    raw.lines.slice(0, 10).forEach(line => {
+                    getRawDisplayLines().forEach(line => {
                         let nums = getNumsFromLineObj(line);
                         if (nums.some(n => p.includes(n))) nums.forEach(n => { if (!p.includes(n)) blockedSet.add(n) });
                         if (nums.some(n => (selected.has(n) || simulatedSelected.has(n)) && (!p || !p.includes(n)))) nums.forEach(n => blockedSet.add(n));
                     });
                 }
             } else if (mode === "modeq") {
-                raw.lines.slice(0, 10).forEach(line => {
+                getRawDisplayLines().forEach(line => {
                     let nums = getNumsFromLineObj(line);
                     let selInLine = nums.filter(n => selected.has(n) || simulatedSelected.has(n));
                     if (selInLine.length > 0) {
@@ -2149,7 +2233,7 @@
                 let completePairs = pairs.filter(p => p && p.length === 2);
                 let numsInCompletePairs = completePairs.length ? [].concat(...completePairs) : [];
 
-                raw.lines.slice(0, 10).forEach(line => {
+                getRawDisplayLines().forEach(line => {
                     let nums = getNumsFromLineObj(line);
                     let selectedInLine = nums.filter(n => selected.has(n) || simulatedSelected.has(n));
                     if (selectedInLine.length === 0) return;
@@ -2171,14 +2255,14 @@
                     applyMultisetBlockingForSelection(function (n) { return simulatedSelected.has(n); }, simBlocked, multisetCfg);
                 } else if (mode === "pair1") {
                     let p = null;
-                    raw.lines.slice(0, 10).forEach(line => {
+                    getRawDisplayLines().forEach(line => {
                         if (p) return;
                         let nums = getNumsFromLineObj(line);
                         let selInLine = nums.filter(x => simulatedSelected.has(x));
                         if (selInLine.length >= 2) p = selInLine.slice(0, 2);
                     });
                     if (p) {
-                        raw.lines.slice(0, 10).forEach(line => {
+                        getRawDisplayLines().forEach(line => {
                             let nums = getNumsFromLineObj(line);
                             if (nums.some(n => p.includes(n))) nums.forEach(n => { if (!p.includes(n)) simBlocked.add(n); });
                             if (nums.some(n => simulatedSelected.has(n) && (!p || !p.includes(n)))) nums.forEach(n => simBlocked.add(n));
@@ -2187,14 +2271,14 @@
                 } else if (isPairMode(mode)) {
                     let maxPairs = pairModeCount(mode);
                     let pairs = [];
-                    raw.lines.slice(0, 10).forEach(line => {
+                    getRawDisplayLines().forEach(line => {
                         let nums = getNumsFromLineObj(line);
                         let selInLine = nums.filter(n => simulatedSelected.has(n));
                         if (selInLine.length >= 2) pairs.push(selInLine.slice(0, 2));
                     });
                     let completePairs = pairs.filter(p => p && p.length === 2);
                     let numsInCompletePairs = completePairs.length ? [].concat(...completePairs) : [];
-                    raw.lines.slice(0, 10).forEach(line => {
+                    getRawDisplayLines().forEach(line => {
                         let nums = getNumsFromLineObj(line);
                         let selectedInLine = nums.filter(n => simulatedSelected.has(n));
                         if (selectedInLine.length === 0) return;
@@ -2222,8 +2306,8 @@
 
             let localFirstPair = null, localSecondPair = null, localThirdPair = null, localFourthPair = null, localFifthPair = null, localFirstTriple = null;
             if (mode === "pair1") {
-                for (let i = 0; i < Math.min(raw.lines.length, 10); i++) {
-                    let nums = getNumsFromLineObj(raw.lines[i]);
+                for (let i = 0; i < 10; i++) {
+                    let nums = getRawDisplayLineNumsAt(i);
                     let selInLine = nums.filter(x => selSet.has(x));
                     if (selInLine.length >= 2) { localFirstPair = selInLine.slice(0, 2); break; }
                 }
@@ -2231,7 +2315,7 @@
 
             if (isPairMode(mode)) {
                 let pairs = [];
-                raw.lines.slice(0, 10).forEach(line => {
+                getRawDisplayLines().forEach(line => {
                     let nums = getNumsFromLineObj(line);
                     let selInLine = nums.filter(n => selSet.has(n));
                     if (selInLine.length >= 2) pairs.push(selInLine.slice(0, 2));
@@ -2247,14 +2331,14 @@
             } else if (mode === "pair1") {
                 let p = localFirstPair;
                 if (p) {
-                    raw.lines.slice(0, 10).forEach(line => {
+                    getRawDisplayLines().forEach(line => {
                         let nums = getNumsFromLineObj(line);
                         if (nums.some(n => p.includes(n))) nums.forEach(n => { if (!p.includes(n)) b.add(n) });
                         if (nums.some(n => (selSet.has(n) || simulatedSelected.has(n)) && (!p || !p.includes(n)))) nums.forEach(n => b.add(n));
                     });
                 }
             } else if (mode === "modeq") {
-                raw.lines.slice(0, 10).forEach(line => {
+                getRawDisplayLines().forEach(line => {
                     let nums = getNumsFromLineObj(line);
                     let selInLine = nums.filter(n => selSet.has(n) || simulatedSelected.has(n));
                     if (selInLine.length > 0) {
@@ -2272,7 +2356,7 @@
                 let completePairs = pairs.filter(p => p && p.length === 2);
                 let numsInCompletePairs = completePairs.length ? [].concat(...completePairs) : [];
 
-                raw.lines.slice(0, 10).forEach(line => {
+                getRawDisplayLines().forEach(line => {
                     let nums = getNumsFromLineObj(line);
                     let selectedInLine = nums.filter(n => selSet.has(n) || simulatedSelected.has(n));
                     if (selectedInLine.length === 0) return;
@@ -2294,14 +2378,14 @@
                     applyMultisetBlockingForSelection(function (n) { return simulatedSelected.has(n); }, simBlocked, multisetCfgSel);
                 } else if (mode === "pair1") {
                     let p = null;
-                    raw.lines.slice(0, 10).forEach(line => {
+                    getRawDisplayLines().forEach(line => {
                         if (p) return;
                         let nums = getNumsFromLineObj(line);
                         let selInLine = nums.filter(x => simulatedSelected.has(x));
                         if (selInLine.length >= 2) p = selInLine.slice(0, 2);
                     });
                     if (p) {
-                        raw.lines.slice(0, 10).forEach(line => {
+                        getRawDisplayLines().forEach(line => {
                             let nums = getNumsFromLineObj(line);
                             if (nums.some(n => p.includes(n))) nums.forEach(n => { if (!p.includes(n)) simBlocked.add(n); });
                             if (nums.some(n => simulatedSelected.has(n) && (!p || !p.includes(n)))) nums.forEach(n => simBlocked.add(n));
@@ -2310,14 +2394,14 @@
                 } else if (isPairMode(mode)) {
                     let maxPairs = pairModeCount(mode);
                     let pairs = [];
-                    raw.lines.slice(0, 10).forEach(line => {
+                    getRawDisplayLines().forEach(line => {
                         let nums = getNumsFromLineObj(line);
                         let selInLine = nums.filter(n => simulatedSelected.has(n));
                         if (selInLine.length >= 2) pairs.push(selInLine.slice(0, 2));
                     });
                     let completePairs = pairs.filter(p => p && p.length === 2);
                     let numsInCompletePairs = completePairs.length ? [].concat(...completePairs) : [];
-                    raw.lines.slice(0, 10).forEach(line => {
+                    getRawDisplayLines().forEach(line => {
                         let nums = getNumsFromLineObj(line);
                         let selectedInLine = nums.filter(n => simulatedSelected.has(n));
                         if (selectedInLine.length === 0) return;
@@ -2521,10 +2605,17 @@
                 tokens.forEach(t => rows.push({ result: t, note: '', nonexist: '' }));
             }
             let rowsUsed = rows.slice(0);
-            if (rowsUsed.length >= 11) {
-                let r11 = rowsUsed[10] || {};
-                let res11 = (r11.result || '').trim();
-                if (!(res11.length > 0)) rowsUsed = rowsUsed.slice(0, 10);
+            const hadIncomingPrefix = pendingContextPrefixCount > 0;
+            let contextPrefix = pendingContextPrefixCount | 0;
+            pendingContextPrefixCount = 0;
+            if (contextPrefix < 0) contextPrefix = 0;
+            if (contextPrefix > 2) contextPrefix = 2;
+            if (rowsUsed.length < contextPrefix + 10) contextPrefix = 0;
+            // Chỉ bỏ dòng thứ 11 khi đúng 11 dòng và dòng đó trống (không áp dụng khi parent đã gửi thêm prefix ch11/ch12).
+            if (!hadIncomingPrefix && rowsUsed.length === 11) {
+                let rLast = rowsUsed[10] || {};
+                let resLast = (rLast.result || '').trim();
+                if (!resLast.length) rowsUsed = rowsUsed.slice(0, 10);
             }
             debugLog('process() rowsUsed length:', rowsUsed.length);
             if (rowsUsed.length < 10) { raw = null; updateRender(); return; }
@@ -2534,26 +2625,38 @@
                     elSearchClr.value = '';
                 }
             } catch (eClr) { /* ignore */ }
-            // compute simple freq and firstNums
-            let linesSimple = rowsUsed.slice(0, 11).map(r => (r.result || '').split("|")[0]);
-            let firstNums = linesSimple[0].split(",").map(x => parseInt(x, 10)).filter(n => !isNaN(n));
+            // compute simple freq and firstNums from the 10-line window (sau contextPrefix)
+            const winRows = rowsUsed.slice(contextPrefix, contextPrefix + 10);
+            if (winRows.length < 10) { raw = null; updateRender(); return; }
+            let firstLine = (winRows[0] && (winRows[0].result || '').split("|")[0]) || '';
+            let firstNums = firstLine.split(",").map(x => parseInt(x, 10)).filter(n => !isNaN(n));
             let all = [];
-            linesSimple.slice(0, 10).forEach(l => { l.split(",").forEach(n => { let v = parseInt(n, 10); if (!isNaN(v)) all.push(v); }); });
+            winRows.forEach(function (r) {
+                let l = (r && r.result) ? String(r.result).split("|")[0] : '';
+                l.split(",").forEach(function (n) {
+                    let v = parseInt(n, 10);
+                    if (!isNaN(v)) all.push(v);
+                });
+            });
             let freq = {};
             for (let i = 1; i <= MAX_NUM; i++) freq[i] = 0;
             all.forEach(n => freq[n]++);
-            raw = { lines: rowsUsed, freq: freq, firstNums: firstNums };
-            // answerNums chỉ từ dòng 11 của record hiện tại (không dùng đáp án id cũ)
-            if (linesSimple.length === 11) {
-                let eleventh = rowsUsed[10] || {};
-                let ansLine = (eleventh.result || '').split("|")[0].trim();
+            let answerLineIdx = -1;
+            if (rowsUsed.length >= 13) {
+                answerLineIdx = rowsUsed.length - 1;
+            } else if (rowsUsed.length === 12) {
+                answerLineIdx = 11;
+            } else if (rowsUsed.length === 11) {
+                answerLineIdx = 10;
+            }
+            raw = { lines: rowsUsed, freq: freq, firstNums: firstNums, answerLineIndex: answerLineIdx, contextPrefixCount: contextPrefix };
+            answerNums = [];
+            if (answerLineIdx >= 0) {
+                let ansRow = rowsUsed[answerLineIdx] || {};
+                let ansLine = (ansRow.result || '').split("|")[0].trim();
                 if (ansLine.length) {
                     answerNums = ansLine.split(",").map(x => parseInt(x, 10)).filter(n => !isNaN(n));
-                } else {
-                    answerNums = [];
                 }
-            } else {
-                answerNums = [];
             }
 
             debugLog('process() answerNums:', answerNums);
@@ -2652,7 +2755,7 @@
             if (!window.parent || window.parent === window || !raw || !raw.lines || !raw.lines.length) return;
             var resultPart = '';
             try {
-                var first = raw.lines[0];
+                var first = getRawDisplayLineAt(0);
                 resultPart = (first && (first.result || '')) ? String(first.result).split('|')[0].trim() : '';
             } catch (e) { }
             if (!resultPart) return;
@@ -2730,9 +2833,9 @@
         }
         function computeTails() {
             // Lightweight tails computation: return empty array when insufficient data
-            if (!raw || !raw.lines || raw.lines.length < 10) return [];
+            if (!raw || !raw.lines || getRawDisplayLines().length < 10) return [];
             // Use a simplified adjacent-occurrence heuristic
-            const display = raw.lines.slice(0, 10);
+            const display = getRawDisplayLines();
             const sets = display.map(l => new Set(getNumsFromLineObj(l)));
             const adjMap = {};
             for (let i = 0; i < sets.length - 1; i++) {
@@ -2746,8 +2849,8 @@
 
         // Compute pairs according to user's rules (copied from ok.py)
         function computePairs() {
-            if (!raw || !raw.lines || raw.lines.length < 10) return [];
-            const display = raw.lines.slice(0, 10);
+            if (!raw || !raw.lines || getRawDisplayLines().length < 10) return [];
+            const display = getRawDisplayLines();
             const sets = display.map(l => new Set(getNumsFromLineObj(l)));
             const allNums = new Set();
             sets.forEach(s => s.forEach(n => allNums.add(n)));
@@ -2764,23 +2867,7 @@
                     if (mains.length === 0) continue;
                     let allMainsOk = true;
                     for (const mainIdx of mains) {
-                        /* Đếm adjacency hình học phía trên main: a,b nằm hai hàng của cùng một cạnh liền kề,
-                           không cùng một hàng của cạnh đó. Nếu đúng 2 cạnh như vậy thì không đưa cặp vào pair. */
-                        let adjAboveCrossCount = 0;
-                        for (const p of adjPairs) {
-                            if (p.bottom >= mainIdx) {
-                                continue;
-                            }
-                            if ((sets[p.top].has(a) && sets[p.bottom].has(b)) || (sets[p.top].has(b) && sets[p.bottom].has(a))) {
-                                if (!((sets[p.top].has(a) && sets[p.top].has(b)) || (sets[p.bottom].has(a) && sets[p.bottom].has(b)))) {
-                                    adjAboveCrossCount++;
-                                }
-                            }
-                        }
-                        if (adjAboveCrossCount === 2) {
-                            allMainsOk = false;
-                            break;
-                        }
+                        /* Không lọc adjAboveCrossCount===2: giữ khớp computePairsForRows (date nền #00b0f0 / cửa sổ 10 dòng). */
 
                         let aboveFound = false;
                         for (const p of adjPairs) {
@@ -2832,9 +2919,10 @@
         }
 
         /**
-         * Trước khi áp dụng cặp (a,b): gỡ đóng góp của mọi cặp *khác* đã track.
-         * — Click chuyển giữa các pair (và tail pair): thay thế, không chồng thêm.
+         * Trước khi áp dụng cặp (a,b) từ **strip pair** (hoặc thay cặp từ cùng nguồn): gỡ đóng góp của mọi cặp *khác* đã track.
+         * — Click chuyển giữa các pair trên strip: thay thế, không chồng thêm.
          * — Số chỉ do khoanh bảng 1 / bảng 2 giữ nguyên (không nằm trong contrib cặp khác).
+         * — Áp dụng từ **tail** không gọi hàm này (tail và pair strip độc lập).
          */
         function removeOtherPairContributionsBeforeApply(a, b) {
             if (submitActive) {
@@ -2912,6 +3000,7 @@
         }
 
         function applyPair(a, b, opts) {
+            opts = opts || {};
             if (!raw || submitActive) {
                 return false;
             }
@@ -2923,12 +3012,14 @@
                 clearedPairNeonObserveNumBackup = null;
                 clearedPairNeonObserveContextBeyondLonePairBackup = null;
             }
-            try {
-                removeOtherPairContributionsBeforeApply(a, b);
-            } catch (eRem) { /* ignore */ }
-            try {
-                pruneSelectedLegsReplacedByApplyPair(a, b);
-            } catch (ePrune) { /* ignore */ }
+            if (!opts.fromTailList) {
+                try {
+                    removeOtherPairContributionsBeforeApply(a, b);
+                } catch (eRem) { /* ignore */ }
+                try {
+                    pruneSelectedLegsReplacedByApplyPair(a, b);
+                } catch (ePrune) { /* ignore */ }
+            }
             const beforeCap = new Set(selected);
             const addsNeeded = [];
             try {
@@ -3138,7 +3229,7 @@
             if (!currentTails || idx < 0 || idx >= currentTails.length) return;
             const t = currentTails[idx];
             if (!t) return;
-            if (!applyPair(t.a, t.b, opts)) {
+            if (!applyPair(t.a, t.b, Object.assign({}, opts || {}, { fromTailList: true }))) {
                 return;
             }
             currentTailIndex = idx;
@@ -3195,7 +3286,7 @@
             if (selected.has(a) && selected.has(b)) {
                 removePairContributionForToggleOff(a, b);
                 currentTailIndex = -1;
-            } else if (!applyPair(a, b)) {
+            } else if (!applyPair(a, b, { fromTailList: true })) {
                 return false;
             } else {
                 currentTailIndex = idx;
@@ -3341,10 +3432,7 @@
         }
 
         /**
-         * Số `observed` chỉ là số quan sát nếu có ít nhất một nút cặp được phép gắn pair-neon-hint:
-         * tồn tại cặp chứa observed, observed trong tập hiệu lực, và không phải cả hai đầu cặp đều đã khoanh.
-         * (freq>=2 một mình không đủ nếu mọi cặp liên quan đều đã đủ khoanh → không neon.)
-         * @param {boolean} [ignoreLoneAmbiguous] — true: bỏ chặn lone mơ hồ (dùng khi đã có số quan sát, tránh tắt neon sau click pair đầu).
+         * Cặp từ strip pair VÀ từ tail — cùng logic neon / claimed (tail không làm tắt gợi ý pair).
          */
         function pairObserveNumWouldShowAnyNeonHint(observed, ignoreLoneAmbiguous) {
             if (submitActive || observed == null || typeof observed !== 'number' || !Number.isFinite(observed)) {
@@ -3360,8 +3448,9 @@
             if (!effective.has(observed)) {
                 return false;
             }
-            const pairs = computePairs();
-            if (!pairs || !pairs.length) {
+            const pairs = computePairs() || [];
+            const tails = computeTails() || [];
+            if (!pairs.length && !tails.length) {
                 return false;
             }
             const claimed = new Set();
@@ -3377,26 +3466,44 @@
                     claimed.add(b);
                 }
             }
-            for (let i = 0; i < pairs.length; i++) {
-                const p = pairs[i];
-                if (!p || p.length < 2) {
+            for (let ti = 0; ti < tails.length; ti++) {
+                const t = tails[ti];
+                if (!t) {
                     continue;
                 }
-                const a = p[0];
-                const b = p[1];
-                if (!Number.isFinite(a) || !Number.isFinite(b)) {
-                    continue;
-                }
-                if (effective.has(a) && effective.has(b)) {
-                    continue;
-                }
-                const hitA = observed !== null && effective.has(a) && a === observed && !isNumClaimedForPairNeon(a, claimed, observed, effective);
-                const hitB = observed !== null && effective.has(b) && b === observed && !isNumClaimedForPairNeon(b, claimed, observed, effective);
-                if (hitA || hitB) {
-                    return true;
+                const a = t.a;
+                const b = t.b;
+                if (Number.isFinite(a) && Number.isFinite(b) && effective.has(a) && effective.has(b)) {
+                    claimed.add(a);
+                    claimed.add(b);
                 }
             }
-            return false;
+            function scanPairLikeList(list, isTail) {
+                for (let i = 0; i < list.length; i++) {
+                    const item = list[i];
+                    if (!item) {
+                        continue;
+                    }
+                    const a = isTail ? item.a : item[0];
+                    const b = isTail ? item.b : item[1];
+                    if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                        continue;
+                    }
+                    if (effective.has(a) && effective.has(b)) {
+                        continue;
+                    }
+                    const hitA = observed !== null && effective.has(a) && a === observed && !isNumClaimedForPairNeon(a, claimed, observed, effective);
+                    const hitB = observed !== null && effective.has(b) && b === observed && !isNumClaimedForPairNeon(b, claimed, observed, effective);
+                    if (hitA || hitB) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+            if (scanPairLikeList(pairs, false)) {
+                return true;
+            }
+            return scanPairLikeList(tails, true);
         }
 
         /** Số quan sát cho neon: một khi đã gán thì giữ đến khi bỏ khoanh hoặc freq<2 (không đổi theo hint/pair khác); chưa có thì gán tự động như assignPairNeonObserveNumFromCurrentSelected. */
@@ -3475,11 +3582,8 @@
         const PAIR_NEON_GLOW_PERIOD_S = 0.9;
 
         function syncPairNeonHintAnimations() {
-            const pairList = document.getElementById('pairList');
-            if (!pairList) {
-                return;
-            }
-            const neonBtns = pairList.querySelectorAll('.pair-btn.pair-neon-hint:not(.pair-selected)');
+            const neonSel = '#pairList .pair-btn.pair-neon-hint:not(.pair-selected), #tailList .pair-btn.pair-neon-hint:not(.pair-selected)';
+            const neonBtns = document.querySelectorAll(neonSel);
             if (!neonBtns.length) {
                 return;
             }
@@ -3491,11 +3595,15 @@
             neonBtns.forEach((btn) => {
                 btn.style.animation = 'none';
             });
-            void pairList.offsetHeight;
+            const pairList = document.getElementById('pairList');
+            const tailList = document.getElementById('tailList');
+            if (pairList) void pairList.offsetHeight;
+            if (tailList) void tailList.offsetHeight;
             neonBtns.forEach((btn) => {
                 btn.style.removeProperty('animation');
             });
-            void pairList.offsetHeight;
+            if (pairList) void pairList.offsetHeight;
+            if (tailList) void tailList.offsetHeight;
             neonBtns.forEach((btn) => {
                 btn.style.animationDelay = delayStr;
             });
@@ -3514,6 +3622,55 @@
         }
 
         /**
+         * Viền neon trên các nút tail: mọi tail có ít nhất một đầu trùng số đang khoanh (tập hiệu lực giống pair neon).
+         * Tắt khi bỏ khoanh hết liên quan hoặc khi cả hai đầu đã khoanh (nút tail đang pair-selected — cùng CSS pair-neon-hint:not(.pair-selected)).
+         */
+        function updateTailListNeonHints() {
+            const tailList = document.getElementById('tailList');
+            if (!tailList) {
+                return;
+            }
+            const btns = Array.from(tailList.querySelectorAll('.tail-btn'));
+            const stripTailNeon = function (btn) {
+                btn.classList.remove('pair-neon-hint');
+                btn.style.removeProperty('animation-delay');
+                btn.style.removeProperty('animation');
+            };
+            if (!btns.length) {
+                return;
+            }
+            if (!hasLeftPaneRecordForPairNeon() || !raw) {
+                btns.forEach(stripTailNeon);
+                return;
+            }
+            const effective = new Set();
+            if (submitActive) {
+                simulatedSelected.forEach((n) => effective.add(n));
+            } else {
+                selected.forEach((n) => effective.add(n));
+                simulatedSelected.forEach((n) => effective.add(n));
+                transientSelected.forEach((n) => effective.add(n));
+            }
+            for (const btn of btns) {
+                const a = parseInt(btn.getAttribute('data-a'), 10);
+                const b = parseInt(btn.getAttribute('data-b'), 10);
+                if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                    stripTailNeon(btn);
+                    continue;
+                }
+                const touchesCircled = effective.has(a) || effective.has(b);
+                const wantNeon = touchesCircled && !btn.classList.contains('pair-selected');
+                btn.classList.toggle('pair-neon-hint', wantNeon);
+            }
+            btns.forEach((btn) => {
+                if (!btn.classList.contains('pair-neon-hint')) {
+                    btn.style.removeProperty('animation-delay');
+                    btn.style.removeProperty('animation');
+                }
+            });
+        }
+
+        /**
          * Viền neon trên các nút cặp: khi chưa submit, gợi ý mọi cặp có đúng một đầu là số quan sát (kể cả đầu kia đã khoanh),
          * trừ khi logic hit/claimed không còn gợi ý — getPairNeonObservationNumber cố định khi đã gán.
          * Khi submitActive, vẫn gợi ý theo simulated selection như cũ.
@@ -3521,6 +3678,8 @@
         function updatePairListNeonHints() {
             const pairList = document.getElementById('pairList');
             if (!pairList) {
+                try { updateTailListNeonHints(); } catch (eTailOnly) { /* ignore */ }
+                try { scheduleSyncPairNeonHintAnimations(); } catch (eSchOnly) { /* ignore */ }
                 return;
             }
             const btns = Array.from(pairList.querySelectorAll('.pair-btn'));
@@ -3530,6 +3689,8 @@
                     btn.style.removeProperty('animation-delay');
                     btn.style.removeProperty('animation');
                 });
+                try { updateTailListNeonHints(); } catch (eTailEarly) { /* ignore */ }
+                try { scheduleSyncPairNeonHintAnimations(); } catch (eSchEarly) { /* ignore */ }
                 return;
             }
             const effective = new Set();
@@ -3550,6 +3711,21 @@
                     claimed.add(b);
                 }
             }
+            try {
+                const tailsForClaimed = computeTails() || [];
+                for (let ti = 0; ti < tailsForClaimed.length; ti++) {
+                    const t = tailsForClaimed[ti];
+                    if (!t) {
+                        continue;
+                    }
+                    const a = t.a;
+                    const b = t.b;
+                    if (Number.isFinite(a) && Number.isFinite(b) && effective.has(a) && effective.has(b)) {
+                        claimed.add(a);
+                        claimed.add(b);
+                    }
+                }
+            } catch (eClTail) { /* ignore */ }
             for (const btn of btns) {
                 const a = parseInt(btn.getAttribute('data-a'), 10);
                 const b = parseInt(btn.getAttribute('data-b'), 10);
@@ -3576,6 +3752,7 @@
                     btn.style.removeProperty('animation');
                 }
             });
+            try { updateTailListNeonHints(); } catch (eTailAfterPair) { /* ignore */ }
             scheduleSyncPairNeonHintAnimations();
         }
 
@@ -3643,7 +3820,7 @@
                 return;
             }
             const effective = new Set(); if (submitActive) { simulatedSelected.forEach(n => effective.add(n)); } else { selected.forEach(n => effective.add(n)); }
-            const displayLines = raw.lines.slice(0, 10);
+            const displayLines = getRawDisplayLines();
             const pairsWithMain = pairs.map(p => { const a = p[0], b = p[1]; const mains = []; for (let idx = 0; idx < displayLines.length; idx++) { const nums = getNumsFromLineObj(displayLines[idx]); if (nums.indexOf(a) !== -1 && nums.indexOf(b) !== -1) { mains.push(displayLines.length - idx); } } const main = (mains.length > 0) ? Math.min(...mains) : Infinity; return { pair: p, main }; });
             pairsWithMain.sort((x, y) => { if (x.main !== y.main) return x.main - y.main; if (x.pair[0] !== y.pair[0]) return x.pair[0] - y.pair[0]; return x.pair[1] - y.pair[1]; });
             const sortedPairs = pairsWithMain.map(x => x.pair); currentPairs = sortedPairs;
@@ -3719,7 +3896,7 @@
             if (!raw || !raw.lines) {
                 return { noteSet, nonexistSet };
             }
-            raw.lines.slice(0, 10).forEach(function (lineObj) {
+            getRawDisplayLines().forEach(function (lineObj) {
                 if (lineObj && typeof lineObj !== 'string') {
                     if (lineObj.note) {
                         const all = lineObj.note.matchAll(/\{([^}]*)\}/g);
@@ -3837,13 +4014,20 @@
             return main + ':{' + formatLeftTableNumSpan(a) + ',' + formatLeftTableNumSpan(b) + '}';
         }
 
+        /** Tail row: chỉ hiện cặp số, không tiền tố main (ví dụ `{18,31}` thay vì `1:{18,31}`). */
+        function formatTailButtonLabel(a, b) {
+            return '{' + formatLeftTableNumSpan(a) + ',' + formatLeftTableNumSpan(b) + '}';
+        }
+
         function refreshPairTailNumberStyles() {
             document.querySelectorAll('#pairList .pair-btn, #tailList .pair-btn').forEach(function (btn) {
                 const a = parseInt(btn.getAttribute('data-a'), 10);
                 const b = parseInt(btn.getAttribute('data-b'), 10);
                 const main = btn.getAttribute('data-main');
                 if (isNaN(a) || isNaN(b) || main == null) return;
-                btn.innerHTML = formatPairTailButtonLabel(main, a, b);
+                btn.innerHTML = btn.classList.contains('tail-btn')
+                    ? formatTailButtonLabel(a, b)
+                    : formatPairTailButtonLabel(main, a, b);
             });
             try { scheduleSyncPairNeonHintAnimations(); } catch (e) { }
         }
@@ -3911,6 +4095,7 @@
                     } else {
                         cls = appendLeftTableSemanticHighlight(cls, n, aggregatedNoteSet, aggregatedNonexistSet);
                     }
+                    cls += freqOneItalicFromCh11Ch12Class(n);
                     let clickAttr = (!submitActive && !isBlocked(n))
                         ? `onclick="onNumberCellClick(${n},'left')"` : "";
                     let style = "";
@@ -3940,7 +4125,7 @@
                     html += 'tail[' + tails.length + ']: ';
                     for (let ti = 0; ti < tails.length; ti++) {
                         const t = tails[ti]; const a = t.a, b = t.b, main = (t.main === Infinity) ? '-' : t.main;
-                        html += '<button type="button" class="pair-btn tail-btn" data-tail-idx="' + ti + '" data-a="' + a + '" data-b="' + b + '" data-main="' + main + '">' + formatPairTailButtonLabel(main, a, b) + '</button>';
+                        html += '<button type="button" class="pair-btn tail-btn" data-tail-idx="' + ti + '" data-a="' + a + '" data-b="' + b + '" data-main="' + main + '">' + formatTailButtonLabel(a, b) + '</button>';
                     }
                     html += '</div>';
                 }
@@ -3968,7 +4153,7 @@
                             if (selected.has(a) && selected.has(b)) {
                                 removePairContributionForToggleOff(a, b);
                                 currentTailIndex = -1;
-                            } else if (applyPair(a, b)) {
+                            } else if (applyPair(a, b, { fromTailList: true })) {
                                 currentTailIndex = idx;
                             }
                         });
@@ -3993,6 +4178,8 @@
                     });
                 }
             } catch (e) { }
+            try { updateTailListNeonHints(); } catch (eTailAfterRender) { /* ignore */ }
+            try { scheduleSyncPairNeonHintAnimations(); } catch (eNeonSync) { /* ignore */ }
         }
 
         /** Dòng chuỗi (0..9) đầu tiên có cả hai số a,b trong kết quả 5 số. */
@@ -4003,7 +4190,7 @@
             if (!Number.isFinite(a) || !Number.isFinite(b)) {
                 return null;
             }
-            const displayLines = raw.lines.slice(0, 10);
+            const displayLines = getRawDisplayLines();
             for (let i = 0; i < displayLines.length; i++) {
                 const nums = getNumsFromLineObj(displayLines[i]);
                 if (nums.indexOf(a) !== -1 && nums.indexOf(b) !== -1) {
@@ -4014,8 +4201,7 @@
         }
 
         /**
-         * Mọi dòng chuỗi (0..9) chứa một cặp đang được thể hiện trên strip **pair** (#pairList), không tính tail:
-         * `pairTailButtonShouldShowPairSelected` + `computePairs` (bỏ `computeTails`).
+         * Mọi dòng chuỗi (0..9) chứa một cặp đang được thể hiện: strip **pair** (#pairList) hoặc **tail** (cùng điều kiện cả hai đầu khoanh).
          * Submit ON: tập hiệu lực = simulated (đáp án preview).
          */
         function getTrackedPairChuoiLineIndicesSet() {
@@ -4054,10 +4240,20 @@
                     addLineForPair(p[0], p[1]);
                 }
             } catch (eP) { /* ignore */ }
+            try {
+                const tails = computeTails() || [];
+                for (let ti = 0; ti < tails.length; ti++) {
+                    const t = tails[ti];
+                    if (!t) {
+                        continue;
+                    }
+                    addLineForPair(t.a, t.b);
+                }
+            } catch (eT) { /* ignore */ }
             return out;
         }
 
-        /** Gắn/gỡ class viền chuỗi tại chỗ — chỉ theo cặp trên #pairList (không tail). Submit ON: theo simulated. */
+        /** Gắn/gỡ class viền chuỗi tại chỗ — theo cặp đang khoanh trên strip pair hoặc tail. Submit ON: theo simulated. */
         function syncChuoiPairTrackedSoloInDOM() {
             try {
                 try {
@@ -4110,8 +4306,8 @@
                 setTimeout(function () { computeAndApplyHeights(); }, 0);
                 return;
             }
-            let { lines, freq } = raw;
-            let displayLines = lines.slice(0, 10);
+            let { freq } = raw;
+            let displayLines = getRawDisplayLines();
 
             // Pattern counting
             const patternCount = {};
@@ -4124,7 +4320,7 @@
             let inferredStep = null; if (baseFound) { for (const k in idToIndex) { const idNum = parseInt(k, 10); const idx = idToIndex[k]; if (idNum === baseId) continue; const deltaId = idNum - baseId; const deltaIdx = idx - baseIndex; if (deltaIdx !== 0) { const step = Math.round(deltaId / deltaIdx); if (step !== 0) { inferredStep = step; break; } } } } if (inferredStep === null) inferredStep = -1;
             const highlightRefs = new Array(displayLines.length).fill(0); const highlightRefs11 = new Array(displayLines.length).fill(0); const supMap = { '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5', '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁰': '0' };
             displayLines.forEach((lineObj, idx) => { if (!lineObj || !lineObj.note) return; let noteText = String(lineObj.note || ''); const reRef = /([0-9]+)-([0-9]+)([¹²³⁴⁵⁶⁷⁸⁹⁰]*)/g; let m; while ((m = reRef.exec(noteText)) !== null) { const refId = parseInt(m[2], 10); const supStr = m[3] || ''; let exp = 1; if (supStr.length) { let digits = ''; for (const ch of supStr) digits += (supMap[ch] || ''); if (digits.length) { let v = parseInt(digits, 10); if (!isNaN(v)) exp = v; } } let j = null; if (idToIndex.hasOwnProperty(refId)) { j = idToIndex[refId]; highlightRefs[j] = Math.max(highlightRefs[j], exp); } else if (baseFound) { j = baseIndex + Math.round((refId - baseId) / inferredStep); if (j >= 0 && j < displayLines.length) highlightRefs[j] = Math.max(highlightRefs[j], exp); else j = null; } } });
-            if (submitActive && raw && Array.isArray(raw.lines) && raw.lines.length > 10) { const eleventh = raw.lines[10]; if (eleventh && eleventh.note) { let noteText = String(eleventh.note || ''); const reRef11 = /([0-9]+)-([0-9]+)([¹²³⁴⁵⁶⁷⁸⁹⁰]*)/g; let mm; while ((mm = reRef11.exec(noteText)) !== null) { const refId = parseInt(mm[2], 10); const supStr = mm[3] || ''; let exp = 1; if (supStr.length) { let digits = ''; for (const ch of supStr) digits += (supMap[ch] || ''); if (digits.length) { let v = parseInt(digits, 10); if (!isNaN(v)) exp = v; } } let j = null; if (idToIndex.hasOwnProperty(refId)) { j = idToIndex[refId]; highlightRefs11[j] = Math.max(highlightRefs11[j], exp); highlightRefs[j] = Math.max(highlightRefs[j], exp); } else if (baseFound) { j = baseIndex + Math.round((refId - baseId) / inferredStep); if (j >= 0 && j < displayLines.length) { highlightRefs11[j] = Math.max(highlightRefs11[j], exp); highlightRefs[j] = Math.max(highlightRefs[j], exp); } else j = null; } } } }
+            if (submitActive && raw) { const eleventh = getRawAnswerLineObj(); if (eleventh && eleventh.note) { let noteText = String(eleventh.note || ''); const reRef11 = /([0-9]+)-([0-9]+)([¹²³⁴⁵⁶⁷⁸⁹⁰]*)/g; let mm; while ((mm = reRef11.exec(noteText)) !== null) { const refId = parseInt(mm[2], 10); const supStr = mm[3] || ''; let exp = 1; if (supStr.length) { let digits = ''; for (const ch of supStr) digits += (supMap[ch] || ''); if (digits.length) { let v = parseInt(digits, 10); if (!isNaN(v)) exp = v; } } let j = null; if (idToIndex.hasOwnProperty(refId)) { j = idToIndex[refId]; highlightRefs11[j] = Math.max(highlightRefs11[j], exp); highlightRefs[j] = Math.max(highlightRefs[j], exp); } else if (baseFound) { j = baseIndex + Math.round((refId - baseId) / inferredStep); if (j >= 0 && j < displayLines.length) { highlightRefs11[j] = Math.max(highlightRefs11[j], exp); highlightRefs[j] = Math.max(highlightRefs[j], exp); } else j = null; } } } }
 
             let html = '<table style="width:100%">';
             displayLines.forEach((lineObj, i) => {
@@ -4181,6 +4377,7 @@
                         ? `onclick="onNumberCellClick(${n},'right',${i})"` : "";
                     // Prefer class-based blocked styling (no inline black background)
                     if (isBlocked(n)) cls += ' blocked';
+                    cls += freqOneItalicFromCh11Ch12Class(n);
                     let style = '';
                     if (submitActive && answerNums.indexOf(n) !== -1) cls += ' submit-highlight';
                     return `<span class="cell num${cls}" data-num="${n}" ${clickAttr} style='${style}'>${n}</span>`;
@@ -4564,7 +4761,7 @@
 
         function getChecknoteRowContext(idx, btnEl) {
             if (!raw || idx < 0) return null;
-            var row = raw.lines[idx] || '';
+            var row = getRawDisplayLineAt(idx) || '';
             var resultPart = '';
             if (!row) return null;
             if (typeof row === 'string') {
@@ -4842,12 +5039,15 @@
                 }
             } catch (e) { }
             try {
-                if (raw && rowIdx != null && raw.lines[rowIdx]) {
-                    const pickSet = submitActive ? simulatedSelected : selected;
-                    const rowNums = getNumsFromLineObj(raw.lines[rowIdx]);
-                    rowNums.forEach(function (rn) {
-                        if (pickSet.has(rn)) highlighted.push(rn);
-                    });
+                if (raw && rowIdx != null) {
+                    const rowObj = getRawDisplayLineAt(rowIdx);
+                    if (rowObj) {
+                        const pickSet = submitActive ? simulatedSelected : selected;
+                        const rowNums = getNumsFromLineObj(rowObj);
+                        rowNums.forEach(function (rn) {
+                            if (pickSet.has(rn)) highlighted.push(rn);
+                        });
+                    }
                 }
             } catch (e) { }
             let uniq = [...new Set(highlighted)];
@@ -4881,7 +5081,7 @@
                 try {
                     if (data && data.id_to_result && typeof raw !== 'undefined' && raw && raw.lines && raw.lines.length) {
                         const id_to_result = data.id_to_result || {};
-                        const chain1 = (raw.lines[0] && (raw.lines[0].result || '').split("|")[0].trim()) || null;
+                        const chain1 = (getRawDisplayLineAt(0) && (getRawDisplayLineAt(0).result || '').split("|")[0].trim()) || null;
                         if (chain1) {
                             for (const k in id_to_result) { if (id_to_result[k] === chain1) { const v = parseInt(k, 10); if (!isNaN(v)) { current_id = v + 1; break; } } }
                         }
@@ -5133,7 +5333,7 @@
 
         function copyLine(idx) {
             if (!raw) return;
-            const row = raw.lines[idx] || "";
+            const row = getRawDisplayLineAt(idx) || "";
             const btn = document.getElementById('copyBtn-' + idx);
             let txt = "";
             if (!row) return;
@@ -5471,14 +5671,10 @@
 
                 var derivedAnswers = [];
 
-                // Prefer explicit answers from the 11th row of current dataset.
-                if (Array.isArray(raw.lines) && raw.lines.length > 10) {
-                    var eleventh = raw.lines[10] || {};
-                    var ansLine = (eleventh.result || '').split('|')[0].trim();
-                    if (ansLine.length) {
-                        derivedAnswers = ansLine.split(',').map(function (x) { return parseInt(x, 10); }).filter(function (n) { return !isNaN(n); });
-                        debugLog('syncSubmitStateForNewData: derived from 11th-line', derivedAnswers);
-                    }
+                // Prefer explicit answers from the answer row (sau ch11/ch12 khi đủ dòng).
+                derivedAnswers = getAnswerNumsFromCurrentLine11();
+                if (derivedAnswers && derivedAnswers.length) {
+                    debugLog('syncSubmitStateForNewData: derived from answer row', derivedAnswers);
                 }
 
                 // Fallbacks must be derived from the NEW data, not previous submit cache.
@@ -5515,12 +5711,12 @@
 
                 // infer a reasonable mode from derived answers
                 try {
-                    var linesLocal = raw ? raw.lines : [];
+                    var linesLocal = getRawDisplayLines();
                     var pairLines = 0;
                     var quadFound = false;
                     var tripleFound = false;
                     var singleLines = 0;
-                    for (var i = 0; i < Math.min(linesLocal.length, 10); i++) {
+                    for (var i = 0; i < linesLocal.length; i++) {
                         var nums = getNumsFromLineObj(linesLocal[i]);
                         var matched = (answerNums || []).filter(function (n) { return nums.indexOf(n) !== -1; });
                         if (matched.length >= 4) { quadFound = true; break; }
@@ -5668,14 +5864,14 @@
                     var dirWS = (key === 's' || key === 'S') ? 1 : -1;
 
                     if (regionWS === 'right') {
-                        var maxRow = Math.min(raw.lines.length, 10) - 1;
+                        var maxRow = 9;
                         var prevRow = 0;
                         if (currentPhaseRow != null) {
                             prevRow = currentPhaseRow;
                         } else if (currentPhaseNumber != null) {
                             var occurrences = 0; var foundRow = null;
                             for (var r = 0; r <= maxRow; r++) {
-                                var arr = getNumsFromLineObj(raw.lines[r]);
+                                var arr = getRawDisplayLineNumsAt(r);
                                 if (arr.indexOf(currentPhaseNumber) !== -1) { occurrences++; foundRow = r; }
                             }
                             if (occurrences === 1) prevRow = foundRow;
@@ -5683,14 +5879,14 @@
                             prevRow = lastClickedRow;
                         } else if (lastClickedNumber != null) {
                             for (var rr = 0; rr <= maxRow; rr++) {
-                                var arrR = getNumsFromLineObj(raw.lines[rr]);
+                                var arrR = getRawDisplayLineNumsAt(rr);
                                 if (arrR.indexOf(lastClickedNumber) !== -1) { prevRow = rr; break; }
                             }
                         } else {
                             for (var pi = pickOrder.length - 1; pi >= 0; pi--) {
                                 var numP = pickOrder[pi];
                                 for (var r2 = 0; r2 <= maxRow; r2++) {
-                                    var arr2 = getNumsFromLineObj(raw.lines[r2]);
+                                    var arr2 = getRawDisplayLineNumsAt(r2);
                                     if (arr2.indexOf(numP) !== -1) { prevRow = r2; break; }
                                 }
                                 if (prevRow !== 0) break;
@@ -5705,7 +5901,7 @@
                         var rowCount = maxRow + 1;
                         for (var off = 0; off < rowCount; off++) {
                             var idxTry = ((targetRow + off * dirWS) % rowCount + rowCount) % rowCount;
-                            var numsTry = getNumsFromLineObj(raw.lines[idxTry]);
+                            var numsTry = getRawDisplayLineNumsAt(idxTry);
                             var tempSelBase = new Set(selected);
                             if (removedNumber != null) tempSelBase.delete(removedNumber);
                             var localCand = null;
@@ -5730,7 +5926,7 @@
                             currentPhaseNumber = null;
                         }
 
-                        var numsFinal = getNumsFromLineObj(raw.lines[finalTargetRow]);
+                        var numsFinal = getRawDisplayLineNumsAt(finalTargetRow);
                         for (var nf = 0; nf < numsFinal.length; nf++) {
                             var pidx = pickOrder.indexOf(numsFinal[nf]);
                             if (pidx !== -1) pickOrder.splice(pidx, 1);
@@ -5760,7 +5956,7 @@
                         if (currentPhaseNumber != null) {
                             var fcur = raw.freq[currentPhaseNumber]; prevRowIdx = freqs.indexOf(fcur); if (prevRowIdx === -1) prevRowIdx = 0;
                         } else if (lastClickedRow != null) {
-                            var numsLC = getNumsFromLineObj(raw.lines[lastClickedRow]);
+                            var numsLC = getRawDisplayLineNumsAt(lastClickedRow);
                             if (numsLC.length) { var flc = raw.freq[numsLC[0]]; prevRowIdx = freqs.indexOf(flc); if (prevRowIdx === -1) prevRowIdx = 0; }
                         } else if (lastClickedNumber != null) {
                             var fln = raw.freq[lastClickedNumber]; prevRowIdx = freqs.indexOf(fln); if (prevRowIdx === -1) prevRowIdx = 0;
@@ -5858,7 +6054,7 @@
 
                     if (region === 'right') {
                         var row = (lastClickedRow != null) ? lastClickedRow : 0;
-                        var numsR = getNumsFromLineObj(raw.lines[row]); if (!numsR || numsR.length === 0) return;
+                        var numsR = getRawDisplayLineNumsAt(row); if (!numsR || numsR.length === 0) return;
                         var lastR = lastClickedNumber;
                         if (!lastR || numsR.indexOf(lastR) === -1) {
                             lastR = null;
@@ -6176,8 +6372,8 @@
             }
             if (inferredStep === null) inferredStep = -1;
             const highlightRefs11 = new Array(displayLines.length).fill(0);
-            if (raw && Array.isArray(raw.lines) && raw.lines.length > 10) {
-                const eleventh = raw.lines[10];
+            if (raw) {
+                const eleventh = getRawAnswerLineObj();
                 if (eleventh && eleventh.note) {
                     const noteText = String(eleventh.note || '');
                     const reRef11 = /([0-9]+)-([0-9]+)([¹²³⁴⁵⁶⁷⁸⁹⁰]*)/g;
@@ -6319,7 +6515,7 @@
             try {
                 debugLog('applySubmitState() start', { answerNums: answerNums, simulatedSelectedSize: (simulatedSelected && simulatedSelected.size) ? simulatedSelected.size : 0 });
                 if (!raw) return;
-                var displayLines = raw.lines.slice(0, 10);
+                var displayLines = getRawDisplayLines();
                 var answerSet = new Set((answerNums || []).map(Number));
                 var right = document.getElementById('right');
                 var left = document.getElementById('left');
@@ -6472,7 +6668,7 @@
                 const indH = ind.offsetHeight || 18;
                 const indW = ind.offsetWidth || 18;
                 if (region === 'right') {
-                    let maxRow = Math.min(raw.lines.length, 10) - 1;
+                    let maxRow = 9;
                     let rowIdx = (currentPhaseRow != null) ? currentPhaseRow : (lastClickedRow != null ? lastClickedRow : 0);
                     if (rowIdx < 0) rowIdx = 0;
                     if (rowIdx > maxRow) rowIdx = maxRow;
@@ -6491,7 +6687,7 @@
                     if (currentPhaseNumber != null) {
                         let f = raw.freq[currentPhaseNumber]; prevRowIdx = freqs.indexOf(f); if (prevRowIdx === -1) prevRowIdx = 0;
                     } else if (lastClickedRow != null) {
-                        let nums = getNumsFromLineObj(raw.lines[lastClickedRow]);
+                        let nums = getRawDisplayLineNumsAt(lastClickedRow);
                         if (nums.length) { let f = raw.freq[nums[0]]; prevRowIdx = freqs.indexOf(f); if (prevRowIdx === -1) prevRowIdx = 0; }
                     } else if (lastClickedNumber != null) {
                         let f = raw.freq[lastClickedNumber]; prevRowIdx = freqs.indexOf(f); if (prevRowIdx === -1) prevRowIdx = 0;
@@ -6554,6 +6750,11 @@
                 }
 
                 if (msg.type === 'setLines' && Array.isArray(msg.lines)) {
+                    pendingContextPrefixCount = 0;
+                    if (msg.contextPrefixCount != null) {
+                        const cpc = parseInt(msg.contextPrefixCount, 10);
+                        if (!isNaN(cpc) && cpc > 0) pendingContextPrefixCount = Math.min(2, cpc);
+                    }
                     if (typeof msg.submitAutoCircleEnabled === 'boolean') {
                         submitAutoCircleEnabled = msg.submitAutoCircleEnabled;
                     }
@@ -6699,9 +6900,9 @@
                         var circleNums = Array.from(getSubmitAutoCircleSet()).filter(function (n) { return !isNaN(n); });
                         if (circleNums.length > 0) {
                             var ans = [];
-                            if (raw.lines && raw.lines.length > 10) {
-                                var eleventh = raw.lines[10] || {};
-                                var ansLine = (eleventh.result || '').split('|')[0].trim();
+                            var ansLineObj = getRawAnswerLineObj();
+                            if (ansLineObj) {
+                                var ansLine = (ansLineObj.result || '').split('|')[0].trim();
                                 if (ansLine.length) {
                                     ans = ansLine.split(',').map(function (x) { return parseInt(x, 10); }).filter(function (n) { return !isNaN(n); });
                                 }

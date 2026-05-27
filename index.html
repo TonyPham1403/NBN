@@ -5754,6 +5754,7 @@
                     frame.contentWindow.postMessage({
                         type: 'setLines',
                         lines: lines,
+                        contextPrefixCount: detail.contextPrefixCount || 0,
                         disableSubmit: isFocusEmpty,
                         submitActive: iframeSubmitActive,
                         preserveSelection: fromFilterNav,

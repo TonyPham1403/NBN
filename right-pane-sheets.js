@@ -2558,13 +2558,15 @@ class RightPaneSheetManager {
      * Handle row click - dispatch to parent
      */
     onRowClick(idx, isEmptyRow, event, options = {}) {
-        const start = Math.max(0, idx - 10);
-        const slice = isEmptyRow ? this.dataRows.slice(start, idx) : this.dataRows.slice(start, idx + 1);
+        const windowTop = idx >= 10 ? idx - 10 : 0;
+        const contextPrefixCount = idx >= 10 ? Math.min(2, windowTop) : 0;
+        const dataStart = Math.max(0, windowTop - contextPrefixCount);
+        const slice = isEmptyRow ? this.dataRows.slice(dataStart, idx) : this.dataRows.slice(dataStart, idx + 1);
         const lines = slice.map((r, offset) => {
             const res = r.result || r.Result || '';
-            const noteMeta = this.getComputedNoteMeta(start + offset, r);
+            const noteMeta = this.getComputedNoteMeta(dataStart + offset, r);
             const note = noteMeta.text;
-            const nonexist = this.isEmptyResultRow(r) ? '' : this.getComputedNonexistMeta(start + offset, r).text;
+            const nonexist = this.isEmptyResultRow(r) ? '' : this.getComputedNonexistMeta(dataStart + offset, r).text;
             return [res, note, nonexist].filter(Boolean).join('\t');
         });
 
@@ -2574,8 +2576,8 @@ class RightPaneSheetManager {
 
         // Update selectedLines
         this.selectedLines = slice.map((r, offset) => {
-            const noteMeta = this.getComputedNoteMeta(start + offset, r);
-            const nonexistMeta = this.isEmptyResultRow(r) ? { text: '' } : this.getComputedNonexistMeta(start + offset, r);
+            const noteMeta = this.getComputedNoteMeta(dataStart + offset, r);
+            const nonexistMeta = this.isEmptyResultRow(r) ? { text: '' } : this.getComputedNonexistMeta(dataStart + offset, r);
             return {
                 date: r.date || '',
                 id: r.id || '',
@@ -2625,7 +2627,7 @@ class RightPaneSheetManager {
 
         const windowEnd = idx;
         const targetIdx = idx;
-        this.applyWindowSelection(start, windowEnd, targetIdx);
+        this.applyWindowSelection(windowTop, windowEnd, targetIdx);
 
         const tableWrap = document.getElementById('tableWrap');
         const activeSheetMeta = this.sheets[this.activeSheet] || {};
@@ -2643,7 +2645,8 @@ class RightPaneSheetManager {
                 focusRowIndex: idx,
                 focusNonexistHighlights,
                 fromFilterNav: !!options.fromFilterNav,
-                light: !!options.light
+                light: !!options.light,
+                contextPrefixCount
             }
         }));
     }
