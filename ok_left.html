@@ -7342,6 +7342,13 @@
                 } else if (msg.type === 'clearLeftPickForAnswer') {
                     try { forceClearLeftPickSelection(); } catch (eClr) { /* ignore */ }
                     return;
+                } else if (msg.type === 'answerPopupClosed') {
+                    answerPopupTicketPreviewOnly = false;
+                    submitCircleOverlaySource = 'none';
+                    answerTicketPreviewNums = new Set();
+                    try { applySubmitCircleOverlayInDOM(); } catch (e) { /* ignore */ }
+                    try { syncSubmitPreviewBodyClasses(); } catch (e) { /* ignore */ }
+                    return;
                 } else if (msg.type === 'syncAnswerTicketPreview') {
                     setAnswerTicketPreviewNums(msg.nums);
                     return;

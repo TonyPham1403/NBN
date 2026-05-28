@@ -14,8 +14,18 @@ class RightPaneSheetManager {
         this.activeWindowRange = null;
         this.comboFocusRowId = '';
         this.comboFocusRowIndex = -1;
+        this.answerPopupFocusMask = { active: false, rowIndex: -1 };
+        this._answerPopupMaskAppliedRow = -1;
+        this._answerPopupMaskApplyRaf = 0;
         this.comboG1Enabled = false;
         this.comboH1Text = '';
+        this.comboHComments = {};
+        this.comboHSelection = null;
+        this._comboHDragSelect = null;
+        this._comboHExcelWired = false;
+        this._comboHMarchingVisible = false;
+        this._comboHMarchingRange = null;
+        this._comboHCutPending = null;
         this.scrollPositions = {};
         this.frequencyMap = {};
         this.colorPalette = [
@@ -44,6 +54,9 @@ class RightPaneSheetManager {
                 this.comboFocusRowIndex = Number.isFinite(data.comboFocusRowIndex) ? data.comboFocusRowIndex : -1;
                 this.comboG1Enabled = !!data.comboG1Enabled;
                 this.comboH1Text = data.comboH1Text || '';
+                this.comboHComments = (data.comboHComments && typeof data.comboHComments === 'object')
+                    ? data.comboHComments
+                    : {};
                 this.scrollPositions = data.scrollPositions || {};
             } catch (e) {
                 this.sheets = { sheet1: { data: [], notes: {} } };
@@ -996,6 +1009,89 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Answer popup open + Submit OFF: dim result/note and show empty-style nonexist on focus row.
+     */
+    setAnswerPopupFocusMask(opts) {
+        const o = opts || {};
+        const open = !!o.open;
+        const rowIndex = Number.isFinite(o.rowIndex) ? o.rowIndex : -1;
+        const submitOn = !!o.submitOn;
+        this.answerPopupFocusMask = {
+            active: open && rowIndex >= 0 && !submitOn,
+            rowIndex: open ? rowIndex : -1
+        };
+    }
+
+    shouldAnswerPopupMaskSheet1Row(rowIndex) {
+        const m = this.answerPopupFocusMask || {};
+        return !!(m.active && m.rowIndex === rowIndex);
+    }
+
+    /**
+     * Nonexist HTML for one source row (respects Answer-popup focus mask = empty-result styling).
+     */
+    renderSourceRowNonexistCellHtml(rowIndex, row) {
+        const maskRow = this.shouldAnswerPopupMaskSheet1Row(rowIndex);
+        const source = row || {};
+        const result = source.result || source.Result || '';
+        if (maskRow) {
+            const emptyRow = Object.assign({}, source, { result: '', Result: '' });
+            const meta = this.getNonexistMetaForSourceRow(rowIndex, emptyRow);
+            return this.renderNonexistHtml(rowIndex, meta.text, '');
+        }
+        const meta = this.getNonexistMetaForSourceRow(rowIndex, source);
+        return this.renderNonexistHtml(rowIndex, meta.text, result);
+    }
+
+    scheduleApplyAnswerPopupFocusMask(tableWrap) {
+        if (this._answerPopupMaskApplyRaf) {
+            return;
+        }
+        const wrap = tableWrap || document.getElementById('tableWrap');
+        this._answerPopupMaskApplyRaf = requestAnimationFrame(() => {
+            this._answerPopupMaskApplyRaf = 0;
+            this.applyAnswerPopupFocusMaskToDom(wrap);
+        });
+    }
+
+    applyAnswerPopupFocusMaskToDom(tableWrap, options = {}) {
+        if (!tableWrap || this.activeSheet !== 'sheet1') {
+            return;
+        }
+        if (options.reset) {
+            this._answerPopupMaskAppliedRow = -1;
+        }
+
+        const m = this.answerPopupFocusMask || {};
+        const prevIdx = this._answerPopupMaskAppliedRow;
+        const nextIdx = m.active ? m.rowIndex : -1;
+
+        if (prevIdx >= 0 && prevIdx !== nextIdx) {
+            this.setAnswerPopupFocusMaskOnRowDom(tableWrap, prevIdx, false);
+        }
+        if (nextIdx >= 0 && nextIdx !== prevIdx) {
+            this.setAnswerPopupFocusMaskOnRowDom(tableWrap, nextIdx, true);
+        }
+
+        this._answerPopupMaskAppliedRow = nextIdx;
+    }
+
+    setAnswerPopupFocusMaskOnRowDom(tableWrap, rowIndex, masked) {
+        const tr = tableWrap.querySelector(`tbody tr[data-idx="${rowIndex}"]`);
+        if (!tr) {
+            return;
+        }
+        tr.classList.toggle('answer-popup-focus-masked', masked);
+        const nonexistCell = tr.querySelector('td.cell-nonexist');
+        const row = (this.dataRows || [])[rowIndex];
+        if (!nonexistCell || !row) {
+            return;
+        }
+        nonexistCell.classList.toggle('answer-popup-focus-nonexist', masked);
+        nonexistCell.innerHTML = this.renderSourceRowNonexistCellHtml(rowIndex, row);
+    }
+
+    /**
      * Render the raw five-column source sheet.
      * @param {object} [options]
      * @param {number[]} [options.indices] - subset of row indices to render
@@ -1027,14 +1123,16 @@ class RightPaneSheetManager {
             const id = row.id || row.ID || '';
             const result = row.result || row.Result || '';
             const isEmptyResultRow = this.isEmptyResultRow(row);
-            const noteMeta = isEmptyResultRow ? { text: '', highlightYellow: false } : this.getComputedNoteMeta(i, row);
-            const nonexistMeta = this.getNonexistMetaForSourceRow(i, row);
+            const noteMeta = isEmptyResultRow
+                ? { text: '', highlightYellow: false }
+                : this.getComputedNoteMeta(i, row);
             const idBg = this.getIdBackgroundByFrequency(id);
             const dateBg = this.shouldHighlightDateByPairWindow(displayRows, i) ? ' style="background:#00b0f0;color:#000;font-weight:bold;"' : '';
 
             let resultHtml = this.highlightResultByFrequency(result);
             let noteHtml = this.renderNoteHtml(noteMeta.text, noteMeta.highlightYellow);
             const noteStyle = noteMeta.highlightYellow ? ' style="background:#ff0;"' : '';
+            const nonexistMeta = this.getNonexistMetaForSourceRow(i, row);
             let nonexistHtml = this.renderNonexistHtml(i, nonexistMeta.text, result);
             const idStyle = idBg ? ` style="background:${idBg};"` : '';
             const activeClass = highlightIdx === i ? ' filter-popup-row-active' : '';
@@ -1087,6 +1185,11 @@ class RightPaneSheetManager {
         }
 
         bindPrevPeriodRecallFoldTooltipGlobal();
+
+        const mainWrap = typeof document !== 'undefined' ? document.getElementById('tableWrap') : null;
+        if (options.applyAnswerPopupMask !== false && tableWrap && tableWrap === mainWrap) {
+            this.applyAnswerPopupFocusMaskToDom(tableWrap, { reset: true });
+        }
     }
 
     /**
@@ -1378,7 +1481,8 @@ class RightPaneSheetManager {
             } else {
                 html += '<td class="cell-col-f"></td>';
                 html += '<td class="cell-col-g"></td>';
-                html += '<td class="cell-col-h blank-cell"></td>';
+                const hComment = (this.comboHComments && this.comboHComments[String(rowIndex)]) || '';
+                html += `<td class="cell-col-h blank-cell combo-h-comment-cell"><input type="text" class="combo-cell-input combo-h-comment-input" data-combo-h-row="${rowIndex}" value="${this.escapeHtml(hComment)}" aria-label="H${rowIndex}" spellcheck="false" /></td>`;
             }
             html += `<td class="cell-col-i">${isHeaderRow ? 'special' : (specialRow ? this.escapeHtml(specialRow.special || '') : '')}</td>`;
             html += `<td class="cell-col-j">${isHeaderRow ? 'count' : (specialRow ? this.escapeHtml(String(specialRow.count ?? '')) : '')}</td>`;
@@ -1387,7 +1491,14 @@ class RightPaneSheetManager {
             html += '</tr>';
         }
 
-        html += '</tbody></table></div>';
+        html += '</tbody></table>';
+        html += '<div class="combo-h-selection-layer" aria-hidden="true">';
+        html += '<div class="combo-h-range-border"></div>';
+        html += '<div class="combo-h-marching-ants" aria-hidden="true">';
+        html += '<svg class="combo-h-marching-ants-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="none">';
+        html += '<rect class="combo-h-marching-ants-rect" x="0.75" y="0.75" width="98.5" height="98.5" fill="none" pathLength="100"/>';
+        html += '</svg></div>';
+        html += '</div></div>';
         return html;
     }
 
@@ -1434,14 +1545,641 @@ class RightPaneSheetManager {
             h1Input.addEventListener('input', () => {
                 this.comboH1Text = h1Input.value;
                 this.save();
+                this.syncComboHColumnWidth(tableWrap);
             });
 
             h1Input.addEventListener('change', () => {
                 this.comboH1Text = h1Input.value;
                 this.save();
+                this.syncComboHColumnWidth(tableWrap);
                 window.dispatchEvent(new CustomEvent('comboControlsChanged', { detail: { sheet: this.activeSheet } }));
             });
         }
+
+        this.wireComboHCommentInputs(tableWrap);
+        this.wireComboHColumnExcel(tableWrap);
+        this.syncComboHColumnWidth(tableWrap);
+    }
+
+    getComboHCommentRowFromCell(cell) {
+        if (!cell) {
+            return NaN;
+        }
+        const input = cell.querySelector('.combo-h-comment-input');
+        return Number(input && input.dataset.comboHRow);
+    }
+
+    getComboHCommentRowList(tableWrap) {
+        const rows = [];
+        tableWrap.querySelectorAll('.combo-h-comment-input').forEach((input) => {
+            const row = Number(input.dataset.comboHRow);
+            if (Number.isFinite(row)) {
+                rows.push(row);
+            }
+        });
+        rows.sort((a, b) => a - b);
+        return rows;
+    }
+
+    getComboHSelectionRowRange() {
+        const sel = this.comboHSelection;
+        if (!sel || !Number.isFinite(sel.anchorRow) || !Number.isFinite(sel.focusRow)) {
+            return null;
+        }
+        return {
+            minRow: Math.min(sel.anchorRow, sel.focusRow),
+            maxRow: Math.max(sel.anchorRow, sel.focusRow)
+        };
+    }
+
+    setComboHCellValue(rowKey, value, tableWrap) {
+        if (!this.comboHComments || typeof this.comboHComments !== 'object') {
+            this.comboHComments = {};
+        }
+        const text = value == null ? '' : String(value);
+        this.comboHComments[String(rowKey)] = text;
+        const wrap = tableWrap || document.getElementById('tableWrap');
+        const input = wrap && wrap.querySelector(`.combo-h-comment-input[data-combo-h-row="${rowKey}"]`);
+        if (input && input.value !== text) {
+            input.value = text;
+        }
+    }
+
+    applyComboHSelectionVisual(tableWrap) {
+        if (!tableWrap) {
+            return;
+        }
+        const range = this.getComboHSelectionRowRange();
+        const focusRow = this.comboHSelection ? this.comboHSelection.focusRow : NaN;
+        const isBlock = !!(range && range.maxRow > range.minRow);
+        tableWrap.querySelectorAll('td.combo-h-comment-cell').forEach((cell) => {
+            cell.classList.remove('combo-h-cell-active', 'combo-h-cell-selected');
+            const row = this.getComboHCommentRowFromCell(cell);
+            if (!Number.isFinite(row) || !range) {
+                return;
+            }
+            if (row >= range.minRow && row <= range.maxRow) {
+                cell.classList.add('combo-h-cell-selected');
+            }
+            if (!isBlock && row === focusRow) {
+                cell.classList.add('combo-h-cell-active');
+            }
+        });
+        this.updateComboHSelectionFrame(tableWrap);
+    }
+
+    getComboHSelectionLayer(tableWrap) {
+        if (!tableWrap) {
+            return null;
+        }
+        return tableWrap.querySelector('.combo-h-selection-layer');
+    }
+
+    updateComboHSelectionFrame(tableWrap) {
+        const layer = this.getComboHSelectionLayer(tableWrap);
+        const sheetWrap = tableWrap && tableWrap.querySelector('.combo-sheet-wrap');
+        if (!layer || !sheetWrap) {
+            return;
+        }
+        let range = this.getComboHSelectionRowRange();
+        if (this._comboHMarchingVisible && this._comboHMarchingRange) {
+            range = this._comboHMarchingRange;
+        }
+        if (!range) {
+            layer.style.display = 'none';
+            return;
+        }
+        const cells = [];
+        tableWrap.querySelectorAll('td.combo-h-comment-cell').forEach((cell) => {
+            const row = this.getComboHCommentRowFromCell(cell);
+            if (Number.isFinite(row) && row >= range.minRow && row <= range.maxRow) {
+                cells.push(cell);
+            }
+        });
+        if (!cells.length) {
+            layer.style.display = 'none';
+            return;
+        }
+        cells.sort((a, b) => this.getComboHCommentRowFromCell(a) - this.getComboHCommentRowFromCell(b));
+        const first = cells[0];
+        const last = cells[cells.length - 1];
+        const wrapRect = sheetWrap.getBoundingClientRect();
+        const firstRect = first.getBoundingClientRect();
+        const lastRect = last.getBoundingClientRect();
+        const top = firstRect.top - wrapRect.top;
+        const left = firstRect.left - wrapRect.left;
+        const width = firstRect.width;
+        const height = lastRect.bottom - firstRect.top;
+        layer.style.display = 'block';
+        layer.style.top = `${top}px`;
+        layer.style.left = `${left}px`;
+        layer.style.width = `${Math.ceil(width)}px`;
+        layer.style.height = `${Math.ceil(height)}px`;
+        layer.classList.toggle('is-marching', !!this._comboHMarchingVisible);
+    }
+
+    hideComboHMarchingAnts(tableWrap) {
+        this._comboHMarchingVisible = false;
+        this._comboHMarchingRange = null;
+        const layer = this.getComboHSelectionLayer(tableWrap || document.getElementById('tableWrap'));
+        if (layer) {
+            layer.classList.remove('is-marching');
+        }
+        this.updateComboHSelectionFrame(tableWrap || document.getElementById('tableWrap'));
+    }
+
+    showComboHMarchingAnts(tableWrap) {
+        const range = this.getComboHSelectionRowRange();
+        if (range) {
+            this._comboHMarchingRange = { minRow: range.minRow, maxRow: range.maxRow };
+        }
+        this._comboHMarchingVisible = true;
+        this.updateComboHSelectionFrame(tableWrap || document.getElementById('tableWrap'));
+    }
+
+    clearComboHRowsInRange(tableWrap, range, excludeRange) {
+        if (!tableWrap || !range) {
+            return;
+        }
+        const rowList = this.getComboHCommentRowList(tableWrap);
+        let changed = false;
+        rowList.forEach((row) => {
+            if (row < range.minRow || row > range.maxRow) {
+                return;
+            }
+            if (excludeRange && row >= excludeRange.minRow && row <= excludeRange.maxRow) {
+                return;
+            }
+            this.setComboHCellValue(row, '', tableWrap);
+            changed = true;
+        });
+        if (changed) {
+            this.save();
+            this.syncComboHColumnWidth(tableWrap);
+        }
+    }
+
+    finishComboHClipboardOp(tableWrap, pasteDestRange) {
+        if (this._comboHCutPending) {
+            this.clearComboHRowsInRange(tableWrap, this._comboHCutPending, pasteDestRange);
+            this._comboHCutPending = null;
+        }
+        if (this._comboHMarchingVisible) {
+            this.hideComboHMarchingAnts(tableWrap);
+        }
+    }
+
+    selectComboHCell(row, opts) {
+        const o = opts || {};
+        const r = Number(row);
+        if (!Number.isFinite(r)) {
+            return;
+        }
+        if (o.extend && this.comboHSelection) {
+            this.comboHSelection = {
+                anchorRow: this.comboHSelection.anchorRow,
+                focusRow: r
+            };
+        } else {
+            this.comboHSelection = { anchorRow: r, focusRow: r };
+        }
+        const tableWrap = document.getElementById('tableWrap');
+        this.applyComboHSelectionVisual(tableWrap);
+    }
+
+    getComboHCellValue(rowKey, tableWrap) {
+        const wrap = tableWrap || document.getElementById('tableWrap');
+        const key = String(rowKey);
+        const input = wrap && wrap.querySelector(`.combo-h-comment-input[data-combo-h-row="${key}"]`);
+        if (input) {
+            return String(input.value || '');
+        }
+        return (this.comboHComments && this.comboHComments[key]) || '';
+    }
+
+    getComboHSelectedValues(tableWrap) {
+        const range = this.getComboHSelectionRowRange();
+        if (!range || !tableWrap) {
+            return [];
+        }
+        const out = [];
+        const rowList = this.getComboHCommentRowList(tableWrap);
+        rowList.forEach((row) => {
+            if (row >= range.minRow && row <= range.maxRow) {
+                out.push({ row, value: this.getComboHCellValue(row, tableWrap) });
+            }
+        });
+        return out;
+    }
+
+    execCommandCopyText(text) {
+        const ta = document.createElement('textarea');
+        ta.value = String(text == null ? '' : text);
+        ta.setAttribute('readonly', '');
+        ta.style.cssText = 'position:fixed;left:-9999px;top:0;width:1px;height:1px;opacity:0;';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        let ok = false;
+        try {
+            ok = document.execCommand('copy');
+        } catch (e) { /* ignore */ }
+        document.body.removeChild(ta);
+        return ok;
+    }
+
+    copyComboHSelectionNow(tableWrap) {
+        const wrap = tableWrap || document.getElementById('tableWrap');
+        const items = this.getComboHSelectedValues(wrap);
+        if (!items.length) {
+            return '';
+        }
+        const text = items.map((item) => item.value).join('\r\n');
+        this._comboHClipboardText = text;
+        if (wrap) {
+            items.forEach((item) => {
+                if (!this.comboHComments || typeof this.comboHComments !== 'object') {
+                    this.comboHComments = {};
+                }
+                this.comboHComments[String(item.row)] = item.value;
+            });
+        }
+        this.execCommandCopyText(text);
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).catch(() => { /* execCommand / internal buffer */ });
+        }
+        return text;
+    }
+
+    clearComboHSelectionValues(tableWrap) {
+        const items = this.getComboHSelectedValues(tableWrap);
+        items.forEach((item) => {
+            this.setComboHCellValue(item.row, '', tableWrap);
+        });
+        if (items.length) {
+            this.save();
+            this.syncComboHColumnWidth(tableWrap);
+        }
+    }
+
+    copyComboHSelectionToClipboard() {
+        this.copyComboHSelectionNow(document.getElementById('tableWrap'));
+        return Promise.resolve();
+    }
+
+    pasteComboHClipboardAtFocus(tableWrap) {
+        if (this._comboHClipboardText) {
+            this.pasteComboHTextAtFocus(tableWrap, this._comboHClipboardText);
+            return Promise.resolve();
+        }
+        const readText = () => {
+            if (navigator.clipboard && navigator.clipboard.readText) {
+                return navigator.clipboard.readText().catch(() => '');
+            }
+            return Promise.resolve('');
+        };
+        return readText().then((raw) => {
+            this.pasteComboHTextAtFocus(tableWrap, raw);
+        });
+    }
+
+    isComboHExcelTarget(target) {
+        if (!target || !target.closest) {
+            return false;
+        }
+        return !!(target.closest('.combo-h-comment-input') || target.closest('td.combo-h-comment-cell'));
+    }
+
+    pasteComboHTextAtFocus(tableWrap, raw) {
+        if (!tableWrap || raw == null) {
+            return;
+        }
+        const sel = this.comboHSelection;
+        let startRow = sel && Number.isFinite(sel.anchorRow) && Number.isFinite(sel.focusRow)
+            ? Math.min(sel.anchorRow, sel.focusRow)
+            : NaN;
+        if (!Number.isFinite(startRow)) {
+            const activeInput = tableWrap.querySelector('.combo-h-comment-input:focus');
+            if (activeInput) {
+                startRow = Number(activeInput.dataset.comboHRow);
+            }
+        }
+        if (!Number.isFinite(startRow)) {
+            return;
+        }
+        const lines = String(raw).replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+        while (lines.length && lines[lines.length - 1] === '') {
+            lines.pop();
+        }
+        const values = lines.map((line) => {
+            const tab = line.split('\t');
+            return tab[0] != null ? tab[0] : '';
+        });
+        if (!values.length || (values.length === 1 && values[0] === '' && String(raw).trim() === '')) {
+            return;
+        }
+        const rowList = this.getComboHCommentRowList(tableWrap);
+        const startIdx = rowList.indexOf(startRow);
+        if (startIdx < 0) {
+            return;
+        }
+        let changed = false;
+        for (let i = 0; i < values.length && startIdx + i < rowList.length; i++) {
+            const row = rowList[startIdx + i];
+            this.setComboHCellValue(row, values[i], tableWrap);
+            changed = true;
+        }
+        if (changed) {
+            const endRow = rowList[Math.min(startIdx + values.length - 1, rowList.length - 1)];
+            const pasteDestRange = { minRow: startRow, maxRow: endRow };
+            this.comboHSelection = { anchorRow: startRow, focusRow: endRow };
+            this.applyComboHSelectionVisual(tableWrap);
+            this.finishComboHClipboardOp(tableWrap, pasteDestRange);
+            this.save();
+            this.syncComboHColumnWidth(tableWrap);
+        }
+    }
+
+    ensureComboHSelectionFromFocus(tableWrap) {
+        if (this.comboHSelection) {
+            return;
+        }
+        const active = document.activeElement;
+        if (!active || !active.classList || !active.classList.contains('combo-h-comment-input')) {
+            return;
+        }
+        if (!tableWrap || !tableWrap.contains(active)) {
+            return;
+        }
+        const row = Number(active.dataset.comboHRow);
+        if (Number.isFinite(row)) {
+            this.selectComboHCell(row);
+        }
+    }
+
+    wireComboHColumnExcel(tableWrap) {
+        if (!tableWrap) {
+            return;
+        }
+        this.applyComboHSelectionVisual(tableWrap);
+        if (this._comboHExcelWired) {
+            return;
+        }
+        this._comboHExcelWired = true;
+        if (!tableWrap.hasAttribute('tabindex')) {
+            tableWrap.setAttribute('tabindex', '0');
+        }
+
+        if (tableWrap.dataset.comboHScrollBound !== '1') {
+            tableWrap.dataset.comboHScrollBound = '1';
+            tableWrap.addEventListener('scroll', () => {
+                if (this.activeSheet === 'combo_1') {
+                    this.updateComboHSelectionFrame(tableWrap);
+                }
+            }, { passive: true });
+        }
+
+        tableWrap.addEventListener('pointerdown', (event) => {
+            if (this.activeSheet !== 'combo_1') {
+                return;
+            }
+            const cell = event.target.closest('td.combo-h-comment-cell');
+            if (!cell) {
+                return;
+            }
+            const row = this.getComboHCommentRowFromCell(cell);
+            if (!Number.isFinite(row)) {
+                return;
+            }
+            const onInput = !!event.target.closest('.combo-h-comment-input');
+            if (event.shiftKey && this.comboHSelection) {
+                this.selectComboHCell(row, { extend: true, keepMarching: false });
+            } else {
+                this.selectComboHCell(row, { keepMarching: false });
+            }
+            this._comboHDragSelect = {
+                anchorRow: row,
+                active: false,
+                pointerId: event.pointerId,
+                startX: event.clientX,
+                startY: event.clientY,
+                onInput
+            };
+            if (!onInput) {
+                const input = cell.querySelector('.combo-h-comment-input');
+                if (input) {
+                    input.focus();
+                }
+            }
+        });
+
+        tableWrap.addEventListener('pointermove', (event) => {
+            if (!this._comboHDragSelect || event.pointerId !== this._comboHDragSelect.pointerId) {
+                return;
+            }
+            if ((event.buttons & 1) === 0) {
+                return;
+            }
+            const drag = this._comboHDragSelect;
+            if (!drag.active) {
+                const dx = Math.abs(event.clientX - drag.startX);
+                const dy = Math.abs(event.clientY - drag.startY);
+                if (dx < 4 && dy < 4) {
+                    return;
+                }
+                drag.active = true;
+                if (drag.onInput) {
+                    event.preventDefault();
+                }
+            }
+            const under = document.elementFromPoint(event.clientX, event.clientY);
+            const cell = under && under.closest ? under.closest('td.combo-h-comment-cell') : null;
+            if (!cell || !tableWrap.contains(cell)) {
+                return;
+            }
+            const row = this.getComboHCommentRowFromCell(cell);
+            if (!Number.isFinite(row)) {
+                return;
+            }
+            this.comboHSelection = { anchorRow: drag.anchorRow, focusRow: row };
+            this.hideComboHMarchingAnts(tableWrap);
+            this.applyComboHSelectionVisual(tableWrap);
+            if (drag.active) {
+                event.preventDefault();
+            }
+        });
+
+        tableWrap.addEventListener('pointerup', (event) => {
+            if (this._comboHDragSelect && event.pointerId === this._comboHDragSelect.pointerId) {
+                this._comboHDragSelect = null;
+            }
+        });
+
+        tableWrap.addEventListener('pointercancel', () => {
+            this._comboHDragSelect = null;
+        });
+
+        tableWrap.addEventListener('keydown', (event) => {
+            if (this.activeSheet !== 'combo_1') {
+                return;
+            }
+            if (!this.isComboHExcelTarget(event.target)) {
+                return;
+            }
+            const key = String(event.key || '').toLowerCase();
+            const mod = event.ctrlKey || event.metaKey;
+
+            this.ensureComboHSelectionFromFocus(tableWrap);
+
+            if ((key === 'delete' || key === 'backspace') && !mod) {
+                if (!this.comboHSelection) {
+                    return;
+                }
+                const range = this.getComboHSelectionRowRange();
+                const multi = range && range.maxRow > range.minRow;
+                const input = event.target.closest('.combo-h-comment-input');
+                if (multi || (input && input.selectionStart === 0 && input.selectionEnd === input.value.length)) {
+                    event.preventDefault();
+                    this.clearComboHSelectionValues(tableWrap);
+                }
+                return;
+            }
+
+            if (key === 'escape') {
+                if (this._comboHMarchingVisible || this._comboHCutPending) {
+                    event.preventDefault();
+                    this._comboHCutPending = null;
+                    this.hideComboHMarchingAnts(tableWrap);
+                }
+                return;
+            }
+
+            if (mod && (key === 'c' || key === 'x')) {
+                if (!this.comboHSelection) {
+                    return;
+                }
+                const items = this.getComboHSelectedValues(tableWrap);
+                if (!items.length) {
+                    return;
+                }
+                event.preventDefault();
+                if (key === 'c') {
+                    this._comboHCutPending = null;
+                } else {
+                    const cutRange = this.getComboHSelectionRowRange();
+                    this._comboHCutPending = cutRange
+                        ? { minRow: cutRange.minRow, maxRow: cutRange.maxRow }
+                        : null;
+                }
+                this.copyComboHSelectionNow(tableWrap);
+                this.showComboHMarchingAnts(tableWrap);
+                return;
+            }
+
+            if (mod && key === 'v') {
+                event.preventDefault();
+                const applyPaste = (raw) => {
+                    let text = raw == null ? '' : String(raw);
+                    if (!text.trim() && this._comboHClipboardText) {
+                        text = this._comboHClipboardText;
+                    }
+                    if (!text.trim() && text !== '0') {
+                        return;
+                    }
+                    this.pasteComboHTextAtFocus(tableWrap, text);
+                };
+                if (this._comboHClipboardText) {
+                    applyPaste(this._comboHClipboardText);
+                    if (navigator.clipboard && navigator.clipboard.readText) {
+                        navigator.clipboard.readText().then((t) => {
+                            if (t && t.trim()) {
+                                this._comboHClipboardText = t;
+                            }
+                        }).catch(() => { /* ignore */ });
+                    }
+                    return;
+                }
+                if (navigator.clipboard && navigator.clipboard.readText) {
+                    navigator.clipboard.readText().then(applyPaste).catch(() => applyPaste(''));
+                    return;
+                }
+                applyPaste('');
+            }
+        });
+
+        tableWrap.addEventListener('paste', (event) => {
+            if (this.activeSheet !== 'combo_1' || !this.isComboHExcelTarget(event.target)) {
+                return;
+            }
+            event.preventDefault();
+            this.ensureComboHSelectionFromFocus(tableWrap);
+            let raw = (event.clipboardData && event.clipboardData.getData('text/plain')) || '';
+            if (!raw.trim() && this._comboHClipboardText) {
+                raw = this._comboHClipboardText;
+            }
+            this.pasteComboHTextAtFocus(tableWrap, raw);
+        });
+    }
+
+    wireComboHCommentInputs(tableWrap) {
+        if (!tableWrap) {
+            return;
+        }
+        tableWrap.querySelectorAll('.combo-h-comment-input').forEach((input) => {
+            if (input.dataset.bound === '1') {
+                return;
+            }
+            input.dataset.bound = '1';
+            input.addEventListener('focus', () => {
+                const row = Number(input.dataset.comboHRow);
+                if (Number.isFinite(row)) {
+                    this.selectComboHCell(row);
+                }
+            });
+            input.addEventListener('input', () => {
+                const rowKey = String(input.dataset.comboHRow || '');
+                if (!rowKey) {
+                    return;
+                }
+                if (!this.comboHComments || typeof this.comboHComments !== 'object') {
+                    this.comboHComments = {};
+                }
+                this.comboHComments[rowKey] = input.value;
+                this.save();
+                this.syncComboHColumnWidth(tableWrap);
+            });
+            input.addEventListener('change', () => {
+                const rowKey = String(input.dataset.comboHRow || '');
+                if (!rowKey) {
+                    return;
+                }
+                if (!this.comboHComments || typeof this.comboHComments !== 'object') {
+                    this.comboHComments = {};
+                }
+                this.comboHComments[rowKey] = input.value;
+                this.save();
+            });
+        });
+    }
+
+    syncComboHColumnWidth(tableWrap) {
+        if (!tableWrap) {
+            return;
+        }
+        const col = tableWrap.querySelector('col.col-h');
+        if (!col) {
+            return;
+        }
+        let maxChars = 14;
+        const h1Input = tableWrap.querySelector('#comboH1CellInput');
+        if (h1Input) {
+            maxChars = Math.max(maxChars, String(h1Input.value || '').length + 1);
+        }
+        tableWrap.querySelectorAll('.combo-h-comment-input').forEach((input) => {
+            maxChars = Math.max(maxChars, String(input.value || '').length + 1);
+        });
+        maxChars = Math.min(Math.max(maxChars, 14), 48);
+        col.style.width = `calc(${maxChars}ch + 12px)`;
     }
 
     /**
@@ -1780,12 +2518,13 @@ class RightPaneSheetManager {
     /**
      * Build the generated note text for a single row.
      */
-    buildNoteForRow(rows, rowIndex, referenceCounts) {
+    buildNoteForRow(rows, rowIndex, referenceCounts, options = {}) {
         const currentRow = rows[rowIndex] || {};
         const currentId = this.parseRowId(currentRow.id || currentRow.ID || '');
         const currentNums = this.parseMainNums(currentRow.result || currentRow.Result || '');
+        const minMainNums = Number.isFinite(options.minMainNums) ? options.minMainNums : 5;
 
-        if (currentId === null || currentNums.length !== 5) {
+        if (currentId === null || currentNums.length < minMainNums) {
             return { text: '?', highlightYellow: false };
         }
 
@@ -1802,8 +2541,8 @@ class RightPaneSheetManager {
                 continue;
             }
 
-            for (let a = 0; a < 4; a++) {
-                for (let b = a + 1; b < 5; b++) {
+            for (let a = 0; a < currentNums.length; a++) {
+                for (let b = a + 1; b < currentNums.length; b++) {
                     if (this.pairExists(prevNums, currentNums[a], currentNums[b])) {
                         if (!matchedNumbersByPrevId.has(prevId)) {
                             matchedNumbersByPrevId.set(prevId, new Set());
@@ -2036,9 +2775,9 @@ class RightPaneSheetManager {
                 continue;
             }
             const row = displayRows[i];
-            const nonexistMeta = this.getNonexistMetaForSourceRow(i, row);
-            const result = row.result || row.Result || '';
-            cell.innerHTML = this.renderNonexistHtml(i, nonexistMeta.text, result);
+            cell.innerHTML = this.renderSourceRowNonexistCellHtml(i, row);
+            tr.classList.toggle('answer-popup-focus-masked', this.shouldAnswerPopupMaskSheet1Row(i));
+            cell.classList.toggle('answer-popup-focus-nonexist', this.shouldAnswerPopupMaskSheet1Row(i));
         }
     }
 
@@ -3460,6 +4199,7 @@ class RightPaneSheetManager {
             comboFocusRowIndex: this.comboFocusRowIndex,
             comboG1Enabled: this.comboG1Enabled,
             comboH1Text: this.comboH1Text,
+            comboHComments: this.comboHComments || {},
             scrollPositions: this.scrollPositions
         };
         try {

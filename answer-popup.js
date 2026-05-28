@@ -21,6 +21,9 @@ class AnswerPopupController {
         this._bound = false;
         this._nextFormSeq = 0;
         this._submitCheckSyncLock = false;
+        this._fireworksLayer = null;
+        this._fireworksTimer = null;
+        this._fireworksBurstTimers = [];
     }
 
     allocFormId() {
@@ -226,10 +229,13 @@ class AnswerPopupController {
             this._submitCheckSyncLock = false;
         }
         this.render();
+        this.syncSheet1FocusMask();
     }
 
     close() {
+        this.clearWinFireworks();
         this.open = false;
+        this.activeTicketId = null;
         this.checked = false;
         this.syncCheckButtonUi();
         const dock = this.el('answerPopupDock');
@@ -240,15 +246,10 @@ class AnswerPopupController {
         if (typeof this.deps.saveLayout === 'function') {
             this.deps.saveLayout();
         }
-        this._submitCheckSyncLock = true;
-        try {
-            this.syncSubmitWithFocusRow(false);
-        } finally {
-            this._submitCheckSyncLock = false;
-        }
         this._leftSyncSilent = true;
-        this.postLeftSync([]);
+        this.postAnswerPopupClosed();
         setTimeout(() => { this._leftSyncSilent = false; }, 80);
+        this.syncSheet1FocusMask();
     }
 
     onFocusRowChanged(rowIndex) {
@@ -282,6 +283,13 @@ class AnswerPopupController {
             } else if (this.activeTicketId) {
                 this.syncLeftFromActiveTicket();
             }
+        }
+        this.syncSheet1FocusMask();
+    }
+
+    syncSheet1FocusMask() {
+        if (typeof this.deps.syncSheet1FocusMask === 'function') {
+            this.deps.syncSheet1FocusMask();
         }
     }
 
@@ -324,6 +332,7 @@ class AnswerPopupController {
             formId: this.allocFormId(),
             nums: [],
             note: '',
+            noteHighlightYellow: false,
             nonexist: nonexist,
             matchNums: [],
             winCount: 0,
@@ -346,8 +355,9 @@ class AnswerPopupController {
 
     buildNoteForNums(nums) {
         const sm = this.getSheetManager();
-        if (!sm || this.focusRowIndex < 0 || !nums || nums.length !== 5) {
-            return '';
+        const len = nums && nums.length ? nums.length : 0;
+        if (!sm || this.focusRowIndex < 0 || len < 2) {
+            return { text: '', highlightYellow: false };
         }
         try {
             const rows = sm.dataRows;
@@ -357,10 +367,19 @@ class AnswerPopupController {
                 }
                 return Object.assign({}, r, { result: nums.join(',') });
             });
-            const meta = sm.buildNoteForRow(tempRows, this.focusRowIndex, new Map());
-            return meta && meta.text ? String(meta.text) : '';
+            const minMainNums = len >= 5 ? 5 : 2;
+            const meta = sm.buildNoteForRow(tempRows, this.focusRowIndex, new Map(), { minMainNums });
+            const raw = meta && meta.text ? String(meta.text).trim() : '';
+            if (len >= 5 && (!raw || raw === '?')) {
+                return { text: '?', highlightYellow: false };
+            }
+            const text = raw === '?' ? '' : raw;
+            return {
+                text,
+                highlightYellow: !!(meta && meta.highlightYellow && text)
+            };
         } catch (e) {
-            return '';
+            return { text: '', highlightYellow: false };
         }
     }
 
@@ -369,10 +388,13 @@ class AnswerPopupController {
             return;
         }
         ticket.nonexist = this.buildNonexistForFocus();
-        if (ticket.nums.length === 5) {
-            ticket.note = this.buildNoteForNums(ticket.nums);
+        if (ticket.nums.length >= 2) {
+            const noteMeta = this.buildNoteForNums(ticket.nums);
+            ticket.note = noteMeta.text;
+            ticket.noteHighlightYellow = noteMeta.highlightYellow;
         } else {
             ticket.note = '';
+            ticket.noteHighlightYellow = false;
         }
         if (this.checked) {
             this.applyCheckToTicket(ticket);
@@ -502,8 +524,14 @@ class AnswerPopupController {
             this.answerNums = sm.parseMainNums(row.result || row.Result || '');
             this.checked = true;
             this.tickets.forEach((t) => this.applyCheckToTicket(t));
+            const hasWin = this.tickets.some((t) => t.isWin);
             this.syncCheckButtonUi();
             this.render();
+            if (hasWin) {
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => this.playWinFireworks());
+                });
+            }
             if (syncSubmit) {
                 this.syncSubmitWithFocusRow(true);
             } else {
@@ -516,6 +544,7 @@ class AnswerPopupController {
                 }
             }, 200);
         } else {
+            this.clearWinFireworks();
             this.checked = false;
             this.activeTicketId = null;
             this._leftSyncSilent = true;
@@ -564,6 +593,106 @@ class AnswerPopupController {
         ticket.isWin = ticket.winCount >= 3 && this.answerNums.length === 5;
     }
 
+    clearWinFireworks() {
+        if (this._fireworksTimer) {
+            clearTimeout(this._fireworksTimer);
+            this._fireworksTimer = null;
+        }
+        if (Array.isArray(this._fireworksBurstTimers)) {
+            this._fireworksBurstTimers.forEach((id) => clearTimeout(id));
+            this._fireworksBurstTimers = [];
+        }
+        if (this._fireworksLayer) {
+            this._fireworksLayer.remove();
+            this._fireworksLayer = null;
+        }
+    }
+
+    spawnWinFireworkBurst(layer, originX, originY) {
+        if (!layer) {
+            return;
+        }
+        const colors = ['#ff6b6b', '#ffd93d', '#6bcb77', '#4d96ff', '#ff922b', '#e599f7', '#fcc419'];
+        const particleCount = 28;
+        for (let i = 0; i < particleCount; i++) {
+            const angle = (Math.PI * 2 * i) / particleCount + (Math.random() - 0.5) * 0.35;
+            const dist = 55 + Math.random() * 75;
+            const p = document.createElement('span');
+            p.className = 'answer-firework-particle';
+            p.style.setProperty('--fx', `${Math.cos(angle) * dist}px`);
+            p.style.setProperty('--fy', `${Math.sin(angle) * dist}px`);
+            p.style.left = `${originX}%`;
+            p.style.top = `${originY}%`;
+            p.style.color = colors[i % colors.length];
+            p.style.background = colors[i % colors.length];
+            p.style.animationDelay = `${Math.random() * 0.12}s`;
+            layer.appendChild(p);
+        }
+        const sparkCount = 14;
+        for (let i = 0; i < sparkCount; i++) {
+            const angle = (Math.PI * 2 * i) / sparkCount + Math.random() * 0.2;
+            const dist = 40 + Math.random() * 55;
+            const deg = (angle * 180) / Math.PI;
+            const s = document.createElement('span');
+            s.className = 'answer-firework-spark';
+            s.style.setProperty('--fx', `${Math.cos(angle) * dist}px`);
+            s.style.setProperty('--fy', `${Math.sin(angle) * dist}px`);
+            s.style.setProperty('--rot', `${deg}deg`);
+            s.style.left = `${originX}%`;
+            s.style.top = `${originY}%`;
+            s.style.background = colors[(i + 2) % colors.length];
+            s.style.animationDelay = `${0.05 + Math.random() * 0.1}s`;
+            layer.appendChild(s);
+        }
+    }
+
+    playWinFireworks() {
+        const panel = this.el('answerPopupPanel');
+        if (!panel) {
+            return;
+        }
+        this.clearWinFireworks();
+        const layer = document.createElement('div');
+        layer.className = 'answer-popup-fireworks';
+        layer.setAttribute('aria-hidden', 'true');
+        panel.appendChild(layer);
+        this._fireworksLayer = layer;
+
+        const winningRows = [];
+        if (this.el('answerTableWrap')) {
+            this.el('answerTableWrap').querySelectorAll('tr.answer-ticket-row.is-winning').forEach((row) => {
+                const panelRect = panel.getBoundingClientRect();
+                const rowRect = row.getBoundingClientRect();
+                const cx = ((rowRect.left + rowRect.width / 2) - panelRect.left) / panelRect.width * 100;
+                const cy = ((rowRect.top + rowRect.height / 2) - panelRect.top) / panelRect.height * 100;
+                winningRows.push({
+                    x: Math.max(12, Math.min(88, cx)),
+                    y: Math.max(18, Math.min(82, cy))
+                });
+            });
+        }
+        const origins = winningRows.length
+            ? winningRows
+            : [{ x: 50, y: 45 }, { x: 35, y: 55 }, { x: 65, y: 50 }];
+
+        const waveDelays = [0, 750, 1500];
+        waveDelays.forEach((waveDelay) => {
+            const timerId = setTimeout(() => {
+                if (this._fireworksLayer !== layer) {
+                    return;
+                }
+                origins.forEach((o) => {
+                    const jx = waveDelay > 0 ? (Math.random() - 0.5) * 12 : 0;
+                    const jy = waveDelay > 0 ? (Math.random() - 0.5) * 8 : 0;
+                    this.spawnWinFireworkBurst(layer, o.x + jx, o.y + jy);
+                });
+            }, waveDelay);
+            this._fireworksBurstTimers.push(timerId);
+        });
+
+        this._fireworksTimer = setTimeout(() => this.clearWinFireworks(), 3000);
+    }
+
     postLeftSync(nums) {
         const frame = this.el('okFrame');
         if (!frame || !frame.contentWindow) {
@@ -587,6 +716,17 @@ class AnswerPopupController {
                 type: 'syncAnswerTicketPreview',
                 nums: (nums || []).slice(0, 5)
             }, '*');
+        } catch (e) { /* ignore */ }
+    }
+
+    /** Đóng Answer popup: chỉ gỡ khoanh preview phiếu, không đổi Submit. */
+    postAnswerPopupClosed() {
+        const frame = this.el('okFrame');
+        if (!frame || !frame.contentWindow) {
+            return;
+        }
+        try {
+            frame.contentWindow.postMessage({ type: 'answerPopupClosed' }, '*');
         } catch (e) { /* ignore */ }
     }
 
@@ -642,8 +782,9 @@ class AnswerPopupController {
         if (!text) {
             return '<span class="answer-ticket-empty">—</span>';
         }
+        const highlightYellow = !!(ticket && ticket.noteHighlightYellow);
         if (sm && typeof sm.renderNoteHtml === 'function') {
-            return sm.renderNoteHtml(text, false);
+            return sm.renderNoteHtml(text, highlightYellow);
         }
         return this.escapeHtml(text);
     }
@@ -680,13 +821,14 @@ class AnswerPopupController {
             const activeCls = active ? ' is-active' : '';
             const resultHtml = this.formatResultHtml(t);
             const noteHtml = this.formatNoteHtml(t);
+            const noteStyle = t.noteHighlightYellow ? ' style="background:#ff0;"' : '';
             const nonexistHtml = this.formatNonexistHtml(t);
             const canRemove = this.tickets.length > ANSWER_MIN_TICKET_COUNT && !this.checked;
             const formId = this.escapeHtml(t.formId || '');
             return `<tr class="answer-ticket-row${activeCls}${winCls}" data-ticket-id="${this.escapeHtml(t.id)}" data-index="${index}">
                 <td class="cell-form-id">${formId}</td>
                 <td class="cell-result answer-cell-result" data-action="pick">${resultHtml}</td>
-                <td class="cell-note">${noteHtml}</td>
+                <td class="cell-note"${noteStyle}>${noteHtml}</td>
                 <td class="cell-nonexist">${nonexistHtml}</td>
                 <td class="answer-cell-btn"><button type="button" class="answer-ticket-remove" data-action="remove" title="Hủy phiếu"${canRemove ? '' : ' disabled'}>−</button></td>
                 <td class="answer-cell-btn"><span class="answer-ticket-drag" data-action="drag" title="Kéo đổi thứ tự">☰</span></td>
