@@ -143,13 +143,22 @@
             opacity: 1;
         }
 
-        /* Submit preview: tạm ẩn vòng khoanh quanh số; viền chuỗi xanh theo đáp án submit (class chuỗi khác). */
-        body.submit-preview-active .cell.num.selected::after,
-        body.submit-preview-active .cell.num.auto-circled::after {
+        /* Answer popup Submit ON: ẩn khoanh cho tới khi click phiếu. Submit thường (Space): giữ khoanh đỏ đã chọn. */
+        body.submit-preview-active.answer-await-ticket-preview .cell.num.selected::after,
+        body.submit-preview-active.answer-await-ticket-preview .cell.num.auto-circled::after {
             opacity: 0 !important;
             border-color: transparent !important;
             box-shadow: none !important;
             transform: translate(-50%, -50%) scale(0.98);
+        }
+
+        /* Submit ON: vòng khoanh đỏ (phiếu Answer hoặc autoring — hành động sau thắng) */
+        body.submit-preview-active .cell.num.answer-ticket-preview-pick::after,
+        body.submit-preview-active .cell.num.answer-submit-overlay-pick::after {
+            opacity: 1 !important;
+            border-color: rgba(255, 0, 0, 0.95) !important;
+            box-shadow: 0 0 6px rgba(255, 0, 0, 0.12) !important;
+            transform: translate(-50%, -50%) scale(1) !important;
         }
 
         .cell.num.auto-circled::after {
@@ -1288,6 +1297,12 @@
         let blockedSet = new Set();
         let simulatedSelected = new Set();
         let submitActive = false;
+        let answerTicketPreviewNums = new Set();
+        /** 'none' | 'ticket-preview' | 'autoring' — hành động sau ghi đè hiển thị khoanh Submit */
+        let submitCircleOverlaySource = 'none';
+        /** Answer popup: sau Submit ON chờ click phiếu mới được khoanh đỏ (không autoring ngay). */
+        let answerPopupTicketPreviewOnly = false;
+        let forceClearPicksOnSubmitOff = false;
         const BLOCK_FEATURE_KEY = 'leftPaneBlockEnabled';
         let blockFeatureEnabled = true;
         let preserveSubmitOnNextProcess = false;
@@ -1487,6 +1502,10 @@
 
         function clearAutoRingSelectionVisuals() {
             autoRingPicked.clear();
+            if (submitActive && submitCircleOverlaySource === 'autoring') {
+                submitCircleOverlaySource = 'none';
+                applySubmitCircleOverlayInDOM();
+            }
             if (!submitActive) {
                 selected.clear();
                 clearPairContributionTracking();
@@ -1603,11 +1622,78 @@
             try { notifyParentLeftCircledNums(); } catch (e) { /* ignore */ }
         }
 
+        function markSubmitCircleOverlayCleared() {
+            submitCircleOverlaySource = 'none';
+            answerTicketPreviewNums = new Set();
+            applySubmitCircleOverlayInDOM();
+        }
+
+        function markSubmitCircleOverlayAutoring() {
+            submitCircleOverlaySource = 'autoring';
+            answerTicketPreviewNums = new Set();
+            applySubmitCircleOverlayInDOM();
+        }
+
+        function setAnswerTicketPreviewNums(nums) {
+            answerTicketPreviewNums = new Set();
+            (nums || []).forEach(function (n) {
+                n = parseInt(n, 10);
+                if (!isNaN(n)) {
+                    answerTicketPreviewNums.add(n);
+                }
+            });
+            if (answerTicketPreviewNums.size > 0) {
+                submitCircleOverlaySource = 'ticket-preview';
+                answerPopupTicketPreviewOnly = false;
+            } else if (submitCircleOverlaySource === 'ticket-preview') {
+                submitCircleOverlaySource = 'none';
+            }
+            applySubmitCircleOverlayInDOM();
+            syncSubmitPreviewBodyClasses();
+        }
+
+        function applySubmitCircleOverlayInDOM() {
+            try {
+                var showPreview = !!submitActive
+                    && submitCircleOverlaySource === 'ticket-preview'
+                    && answerTicketPreviewNums.size > 0;
+                var showAutoring = !!submitActive && submitCircleOverlaySource === 'autoring';
+                ['left', 'right'].forEach(function (paneId) {
+                    var pane = document.getElementById(paneId);
+                    if (!pane) {
+                        return;
+                    }
+                    pane.querySelectorAll('.cell.num[data-num]').forEach(function (span) {
+                        var val = parseInt(span.getAttribute('data-num'), 10);
+                        if (isNaN(val)) {
+                            return;
+                        }
+                        span.classList.remove(
+                            'answer-ticket-preview-pick',
+                            'answer-submit-overlay-pick',
+                            'auto-circled'
+                        );
+                        if (showPreview && answerTicketPreviewNums.has(val)) {
+                            span.classList.add('answer-ticket-preview-pick');
+                        } else if (showAutoring && (selected.has(val) || autoRingPicked.has(val))) {
+                            span.classList.add('answer-submit-overlay-pick');
+                        }
+                    });
+                });
+            } catch (e) { /* ignore */ }
+        }
+
+        /** @deprecated alias */
+        function applyAnswerTicketPreviewInDOM() {
+            applySubmitCircleOverlayInDOM();
+        }
+
         function notifyParentLeftCircledNums() {
             try {
                 window.parent.postMessage({
                     type: 'leftCircledNumsReady',
-                    nums: getLeftPaneCircledNums()
+                    nums: getLeftPaneCircledNums(),
+                    submitActive: !!submitActive
                 }, '*');
             } catch (e) { }
         }
@@ -1705,6 +1791,14 @@
         function applyAutoRingSelection(circleNums) {
             circleNums = (circleNums || []).filter(function (n) { return !isNaN(n); });
             if (!circleNums.length) return false;
+
+            if (submitActive) {
+                if (answerPopupTicketPreviewOnly) {
+                    try { markSubmitCircleOverlayCleared(); } catch (e) { /* ignore */ }
+                } else {
+                    markSubmitCircleOverlayAutoring();
+                }
+            }
 
             /* Khoanh trước số có tần suất cao — tránh đủ 5 slot toàn số freq thấp, bỏ lỡ số quan sát freq>=2 */
             if (!submitActive && raw && raw.freq) {
@@ -4380,6 +4474,11 @@
             } catch (e) { }
             try { updateTailListNeonHints(); } catch (eTailAfterRender) { /* ignore */ }
             try { scheduleSyncPairNeonHintAnimations(); } catch (eNeonSync) { /* ignore */ }
+            try {
+                if (submitActive) {
+                    applySubmitCircleOverlayInDOM();
+                }
+            } catch (eOv1) { /* ignore */ }
         }
 
         /** Dòng chuỗi (0..9) đầu tiên có cả hai số a,b trong kết quả 5 số. */
@@ -4456,11 +4555,7 @@
         /** Gắn/gỡ class viền chuỗi tại chỗ — theo cặp đang khoanh trên strip pair hoặc tail. Submit ON: theo simulated. */
         function syncChuoiPairTrackedSoloInDOM() {
             try {
-                try {
-                    if (document.body) {
-                        document.body.classList.toggle('submit-preview-active', !!submitActive);
-                    }
-                } catch (eB) { /* ignore */ }
+                try { syncSubmitPreviewBodyClasses(); } catch (eB) { /* ignore */ }
                 const right = document.getElementById('right');
                 if (!right) {
                     return;
@@ -4598,6 +4693,11 @@
             html += '</table>';
             right.innerHTML = html;
             try { syncChuoiPairTrackedSoloInDOM(); } catch (eSync) { /* ignore */ }
+            try {
+                if (submitActive) {
+                    applySubmitCircleOverlayInDOM();
+                }
+            } catch (eOv2) { /* ignore */ }
             // compute heights/widths and position floating buttons after DOM updated
             setTimeout(function () { computeAndApplyHeights(); }, 0);
         }
@@ -5605,6 +5705,46 @@
             } catch (e) { console.error(e); }
         }
 
+        function forceClearLeftPickSelection() {
+            try {
+                setAnswerTicketPreviewNums([]);
+                try { markSubmitCircleOverlayCleared(); } catch (ePrevClr) { /* ignore */ }
+                if (submitActive) {
+                    toggleSubmitOnSpace();
+                }
+                selectionCleared = false;
+                clearedSelectionBackup = null;
+                clearedPickOrderBackup = null;
+                clearedFocusBackup = null;
+                clearedPairNeonObserveNumBackup = null;
+                clearedPairNeonObserveContextBeyondLonePairBackup = null;
+                selected.clear();
+                transientSelected.clear();
+                simulatedSelected.clear();
+                pickOrder = [];
+                pairNeonObserveNum = null;
+                resetPairNeonObserveContextBeyondLonePair();
+                clearPairContributionTracking();
+                try {
+                    currentPhaseNumber = null;
+                    currentPhaseRow = null;
+                    lastClickedNumber = null;
+                    lastClickedRow = null;
+                    lastClickedRegion = null;
+                    leftKeyboardRegion = null;
+                } catch (eFocus) { /* ignore */ }
+                try {
+                    recomputePairsFromSelected();
+                    updateBlocked();
+                    applySelectionAndBlockedInDOM();
+                    updateFloatingCopyButtons();
+                    alignTableActionsAndCenter();
+                    updateFocusIndicator();
+                    refreshLeftPickSelectionUi();
+                } catch (eDom) { /* ignore */ }
+            } catch (e) { console.error(e); }
+        }
+
         // Toggle clear/restore all selected numbers (used by Reset button and 'q' key)
         function toggleClearSelection() {
             try {
@@ -5718,6 +5858,101 @@
             } catch (e) { console.error(e); }
         }
 
+        function syncSubmitPreviewBodyClasses() {
+            try {
+                if (!document.body) {
+                    return;
+                }
+                document.body.classList.toggle('submit-preview-active', !!submitActive);
+                document.body.classList.toggle(
+                    'answer-await-ticket-preview',
+                    !!submitActive && !!answerPopupTicketPreviewOnly
+                );
+            } catch (e) { /* ignore */ }
+        }
+
+        function clearLeftManualPicksForSubmitOn() {
+            answerPopupTicketPreviewOnly = true;
+            try { markSubmitCircleOverlayCleared(); } catch (e) { /* ignore */ }
+            selected.clear();
+            transientSelected.clear();
+            pickOrder = [];
+            clearPairContributionTracking();
+            pairNeonObserveNum = null;
+            currentPairIndex = -1;
+            currentTailIndex = -1;
+            syncSubmitPreviewBodyClasses();
+        }
+
+        function clearLeftPickStateAfterSubmitOff() {
+            answerPopupTicketPreviewOnly = false;
+            try { markSubmitCircleOverlayCleared(); } catch (e) { /* ignore */ }
+            simulatedSelected.clear();
+            selected.clear();
+            transientSelected.clear();
+            pickOrder = [];
+            clearPairContributionTracking();
+            pairNeonObserveNum = null;
+            currentPairIndex = -1;
+            currentTailIndex = -1;
+            preSubmitSelected = null;
+            preSubmitOrder = null;
+            syncSubmitPreviewBodyClasses();
+        }
+
+        function setSubmitActiveFromParent(wantActive, numsOverride, options) {
+            try {
+                var opts = options || {};
+                if (disableSubmitForCurrentData && wantActive) return;
+                if (Array.isArray(numsOverride) && numsOverride.length) {
+                    answerNums = numsOverride
+                        .map(function (x) { return parseInt(x, 10); })
+                        .filter(function (n) { return !isNaN(n); })
+                        .slice(0, MAX_PICK_NUMBERS);
+                }
+                if (wantActive && (!answerNums || !answerNums.length)) return;
+                if (!!wantActive === !!submitActive) {
+                    if (wantActive) {
+                        if (opts.clearManualPicks) {
+                            clearLeftManualPicksForSubmitOn();
+                        }
+                        simulatedSelected.clear();
+                        (answerNums || []).forEach(function (n) { simulatedSelected.add(n); });
+                        try { syncPickOrderForSubmitState(); } catch (e) { /* ignore */ }
+                        try { applySubmitState(); } catch (e) { /* ignore */ }
+                        try { applySelectionAndBlockedInDOM(); } catch (e) { /* ignore */ }
+                        try { applySubmitCircleOverlayInDOM(); } catch (e) { /* ignore */ }
+                        try {
+                            var sbKeep = document.getElementById('submitBtn');
+                            if (sbKeep) sbKeep.classList.add('active');
+                        } catch (e) { /* ignore */ }
+                        try {
+                            if (window.parent && window.parent !== window) {
+                                window.parent.postMessage({ type: 'submitStateChanged', submitActive: true }, '*');
+                            }
+                        } catch (e) { /* ignore */ }
+                    } else if (opts.clearManualPicks) {
+                        clearLeftPickStateAfterSubmitOff();
+                        try { applySubmitState(); } catch (e) { /* ignore */ }
+                        try { applySelectionAndBlockedInDOM(); } catch (e) { /* ignore */ }
+                        try { applySubmitCircleOverlayInDOM(); } catch (e) { /* ignore */ }
+                        try { updatePairList(); } catch (e) { /* ignore */ }
+                        try { refreshPairTailSelectionState(); } catch (e) { /* ignore */ }
+                        try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
+                        try {
+                            var sbOff = document.getElementById('submitBtn');
+                            if (sbOff) sbOff.classList.remove('active');
+                        } catch (e) { /* ignore */ }
+                    }
+                    return;
+                }
+                if (!wantActive && opts.clearManualPicks) {
+                    forceClearPicksOnSubmitOff = true;
+                }
+                toggleSubmitOnSpace();
+            } catch (e) { console.error(e); }
+        }
+
         function toggleSubmitOnSpace() {
             try {
                 if (disableSubmitForCurrentData) return;
@@ -5731,9 +5966,20 @@
                 // keep submit button appearance in sync with preview state
                 try { var sb = document.getElementById('submitBtn'); if (sb) sb.classList.toggle('active', submitActive); } catch (e) { }
                 if (submitActive) {
+                    if (!answerPopupTicketPreviewOnly) {
+                        try { markSubmitCircleOverlayCleared(); } catch (eClrOv) { /* ignore */ }
+                    }
                     preSubmitSelected = new Set(selected);
                     preSubmitOrder = pickOrder ? pickOrder.slice() : [];
-                    pairNeonObserveNum = null;
+                    if (answerPopupTicketPreviewOnly) {
+                        selected.clear();
+                        transientSelected.clear();
+                        pickOrder = [];
+                        clearPairContributionTracking();
+                        pairNeonObserveNum = null;
+                        currentPairIndex = -1;
+                        currentTailIndex = -1;
+                    }
                     simulatedSelected.clear();
                     (answerNums || []).forEach(function (n) { simulatedSelected.add(n); });
                     syncPickOrderForSubmitState();
@@ -5781,48 +6027,57 @@
                     recomputePairsFromSelected();
                     updateBlocked();
                 } else {
-                    simulatedSelected.clear();
-                    var restoreUsedAutoring = false;
-                    try {
-                        // Khôi phục khoanh thủ công trước khi bật submit; chỉ dùng autoring khi lúc bật submit không có số nào được khoanh.
-                        var hadPreSubmitSelection = !!(preSubmitSelected && preSubmitSelected.size > 0);
-                        if (hadPreSubmitSelection) {
-                            selected = new Set(preSubmitSelected);
-                            clearPairContributionTracking();
-                            if (preSubmitOrder && preSubmitOrder.length) {
-                                pickOrder = preSubmitOrder.slice();
+                    if (forceClearPicksOnSubmitOff) {
+                        forceClearPicksOnSubmitOff = false;
+                        clearLeftPickStateAfterSubmitOff();
+                    } else {
+                        answerPopupTicketPreviewOnly = false;
+                        markSubmitCircleOverlayCleared();
+                        simulatedSelected.clear();
+                        var restoreUsedAutoring = false;
+                        try {
+                            var hadPreSubmitSelection = !!(preSubmitSelected && preSubmitSelected.size > 0);
+                            if (hadPreSubmitSelection) {
+                                selected = new Set(preSubmitSelected);
+                                clearPairContributionTracking();
+                                if (preSubmitOrder && preSubmitOrder.length) {
+                                    pickOrder = preSubmitOrder.slice();
+                                }
+                            } else if (submitAutoCircleEnabled && autoRingPicked.size > 0) {
+                                restoreUsedAutoring = true;
+                                selected.clear();
+                                clearPairContributionTracking();
+                                autoRingPicked.forEach(function (n) {
+                                    if (!isNaN(n)) selected.add(n);
+                                });
+                                pickOrder = Array.from(autoRingPicked)
+                                    .filter(function (n) { return !isNaN(n); })
+                                    .slice(0, MAX_PICK_NUMBERS);
+                            } else if (preSubmitSelected) {
+                                selected = new Set(preSubmitSelected);
+                                clearPairContributionTracking();
+                                if (preSubmitOrder && preSubmitOrder.length) {
+                                    pickOrder = preSubmitOrder.slice();
+                                }
                             }
-                        } else if (submitAutoCircleEnabled && autoRingPicked.size > 0) {
-                            restoreUsedAutoring = true;
-                            selected.clear();
-                            clearPairContributionTracking();
-                            autoRingPicked.forEach(function (n) {
-                                if (!isNaN(n)) selected.add(n);
-                            });
-                            pickOrder = Array.from(autoRingPicked)
-                                .filter(function (n) { return !isNaN(n); })
-                                .slice(0, MAX_PICK_NUMBERS);
-                        } else if (preSubmitSelected) {
-                            selected = new Set(preSubmitSelected);
-                            clearPairContributionTracking();
-                            if (preSubmitOrder && preSubmitOrder.length) {
-                                pickOrder = preSubmitOrder.slice();
+                            syncPickOrderForSubmitState();
+                        } catch (e) { /* ignore */ }
+                        try {
+                            notePairNeonObserveContextFromEffectiveSize();
+                        } catch (eNoteCtx) { /* ignore */ }
+                        try {
+                            if (restoreUsedAutoring) {
+                                assignPairNeonObserveNumFromAutoRingCircleNums(Array.from(autoRingPicked));
+                            } else if (selected && selected.size > 0) {
+                                assignPairNeonObserveNumFromCurrentSelected();
+                            } else {
+                                pairNeonObserveNum = null;
                             }
-                        }
-                        syncPickOrderForSubmitState();
-                    } catch (e) { }
-                    try {
-                        notePairNeonObserveContextFromEffectiveSize();
-                    } catch (eNoteCtx) { /* ignore */ }
-                    try {
-                        if (restoreUsedAutoring) {
-                            assignPairNeonObserveNumFromAutoRingCircleNums(Array.from(autoRingPicked));
-                        } else if (selected && selected.size > 0) {
-                            assignPairNeonObserveNumFromCurrentSelected();
-                        } else {
-                            pairNeonObserveNum = null;
-                        }
-                    } catch (eNeonAs) { /* ignore */ }
+                        } catch (eNeonAs) { /* ignore */ }
+                        preSubmitSelected = null;
+                        preSubmitOrder = null;
+                        syncSubmitPreviewBodyClasses();
+                    }
                     if (modeSynced && userModeBeforeSubmit !== null && modeEl) {
                         modeEl.value = userModeBeforeSubmit;
                         modeEl.classList.remove('synced-mode');
@@ -5830,8 +6085,6 @@
                     if (modeEl) modeEl.classList.remove('synced-mode');
                     userModeBeforeSubmit = null;
                     modeSynced = false;
-                    preSubmitSelected = null;
-                    preSubmitOrder = null;
                     recomputePairsFromSelected();
                     updateBlocked();
                 }
@@ -5842,23 +6095,23 @@
                         try { applySelectionAndBlockedInDOM(); } catch (e) { }
                         try { updatePairList(); } catch (e) { }
                         refreshPairTailSelectionState();
-                        try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
                         try {
                             if (window.parent && window.parent !== window) {
                                 window.parent.postMessage({ type: 'submitStateChanged', submitActive: submitActive }, '*');
                             }
                         } catch (e) { }
+                        try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
                         return;
                     }
                 } catch (e) { /* fallback below */ }
                 // fallback: full rerender when DOM not present
                 renderTable1(); renderTable2(); try { updatePairList(); } catch (e) { } try { refreshPairTailSelectionState(); } catch (e) { } alignTableActionsAndCenter(); updateFloatingCopyButtons();
-                try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
                 try {
                     if (window.parent && window.parent !== window) {
                         window.parent.postMessage({ type: 'submitStateChanged', submitActive: submitActive }, '*');
                     }
                 } catch (e) { }
+                try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
             } catch (e) { console.error(e); }
         }
 
@@ -6319,6 +6572,16 @@
                         toggleClearSelection();
                     } catch (eQ) { /* ignore */ }
                     e.preventDefault();
+                    return;
+                }
+
+                if ((e.code === 'KeyE' || e.key === 'e' || e.key === 'E') && !e.ctrlKey && !e.metaKey && !e.altKey) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    try {
+                        forceClearLeftPickSelection();
+                        window.parent.postMessage({ type: 'toggleAnswerPopup' }, '*');
+                    } catch (eAns) { /* ignore */ }
                     return;
                 }
 
@@ -6842,6 +7105,9 @@
                 try { refreshPairTailSelectionState(); } catch (eRf) { /* ignore */ }
                 try { syncChuoiPairTrackedSoloInDOM(); } catch (eSyncCh) { /* ignore */ }
 
+                try { applySubmitCircleOverlayInDOM(); } catch (ePrev) { /* ignore */ }
+                try { syncSubmitPreviewBodyClasses(); } catch (eBodyCls) { /* ignore */ }
+
                 // blocked classes already handled per-number above
                 try { updateFocusIndicator(); } catch (e) { }
             } catch (e) { console.error(e); }
@@ -7073,6 +7339,35 @@
                         }, '*');
                     } catch (e) { }
                     return;
+                } else if (msg.type === 'clearLeftPickForAnswer') {
+                    try { forceClearLeftPickSelection(); } catch (eClr) { /* ignore */ }
+                    return;
+                } else if (msg.type === 'syncAnswerTicketPreview') {
+                    setAnswerTicketPreviewNums(msg.nums);
+                    return;
+                } else if (msg.type === 'syncAnswerPickSelection') {
+                    if (submitActive) {
+                        return;
+                    }
+                    const pickNums = (msg.nums || [])
+                        .map(function (x) { return parseInt(x, 10); })
+                        .filter(function (n) { return !isNaN(n); })
+                        .slice(0, MAX_PICK_NUMBERS);
+                    selected.clear();
+                    transientSelected.clear();
+                    simulatedSelected.clear();
+                    pickOrder = pickNums.slice();
+                    pickNums.forEach(function (n) { selected.add(n); });
+                    try { recomputePairsFromSelected(); } catch (eR) { /* ignore */ }
+                    try { updateBlocked(); } catch (eB) { /* ignore */ }
+                    try {
+                        applySelectionAndBlockedInDOM();
+                        updateFloatingCopyButtons();
+                        alignTableActionsAndCenter();
+                        updateFocusIndicator();
+                    } catch (eD) { /* ignore */ }
+                    try { refreshLeftPickSelectionUi(); } catch (eU) { /* ignore */ }
+                    return;
                 } else if (msg.type === 'submitAutoCircleChanged') {
                     const wasEnabled = submitAutoCircleEnabled;
                     submitAutoCircleEnabled = !!msg.enabled;
@@ -7168,6 +7463,10 @@
                         try { notifyParentLeftCircledNums(); } catch (e) { }
                     }
                     try { applySubmitState(); } catch (e) { }
+                } else if (msg.type === 'setSubmitActive') {
+                    setSubmitActiveFromParent(!!msg.active, msg.answerNums, {
+                        clearManualPicks: !!msg.clearManualPicks
+                    });
                 } else if (msg.type === 'toggleSubmit') {
                     toggleSubmitOnSpace();
                 }

@@ -1277,6 +1277,14 @@
             cursor: ew-resize;
         }
 
+        .filter-popup-resize-se {
+            right: 0;
+            bottom: 0;
+            width: 14px;
+            height: 14px;
+            cursor: nwse-resize;
+        }
+
         .filter-popup-empty {
             padding: 20px 12px;
             text-align: center;
@@ -1834,6 +1842,404 @@
             scroll-padding-bottom: 40px;
             scrollbar-gutter: stable;
         }
+
+        /* Answer popup (E) — shell giống Ctrl filter popup */
+        .answer-popup-panel.filter-popup-panel {
+            --ap-scale: 1;
+            resize: both;
+            overflow: hidden;
+            width: min(520px, 44vw);
+            height: min(58vh, 440px);
+            min-width: 228px;
+            min-height: 160px;
+            font-size: calc(12px * var(--ap-scale, 1));
+        }
+
+        .answer-popup-dock {
+            position: fixed;
+            z-index: 1250;
+            top: 88px;
+            left: 48px;
+            right: auto;
+            max-width: calc(100vw - 24px);
+            max-height: calc(100vh - 24px);
+            pointer-events: none;
+        }
+
+        .answer-popup-dock.hidden {
+            visibility: hidden;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .answer-popup-panel .filter-popup-header {
+            flex-shrink: 0;
+            align-items: center;
+            padding: calc(4px * var(--ap-scale, 1)) calc(6px * var(--ap-scale, 1));
+            gap: calc(6px * var(--ap-scale, 1));
+            min-height: calc(32px * var(--ap-scale, 1));
+        }
+
+        .answer-popup-panel .answer-popup-header-left.filter-popup-filter-tools.sheet-tools-group {
+            display: flex;
+            flex-direction: row;
+            flex-wrap: nowrap;
+            align-items: center;
+            align-self: center;
+            flex: 1;
+            min-width: 0;
+            gap: 0;
+            height: auto;
+        }
+
+        .answer-popup-panel .answer-popup-header-left .filter-popup-title-label {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-sizing: border-box;
+            margin: 0;
+            font-size: 1em;
+            height: calc(28px * var(--ap-scale, 1));
+            line-height: 1;
+            padding: 0 calc(8px * var(--ap-scale, 1)) 0 calc(4px * var(--ap-scale, 1));
+            border-right: 1px solid #cbd5e1;
+        }
+
+        .answer-popup-panel .answer-popup-focus-meta {
+            display: inline-flex;
+            align-items: center;
+            justify-content: flex-start;
+            flex-shrink: 1;
+            min-width: 0;
+            height: calc(28px * var(--ap-scale, 1));
+            padding: 0 calc(8px * var(--ap-scale, 1));
+            font-size: 1em;
+            font-weight: 600;
+            line-height: 1;
+            color: #334155;
+            white-space: nowrap;
+            border-right: 1px solid #cbd5e1;
+            background: #f8fafc;
+            max-width: calc(200px * var(--ap-scale, 1));
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .answer-popup-header-right {
+            display: flex;
+            align-items: center;
+            gap: calc(6px * var(--ap-scale, 1));
+            flex-shrink: 0;
+            margin-left: auto;
+            align-self: center;
+        }
+
+        #answerPopupCheckBtn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            box-sizing: border-box;
+            font-size: 1em;
+            padding: 0 calc(10px * var(--ap-scale, 1));
+            margin: 0 0 0 calc(8px * var(--ap-scale, 1));
+            font-weight: bold;
+            cursor: pointer;
+            background: none;
+            border: 1px solid #ccc;
+            border-radius: calc(6px * var(--ap-scale, 1));
+            height: calc(28px * var(--ap-scale, 1));
+            line-height: 1;
+            color: #111;
+            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+        }
+
+        #answerPopupCheckBtn.active {
+            background: #2e7d32;
+            color: #ffffff;
+            border-color: #1b5e20;
+        }
+
+        #answerPopupClearBtn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            font-size: 1em;
+            padding: 0 calc(10px * var(--ap-scale, 1));
+            font-weight: bold;
+            cursor: pointer;
+            margin: 0;
+            height: calc(28px * var(--ap-scale, 1));
+            line-height: 1;
+            background: #ffffff;
+            color: #ff0000;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+        }
+
+        #answerPopupClearBtn:hover {
+            background: #fff5f5;
+            border-color: #f87171;
+        }
+
+        .answer-popup-panel .answer-popup-body {
+            flex: 1;
+            min-height: 0;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            overflow: hidden;
+            padding: 0 calc(6px * var(--ap-scale, 1)) calc(6px * var(--ap-scale, 1)) 0;
+        }
+
+        #answerTableWrap {
+            position: relative;
+            flex: 1;
+            min-height: 0;
+            min-width: 0;
+            overflow: auto;
+            margin-top: 0;
+            padding-bottom: calc(8px * var(--ap-scale, 1));
+            font-size: 1em;
+            scroll-padding-top: 28px;
+            scroll-padding-bottom: 32px;
+            scrollbar-gutter: stable;
+        }
+
+        #answerTableWrap table,
+        #answerTableWrap th,
+        #answerTableWrap td {
+            background: #ffffff;
+            color: #111111;
+        }
+
+        #answerTableWrap .sheet-data-table {
+            width: 100%;
+            min-width: 0;
+            table-layout: fixed;
+        }
+
+        #answerTableWrap .sheet-data-table th,
+        #answerTableWrap .sheet-data-table td {
+            padding: calc(3px * var(--ap-scale, 1)) calc(5px * var(--ap-scale, 1));
+            vertical-align: middle;
+            font-size: inherit;
+        }
+
+        #answerTableWrap .answer-ticket-table col.col-form-id {
+            width: 11%;
+        }
+
+        #answerTableWrap .answer-ticket-table col.col-result {
+            width: 17%;
+        }
+
+        #answerTableWrap .answer-ticket-table col.col-note,
+        #answerTableWrap .answer-ticket-table col.col-nonexist {
+            width: 30%;
+        }
+
+        #answerTableWrap .answer-ticket-table col.col-action {
+            width: calc(40px * var(--ap-scale, 1));
+        }
+
+        #answerTableWrap .sheet-data-table thead th {
+            white-space: nowrap;
+            overflow: visible;
+            text-overflow: clip;
+        }
+
+        #answerTableWrap .sheet-data-table td.cell-form-id {
+            white-space: nowrap;
+            text-align: center;
+            font-weight: 700;
+        }
+
+        #answerTableWrap .sheet-data-table td.cell-result {
+            white-space: nowrap;
+        }
+
+        #answerTableWrap .sheet-data-table thead th:nth-child(5),
+        #answerTableWrap .sheet-data-table thead th:nth-child(6),
+        #answerTableWrap .sheet-data-table td.answer-cell-btn {
+            width: calc(40px * var(--ap-scale, 1));
+            min-width: calc(40px * var(--ap-scale, 1));
+            max-width: calc(40px * var(--ap-scale, 1));
+            white-space: nowrap;
+            text-align: center;
+            padding: calc(3px * var(--ap-scale, 1));
+            overflow: visible;
+            box-sizing: border-box;
+        }
+
+        #answerTableWrap .sheet-data-table td.cell-note,
+        #answerTableWrap .sheet-data-table td.cell-nonexist {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        #answerTableWrap .sheet-data-table td.cell-note *,
+        #answerTableWrap .sheet-data-table td.cell-nonexist * {
+            white-space: nowrap;
+        }
+
+        #answerTableWrap tr.answer-ticket-row {
+            cursor: pointer;
+        }
+
+        #answerTableWrap.is-check-mode tr.answer-ticket-row {
+            cursor: pointer;
+        }
+
+        #answerTableWrap tr.answer-ticket-row.is-active td {
+            box-shadow: inset 0 0 0 2px #1d4ed8;
+        }
+
+        #answerTableWrap tr.answer-ticket-row.is-winning td {
+            box-shadow: inset 0 0 0 2px #22c55e, 0 0 10px rgba(34, 197, 94, 0.35);
+        }
+
+        #answerTableWrap tr.answer-ticket-row.is-drag-source {
+            display: none;
+            pointer-events: none;
+        }
+
+        #answerTableWrap.is-ticket-row-dragging tbody tr.answer-ticket-row {
+            transition: none !important;
+        }
+
+        #answerTableWrap tr.answer-ticket-drag-placeholder td {
+            padding: 0 !important;
+            background: #f1f5f9;
+            box-shadow: inset 0 0 0 2px #94a3b8;
+            border-radius: calc(2px * var(--ap-scale, 1));
+        }
+
+        #answerTableWrap .answer-ticket-drag-ghost {
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 30;
+            margin: 0;
+            padding: 0;
+            pointer-events: none;
+            box-sizing: border-box;
+            font-size: inherit;
+            will-change: transform;
+            filter: drop-shadow(0 4px 12px rgba(15, 23, 42, 0.18));
+        }
+
+        #answerTableWrap .answer-ticket-drag-ghost > table.sheet-data-table {
+            margin: 0;
+            border-collapse: collapse;
+            table-layout: fixed;
+            background: transparent;
+            border: none;
+            box-shadow: none;
+        }
+
+        #answerTableWrap .answer-ticket-drag-ghost tr.answer-ticket-row {
+            cursor: grabbing;
+        }
+
+        #answerTableWrap .answer-ticket-drag.is-dragging-handle {
+            cursor: grabbing;
+            background: #e2e8f0;
+            border-color: #64748b;
+        }
+
+        #answerTableWrap .answer-ticket-drag {
+            touch-action: none;
+        }
+
+        #answerTableWrap .answer-ticket-remove,
+        #answerTableWrap .answer-ticket-drag {
+            width: calc(28px * var(--ap-scale, 1));
+            height: calc(28px * var(--ap-scale, 1));
+            min-width: calc(28px * var(--ap-scale, 1));
+            min-height: calc(28px * var(--ap-scale, 1));
+            padding: 0;
+            border: 1px solid #cbd5e1;
+            border-radius: calc(4px * var(--ap-scale, 1));
+            background: #fff;
+            color: #334155;
+            font-size: calc(14px * var(--ap-scale, 1));
+            line-height: 1;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            flex-shrink: 0;
+        }
+
+        #answerTableWrap .answer-ticket-remove:disabled {
+            opacity: 0.35;
+            cursor: default;
+        }
+
+        #answerTableWrap .answer-ticket-drag {
+            cursor: grab;
+            color: #64748b;
+        }
+
+        #answerTableWrap .answer-pick-num {
+            cursor: pointer;
+        }
+
+        #answerTableWrap .answer-num-hit {
+            color: #006400;
+            font-weight: 700;
+        }
+
+        #answerTableWrap .answer-ticket-empty {
+            color: #94a3b8;
+        }
+
+        .answer-popup-add-bar {
+            flex-shrink: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: calc(6px * var(--ap-scale, 1)) 0;
+            border-top: 1px solid #e2e8f0;
+            background: #f8fafc;
+        }
+
+        .answer-popup-add-btn {
+            width: calc(30px * var(--ap-scale, 1));
+            height: calc(30px * var(--ap-scale, 1));
+            padding: 0;
+            border: 1px solid #94a3b8;
+            border-radius: calc(4px * var(--ap-scale, 1));
+            background: #fff;
+            font-size: calc(18px * var(--ap-scale, 1));
+            line-height: 1;
+            cursor: pointer;
+            color: #334155;
+        }
+
+        .answer-popup-add-btn:hover {
+            background: #f1f5f9;
+            border-color: #2563eb;
+            color: #1d4ed8;
+        }
+
+        .answer-popup-panel .filter-popup-close {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            width: calc(26px * var(--ap-scale, 1));
+            height: calc(28px * var(--ap-scale, 1));
+            font-size: calc(16px * var(--ap-scale, 1));
+            line-height: 1;
+            padding: 0;
+        }
     </style>
 </head>
 
@@ -2004,7 +2410,38 @@
         </div>
     </div>
 
+    <div id="answerPopupDock" class="filter-popup-dock answer-popup-dock hidden" aria-hidden="true">
+        <div id="answerPopupPanel" class="filter-popup-panel answer-popup-panel" role="dialog" aria-label="Answer popup">
+            <div id="answerPopupHeader" class="filter-popup-header">
+                <div
+                    class="filter-popup-filter-tools sheet-tools-group filter-tools-group answer-popup-header-left">
+                    <span class="filter-popup-title-label">Answer</span>
+                    <span id="answerPopupFocusMeta" class="answer-popup-focus-meta"></span>
+                    <button type="button" id="answerPopupCheckBtn" title="Check / xem đáp án (toggle)">Check</button>
+                </div>
+                <div class="answer-popup-header-right">
+                    <button type="button" id="answerPopupClearBtn" title="Xóa toàn bộ phiếu">Clear</button>
+                    <button type="button" id="answerPopupClose" class="filter-popup-close" title="Ẩn Answer (E)">×</button>
+                </div>
+            </div>
+            <div class="filter-popup-body answer-popup-body">
+                <div id="answerTableWrap" class="right-table-viewport" tabindex="0" aria-label="Phiếu trả lời"></div>
+                <div class="answer-popup-add-bar">
+                    <button type="button" id="answerPopupAddBtn" class="answer-popup-add-btn"
+                        title="Thêm phiếu trả lời">+</button>
+                </div>
+            </div>
+            <div class="filter-popup-resize-handle filter-popup-resize-n" data-resize="n" aria-hidden="true"></div>
+            <div class="filter-popup-resize-handle filter-popup-resize-e" data-resize="e" aria-hidden="true"></div>
+            <div class="filter-popup-resize-handle filter-popup-resize-s" data-resize="s" aria-hidden="true"></div>
+            <div class="filter-popup-resize-handle filter-popup-resize-w" data-resize="w" aria-hidden="true"></div>
+            <div class="filter-popup-resize-handle filter-popup-resize-se" data-resize="se" aria-hidden="true"
+                title="Kéo đổi kích thước"></div>
+        </div>
+    </div>
+
     <script src="right-pane-sheets.js"></script>
+    <script src="answer-popup.js"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
         const MAX_NUM = 35; // support up to 35
@@ -2018,6 +2455,7 @@
         const PERIOD_FILTER_ENABLED_KEY = 'periodFilterEnabled';
         const PERIOD_FILTER_MODE_KEY = 'periodFilterMode';
         const FILTER_POPUP_LAYOUT_KEY = 'filterPopupLayout';
+        const ANSWER_POPUP_LAYOUT_KEY = 'answerPopupLayout';
         const FILTER_NONEXIST_NUM_KEY = 'filterNonexistNum';
         const FILTER_NONEXIST_STYLES_KEY = 'filterNonexistStyles';
         const FILTER_NONEXIST_COLORS_KEY = 'filterNonexistColors';
@@ -2039,6 +2477,10 @@
         const FILTER_NOTE_TAG_VALUES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
         const FILTER_POPUP_MIN_WIDTH = 228;
         const FILTER_POPUP_MIN_HEIGHT = 160;
+        const ANSWER_POPUP_MIN_WIDTH = 228;
+        const ANSWER_POPUP_MIN_HEIGHT = 160;
+        const ANSWER_POPUP_REF_WIDTH = 500;
+        const ANSWER_POPUP_REF_HEIGHT = 380;
         const NONEXIST_FILTER_STYLES = ['bold', 'italic', 'underline', 'strikethrough'];
         const NONEXIST_FILTER_STYLE_LETTERS = {
             bold: 'B',
@@ -2067,6 +2509,7 @@
         const DATEBAND_FILTER_MODE = 'dateband';
         const VALID_FILTER_MODES = Object.keys(FILTER_MODE_LABELS);
         let sheetManager = null;
+        let answerPopup = null;
         let selectedNums = new Set(); // numbers from the 'primary' selected row
         let selectedLines = []; // current 11-line selection (array of full row objects)
         let iframeSubmitActive = false;
@@ -2085,6 +2528,7 @@
         let filterPopupIndicesCached = [];
         let filterModeCounts = {};
         let filterPopupLayoutSaveTimer = null;
+        let answerPopupLayoutSaveTimer = null;
         let filterNonexistNum = null;
         let filterNonexistStyles = [];
         let filterNonexistColors = ['green'];
@@ -4449,6 +4893,130 @@
             } catch (e) { }
         }
 
+        function loadAnswerPopupLayout() {
+            try {
+                const raw = localStorage.getItem(ANSWER_POPUP_LAYOUT_KEY);
+                if (!raw) {
+                    return null;
+                }
+                const parsed = JSON.parse(raw);
+                if (!parsed || typeof parsed.width !== 'number' || typeof parsed.height !== 'number') {
+                    return null;
+                }
+                return parsed;
+            } catch (e) {
+                return null;
+            }
+        }
+
+        function applyAnswerPopupLayout() {
+            const dock = el('answerPopupDock');
+            const panel = el('answerPopupPanel');
+            if (!dock || !panel) {
+                return;
+            }
+
+            const layout = loadAnswerPopupLayout();
+            if (!layout) {
+                return;
+            }
+
+            const maxW = Math.max(ANSWER_POPUP_MIN_WIDTH, window.innerWidth - 24);
+            const maxH = Math.max(ANSWER_POPUP_MIN_HEIGHT, window.innerHeight - 24);
+            const width = Math.min(maxW, Math.max(ANSWER_POPUP_MIN_WIDTH, layout.width));
+            const height = Math.min(maxH, Math.max(ANSWER_POPUP_MIN_HEIGHT, layout.height));
+
+            panel.style.width = `${width}px`;
+            panel.style.height = `${height}px`;
+
+            const maxLeft = Math.max(8, window.innerWidth - width - 8);
+            const maxTop = Math.max(8, window.innerHeight - height - 8);
+
+            if (typeof layout.left === 'number' && typeof layout.top === 'number') {
+                dock.style.right = 'auto';
+                dock.style.left = `${Math.min(maxLeft, Math.max(8, layout.left))}px`;
+                dock.style.top = `${Math.min(maxTop, Math.max(8, layout.top))}px`;
+            }
+            applyAnswerPopupUiScale();
+        }
+
+        function scheduleSaveAnswerPopupLayout() {
+            if (answerPopupLayoutSaveTimer) {
+                clearTimeout(answerPopupLayoutSaveTimer);
+            }
+            answerPopupLayoutSaveTimer = setTimeout(() => {
+                answerPopupLayoutSaveTimer = null;
+                saveAnswerPopupLayout();
+            }, 120);
+        }
+
+        function saveAnswerPopupLayout() {
+            const dock = el('answerPopupDock');
+            const panel = el('answerPopupPanel');
+            if (!dock || !panel || dock.classList.contains('hidden')) {
+                return;
+            }
+
+            const dockRect = dock.getBoundingClientRect();
+            const panelRect = panel.getBoundingClientRect();
+            if (panelRect.width < ANSWER_POPUP_MIN_WIDTH || panelRect.height < ANSWER_POPUP_MIN_HEIGHT) {
+                return;
+            }
+
+            const layout = {
+                left: Math.round(dockRect.left),
+                top: Math.round(dockRect.top),
+                width: Math.round(panelRect.width),
+                height: Math.round(panelRect.height)
+            };
+
+            try {
+                localStorage.setItem(ANSWER_POPUP_LAYOUT_KEY, JSON.stringify(layout));
+            } catch (e) { }
+        }
+
+        function applyAnswerPopupUiScale() {
+            const panel = el('answerPopupPanel');
+            const dock = el('answerPopupDock');
+            if (!panel || !dock || dock.classList.contains('hidden')) {
+                return;
+            }
+            const pw = panel.clientWidth;
+            const ph = panel.clientHeight;
+            if (pw < 1 || ph < 1) {
+                return;
+            }
+            const scale = Math.min(pw / ANSWER_POPUP_REF_WIDTH, ph / ANSWER_POPUP_REF_HEIGHT);
+            panel.style.setProperty('--ap-scale', String(Math.max(0.5, Math.min(scale, 2.2))));
+        }
+
+        function prepareAnswerPopupLayout() {
+            const dock = el('answerPopupDock');
+            if (!dock) {
+                return;
+            }
+            if (dock.dataset.layoutReady !== '1') {
+                applyAnswerPopupLayout();
+                dock.dataset.layoutReady = '1';
+            }
+            applyAnswerPopupUiScale();
+        }
+
+        function initAnswerPopupLayoutOnWindowResize() {
+            if (window.answerPopupLayoutResizeBound === '1') {
+                return;
+            }
+            window.answerPopupLayoutResizeBound = '1';
+            window.addEventListener('resize', () => {
+                const dock = el('answerPopupDock');
+                if (!dock || dock.classList.contains('hidden')) {
+                    return;
+                }
+                applyAnswerPopupLayout();
+                applyAnswerPopupUiScale();
+            });
+        }
+
         function openFilterPopup() {
             const dock = el('filterPopupDock');
             if (!dock) {
@@ -5496,6 +6064,212 @@
             }, true);
         }
 
+        function initAnswerPopupDrag() {
+            const dock = el('answerPopupDock');
+            const panel = el('answerPopupPanel');
+            const header = el('answerPopupHeader');
+            if (!dock || !panel || !header || header.dataset.answerDragBound === '1') {
+                return;
+            }
+            header.dataset.answerDragBound = '1';
+            let dragging = false;
+            let startX = 0;
+            let startY = 0;
+            let startLeft = 0;
+            let startTop = 0;
+
+            header.addEventListener('mousedown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                if (event.target.closest('#answerPopupClose')
+                    || event.target.closest('#answerPopupClearBtn')
+                    || event.target.closest('#answerPopupCheckBtn')) {
+                    return;
+                }
+                const geometry = pinFilterPopupGeometry(dock, panel);
+                dragging = true;
+                startX = event.clientX;
+                startY = event.clientY;
+                startLeft = geometry.left;
+                startTop = geometry.top;
+                event.preventDefault();
+            });
+
+            document.addEventListener('mousemove', (event) => {
+                if (!dragging) {
+                    return;
+                }
+                dock.style.left = `${startLeft + event.clientX - startX}px`;
+                dock.style.top = `${Math.max(8, startTop + event.clientY - startY)}px`;
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (!dragging) {
+                    return;
+                }
+                dragging = false;
+                scheduleSaveAnswerPopupLayout();
+            });
+
+            if (panel && typeof ResizeObserver !== 'undefined') {
+                const resizeObserver = new ResizeObserver(() => {
+                    if (dock.classList.contains('hidden')) {
+                        return;
+                    }
+                    applyAnswerPopupUiScale();
+                    scheduleSaveAnswerPopupLayout();
+                });
+                resizeObserver.observe(panel);
+            }
+
+            applyAnswerPopupLayout();
+            applyAnswerPopupUiScale();
+        }
+
+        function initAnswerPopupResize() {
+            const dock = el('answerPopupDock');
+            const panel = el('answerPopupPanel');
+            if (!dock || !panel || panel.dataset.answerResizeBound === '1') {
+                return;
+            }
+            panel.dataset.answerResizeBound = '1';
+
+            let resizing = false;
+            let direction = '';
+            let start = null;
+
+            panel.querySelectorAll('.filter-popup-resize-handle').forEach((handle) => {
+                handle.addEventListener('mousedown', (event) => {
+                    if (event.button !== 0) {
+                        return;
+                    }
+                    direction = String(handle.dataset.resize || '');
+                    if (!direction) {
+                        return;
+                    }
+                    const geometry = pinFilterPopupGeometry(dock, panel);
+                    start = {
+                        left: geometry.left,
+                        top: geometry.top,
+                        width: geometry.width,
+                        height: geometry.height,
+                        x: event.clientX,
+                        y: event.clientY
+                    };
+                    resizing = true;
+                    event.preventDefault();
+                    event.stopPropagation();
+                });
+            });
+
+            document.addEventListener('mousemove', (event) => {
+                if (!resizing || !start) {
+                    return;
+                }
+                applyFilterPopupResizeDelta(
+                    direction,
+                    start,
+                    event.clientX - start.x,
+                    event.clientY - start.y,
+                    dock,
+                    panel
+                );
+                applyAnswerPopupUiScale();
+            });
+
+            document.addEventListener('mouseup', () => {
+                if (!resizing) {
+                    return;
+                }
+                resizing = false;
+                start = null;
+                direction = '';
+                applyAnswerPopupUiScale();
+                scheduleSaveAnswerPopupLayout();
+            });
+        }
+
+        function syncSubmitForAnswerPopup(wantOn, answerNums, options) {
+            const frame = el('okFrame');
+            if (!frame || !frame.contentWindow) {
+                return;
+            }
+            const want = !!wantOn;
+            const opts = options || {};
+            const nums = Array.isArray(answerNums)
+                ? answerNums.map((n) => parseInt(n, 10)).filter((n) => !isNaN(n)).slice(0, 5)
+                : [];
+            if (!want) {
+                try {
+                    frame.contentWindow.postMessage({
+                        type: 'setSubmitActive',
+                        active: false,
+                        clearManualPicks: !!opts.clearManualPicks
+                    }, '*');
+                } catch (e) { /* ignore */ }
+                return;
+            }
+            if (want === !!iframeSubmitActive && (!nums || !nums.length) && !opts.clearManualPicks) {
+                return;
+            }
+            try {
+                frame.contentWindow.postMessage({
+                    type: 'setSubmitActive',
+                    active: true,
+                    answerNums: nums.length ? nums : undefined,
+                    clearManualPicks: !!opts.clearManualPicks
+                }, '*');
+            } catch (e) { /* ignore */ }
+        }
+
+        function ensureAnswerPopup() {
+            if (!answerPopup) {
+                answerPopup = new AnswerPopupController({
+                    el,
+                    getSheetManager: () => sheetManager,
+                    parseNums,
+                    initDrag: initAnswerPopupDrag,
+                    initResize: initAnswerPopupResize,
+                    syncSubmitForAnswer: syncSubmitForAnswerPopup,
+                    prepareLayout: prepareAnswerPopupLayout,
+                    saveLayout: saveAnswerPopupLayout,
+                    applyUiScale: applyAnswerPopupUiScale
+                });
+            }
+            return answerPopup;
+        }
+
+        function initAnswerPopupShortcut() {
+            if (document.documentElement.dataset.answerPopupKeyBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.answerPopupKeyBound = '1';
+            document.addEventListener('keydown', (event) => {
+                if (event.key !== 'e' && event.key !== 'E') {
+                    return;
+                }
+                if (event.ctrlKey || event.metaKey || event.altKey) {
+                    return;
+                }
+                if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+                    return;
+                }
+                if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                const ap = ensureAnswerPopup();
+                if (!ap.isOpen()) {
+                    ap.clearLeftPickForAnswerOpen();
+                    ap.openPopup();
+                } else {
+                    ap.close();
+                }
+            }, true);
+        }
+
         function initPeriodFilterToolbar() {
             try {
                 const savedEnabled = localStorage.getItem(PERIOD_FILTER_ENABLED_KEY);
@@ -5712,10 +6486,17 @@
             initRightTableScrollEdgeJumps();
             initSubmitRingToolbar();
             initPeriodFilterToolbar();
+            initAnswerPopupShortcut();
+            initAnswerPopupDrag();
+            initAnswerPopupResize();
+            initAnswerPopupLayoutOnWindowResize();
             loadData();
 
             // Listen for sheet changes
             window.addEventListener('sheetChanged', (e) => {
+                if (answerPopup && sheetManager && sheetManager.activeSheet !== 'sheet1') {
+                    answerPopup.close();
+                }
                 const finishSheetChanged = () => {
                     renderTable();
                     renderSheetTabs();
@@ -5797,6 +6578,9 @@
                         updateFilterPopupMatchCount();
                     }
                 }
+                if (typeof detail.focusRowIndex === 'number') {
+                    ensureAnswerPopup().onFocusRowChanged(detail.focusRowIndex);
+                }
                 selectedLines = detail.selectedLines || [];
                 selectedNums.clear();
                 detail.selectedNums.forEach(n => selectedNums.add(n));
@@ -5870,6 +6654,22 @@
                     togglePeriodFilterFromShortcut();
                     return;
                 }
+                if (msg.type === 'toggleAnswerPopup') {
+                    const frame = el('okFrame');
+                    if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
+                        return;
+                    }
+                    if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
+                        return;
+                    }
+                    const ap = ensureAnswerPopup();
+                    if (!ap.isOpen()) {
+                        ap.openPopup();
+                    } else {
+                        ap.close();
+                    }
+                    return;
+                }
                 if (msg.type === 'filterPopupNavigate') {
                     const frame = el('okFrame');
                     if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
@@ -5898,10 +6698,29 @@
                 if (msg.type === 'submitStateChanged') {
                     iframeSubmitActive = !!msg.submitActive;
                     syncSubmitRingToolbarUi();
+                    if (answerPopup && answerPopup.isOpen()) {
+                        if (typeof answerPopup.syncCheckFromSubmit === 'function') {
+                            answerPopup.syncCheckFromSubmit(!!msg.submitActive);
+                        }
+                    }
                     scheduleComboH1ReplaceFromLeftCircled();
                 } else if (msg.type === 'leftCircledNumsReady') {
+                    const ap = ensureAnswerPopup();
+                    if (ap.isOpen() && msg.submitActive) {
+                        if (!ap.checked) {
+                            ap.syncCheckFromSubmit(true);
+                        }
+                        return;
+                    }
+                    if (ap.isOpen() && ap.onLeftCircledNums(msg.nums)) {
+                        return;
+                    }
                     applyLeftCircledNumsToComboH1(msg.nums);
                 } else if (msg.type === 'leftCircledNums' && msg.nonce) {
+                    const ap = ensureAnswerPopup();
+                    if (ap.isOpen() && ap.onLeftCircledNums(msg.nums)) {
+                        return;
+                    }
                     applyLeftCircledNumsToComboH1(msg.nums);
                 } else if (msg.type === 'childFocus' && msg.region === 'left') {
                     rememberKeyboardFocusTarget('left');
