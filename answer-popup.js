@@ -24,12 +24,193 @@ class AnswerPopupController {
         this._fireworksLayer = null;
         this._fireworksTimer = null;
         this._fireworksBurstTimers = [];
+        this._ticketIdSeq = 0;
     }
 
     allocFormId() {
         const formId = this.formIdFromSequence(this._nextFormSeq);
         this._nextFormSeq += 1;
         return formId;
+    }
+
+    /**
+     * Một dòng hợp lệ: 1–5 số nguyên không âm, chỉ chữ số, phân cách bằng dấu phẩy.
+     * @param {string} line
+     * @returns {number[]|null}
+     */
+    parseAnswerQuickpasteTicketLine(line) {
+        const s = String(line == null ? '' : line).trim();
+        if (!s) {
+            return null;
+        }
+        const parts = s.split(',').map((p) => p.trim());
+        if (parts.some((p) => p === '')) {
+            return null;
+        }
+        if (parts.length < 1 || parts.length > 5) {
+            return null;
+        }
+        const nums = [];
+        for (let i = 0; i < parts.length; i++) {
+            const p = parts[i];
+            if (!/^\d+$/.test(p)) {
+                return null;
+            }
+            const n = parseInt(p, 10);
+            if (!Number.isFinite(n)) {
+                return null;
+            }
+            nums.push(n);
+        }
+        return nums;
+    }
+
+    /**
+     * Khóa so sánh nội dung phiếu (bỏ qua thứ tự số).
+     * @param {number[]} nums
+     * @returns {string|null} null nếu không có số nào
+     */
+    canonicalTicketNumsKey(nums) {
+        const arr = (nums || []).filter((n) => Number.isFinite(n)).slice();
+        if (!arr.length) {
+            return null;
+        }
+        arr.sort((a, b) => a - b);
+        return arr.join(',');
+    }
+
+    readClipboardTextForQuickpaste() {
+        if (navigator.clipboard && typeof navigator.clipboard.readText === 'function') {
+            return navigator.clipboard.readText().catch(() => null);
+        }
+        return Promise.resolve(null);
+    }
+
+    /**
+     * Mỗi dòng hợp lệ → một phiếu mới (bỏ qua dòng trùng nội dung với phiếu đã có hoặc đã thêm trong lần dán này; thứ tự số không quan trọng).
+     * @param {string} text
+     * @returns {number} số phiếu đã thêm
+     */
+    applyQuickpasteFromClipboardText(text) {
+        if (this.checked) {
+            return 0;
+        }
+        const raw = text == null ? '' : String(text);
+        const lines = raw.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n');
+        const seenKeys = new Set();
+        this.tickets.forEach((t) => {
+            const k = this.canonicalTicketNumsKey(t.nums || []);
+            if (k) {
+                seenKeys.add(k);
+            }
+        });
+        const added = [];
+        for (let li = 0; li < lines.length; li++) {
+            const nums = this.parseAnswerQuickpasteTicketLine(lines[li]);
+            if (!nums || !nums.length) {
+                continue;
+            }
+            const key = this.canonicalTicketNumsKey(nums);
+            if (!key || seenKeys.has(key)) {
+                continue;
+            }
+            seenKeys.add(key);
+            const t = this.createEmptyTicket();
+            t.nums = nums;
+            this.refreshTicketDerived(t);
+            this.tickets.push(t);
+            added.push(t);
+        }
+        if (!added.length) {
+            return 0;
+        }
+        this.activeTicketId = added[added.length - 1].id;
+        this.checked = false;
+        this.render();
+        this.syncLeftFromActiveTicket();
+        return added.length;
+    }
+
+    hideQuickpasteManual() {
+        const wrap = this.el('answerQuickpasteManualWrap');
+        if (wrap) {
+            wrap.hidden = true;
+        }
+    }
+
+    openQuickpasteManual(reason) {
+        const wrap = this.el('answerQuickpasteManualWrap');
+        const hint = this.el('answerQuickpasteManualHint');
+        const ta = this.el('answerQuickpasteManualTa');
+        if (!wrap || !ta) {
+            return;
+        }
+        const hints = {
+            empty: 'Clipboard (plain text) đang trống. Dán vào ô dưới (mỗi dòng = một phiếu, 1–5 số, cách nhau dấu phẩy).',
+            api: 'Không đọc được clipboard. Dán vào ô dưới (mỗi dòng = một phiếu, 1–5 số, cách nhau dấu phẩy).',
+            error: 'Lỗi khi đọc clipboard. Dán vào ô dưới (mỗi dòng = một phiếu, 1–5 số, cách nhau dấu phẩy).'
+        };
+        if (hint) {
+            hint.textContent = hints[reason] || hints.api;
+        }
+        wrap.hidden = false;
+        ta.value = '';
+        requestAnimationFrame(() => {
+            try {
+                ta.focus();
+            } catch (e) { /* ignore */ }
+        });
+    }
+
+    wireQuickpasteManualOnce() {
+        const wrap = this.el('answerQuickpasteManualWrap');
+        if (!wrap || wrap.dataset.answerQuickpasteManualBound === '1') {
+            return;
+        }
+        wrap.dataset.answerQuickpasteManualBound = '1';
+        const apply = this.el('answerQuickpasteManualApply');
+        const cancel = this.el('answerQuickpasteManualCancel');
+        const ta = this.el('answerQuickpasteManualTa');
+        if (apply) {
+            apply.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                const raw = ta ? ta.value : '';
+                this.hideQuickpasteManual();
+                this.applyQuickpasteFromClipboardText(raw);
+            });
+        }
+        if (cancel) {
+            cancel.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.hideQuickpasteManual();
+            });
+        }
+    }
+
+    quickpasteTicketsFromClipboard() {
+        if (this.checked) {
+            return;
+        }
+        const meta = this.el('answerPopupFocusMeta');
+        if (meta && typeof meta.focus === 'function') {
+            try {
+                meta.focus({ preventScroll: true });
+            } catch (e) {
+                meta.focus();
+            }
+        }
+        this.readClipboardTextForQuickpaste().then((clipboardText) => {
+            const trimmedApi = String(clipboardText == null ? '' : clipboardText).trim();
+            if (clipboardText == null || !trimmedApi) {
+                this.openQuickpasteManual(clipboardText == null ? 'api' : 'empty');
+                return;
+            }
+            this.applyQuickpasteFromClipboardText(clipboardText);
+        }).catch(() => {
+            this.openQuickpasteManual('error');
+        });
     }
 
     formIdFromSequence(n) {
@@ -169,6 +350,29 @@ class AnswerPopupController {
                 this.clearAllTickets();
             });
         }
+        const focusMeta = this.el('answerPopupFocusMeta');
+        const header = this.el('answerPopupHeader');
+        if (header && header.dataset.answerQuickpasteBound !== '1') {
+            header.dataset.answerQuickpasteBound = '1';
+            header.addEventListener('dblclick', (e) => {
+                if (!e.target || !e.target.closest || !e.target.closest('#answerPopupFocusMeta')) {
+                    return;
+                }
+                e.preventDefault();
+                e.stopPropagation();
+                this.quickpasteTicketsFromClipboard();
+            }, true);
+        }
+        if (focusMeta && focusMeta.dataset.answerQuickpasteKeyBound !== '1') {
+            focusMeta.dataset.answerQuickpasteKeyBound = '1';
+            focusMeta.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.quickpasteTicketsFromClipboard();
+                }
+            });
+        }
         if (tableWrap) {
             tableWrap.addEventListener('click', (e) => this.onTableClick(e));
             tableWrap.addEventListener('pointerdown', (e) => {
@@ -185,6 +389,7 @@ class AnswerPopupController {
         if (typeof this.deps.initResize === 'function') {
             this.deps.initResize();
         }
+        this.wireQuickpasteManualOnce();
     }
 
     toggle() {
@@ -234,6 +439,7 @@ class AnswerPopupController {
 
     close() {
         this.clearWinFireworks();
+        this.hideQuickpasteManual();
         this.open = false;
         this.activeTicketId = null;
         this.checked = false;
@@ -326,9 +532,10 @@ class AnswerPopupController {
     }
 
     createEmptyTicket() {
+        this._ticketIdSeq += 1;
         const nonexist = this.buildNonexistForFocus();
         return {
-            id: 'ticket-' + Date.now() + '-' + Math.random().toString(36).slice(2, 7),
+            id: `ticket-${Date.now()}-${this._ticketIdSeq}-${Math.random().toString(36).slice(2, 9)}`,
             formId: this.allocFormId(),
             nums: [],
             note: '',
@@ -806,10 +1013,11 @@ class AnswerPopupController {
         const metaEl = this.el('answerPopupFocusMeta');
         const tableWrap = this.el('answerTableWrap');
         if (metaEl) {
-            metaEl.textContent = this.focusDate && this.focusId
+            const base = this.focusDate && this.focusId
                 ? `${this.focusDate} · ${this.focusId}`
                 : (this.focusId || '—');
-            metaEl.title = metaEl.textContent;
+            metaEl.textContent = base;
+            metaEl.title = `${base} — Double‑click: dán phiếu từ clipboard (mỗi dòng 1–5 số). Bỏ dòng trùng nội dung (khác thứ tự số vẫn tính trùng). Nếu không đọc clipboard, ô dán hiện dưới header.`;
         }
         if (!tableWrap) {
             return;

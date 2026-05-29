@@ -2057,6 +2057,12 @@
             max-width: calc(200px * var(--ap-scale, 1));
             overflow: hidden;
             text-overflow: ellipsis;
+            cursor: pointer;
+        }
+
+        .answer-popup-panel .answer-popup-focus-meta:focus-visible {
+            outline: 2px solid #2563eb;
+            outline-offset: 1px;
         }
 
         .answer-popup-header-right {
@@ -2126,6 +2132,73 @@
             box-sizing: border-box;
             overflow: hidden;
             padding: 0 calc(6px * var(--ap-scale, 1)) calc(6px * var(--ap-scale, 1));
+        }
+
+        .answer-quickpaste-manual-wrap {
+            flex-shrink: 0;
+            box-sizing: border-box;
+            border-bottom: 1px solid #bae6fd;
+            background: #f0f9ff;
+            padding: calc(8px * var(--ap-scale, 1)) calc(10px * var(--ap-scale, 1));
+            max-height: min(42vh, 280px);
+            overflow: auto;
+        }
+
+        .answer-quickpaste-manual-wrap[hidden] {
+            display: none !important;
+        }
+
+        .answer-quickpaste-manual-hint {
+            margin: 0 0 calc(6px * var(--ap-scale, 1));
+            font-size: calc(12px * var(--ap-scale, 1));
+            line-height: 1.35;
+            color: #0f172a;
+        }
+
+        #answerQuickpasteManualTa {
+            width: 100%;
+            box-sizing: border-box;
+            font-family: ui-monospace, Consolas, monospace;
+            font-size: calc(12px * var(--ap-scale, 1));
+            resize: vertical;
+            min-height: 72px;
+            border: 1px solid #94a3b8;
+            border-radius: 4px;
+            padding: 6px 8px;
+        }
+
+        .answer-quickpaste-manual-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: calc(8px * var(--ap-scale, 1));
+            margin-top: calc(8px * var(--ap-scale, 1));
+        }
+
+        #answerQuickpasteManualApply {
+            padding: calc(4px * var(--ap-scale, 1)) calc(12px * var(--ap-scale, 1));
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid #2563eb;
+            border-radius: 4px;
+            background: #2563eb;
+            color: #fff;
+        }
+
+        #answerQuickpasteManualApply:hover {
+            background: #1d4ed8;
+        }
+
+        .answer-quickpaste-manual-cancel {
+            padding: calc(4px * var(--ap-scale, 1)) calc(12px * var(--ap-scale, 1));
+            cursor: pointer;
+            border: 1px solid #94a3b8;
+            border-radius: 4px;
+            background: #fff;
+            color: #334155;
+        }
+
+        .answer-quickpaste-manual-cancel:hover {
+            background: #f1f5f9;
         }
 
         #answerTableWrap {
@@ -2616,12 +2689,23 @@
                 <div
                     class="filter-popup-filter-tools sheet-tools-group filter-tools-group answer-popup-header-left">
                     <span class="filter-popup-title-label">Answer</span>
-                    <span id="answerPopupFocusMeta" class="answer-popup-focus-meta"></span>
+                    <span id="answerPopupFocusMeta" class="answer-popup-focus-meta" tabindex="0"></span>
                     <button type="button" id="answerPopupCheckBtn" title="Check / xem đáp án (toggle)">Check</button>
                 </div>
                 <div class="answer-popup-header-right">
                     <button type="button" id="answerPopupClearBtn" title="Xóa toàn bộ phiếu">Clear</button>
                     <button type="button" id="answerPopupClose" class="filter-popup-close" title="Ẩn Answer (E)">×</button>
+                </div>
+            </div>
+            <div id="answerQuickpasteManualWrap" class="answer-quickpaste-manual-wrap" hidden>
+                <div class="answer-quickpaste-manual-inner">
+                    <p id="answerQuickpasteManualHint" class="answer-quickpaste-manual-hint"></p>
+                    <textarea id="answerQuickpasteManualTa" rows="5" spellcheck="false"
+                        placeholder="1,2,3,4,5&#10;6,7,8,9,10"></textarea>
+                    <div class="answer-quickpaste-manual-actions">
+                        <button type="button" id="answerQuickpasteManualApply">Áp dụng</button>
+                        <button type="button" id="answerQuickpasteManualCancel" class="answer-quickpaste-manual-cancel">Đóng</button>
+                    </div>
                 </div>
             </div>
             <div class="filter-popup-body answer-popup-body">
@@ -6285,7 +6369,8 @@
                 }
                 if (event.target.closest('#answerPopupClose')
                     || event.target.closest('#answerPopupClearBtn')
-                    || event.target.closest('#answerPopupCheckBtn')) {
+                    || event.target.closest('#answerPopupCheckBtn')
+                    || event.target.closest('#answerPopupFocusMeta')) {
                     return;
                 }
                 const geometry = pinFilterPopupGeometry(dock, panel);
@@ -6474,12 +6559,21 @@
                 if (isPeriodFilterShortcutBlockedTarget(event.target)) {
                     return;
                 }
-                if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
+                if (!sheetManager) {
+                    return;
+                }
+                const ap = ensureAnswerPopup();
+                if (sheetManager.activeSheet !== 'sheet1') {
+                    if (!ap.isOpen()) {
+                        return;
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    ap.close();
                     return;
                 }
                 event.preventDefault();
                 event.stopPropagation();
-                const ap = ensureAnswerPopup();
                 if (!ap.isOpen()) {
                     ap.clearLeftPickForAnswerOpen();
                     ap.openPopup();
@@ -6713,9 +6807,6 @@
 
             // Listen for sheet changes
             window.addEventListener('sheetChanged', (e) => {
-                if (answerPopup && sheetManager && sheetManager.activeSheet !== 'sheet1') {
-                    answerPopup.close();
-                }
                 const finishSheetChanged = () => {
                     renderTable();
                     renderSheetTabs();
@@ -6797,7 +6888,7 @@
                         updateFilterPopupMatchCount();
                     }
                 }
-                if (typeof detail.focusRowIndex === 'number') {
+                if (typeof detail.focusRowIndex === 'number' && detail.sheetName === 'sheet1') {
                     ensureAnswerPopup().onFocusRowChanged(detail.focusRowIndex);
                 }
                 selectedLines = detail.selectedLines || [];
