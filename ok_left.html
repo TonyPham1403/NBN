@@ -1635,6 +1635,12 @@
         }
 
         function setAnswerTicketPreviewNums(nums) {
+            // Submit tắt: không bao giờ giữ/ghi overlay preview phiếu (tránh nháy do message trễ hoặc thứ tự sync).
+            if (!submitActive) {
+                try { markSubmitCircleOverlayCleared(); } catch (eClr) { /* ignore */ }
+                try { syncSubmitPreviewBodyClasses(); } catch (eBody) { /* ignore */ }
+                return;
+            }
             answerTicketPreviewNums = new Set();
             (nums || []).forEach(function (n) {
                 n = parseInt(n, 10);
@@ -5871,6 +5877,31 @@
             } catch (e) { /* ignore */ }
         }
 
+        /** Chuỗi chữ ký bộ số đang khoanh trái (sorted) — so với phiếu Answer để tránh postMessage sync thừa gây nháy. */
+        function buildLeftPickSetSignatureFromSelected() {
+            try {
+                if (!selected || !selected.size) return '';
+                return Array.from(selected)
+                    .map(function (n) { return parseInt(n, 10); })
+                    .filter(function (n) { return !isNaN(n); })
+                    .sort(function (a, b) { return a - b; })
+                    .join(',');
+            } catch (e) {
+                return '';
+            }
+        }
+
+        function postSubmitStateChangedToParent() {
+            try {
+                if (!window.parent || window.parent === window) return;
+                var payload = { type: 'submitStateChanged', submitActive: !!submitActive };
+                if (!submitActive) {
+                    payload.leftRestoredPickSig = buildLeftPickSetSignatureFromSelected();
+                }
+                window.parent.postMessage(payload, '*');
+            } catch (e) { /* ignore */ }
+        }
+
         function clearLeftManualPicksForSubmitOn() {
             answerPopupTicketPreviewOnly = true;
             try { markSubmitCircleOverlayCleared(); } catch (e) { /* ignore */ }
@@ -5965,21 +5996,28 @@
                 }
                 // keep submit button appearance in sync with preview state
                 try { var sb = document.getElementById('submitBtn'); if (sb) sb.classList.toggle('active', submitActive); } catch (e) { }
+                // Submit vừa tắt: gỡ overlay phiếu + class submit trên body trước khi khôi phục selected
+                // (tránh một nhịp khoanh preview/Submit chồng với bộ số phiếu cũ rồi mới biến mất).
+                if (!submitActive) {
+                    try { markSubmitCircleOverlayCleared(); } catch (eEarlyClr) { /* ignore */ }
+                    try { syncSubmitPreviewBodyClasses(); } catch (eEarlyBody) { /* ignore */ }
+                }
                 if (submitActive) {
-                    if (!answerPopupTicketPreviewOnly) {
-                        try { markSubmitCircleOverlayCleared(); } catch (eClrOv) { /* ignore */ }
-                    }
+                    // Luôn gỡ overlay khoanh preview phiếu trước khi chuyển sang 5 số submit
+                    try { markSubmitCircleOverlayCleared(); } catch (eClrOv) { /* ignore */ }
+                    // Lưu selection hiện tại (tay / Answer) để khôi phục khi tắt Submit
                     preSubmitSelected = new Set(selected);
                     preSubmitOrder = pickOrder ? pickOrder.slice() : [];
-                    if (answerPopupTicketPreviewOnly) {
-                        selected.clear();
-                        transientSelected.clear();
-                        pickOrder = [];
-                        clearPairContributionTracking();
-                        pairNeonObserveNum = null;
-                        currentPairIndex = -1;
-                        currentTailIndex = -1;
-                    }
+                    // Gỡ toàn bộ khoanh thủ công trên bảng — chỉ còn style 5 số submit
+                    selected.clear();
+                    transientSelected.clear();
+                    pickOrder = [];
+                    clearPairContributionTracking();
+                    pairNeonObserveNum = null;
+                    currentPairIndex = -1;
+                    currentTailIndex = -1;
+                    answerPopupTicketPreviewOnly = false;
+
                     simulatedSelected.clear();
                     (answerNums || []).forEach(function (n) { simulatedSelected.add(n); });
                     syncPickOrderForSubmitState();
@@ -6095,23 +6133,15 @@
                         try { applySelectionAndBlockedInDOM(); } catch (e) { }
                         try { updatePairList(); } catch (e) { }
                         refreshPairTailSelectionState();
-                        try {
-                            if (window.parent && window.parent !== window) {
-                                window.parent.postMessage({ type: 'submitStateChanged', submitActive: submitActive }, '*');
-                            }
-                        } catch (e) { }
                         try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
+                        try { postSubmitStateChangedToParent(); } catch (e) { }
                         return;
                     }
                 } catch (e) { /* fallback below */ }
                 // fallback: full rerender when DOM not present
                 renderTable1(); renderTable2(); try { updatePairList(); } catch (e) { } try { refreshPairTailSelectionState(); } catch (e) { } alignTableActionsAndCenter(); updateFloatingCopyButtons();
-                try {
-                    if (window.parent && window.parent !== window) {
-                        window.parent.postMessage({ type: 'submitStateChanged', submitActive: submitActive }, '*');
-                    }
-                } catch (e) { }
                 try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
+                try { postSubmitStateChangedToParent(); } catch (e) { }
             } catch (e) { console.error(e); }
         }
 
@@ -6637,12 +6667,8 @@
                     try {
                         if (disableSubmitForCurrentData) return;
                         ev.preventDefault();
+                        // toggleSubmitOnSpace đã post submitStateChanged — không post lần 2 (gây nháy / xử lý trùng ở parent).
                         toggleSubmitOnSpace();
-                        try {
-                            if (window.parent && window.parent !== window) {
-                                window.parent.postMessage({ type: 'submitStateChanged', submitActive: submitActive }, '*');
-                            }
-                        } catch (e) { }
                     } catch (e) { console.error(e); }
                 });
             } catch (e) { }
@@ -7302,11 +7328,7 @@
                                     sbOff.disabled = true;
                                 }
                             } catch (e) { }
-                            try {
-                                if (window.parent && window.parent !== window) {
-                                    window.parent.postMessage({ type: 'submitStateChanged', submitActive: false }, '*');
-                                }
-                            } catch (e) { }
+                            try { postSubmitStateChangedToParent(); } catch (e) { }
                         }
                     }
                     lastAutoRingFocusKey = newFk;
@@ -7360,6 +7382,13 @@
                         .map(function (x) { return parseInt(x, 10); })
                         .filter(function (n) { return !isNaN(n); })
                         .slice(0, MAX_PICK_NUMBERS);
+                    // Parent gửi lại cùng bộ số sau Submit off (iframe đã khôi phục preSubmit):
+                    // clear + add lại gây nháy khoanh — bỏ qua nếu đã khớp.
+                    if (!transientSelected.size && !simulatedSelected.size
+                        && pickNums.length === selected.size
+                        && pickNums.every(function (n) { return selected.has(n); })) {
+                        return;
+                    }
                     selected.clear();
                     transientSelected.clear();
                     simulatedSelected.clear();

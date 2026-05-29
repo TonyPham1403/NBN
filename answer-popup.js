@@ -25,6 +25,8 @@ class AnswerPopupController {
         this._fireworksTimer = null;
         this._fireworksBurstTimers = [];
         this._ticketIdSeq = 0;
+        /** Phiếu đang focus trước khi bật Submit — khôi phục khi Submit tắt */
+        this._activeTicketIdSavedForSubmitRestore = null;
     }
 
     allocFormId() {
@@ -440,6 +442,7 @@ class AnswerPopupController {
     close() {
         this.clearWinFireworks();
         this.hideQuickpasteManual();
+        this._activeTicketIdSavedForSubmitRestore = null;
         this.open = false;
         this.activeTicketId = null;
         this.checked = false;
@@ -704,6 +707,60 @@ class AnswerPopupController {
 
     toggleCheck() {
         this.setCheckedState(!this.checked);
+    }
+
+    normalizePickSignature(nums) {
+        if (!nums || !nums.length) {
+            return '';
+        }
+        return nums
+            .map((n) => parseInt(n, 10))
+            .filter((n) => !isNaN(n))
+            .sort((a, b) => a - b)
+            .join(',');
+    }
+
+    prepareForSubmitOnFromParent() {
+        if (!this.open) {
+            return;
+        }
+        if (this.activeTicketId && this.findTicket(this.activeTicketId)) {
+            this._activeTicketIdSavedForSubmitRestore = this.activeTicketId;
+        } else {
+            this._activeTicketIdSavedForSubmitRestore = null;
+        }
+        this.activeTicketId = null;
+        this._leftSyncSilent = true;
+        this.postLeftTicketPreview([]);
+        this.render();
+        setTimeout(() => {
+            this._leftSyncSilent = false;
+        }, 80);
+    }
+
+    /**
+     * @param {string} [leftRestoredPickSig] — chữ ký sorted từ iframe (buildLeftPickSetSignatureFromSelected) khi Submit tắt;
+     *   nếu trùng phiếu đang khôi phục thì không gửi syncAnswerPickSelection (tránh nháy khoanh).
+     */
+    restoreAfterSubmitOffIfNeeded(leftRestoredPickSig) {
+        const id = this._activeTicketIdSavedForSubmitRestore;
+        this._activeTicketIdSavedForSubmitRestore = null;
+        if (!this.open || !id || !this.findTicket(id)) {
+            return;
+        }
+        this.activeTicketId = id;
+        this.render();
+        const ticket = this.findTicket(id);
+        const ticketSig = ticket ? this.normalizePickSignature(ticket.nums) : '';
+        const iframeSig = typeof leftRestoredPickSig === 'string' ? leftRestoredPickSig : '';
+        if (iframeSig && ticketSig && iframeSig === ticketSig) {
+            this._leftSyncSilent = true;
+            setTimeout(() => {
+                this._leftSyncSilent = false;
+            }, 60);
+            return;
+        }
+        this.syncLeftFromActiveTicket();
     }
 
     releaseTicketFocusBeforeCheck() {
@@ -1217,8 +1274,8 @@ class AnswerPopupController {
             const cs = window.getComputedStyle(srcBtn);
             ['width', 'height', 'minWidth', 'minHeight', 'padding', 'fontSize', 'lineHeight',
                 'color', 'backgroundColor', 'border', 'borderRadius', 'boxSizing'].forEach((prop) => {
-                dstBtn.style[prop] = cs[prop];
-            });
+                    dstBtn.style[prop] = cs[prop];
+                });
         });
         const srcDesc = srcRow.querySelectorAll('*');
         const cloneDesc = cloneRow.querySelectorAll('*');

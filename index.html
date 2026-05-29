@@ -6500,6 +6500,13 @@
                 return;
             }
             try {
+                const ap = answerPopup;
+                if (ap && typeof ap.isOpen === 'function' && ap.isOpen()
+                    && typeof ap.prepareForSubmitOnFromParent === 'function') {
+                    ap.prepareForSubmitOnFromParent();
+                }
+            } catch (e) { /* ignore */ }
+            try {
                 frame.contentWindow.postMessage({
                     type: 'setSubmitActive',
                     active: true,
@@ -7006,12 +7013,21 @@
                     return;
                 }
                 if (msg.type === 'submitStateChanged') {
+                    const prevSubmitActive = iframeSubmitActive;
                     iframeSubmitActive = !!msg.submitActive;
                     syncSubmitRingToolbarUi();
+                    if (msg.submitActive && !prevSubmitActive && answerPopup
+                        && typeof answerPopup.prepareForSubmitOnFromParent === 'function') {
+                        answerPopup.prepareForSubmitOnFromParent();
+                    }
                     if (answerPopup && answerPopup.isOpen()) {
                         if (typeof answerPopup.syncCheckFromSubmit === 'function') {
                             answerPopup.syncCheckFromSubmit(!!msg.submitActive);
                         }
+                    }
+                    if (!msg.submitActive && prevSubmitActive && answerPopup
+                        && typeof answerPopup.restoreAfterSubmitOffIfNeeded === 'function') {
+                        answerPopup.restoreAfterSubmitOffIfNeeded(msg.leftRestoredPickSig);
                     }
                     syncAnswerPopupSheet1FocusMask();
                     scheduleComboH1ReplaceFromLeftCircled();
