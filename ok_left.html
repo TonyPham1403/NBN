@@ -152,6 +152,14 @@
             transform: translate(-50%, -50%) scale(0.98);
         }
 
+        /* Submit ON (Space, không chờ phiếu Answer): khoanh tay trước Submit — lưu trong preSubmit, vẫn hiện vòng đỏ */
+        body.submit-preview-active:not(.answer-await-ticket-preview) .cell.num.pre-submit-manual-pick::after {
+            border-color: rgba(255, 0, 0, 0.95);
+            box-shadow: 0 0 6px rgba(255, 0, 0, 0.12);
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+        }
+
         /* Submit ON: vòng khoanh đỏ (phiếu Answer hoặc autoring — hành động sau thắng) */
         body.submit-preview-active .cell.num.answer-ticket-preview-pick::after,
         body.submit-preview-active .cell.num.answer-submit-overlay-pick::after {
@@ -600,6 +608,59 @@
         #right tr.chuoi-main-row td:nth-child(2) .cell.num {
             font-size: calc(var(--right-font-size) * var(--right-cell-scale) * 1.14);
             line-height: calc(var(--right-line-height) * var(--right-cell-scale) * 1.1);
+            position: relative;
+        }
+
+        /* posnfreq: chỉ viền lục giác; kích thước + độ dày viền = vòng khoanh đỏ (--selected-ring-*) */
+        #left .cell.num.posnfreq-specimen-marker,
+        #right tr.chuoi-main-row .cell.num.posnfreq-specimen-marker {
+            position: relative;
+            z-index: 1;
+        }
+
+        #left .cell.num.posnfreq-specimen-marker::before,
+        #right tr.chuoi-main-row .cell.num.posnfreq-specimen-marker::before {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: var(--selected-ring-size);
+            height: var(--selected-ring-size);
+            box-sizing: content-box;
+            pointer-events: none;
+            z-index: 2;
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            border: var(--selected-ring-border) solid #1E3A8A;
+            background: transparent;
+            box-shadow: none;
+            filter: none;
+        }
+
+        /* posnfreq: thể hiện thứ 2+ — màu từ --posnfreq-ring-color (set inline theo thứ tự) */
+        #left .cell.num.posnfreq-specimen-marker-alt,
+        #right tr.chuoi-main-row .cell.num.posnfreq-specimen-marker-alt {
+            position: relative;
+            z-index: 1;
+        }
+
+        #left .cell.num.posnfreq-specimen-marker-alt::before,
+        #right tr.chuoi-main-row .cell.num.posnfreq-specimen-marker-alt::before {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: var(--selected-ring-size);
+            height: var(--selected-ring-size);
+            box-sizing: content-box;
+            pointer-events: none;
+            z-index: 2;
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            border: var(--selected-ring-border) solid var(--posnfreq-ring-color, #c2410c);
+            background: transparent;
+            box-shadow: none;
+            filter: none;
         }
 
         /* For right-side numbers, use font-size/line-height scaling instead of transform so the
@@ -884,6 +945,8 @@
             box-sizing: border-box;
             padding: 4px 0 6px 0;
             align-self: stretch;
+            position: relative;
+            z-index: 2;
             /* make it span full width inside .tableWrapper */
         }
 
@@ -891,6 +954,79 @@
             display: flex;
             gap: 6px;
             align-items: center;
+            flex-shrink: 0;
+        }
+
+        /* Giống header popup lọc: lục giác posnfreq, kéo thả chọn specimen gần ô search */
+        .left-posnfreq-hex {
+            position: relative;
+            z-index: 30;
+            width: 22px;
+            height: 22px;
+            padding: 0;
+            border: 2px solid #1E3A8A;
+            background: #f8fafc;
+            cursor: grab;
+            flex: 0 0 auto;
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            font: 700 10px/1 Inter, Segoe UI, Arial, sans-serif;
+            color: #1E3A8A;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            touch-action: none;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+            -webkit-user-drag: none;
+        }
+
+        .left-posnfreq-hex:active {
+            cursor: grabbing;
+        }
+
+        .left-posnfreq-hex.posnfreq-specimen-strict {
+            background: #006400;
+            color: #fff;
+            border-color: #004d00;
+        }
+
+        .left-posnfreq-hex.is-posnfreq-drag-source {
+            opacity: 0.22;
+        }
+
+        .left-posnfreq-drag-ghost {
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 10050;
+            margin: 0;
+            padding: 0;
+            pointer-events: none;
+            box-sizing: border-box;
+            will-change: transform;
+            filter: drop-shadow(0 4px 12px rgba(15, 23, 42, 0.2));
+        }
+
+        .left-posnfreq-drag-ghost-inner {
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            border: 2px solid #1E3A8A;
+            background: #f8fafc;
+            font: 700 10px/1 Inter, Segoe UI, Arial, sans-serif;
+            color: #1E3A8A;
+        }
+
+        .left-posnfreq-drag-ghost-inner.posnfreq-specimen-strict {
+            background: #006400;
+            color: #fff;
+            border-color: #004d00;
         }
 
         #searchBox {
@@ -899,7 +1035,7 @@
             text-align: center;
             font-size: 12px;
             padding: 6px 8px;
-            margin-left: 6px;
+            margin-left: 0;
             border: none;
             border-radius: 6px;
             background: #ffffff;
@@ -1142,6 +1278,9 @@
                             <button id="blockBtn" type="button" aria-pressed="true">Block</button>
                         </div>
                         <div class="actions-right">
+                            <button type="button" id="leftPosnfreqHexBtn" class="left-posnfreq-hex" hidden
+                                title="Posnfreq: click nhanh Mẫu ↔ Số; giữ kéo vào số 1–35 để chọn specimen (giống header lọc)."
+                                aria-label="Lục giác posnfreq: kéo chọn specimen"></button>
                             <input id="searchBox" type="text" inputmode="numeric" maxlength="5" placeholder="search"
                                 name="left-pane-pattern-search" autocomplete="off" autocorrect="off"
                                 autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true"
@@ -2871,6 +3010,7 @@
             try { updateFocusIndicator(); } catch (e) { }
             try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
             try { requestChecknoteDataIfNeeded(); } catch (e) { }
+            try { syncPendingPosnfreqMarkersAfterRender(); } catch (eP) { /* ignore */ }
             setTimeout(function () { try { updateFocusIndicator(); } catch (e) { } }, 40);
         }
 
@@ -7015,6 +7155,8 @@
                 var highlightRefs = computeHighlightRefs(displayLines);
                 var highlightRefs11 = computeHighlightRefs11(displayLines);
 
+                var showPreSubmitManualPickRings = !!(submitActive && preSubmitSelected && preSubmitSelected.size > 0 && !answerPopupTicketPreviewOnly);
+
                 var mainRows = table.querySelectorAll('tr.chuoi-main-row');
                 var patternRows = table.querySelectorAll('tr.chuoi-pattern-row');
                 for (var i = 0; i < displayLines.length; i++) {
@@ -7085,6 +7227,7 @@
                             span.classList.toggle('answer-neon', should);
                             span.classList.toggle('animate', should);
                             span.classList.toggle('selected', selected.has(val));
+                            span.classList.toggle('pre-submit-manual-pick', showPreSubmitManualPickRings && preSubmitSelected.has(val));
                             span.classList.toggle('blocked', isBlocked(val));
                             if (should) {
                                 try { span.style.removeProperty('color'); } catch (e) { }
@@ -7114,6 +7257,7 @@
                     span.classList.toggle('animate', should);
                     if (span.classList.contains('num')) {
                         span.classList.toggle('selected', selected.has(val));
+                        span.classList.toggle('pre-submit-manual-pick', showPreSubmitManualPickRings && preSubmitSelected.has(val));
                         span.classList.toggle('blocked', isBlocked(val));
                     } else {
                         span.classList.remove('blocked');
@@ -7211,6 +7355,163 @@
             } catch (err) { if (ind) ind.style.opacity = 0; }
         }
 
+        function clearPosnfreqSpecimenMarkersInDom() {
+            try {
+                document.querySelectorAll(
+                    '#left .cell.num.posnfreq-specimen-marker, #right tr.chuoi-main-row .cell.num.posnfreq-specimen-marker, '
+                    + '#left .cell.num.posnfreq-specimen-marker-alt, #right tr.chuoi-main-row .cell.num.posnfreq-specimen-marker-alt'
+                ).forEach(function (el) {
+                    el.classList.remove('posnfreq-specimen-marker');
+                    el.classList.remove('posnfreq-specimen-marker-alt');
+                    try {
+                        el.style.removeProperty('--posnfreq-ring-color');
+                    } catch (eRm) { /* ignore */ }
+                });
+            } catch (e) { /* ignore */ }
+        }
+
+        /** Mỗi thể hiện phụ (số thứ 2, 3, …) một màu; xoay vòng nếu nhiều hơn palette. */
+        var POSNFREQ_ALT_RING_COLORS = [
+            '#c2410c',
+            '#7c3aed',
+            '#0d9488',
+            '#ca8a04',
+            '#db2777',
+            '#166534',
+            '#0369a1',
+            '#a21caf',
+            '#b45309',
+            '#65a30d',
+            '#4338ca',
+            '#be185d'
+        ];
+
+        function posnfreqApplyRingClass(span, listIndex) {
+            if (listIndex === 0) {
+                span.classList.add('posnfreq-specimen-marker');
+                return;
+            }
+            span.classList.add('posnfreq-specimen-marker-alt');
+            var pal = POSNFREQ_ALT_RING_COLORS;
+            var c = pal[(listIndex - 1) % pal.length];
+            try {
+                span.style.setProperty('--posnfreq-ring-color', c);
+            } catch (eS) { /* ignore */ }
+        }
+
+        /**
+         * markNums: danh sách m (1..35) cùng pattern; [0] = viền xanh navy, [1].. = viền màu lần lượt.
+         * refSig: multiset Chuỗi; nếu có thì chỉ viền đúng ô trên đúng dòng Chuỗi.
+         */
+        function applyPosnfreqSpecimenMarkersInDom(markNums, refSig) {
+            clearPosnfreqSpecimenMarkersInDom();
+            var list = Array.isArray(markNums) ? markNums : [markNums];
+            var nums = [];
+            for (var li = 0; li < list.length; li++) {
+                var x = parseInt(list[li], 10);
+                if (!isNaN(x) && x >= 1 && x <= 35) {
+                    nums.push(x);
+                }
+            }
+            if (!nums.length) {
+                return;
+            }
+            var left = document.getElementById('left');
+            if (left) {
+                for (var ni = 0; ni < nums.length; ni++) {
+                    var sp = nums[ni];
+                    left.querySelectorAll('.cell.num[data-num]').forEach(function (span) {
+                        var v = parseInt(span.getAttribute('data-num'), 10);
+                        if (!isNaN(v) && v === sp) {
+                            posnfreqApplyRingClass(span, ni);
+                        }
+                    });
+                }
+            }
+            var right = document.getElementById('right');
+            if (!right) {
+                return;
+            }
+            var mains = right.querySelectorAll('tr.chuoi-main-row');
+            var useMultiset = refSig && Array.isArray(refSig.positions) && refSig.positions.length > 0;
+            if (!useMultiset) {
+                for (var li2 = 0; li2 < nums.length; li2++) {
+                    var sp2 = nums[li2];
+                    mains.forEach(function (tr) {
+                        tr.querySelectorAll('.cell.num[data-num]').forEach(function (span) {
+                            var v2 = parseInt(span.getAttribute('data-num'), 10);
+                            if (!isNaN(v2) && v2 === sp2) {
+                                posnfreqApplyRingClass(span, li2);
+                            }
+                        });
+                    });
+                }
+                return;
+            }
+            var displayLen = mains.length;
+            try {
+                var dl = getRawDisplayLines();
+                if (dl && dl.length) {
+                    displayLen = dl.length;
+                }
+            } catch (eDl) { /* ignore */ }
+            var needByLabel = {};
+            for (var pi = 0; pi < refSig.positions.length; pi++) {
+                var L = parseInt(refSig.positions[pi], 10);
+                if (!isNaN(L) && L >= 1 && L <= 10) {
+                    needByLabel[L] = (needByLabel[L] || 0) + 1;
+                }
+            }
+            for (var nk = 0; nk < nums.length; nk++) {
+                var mVal = nums[nk];
+                for (var chLabel in needByLabel) {
+                    if (!Object.prototype.hasOwnProperty.call(needByLabel, chLabel)) {
+                        continue;
+                    }
+                    var need = needByLabel[chLabel];
+                    var Lnum = parseInt(chLabel, 10);
+                    var rowIdx = displayLen - Lnum;
+                    if (rowIdx < 0 || rowIdx >= mains.length) {
+                        continue;
+                    }
+                    var tr = mains[rowIdx];
+                    if (!tr) {
+                        continue;
+                    }
+                    var numsTd = tr.children[1];
+                    if (!numsTd) {
+                        continue;
+                    }
+                    var numSpans = numsTd.querySelectorAll('.cell.num[data-num]');
+                    var marked = 0;
+                    for (var si = 0; si < numSpans.length && marked < need; si++) {
+                        var span = numSpans[si];
+                        var v3 = parseInt(span.getAttribute('data-num'), 10);
+                        if (!isNaN(v3) && v3 === mVal) {
+                            posnfreqApplyRingClass(span, nk);
+                            marked++;
+                        }
+                    }
+                }
+            }
+        }
+
+        function syncPendingPosnfreqMarkersAfterRender() {
+            var st = window.__posnfreqMarkerState;
+            if (st && Array.isArray(st.markNums) && st.markNums.length) {
+                applyPosnfreqSpecimenMarkersInDom(st.markNums, st.refSig || null);
+                return;
+            }
+            if (st && st.markNum != null && !isNaN(parseInt(st.markNum, 10))) {
+                applyPosnfreqSpecimenMarkersInDom([st.markNum], st.refSig || null);
+                return;
+            }
+            var sp = window.__posnfreqMarkerSpecimen;
+            if (sp != null && !isNaN(parseInt(sp, 10))) {
+                applyPosnfreqSpecimenMarkersInDom([sp], null);
+            }
+        }
+
         // Receive messages from parent
         window.addEventListener('message', (ev) => {
             try {
@@ -7219,6 +7520,63 @@
                     try { window.focus(); } catch (e) { }
                     try { const sink = document.getElementById('focusSink'); if (sink && typeof sink.focus === 'function') sink.focus(); } catch (e) { }
                     try { window.parent.postMessage({ type: 'childFocus', region: 'left' }, '*'); } catch (e) { }
+                    return;
+                }
+
+                if (msg.type === 'posnfreqClearMarkers') {
+                    window.__posnfreqMarkerSpecimen = null;
+                    window.__posnfreqMarkerState = null;
+                    try { clearPosnfreqSpecimenMarkersInDom(); } catch (eClr) { /* ignore */ }
+                    return;
+                }
+
+                if (msg.type === 'posnfreqLeftHexSync') {
+                    var lhex = document.getElementById('leftPosnfreqHexBtn');
+                    if (!lhex) {
+                        return;
+                    }
+                    var vis = !!msg.visible;
+                    lhex.hidden = !vis;
+                    lhex.style.display = vis ? '' : 'none';
+                    var t = (msg.text != null && msg.text !== '') ? String(msg.text).trim().slice(0, 2) : '';
+                    lhex.textContent = t;
+                    lhex.classList.toggle('posnfreq-specimen-strict', vis && !!msg.strict && !!t);
+                    if (t && vis) {
+                        lhex.setAttribute('aria-pressed', msg.strict ? 'true' : 'false');
+                    } else {
+                        lhex.removeAttribute('aria-pressed');
+                    }
+                    return;
+                }
+
+                if (msg.type === 'posnfreqHighlightMarkers') {
+                    var markNums = [];
+                    if (Array.isArray(msg.markNums) && msg.markNums.length) {
+                        for (var mi = 0; mi < msg.markNums.length; mi++) {
+                            var mv = parseInt(msg.markNums[mi], 10);
+                            if (!isNaN(mv) && mv >= 1 && mv <= 35) {
+                                markNums.push(mv);
+                            }
+                        }
+                    }
+                    if (!markNums.length) {
+                        var rawMark = msg.markNum != null && msg.markNum !== '' ? msg.markNum : msg.specimen;
+                        var sp0 = parseInt(rawMark, 10);
+                        if (!isNaN(sp0) && sp0 >= 1 && sp0 <= 35) {
+                            markNums = [sp0];
+                        }
+                    }
+                    if (markNums.length) {
+                        var refSig = null;
+                        if (msg.refSig && Array.isArray(msg.refSig.positions)) {
+                            refSig = msg.refSig;
+                        } else if (msg.refSignature && Array.isArray(msg.refSignature.positions)) {
+                            refSig = msg.refSignature;
+                        }
+                        window.__posnfreqMarkerState = { markNums: markNums, refSig: refSig };
+                        window.__posnfreqMarkerSpecimen = markNums[0];
+                        try { applyPosnfreqSpecimenMarkersInDom(markNums, refSig); } catch (eHi) { /* ignore */ }
+                    }
                     return;
                 }
 
@@ -7641,6 +7999,167 @@
                     });
                 }
             } catch (e) { }
+        })();
+
+        (function initLeftPanePosnfreqHex() {
+            var hex = document.getElementById('leftPosnfreqHexBtn');
+            if (!hex || hex.dataset.posnfreqPaneWired === '1') {
+                return;
+            }
+            hex.dataset.posnfreqPaneWired = '1';
+
+            hex.addEventListener('dragstart', function (e) {
+                e.preventDefault();
+            });
+
+            var dragging = false;
+            var downX = 0;
+            var downY = 0;
+            var dragGhostEl = null;
+            var dragRaf = 0;
+            var dragClientX = 0;
+            var dragClientY = 0;
+            var dragOffsetX = 0;
+            var dragOffsetY = 0;
+
+            function clearDragUi() {
+                if (dragRaf) {
+                    cancelAnimationFrame(dragRaf);
+                    dragRaf = 0;
+                }
+                if (dragGhostEl) {
+                    try {
+                        dragGhostEl.remove();
+                    } catch (eRm) { /* ignore */ }
+                    dragGhostEl = null;
+                }
+                hex.classList.remove('is-posnfreq-drag-source');
+            }
+
+            function positionDragGhost() {
+                if (!dragGhostEl) {
+                    dragRaf = 0;
+                    return;
+                }
+                var x = Math.round(dragClientX - dragOffsetX);
+                var y = Math.round(dragClientY - dragOffsetY);
+                dragGhostEl.style.transform = 'translate3d(' + x + 'px,' + y + 'px,0)';
+                dragRaf = 0;
+            }
+
+            function onMouseMove(ev) {
+                if (!dragging) {
+                    return;
+                }
+                dragClientX = ev.clientX;
+                dragClientY = ev.clientY;
+                if (!dragGhostEl) {
+                    return;
+                }
+                if (!dragRaf) {
+                    dragRaf = requestAnimationFrame(positionDragGhost);
+                }
+            }
+
+            function detachListeners() {
+                document.removeEventListener('mousemove', onMouseMove, true);
+                window.removeEventListener('mouseup', endMouse, true);
+                window.removeEventListener('blur', endMouseBlur, true);
+            }
+
+            function endMouseBlur() {
+                if (!dragging) {
+                    return;
+                }
+                dragging = false;
+                detachListeners();
+                clearDragUi();
+            }
+
+            function endMouse(ev) {
+                if (!dragging) {
+                    return;
+                }
+                if (ev.type === 'mouseup' && ev.button != null && ev.button !== 0) {
+                    return;
+                }
+                dragging = false;
+                detachListeners();
+                clearDragUi();
+                if (hex.hidden) {
+                    return;
+                }
+                var cx = ev && typeof ev.clientX === 'number' ? ev.clientX : downX;
+                var cy = ev && typeof ev.clientY === 'number' ? ev.clientY : downY;
+                var dist = Math.hypot(cx - downX, cy - downY);
+                if (dist < 8) {
+                    try {
+                        window.parent.postMessage({ type: 'posnfreqLeftHexToggleStrict' }, '*');
+                    } catch (eT) { /* ignore */ }
+                } else {
+                    var hit = document.elementFromPoint(cx, cy);
+                    var cell = hit && hit.closest ? hit.closest('.cell.num[data-num]') : null;
+                    if (cell) {
+                        var n = parseInt(cell.getAttribute('data-num'), 10);
+                        if (!isNaN(n) && n >= 1 && n <= 35) {
+                            try {
+                                hex.textContent = String(n);
+                                hex.classList.remove('posnfreq-specimen-strict');
+                            } catch (eUi) { /* ignore */ }
+                            try {
+                                window.parent.postMessage({ type: 'posnfreqLeftHexPickNum', num: n }, '*');
+                            } catch (eP) { /* ignore */ }
+                        }
+                    }
+                }
+            }
+
+            hex.addEventListener('mousedown', function (ev) {
+                if (hex.hidden) {
+                    return;
+                }
+                if (ev.button !== 0) {
+                    return;
+                }
+                ev.preventDefault();
+                ev.stopPropagation();
+                if (dragging) {
+                    return;
+                }
+                dragging = true;
+                downX = ev.clientX;
+                downY = ev.clientY;
+                var br = hex.getBoundingClientRect();
+                dragOffsetX = ev.clientX - br.left;
+                dragOffsetY = ev.clientY - br.top;
+                dragClientX = ev.clientX;
+                dragClientY = ev.clientY;
+                dragGhostEl = document.createElement('div');
+                dragGhostEl.className = 'left-posnfreq-drag-ghost';
+                dragGhostEl.style.width = Math.round(br.width) + 'px';
+                dragGhostEl.style.height = Math.round(br.height) + 'px';
+                var inner = document.createElement('div');
+                inner.className = 'left-posnfreq-drag-ghost-inner';
+                inner.textContent = String(hex.textContent || '').trim();
+                if (hex.classList.contains('posnfreq-specimen-strict')) {
+                    inner.classList.add('posnfreq-specimen-strict');
+                }
+                dragGhostEl.appendChild(inner);
+                document.body.appendChild(dragGhostEl);
+                hex.classList.add('is-posnfreq-drag-source');
+                positionDragGhost();
+                document.addEventListener('mousemove', onMouseMove, true);
+                window.addEventListener('mouseup', endMouse, true);
+                window.addEventListener('blur', endMouseBlur, true);
+            });
+
+            try {
+                if (window.parent && window.parent !== window) {
+                    window.parent.postMessage({ type: 'posnfreqLeftHexRequestSync' }, '*');
+                }
+            } catch (eReq) {
+                /* ignore */
+            }
         })();
     </script>
 </body>

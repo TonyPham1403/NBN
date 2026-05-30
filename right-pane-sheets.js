@@ -684,6 +684,125 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Position + frequency signature của một số (specimen) trong cửa sổ 10 chuỗi kết thúc tại refRowIndex
+     * (cùng logic cửa sổ với inferModeForRowIndex: các dòng windowStart .. refRowIndex-1).
+     * frequency = tổng số lần xuất hiện specimen trong cửa sổ;
+     * positions = multiset nhãn Chuỗi (mỗi lần xuất hiện trên một dòng → một phần tử, có thể lặp cùng số chuỗi),
+     *   đã sort để so khớp (cùng f và cùng multiset vị trí ↔ cùng phân bố trên các chuỗi).
+     */
+    computePosnfreqSignature(rows, refRowIndex, specimenNum) {
+        if (!Array.isArray(rows) || rows.length === 0) {
+            return null;
+        }
+        if (!Number.isFinite(specimenNum) || specimenNum < 1 || specimenNum > 35) {
+            return null;
+        }
+        if (refRowIndex < 0 || refRowIndex >= rows.length) {
+            return null;
+        }
+        const windowStart = Math.max(0, refRowIndex - 10);
+        const limit = Math.min(refRowIndex - windowStart, 10);
+        if (limit <= 0) {
+            return null;
+        }
+        const positions = [];
+        let frequency = 0;
+        for (let offset = 0; offset < limit; offset++) {
+            const lineRow = rows[windowStart + offset] || {};
+            const nums = this.parseMainNums(lineRow.result || lineRow.Result || '');
+            let lineCount = 0;
+            for (let k = 0; k < nums.length; k++) {
+                if (nums[k] === specimenNum) {
+                    lineCount++;
+                }
+            }
+            if (lineCount > 0) {
+                frequency += lineCount;
+                const chuoiLabel = limit - offset;
+                for (let t = 0; t < lineCount; t++) {
+                    positions.push(chuoiLabel);
+                }
+            }
+        }
+        positions.sort((a, b) => a - b);
+        return { frequency, positions: positions.slice() };
+    }
+
+    posnfreqPositionsKey(sig) {
+        if (!sig || !Array.isArray(sig.positions)) {
+            return '';
+        }
+        return sig.positions.join(',');
+    }
+
+    /**
+     * @param {object|null} refSig — chữ ký đầy đủ cửa sổ 10 chuỗi của specimen trên kỳ mẫu (f + multiset nhãn Chuỗi)
+     * @param {boolean} specimenStrict — true (Số): chỉ số specimen có cùng refSig;
+     *                                   false (Mẫu): tồn tại m ∈ [1..35] có cùng refSig (lục giác có thể “đặt” lên m)
+     */
+    rowMatchesPosnfreqFilter(rows, rowIndex, specimenNum, refSig, specimenStrict) {
+        const row = rows[rowIndex];
+        if (!row || this.isEmptyResultRow(row)) {
+            return false;
+        }
+        if (!refSig || !Number.isFinite(refSig.frequency)) {
+            return false;
+        }
+        if (specimenStrict) {
+            const sig = this.computePosnfreqSignature(rows, rowIndex, specimenNum);
+            if (!sig || sig.frequency === 0) {
+                return false;
+            }
+            return sig.frequency === refSig.frequency
+                && this.posnfreqPositionsKey(sig) === this.posnfreqPositionsKey(refSig);
+        }
+        for (let m = 1; m <= 35; m++) {
+            const sig = this.computePosnfreqSignature(rows, rowIndex, m);
+            if (!sig || sig.frequency === 0) {
+                continue;
+            }
+            if (sig.frequency === refSig.frequency
+                && this.posnfreqPositionsKey(sig) === this.posnfreqPositionsKey(refSig)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Mọi m ∈ [1..35] có chữ ký posnfreq trùng refSig trên rowIndex (đã sort tăng dần).
+     */
+    findAllPosnfreqMatchingNumbers(rows, rowIndex, refSig) {
+        if (!refSig || !Number.isFinite(refSig.frequency)) {
+            return [];
+        }
+        const list = rows || this.getSourceSheetRows();
+        if (!Array.isArray(list) || rowIndex < 0 || rowIndex >= list.length) {
+            return [];
+        }
+        const out = [];
+        for (let m = 1; m <= 35; m++) {
+            const sig = this.computePosnfreqSignature(list, rowIndex, m);
+            if (!sig || sig.frequency === 0) {
+                continue;
+            }
+            if (sig.frequency === refSig.frequency
+                && this.posnfreqPositionsKey(sig) === this.posnfreqPositionsKey(refSig)) {
+                out.push(m);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Số nhỏ nhất m sao cho chữ ký posnfreq của m trên rowIndex khớp refSig (dùng cho viền lục giác Mẫu).
+     */
+    findPosnfreqMatchingNumber(rows, rowIndex, refSig) {
+        const all = this.findAllPosnfreqMatchingNumbers(rows, rowIndex, refSig);
+        return all.length ? all[0] : null;
+    }
+
+    /**
      * Row indices on sheet1 whose inferred mode matches the filter mode.
      */
     rowHasCyanDateBand(rows, rowIndex) {
@@ -841,6 +960,26 @@ class RightPaneSheetManager {
                     continue;
                 }
                 indices.push(i);
+            }
+            return indices;
+        }
+
+        if (mode === 'posnfreq') {
+            const o = filterOptions || {};
+            const specimen = parseInt(o.specimenNum, 10);
+            if (!Number.isFinite(specimen) || specimen < 1 || specimen > 35) {
+                return indices;
+            }
+            const refRow = Number.isFinite(o.refRowIndex) ? o.refRowIndex : -1;
+            const specimenStrict = !!o.specimenStrict;
+            let refSig = o.refSignature;
+            if (!refSig && refRow >= 0) {
+                refSig = this.computePosnfreqSignature(rows, refRow, specimen);
+            }
+            for (let i = 0; i < rows.length; i++) {
+                if (this.rowMatchesPosnfreqFilter(rows, i, specimen, refSig, specimenStrict)) {
+                    indices.push(i);
+                }
             }
             return indices;
         }

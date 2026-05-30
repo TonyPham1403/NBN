@@ -944,6 +944,10 @@
             display: none;
         }
 
+        .filter-popup-count-parent-suffix.hidden {
+            display: none !important;
+        }
+
         .filter-popup-position-input {
             display: inline-block;
             margin: 0;
@@ -1075,14 +1079,90 @@
             border-bottom: 1px solid #d7dde5;
             flex-shrink: 0;
             min-width: 0;
-            cursor: move;
+            cursor: grab;
             user-select: none;
         }
 
-        .filter-popup-filter-tools {
-            flex-shrink: 0;
+        #filterPopupDock.is-filter-popup-header-dragging .filter-popup-header {
+            cursor: grabbing;
+        }
+
+        #filterPopupDock.is-filter-popup-header-dragging {
+            will-change: transform;
+        }
+
+        #answerPopupDock.is-answer-popup-header-dragging {
+            will-change: transform;
+        }
+
+        #filterPopupHeader > .filter-popup-filter-tools {
+            flex: 1 1 auto;
+            min-width: 0;
+            overflow: hidden;
             position: relative;
             z-index: 30;
+        }
+
+        .filter-popup-header-trail {
+            display: inline-flex;
+            align-items: stretch;
+            gap: 6px;
+            flex-shrink: 0;
+            margin-left: auto;
+        }
+
+        .filter-popup-header-trail .filter-popup-match-count {
+            display: inline-flex;
+            align-items: center;
+            height: 24px;
+            min-height: 24px;
+            flex-shrink: 0;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            background: #ffffff;
+            padding: 0 6px;
+            box-sizing: border-box;
+        }
+
+        button.filter-popup-posnfreq-overlap-pct {
+            display: inline-flex;
+            align-items: center;
+            align-self: center;
+            justify-content: center;
+            height: 24px;
+            min-height: 24px;
+            padding: 0 6px;
+            margin: 0;
+            font: 600 11px/1.2 Inter, Segoe UI, Arial, sans-serif;
+            color: #166534;
+            font-variant-numeric: tabular-nums;
+            white-space: nowrap;
+            flex-shrink: 0;
+            cursor: pointer;
+            box-sizing: border-box;
+            border: 1px solid #86efac;
+            border-radius: 6px;
+            background: #f0fdf4;
+        }
+
+        button.filter-popup-posnfreq-overlap-pct:hover {
+            background: #dcfce7;
+        }
+
+        button.filter-popup-posnfreq-overlap-pct[aria-pressed="true"] {
+            background: #006400;
+            border-color: #005530;
+            color: #ffffff;
+        }
+
+        button.filter-popup-posnfreq-overlap-pct[aria-pressed="true"]:hover {
+            background: #007a00;
+            border-color: #006400;
+            color: #ffffff;
+        }
+
+        button.filter-popup-posnfreq-overlap-pct[hidden] {
+            display: none !important;
         }
 
         .filter-popup-title-label {
@@ -1108,7 +1188,7 @@
             line-height: 24px;
             flex-shrink: 0;
             box-sizing: border-box;
-            cursor: move;
+            cursor: grab;
         }
 
         .filter-popup-filter-tools .period-filter-mode-picker,
@@ -1149,13 +1229,6 @@
             vertical-align: middle;
         }
 
-        .filter-popup-filter-tools .filter-popup-match-count {
-            height: 24px;
-            min-height: 24px;
-            align-self: stretch;
-            flex-shrink: 0;
-        }
-
         .filter-popup-nonexist-tools {
             display: inline-flex;
             align-items: center;
@@ -1170,6 +1243,116 @@
 
         .filter-popup-nonexist-tools.hidden {
             display: none;
+        }
+
+        .filter-popup-posnfreq-tools {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
+            align-self: stretch;
+            height: 24px;
+            box-sizing: border-box;
+            border-left: 1px solid #cbd5e1;
+            padding-left: 6px;
+            margin-left: 2px;
+        }
+
+        .filter-popup-posnfreq-tools.hidden {
+            display: none;
+        }
+
+        .filter-popup-posnfreq-hex {
+            width: 22px;
+            height: 22px;
+            padding: 0;
+            border: 2px solid #1E3A8A;
+            background: #f8fafc;
+            cursor: grab;
+            flex: 0 0 auto;
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            font: 700 10px/1 Inter, Segoe UI, Arial, sans-serif;
+            color: #1E3A8A;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+            touch-action: none;
+        }
+
+        .filter-popup-posnfreq-hex:active {
+            cursor: grabbing;
+        }
+
+        .filter-popup-posnfreq-hex.is-posnfreq-drag-source {
+            opacity: 0.22;
+        }
+
+        /* Bản sao lục giác kéo theo chuột (tương tự ghost hàng Answer popup) */
+        .filter-popup-posnfreq-drag-ghost {
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 10050;
+            margin: 0;
+            padding: 0;
+            pointer-events: none;
+            box-sizing: border-box;
+            will-change: transform;
+            filter: drop-shadow(0 4px 12px rgba(15, 23, 42, 0.2));
+        }
+
+        .filter-popup-posnfreq-drag-ghost-inner {
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 50% 100%, 0% 75%, 0% 25%);
+            border: 2px solid #1E3A8A;
+            background: #f8fafc;
+            font: 700 10px/1 Inter, Segoe UI, Arial, sans-serif;
+            color: #1E3A8A;
+        }
+
+        .filter-popup-posnfreq-drag-ghost-inner.posnfreq-specimen-strict {
+            background: #006400;
+            color: #fff;
+            border-color: #004d00;
+        }
+
+        .filter-popup-posnfreq-hex.posnfreq-specimen-strict {
+            background: #006400;
+            color: #fff;
+            border-color: #004d00;
+        }
+
+        .filter-popup-posnfreq-meta {
+            font: 600 11px/1.2 Inter, Segoe UI, Arial, sans-serif;
+            color: #334155;
+            max-width: 200px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .filter-popup-posnfreq-source-btn {
+            font: 600 11px/1.2 Inter, Segoe UI, Arial, sans-serif;
+            color: #0f172a;
+            background: #e2e8f0;
+            border: 1px solid #94a3b8;
+            border-radius: 4px;
+            padding: 2px 8px;
+            cursor: pointer;
+            max-width: 180px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .filter-popup-posnfreq-source-btn:hover {
+            background: #cbd5e1;
         }
 
         .filter-popup-position-input.filter-popup-nonexist-num {
@@ -1238,6 +1421,20 @@
 
         .filter-popup-close:hover {
             background: #f1f5f9;
+        }
+
+        .filter-popup-header-trail .filter-popup-close {
+            margin-left: 0;
+            width: 24px;
+            height: 24px;
+            box-sizing: border-box;
+        }
+
+        .filter-popup-header-trail .filter-popup-posnfreq-source-btn {
+            height: 24px;
+            max-height: 24px;
+            align-self: center;
+            box-sizing: border-box;
         }
 
         .filter-popup-resize-handle {
@@ -1310,6 +1507,19 @@
 
         #filterTableWrap tr.filter-popup-row-focus td {
             box-shadow: inset 0 0 0 2px #1d4ed8;
+        }
+
+        /* posnfreq: kỳ có số khớp pattern trùng một trong các số result (giống viền xanh phiếu Answer ≥3/5) */
+        #filterTableWrap tr.filter-popup-posnfreq-submit-hit:not(.filter-popup-row-focus) td {
+            box-shadow: inset 0 0 0 2px #22c55e, 0 0 10px rgba(34, 197, 94, 0.35);
+        }
+
+        #filterTableWrap.filter-popup-posnfreq-green-only tbody tr[data-idx]:not(.filter-popup-posnfreq-submit-hit) {
+            display: none !important;
+        }
+
+        #filterTableWrap tr.filter-popup-posnfreq-submit-hit.filter-popup-row-focus td {
+            box-shadow: inset 0 0 0 2px #1d4ed8, 0 0 8px rgba(34, 197, 94, 0.45);
         }
 
         /* Ngăn nhóm id không liền kề (đỏ/tím): xám đậm, khác viền focus xanh */
@@ -2613,6 +2823,12 @@
                             <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
                         </button>
                     </div>
+                    <div id="filterPopupPosnfreqTools" class="filter-popup-posnfreq-tools hidden" aria-hidden="true">
+                        <button type="button" id="filterPopupPosnfreqHexBtn" class="filter-popup-posnfreq-hex"
+                            title="Click nhanh: Mẫu ↔ Số (lọc đúng specimen). Giữ và kéo vào ô số bảng trái để đổi specimen."
+                            aria-label="Lục giác posnfreq: click Mẫu hoặc Số, kéo chọn specimen"></button>
+                        <span id="filterPopupPosnfreqMeta" class="filter-popup-posnfreq-meta" aria-live="polite"></span>
+                    </div>
                     <div id="filterPopupNoteTagPicker" class="filter-popup-note-tag-picker hidden">
                         <button type="button" id="filterPopupNoteTagBtn" class="filter-popup-note-tag-btn" disabled
                             aria-haspopup="listbox" aria-expanded="false" title="Lọc theo nhãn trong note">
@@ -2659,6 +2875,11 @@
                             </button>
                         </div>
                     </div>
+                </div>
+                <div class="filter-popup-header-trail">
+                    <button type="button" id="filterPopupPosnfreqOverlapPct"
+                        class="filter-popup-posnfreq-overlap-pct" hidden aria-pressed="false"
+                        title="% kỳ có viền xanh / tổng kỳ đang lọc. Bật: chỉ hiện các kỳ có viền xanh; tắt: hiện đủ lại.">0%</button>
                     <span id="filterPopupMatchCount" class="period-filter-match-count filter-popup-match-count"
                         title="Số kỳ khớp mode">
                         <span id="filterPopupPositionWrap" class="filter-popup-count-position-wrap hidden">
@@ -2667,11 +2888,15 @@
                             <span class="filter-popup-count-slash" aria-hidden="true">/</span>
                         </span>
                         <span id="filterPopupFilteredCount" class="filter-popup-count-segment">0</span>
-                        <span class="filter-popup-count-slash" aria-hidden="true">/</span>
-                        <span id="filterPopupParentCount" class="filter-popup-count-segment">0</span>
+                        <span id="filterPopupParentSuffix" class="filter-popup-count-parent-suffix">
+                            <span class="filter-popup-count-slash" aria-hidden="true">/</span>
+                            <span id="filterPopupParentCount" class="filter-popup-count-segment">0</span>
+                        </span>
                     </span>
+                    <button type="button" id="filterPopupPosnfreqSourceBtn" class="filter-popup-posnfreq-source-btn"
+                        title="Về kỳ chứa specimen gốc" hidden></button>
+                    <button type="button" id="filterPopupClose" class="filter-popup-close" title="Ẩn bảng lọc">×</button>
                 </div>
-                <button type="button" id="filterPopupClose" class="filter-popup-close" title="Ẩn bảng lọc">×</button>
             </div>
             <div class="filter-popup-body">
                 <div id="filterTableWrap" class="right-table-viewport" tabindex="0" aria-label="Bảng lọc kỳ"></div>
@@ -2788,7 +3013,8 @@
             triple1: '1 bộ 3',
             quad1: '1 bộ 4',
             dateband: '',
-            nonexist: 'nonexist'
+            nonexist: 'nonexist',
+            posnfreq: 'posnfreq'
         };
         const DATEBAND_FILTER_MODE = 'dateband';
         const VALID_FILTER_MODES = Object.keys(FILTER_MODE_LABELS);
@@ -2810,12 +3036,30 @@
         let filterPopupRenderCacheKey = '';
         let filterPopupHtmlCache = '';
         let filterPopupIndicesCached = [];
+        /** posnfreq: chỉ hiện các kỳ có viền xanh (trùng result) khi bật từ nút % */
+        let filterPopupPosnfreqGreenOnly = false;
         let filterModeCounts = {};
         let filterPopupLayoutSaveTimer = null;
         let answerPopupLayoutSaveTimer = null;
         let filterNonexistNum = null;
         let filterNonexistStyles = [];
         let filterNonexistColors = ['green'];
+        /** posnfreq: specimen 1–35, chữ ký { frequency, positions } theo kỳ nguồn */
+        let posnfreqSpecimenNum = null;
+        let posnfreqRefSignature = null;
+        let posnfreqSourceRowIndex = -1;
+        /** posnfreq: Số = đúng specimen + cùng f và []; Mẫu = cùng f và [] với số bất kỳ. Chỉ click nhanh lục giác trên header để bật/tắt Số. */
+        let posnfreqSpecimenStrict = false;
+        let posnfreqHexDragPointerId = null;
+        /** Nhịp 2: marker + rebuild bảng lọc (idle / timeout), gộp khi đổi specimen liên tiếp */
+        let posnfreqPhase2IdleId = 0;
+        let posnfreqPhase2TimeoutId = 0;
+        let posnfreqPhase2BarrierRaf1 = 0;
+        let posnfreqPhase2BarrierRaf2 = 0;
+        let posnfreqDeferredHeavyUiSeq = 0;
+        /** Tránh parent chạy apply đồng bộ trong stack postMessage của iframe (chặn paint lục giác trái) */
+        let posnfreqApplyFromLeftPickRaf = 0;
+        let posnfreqApplyFromLeftPickSeq = 0;
         let filterNoteTags = [FILTER_NOTE_TAG_ALL];
         let filterNoteTagMenuCounts = {};
         let filterNoteTagCountRebuildTimer = null;
@@ -3339,9 +3583,22 @@
 
             const frame = el('okFrame');
             if (frame) {
-                frame.addEventListener('load', () => {
+                const resyncIframeAfterLoad = () => {
                     sendSubmitRingConfigToIframe();
-                });
+                    try {
+                        broadcastLeftPanePosnfreqHexUi();
+                    } catch (eBr) {
+                        /* ignore */
+                    }
+                };
+                frame.addEventListener('load', resyncIframeAfterLoad);
+                try {
+                    if (frame.contentDocument && frame.contentDocument.readyState === 'complete') {
+                        resyncIframeAfterLoad();
+                    }
+                } catch (eRd) {
+                    /* ignore (e.g. opaque iframe) */
+                }
             }
 
             syncSubmitRingToolbarUi();
@@ -3374,6 +3631,9 @@
             if (isDatebandFilterMode(mode)) {
                 return 'date nền #00b0f0';
             }
+            if (isPosnfreqFilterMode(mode)) {
+                return 'posnfreq (position + frequency)';
+            }
             return getFilterModeLabel(mode);
         }
 
@@ -3383,6 +3643,19 @@
 
         function isNonexistFilterMode(mode) {
             return normalizeFilterMode(mode) === 'nonexist';
+        }
+
+        function isPosnfreqFilterMode(mode) {
+            return normalizeFilterMode(mode) === 'posnfreq';
+        }
+
+        function getPosnfreqFilterOptionsForMatching() {
+            return {
+                specimenNum: posnfreqSpecimenNum,
+                refRowIndex: posnfreqSourceRowIndex,
+                refSignature: posnfreqRefSignature,
+                specimenStrict: posnfreqSpecimenStrict
+            };
         }
 
         function isNonexistFilterNumEmpty() {
@@ -3498,6 +3771,9 @@
             if (isNonexistFilterMode(mode)) {
                 return false;
             }
+            if (isPosnfreqFilterMode(mode)) {
+                return false;
+            }
             return getFilterNoteTagMaxSelections(mode) > 0;
         }
 
@@ -3517,6 +3793,9 @@
         function getFilterOptionsForMode(mode) {
             if (isNonexistFilterMode(mode)) {
                 return getNonexistFilterOptions();
+            }
+            if (isPosnfreqFilterMode(mode)) {
+                return getPosnfreqFilterOptionsForMatching();
             }
             const noteTags = supportsNoteTagFilter(mode) ? getActiveNoteTagFilterValues() : [];
             if (noteTags.length > 0) {
@@ -4090,6 +4369,531 @@
             syncFilterPopupDropdownCounts();
         }
 
+        function clearPosnfreqMarkersInIframe() {
+            const frame = el('okFrame');
+            if (!frame || !frame.contentWindow) {
+                return;
+            }
+            try {
+                frame.contentWindow.postMessage({ type: 'posnfreqClearMarkers' }, '*');
+            } catch (e) { /* ignore */ }
+        }
+
+        function postPosnfreqMarkersToIframe() {
+            const frame = el('okFrame');
+            if (!frame || !frame.contentWindow || !sheetManager) {
+                return;
+            }
+            if (!isPosnfreqFilterMode(periodFilterMode) || posnfreqSpecimenNum == null || !Number.isFinite(posnfreqSpecimenNum)) {
+                clearPosnfreqMarkersInIframe();
+                return;
+            }
+            if (!posnfreqRefSignature || !Array.isArray(posnfreqRefSignature.positions)) {
+                clearPosnfreqMarkersInIframe();
+                return;
+            }
+            const refSigPayload = {
+                frequency: posnfreqRefSignature.frequency,
+                positions: posnfreqRefSignature.positions.slice()
+            };
+            const rows = sheetManager.getSourceSheetRows();
+            const fi = sheetManager.comboFocusRowIndex;
+            let markNums = [];
+            let skipMarkers = false;
+            if (!posnfreqSpecimenStrict) {
+                if (fi < 0) {
+                    skipMarkers = true;
+                } else if (typeof sheetManager.findAllPosnfreqMatchingNumbers === 'function') {
+                    markNums = sheetManager.findAllPosnfreqMatchingNumbers(rows, fi, posnfreqRefSignature);
+                    if (!markNums.length) {
+                        skipMarkers = true;
+                    }
+                } else {
+                    skipMarkers = true;
+                }
+            } else {
+                const spec = posnfreqSpecimenNum;
+                if (fi >= 0 && typeof sheetManager.findAllPosnfreqMatchingNumbers === 'function') {
+                    const all = sheetManager.findAllPosnfreqMatchingNumbers(rows, fi, posnfreqRefSignature);
+                    if (all.includes(spec)) {
+                        markNums = [spec, ...all.filter((m) => m !== spec)];
+                    } else if (all.length) {
+                        markNums = all.slice();
+                    } else {
+                        markNums = [spec];
+                    }
+                } else {
+                    markNums = [spec];
+                }
+            }
+            try {
+                if (skipMarkers) {
+                    clearPosnfreqMarkersInIframe();
+                    return;
+                }
+                frame.contentWindow.postMessage({
+                    type: 'posnfreqHighlightMarkers',
+                    markNums,
+                    markNum: markNums[0],
+                    specimen: markNums[0],
+                    refSig: refSigPayload
+                }, '*');
+            } catch (e) { /* ignore */ }
+        }
+
+        function formatPosnfreqSourceRowLabel(idx) {
+            if (!sheetManager || typeof idx !== 'number' || idx < 0) {
+                return '—';
+            }
+            const row = (sheetManager.dataRows || [])[idx];
+            if (!row) {
+                return '—';
+            }
+            const d = String(row.date || row.Date || '').trim();
+            const id = String(row.id || row.ID || '').trim();
+            return `${d || '—'} · ${id || '—'}`;
+        }
+
+        function syncPosnfreqSpecimenToggleUi() {
+            const hex = el('filterPopupPosnfreqHexBtn');
+            const hasSpec = posnfreqSpecimenNum != null && Number.isFinite(posnfreqSpecimenNum) && posnfreqRefSignature;
+            if (!hex) {
+                return;
+            }
+            hex.classList.toggle('posnfreq-specimen-strict', !!hasSpec && !!posnfreqSpecimenStrict);
+            if (hasSpec) {
+                hex.setAttribute('aria-pressed', posnfreqSpecimenStrict ? 'true' : 'false');
+            } else {
+                hex.removeAttribute('aria-pressed');
+            }
+        }
+
+        function syncPosnfreqMetaText() {
+            const meta = el('filterPopupPosnfreqMeta');
+            const hex = el('filterPopupPosnfreqHexBtn');
+            const srcBtn = el('filterPopupPosnfreqSourceBtn');
+            try {
+                if (!meta || !hex || !srcBtn) {
+                    return;
+                }
+                if (!isPosnfreqFilterMode(periodFilterMode)) {
+                    srcBtn.hidden = true;
+                    return;
+                }
+                if (posnfreqSpecimenNum == null || !posnfreqRefSignature) {
+                    meta.textContent = '';
+                    hex.textContent = '';
+                    hex.classList.remove('posnfreq-specimen-strict');
+                    hex.removeAttribute('aria-pressed');
+                    srcBtn.textContent = formatPosnfreqSourceRowLabel(posnfreqSourceRowIndex);
+                    srcBtn.hidden = true;
+                    syncPosnfreqSpecimenToggleUi();
+                    return;
+                }
+                hex.textContent = String(posnfreqSpecimenNum);
+                const pf = posnfreqRefSignature.frequency;
+                const plist = (posnfreqRefSignature.positions || []).join(',');
+                meta.textContent = `f=${pf} · [${plist}]`;
+                srcBtn.textContent = formatPosnfreqSourceRowLabel(posnfreqSourceRowIndex);
+                srcBtn.hidden = false;
+                syncPosnfreqSpecimenToggleUi();
+            } finally {
+                broadcastLeftPanePosnfreqHexUi();
+            }
+        }
+
+        function syncFilterPopupPosnfreqToolsUi() {
+            const tools = el('filterPopupPosnfreqTools');
+            const hex = el('filterPopupPosnfreqHexBtn');
+            if (!tools) {
+                return;
+            }
+            const show = periodFilterEnabled && isPosnfreqFilterMode(periodFilterMode);
+            tools.classList.toggle('hidden', !show);
+            if (show && sheetManager && posnfreqSourceRowIndex < 0 && sheetManager.comboFocusRowIndex >= 0) {
+                posnfreqSourceRowIndex = sheetManager.comboFocusRowIndex;
+            }
+            syncPosnfreqMetaText();
+            if (hex && show) {
+                postPosnfreqMarkersToIframe();
+            } else {
+                clearPosnfreqMarkersInIframe();
+            }
+            syncFilterPopupDropdownCounts();
+        }
+
+        function broadcastLeftPanePosnfreqHexUi() {
+            const frame = el('okFrame');
+            if (!frame || !frame.contentWindow) {
+                return;
+            }
+            const show = periodFilterEnabled && isPosnfreqFilterMode(periodFilterMode);
+            const hasSpec = posnfreqSpecimenNum != null && Number.isFinite(posnfreqSpecimenNum) && posnfreqRefSignature;
+            try {
+                frame.contentWindow.postMessage({
+                    type: 'posnfreqLeftHexSync',
+                    visible: !!show,
+                    text: hasSpec ? String(posnfreqSpecimenNum) : '',
+                    strict: !!(hasSpec && posnfreqSpecimenStrict)
+                }, '*');
+            } catch (e) { /* ignore */ }
+        }
+
+        function cancelPosnfreqPhase2Scheduling() {
+            if (posnfreqPhase2BarrierRaf1) {
+                cancelAnimationFrame(posnfreqPhase2BarrierRaf1);
+                posnfreqPhase2BarrierRaf1 = 0;
+            }
+            if (posnfreqPhase2BarrierRaf2) {
+                cancelAnimationFrame(posnfreqPhase2BarrierRaf2);
+                posnfreqPhase2BarrierRaf2 = 0;
+            }
+            if (posnfreqPhase2IdleId) {
+                try {
+                    if (typeof cancelIdleCallback === 'function') {
+                        cancelIdleCallback(posnfreqPhase2IdleId);
+                    }
+                } catch (eCan) {
+                    /* ignore */
+                }
+                posnfreqPhase2IdleId = 0;
+            }
+            if (posnfreqPhase2TimeoutId) {
+                clearTimeout(posnfreqPhase2TimeoutId);
+                posnfreqPhase2TimeoutId = 0;
+            }
+        }
+
+        function scheduleApplyPosnfreqSpecimenNumAfterLeftPaint(n) {
+            if (posnfreqApplyFromLeftPickRaf) {
+                cancelAnimationFrame(posnfreqApplyFromLeftPickRaf);
+                posnfreqApplyFromLeftPickRaf = 0;
+            }
+            cancelPosnfreqPhase2Scheduling();
+            posnfreqDeferredHeavyUiSeq++;
+            const seq = ++posnfreqApplyFromLeftPickSeq;
+            posnfreqApplyFromLeftPickRaf = requestAnimationFrame(() => {
+                posnfreqApplyFromLeftPickRaf = 0;
+                if (seq !== posnfreqApplyFromLeftPickSeq) {
+                    return;
+                }
+                applyPosnfreqSpecimenNum(n);
+            });
+        }
+
+        function schedulePosnfreqDeferredHeavyUi() {
+            cancelPosnfreqPhase2Scheduling();
+            const seq = ++posnfreqDeferredHeavyUiSeq;
+            const runPhase2 = () => {
+                posnfreqPhase2IdleId = 0;
+                posnfreqPhase2TimeoutId = 0;
+                if (seq !== posnfreqDeferredHeavyUiSeq) {
+                    return;
+                }
+                try {
+                    postPosnfreqMarkersToIframe();
+                    if (!periodFilterEnabled) {
+                        return;
+                    }
+                    const dock = el('filterPopupDock');
+                    const popupHidden = !dock || dock.classList.contains('hidden');
+                    if (popupHidden) {
+                        invalidateFilterPopupRenderCache();
+                        if (sheetManager && sheetManager.activeSheet === 'sheet1') {
+                            filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
+                            filterPopupIndicesCached = filterPopupIndices.slice();
+                        } else {
+                            filterPopupIndices = [];
+                            filterPopupIndicesCached = [];
+                        }
+                        filterPopupActiveIdx = -1;
+                        try {
+                            clearFilterPopupRowFocus();
+                            resetFilterPopupPositionUi();
+                        } catch (eClr) {
+                            /* ignore */
+                        }
+                        updatePeriodFilterMatchCount();
+                        syncPeriodFilterNavModeToIframe();
+                        return;
+                    }
+                    refreshFilterPopup({
+                        syncMain: false,
+                        clearPopupNav: true,
+                        skipOpen: true
+                    });
+                } catch (e) {
+                    /* ignore */
+                }
+            };
+            posnfreqPhase2BarrierRaf1 = requestAnimationFrame(() => {
+                posnfreqPhase2BarrierRaf1 = 0;
+                if (seq !== posnfreqDeferredHeavyUiSeq) {
+                    return;
+                }
+                posnfreqPhase2BarrierRaf2 = requestAnimationFrame(() => {
+                    posnfreqPhase2BarrierRaf2 = 0;
+                    if (seq !== posnfreqDeferredHeavyUiSeq) {
+                        return;
+                    }
+                    if (typeof requestIdleCallback === 'function') {
+                        posnfreqPhase2IdleId = requestIdleCallback(runPhase2, { timeout: 2000 });
+                    } else {
+                        posnfreqPhase2TimeoutId = setTimeout(runPhase2, 0);
+                    }
+                });
+            });
+        }
+
+        function applyPosnfreqSpecimenNum(n) {
+            if (!sheetManager || !Number.isFinite(n) || n < 1 || n > 35) {
+                return;
+            }
+            const refIdx = sheetManager.comboFocusRowIndex >= 0 ? sheetManager.comboFocusRowIndex : -1;
+            if (refIdx < 0) {
+                try {
+                    broadcastLeftPanePosnfreqHexUi();
+                } catch (eBr) {
+                    /* ignore */
+                }
+                return;
+            }
+            const popupHex = el('filterPopupPosnfreqHexBtn');
+            if (popupHex && periodFilterEnabled && isPosnfreqFilterMode(periodFilterMode)) {
+                popupHex.textContent = String(n);
+            }
+            const rows = sheetManager.getSourceSheetRows();
+            posnfreqSourceRowIndex = refIdx;
+            posnfreqSpecimenNum = n;
+            posnfreqRefSignature = sheetManager.computePosnfreqSignature(rows, refIdx, n);
+            posnfreqSpecimenStrict = false;
+            syncPosnfreqMetaText();
+            schedulePosnfreqDeferredHeavyUi();
+        }
+
+        function elementFromPointInOkFrame(clientX, clientY) {
+            const frame = el('okFrame');
+            if (!frame || !frame.contentDocument) {
+                return null;
+            }
+            const r = frame.getBoundingClientRect();
+            const x = clientX - r.left;
+            const y = clientY - r.top;
+            if (x < 0 || y < 0 || x > r.width || y > r.height) {
+                return null;
+            }
+            return frame.contentDocument.elementFromPoint(x, y);
+        }
+
+        function applyPosnfreqSpecimenFromTargetEl(targetEl) {
+            const cell = targetEl && targetEl.closest ? targetEl.closest('.cell.num[data-num]') : null;
+            if (!cell || !sheetManager) {
+                return;
+            }
+            const n = parseInt(cell.getAttribute('data-num'), 10);
+            if (!Number.isFinite(n) || n < 1 || n > 35) {
+                return;
+            }
+            applyPosnfreqSpecimenNum(n);
+        }
+
+        function initFilterPopupPosnfreqControls() {
+            const hex = el('filterPopupPosnfreqHexBtn');
+            const srcBtn = el('filterPopupPosnfreqSourceBtn');
+            if (!hex || hex.dataset.posnfreqWired) {
+                return;
+            }
+            hex.dataset.posnfreqWired = '1';
+            let draggingPosnfreqHex = false;
+            let downX = 0;
+            let downY = 0;
+            let activePointerId = null;
+            let dragGhostEl = null;
+            let dragRaf = 0;
+            let dragClientX = 0;
+            let dragClientY = 0;
+            let dragOffsetX = 0;
+            let dragOffsetY = 0;
+
+            const clearPosnfreqDragUi = () => {
+                if (dragRaf) {
+                    cancelAnimationFrame(dragRaf);
+                    dragRaf = 0;
+                }
+                if (dragGhostEl) {
+                    try {
+                        dragGhostEl.remove();
+                    } catch (e) { /* ignore */ }
+                    dragGhostEl = null;
+                }
+                hex.classList.remove('is-posnfreq-drag-source');
+            };
+
+            const positionDragGhost = () => {
+                if (!dragGhostEl) {
+                    dragRaf = 0;
+                    return;
+                }
+                const x = Math.round(dragClientX - dragOffsetX);
+                const y = Math.round(dragClientY - dragOffsetY);
+                dragGhostEl.style.transform = `translate3d(${x}px, ${y}px, 0)`;
+                dragRaf = 0;
+            };
+
+            const onPosnfreqPointerMove = (ev) => {
+                dragClientX = ev.clientX;
+                dragClientY = ev.clientY;
+                if (!dragGhostEl) {
+                    return;
+                }
+                if (!dragRaf) {
+                    dragRaf = requestAnimationFrame(positionDragGhost);
+                }
+            };
+
+            const detachDragListeners = () => {
+                window.removeEventListener('pointerup', endDrag, true);
+                window.removeEventListener('pointercancel', endDrag, true);
+                window.removeEventListener('mouseup', endDragMouse, true);
+                document.removeEventListener('pointermove', onPosnfreqPointerMove, true);
+                hex.removeEventListener('lostpointercapture', onLostPointerCapture);
+            };
+
+            const finishPointerCapture = (ev) => {
+                if (activePointerId == null) {
+                    return;
+                }
+                const pid = ev && ev.pointerId != null ? ev.pointerId : activePointerId;
+                if (pid !== activePointerId) {
+                    return;
+                }
+                try {
+                    if (typeof hex.releasePointerCapture === 'function') {
+                        const hasPc = typeof hex.hasPointerCapture === 'function' && hex.hasPointerCapture(pid);
+                        if (hasPc) {
+                            hex.releasePointerCapture(pid);
+                        }
+                    }
+                } catch (e) { /* ignore */ }
+                activePointerId = null;
+            };
+
+            function onLostPointerCapture() {
+                if (!draggingPosnfreqHex) {
+                    activePointerId = null;
+                    clearPosnfreqDragUi();
+                    return;
+                }
+                draggingPosnfreqHex = false;
+                activePointerId = null;
+                detachDragListeners();
+                clearPosnfreqDragUi();
+            }
+
+            /** Thả trên iframe: pointerup thường không bubble lên parent — setPointerCapture buộc nhận up trên nút hex. */
+            function endDrag(ev) {
+                if (!draggingPosnfreqHex) {
+                    return;
+                }
+                draggingPosnfreqHex = false;
+                detachDragListeners();
+                clearPosnfreqDragUi();
+                finishPointerCapture(ev);
+                if (!isPosnfreqFilterMode(periodFilterMode) || !periodFilterEnabled) {
+                    return;
+                }
+                const cx = ev && typeof ev.clientX === 'number' ? ev.clientX : downX;
+                const cy = ev && typeof ev.clientY === 'number' ? ev.clientY : downY;
+                const dist = Math.hypot(cx - downX, cy - downY);
+                if (dist < 8) {
+                    if (posnfreqSpecimenNum != null && Number.isFinite(posnfreqSpecimenNum) && posnfreqRefSignature) {
+                        posnfreqSpecimenStrict = !posnfreqSpecimenStrict;
+                        syncPosnfreqMetaText();
+                        schedulePosnfreqDeferredHeavyUi();
+                    }
+                } else {
+                    const hit = elementFromPointInOkFrame(cx, cy);
+                    if (hit) {
+                        applyPosnfreqSpecimenFromTargetEl(hit);
+                    }
+                }
+            }
+
+            function endDragMouse(ev) {
+                if (ev.button !== 0) {
+                    return;
+                }
+                endDrag(ev);
+            }
+
+            hex.addEventListener('pointerdown', (ev) => {
+                if (!isPosnfreqFilterMode(periodFilterMode) || !periodFilterEnabled) {
+                    return;
+                }
+                if (ev.button !== 0) {
+                    return;
+                }
+                ev.preventDefault();
+                ev.stopPropagation();
+                draggingPosnfreqHex = true;
+                downX = ev.clientX;
+                downY = ev.clientY;
+                activePointerId = ev.pointerId;
+                const br = hex.getBoundingClientRect();
+                dragOffsetX = ev.clientX - br.left;
+                dragOffsetY = ev.clientY - br.top;
+                dragClientX = ev.clientX;
+                dragClientY = ev.clientY;
+                dragGhostEl = document.createElement('div');
+                dragGhostEl.className = 'filter-popup-posnfreq-drag-ghost';
+                dragGhostEl.style.width = `${Math.round(br.width)}px`;
+                dragGhostEl.style.height = `${Math.round(br.height)}px`;
+                const inner = document.createElement('div');
+                inner.className = 'filter-popup-posnfreq-drag-ghost-inner';
+                inner.textContent = String(hex.textContent || '').trim();
+                if (hex.classList.contains('posnfreq-specimen-strict')) {
+                    inner.classList.add('posnfreq-specimen-strict');
+                }
+                dragGhostEl.appendChild(inner);
+                document.body.appendChild(dragGhostEl);
+                hex.classList.add('is-posnfreq-drag-source');
+                positionDragGhost();
+                try {
+                    if (typeof hex.setPointerCapture === 'function') {
+                        hex.setPointerCapture(ev.pointerId);
+                    }
+                } catch (e) { /* ignore */ }
+                hex.addEventListener('lostpointercapture', onLostPointerCapture);
+                document.addEventListener('pointermove', onPosnfreqPointerMove, true);
+                window.addEventListener('pointerup', endDrag, true);
+                window.addEventListener('pointercancel', endDrag, true);
+                window.addEventListener('mouseup', endDragMouse, true);
+            });
+
+            if (srcBtn) {
+                srcBtn.addEventListener('click', (ev) => {
+                    ev.preventDefault();
+                    if (!sheetManager || posnfreqSourceRowIndex < 0) {
+                        return;
+                    }
+                    syncMainRowFromFilter(posnfreqSourceRowIndex, { full: true });
+                });
+            }
+        }
+
+        function onPosnfreqMainFocusRowChanged(focusIdx) {
+            if (!isPosnfreqFilterMode(periodFilterMode) || !periodFilterEnabled) {
+                return;
+            }
+            if (typeof focusIdx !== 'number' || focusIdx < 0) {
+                return;
+            }
+            void focusIdx;
+            requestAnimationFrame(() => {
+                postPosnfreqMarkersToIframe();
+            });
+        }
+
         function renderNonexistStyleLetterHtml(style, active) {
             const letter = NONEXIST_FILTER_STYLE_LETTERS[style] || String(style || '').charAt(0).toUpperCase();
             const color = active ? '#0f172a' : '#94a3b8';
@@ -4158,6 +4962,9 @@
         function getFilterOptionsForParentCount(mode) {
             if (isNonexistFilterMode(mode)) {
                 return getNonexistFilterOptions();
+            }
+            if (isPosnfreqFilterMode(mode)) {
+                return getPosnfreqFilterOptionsForMatching();
             }
             return null;
         }
@@ -4343,6 +5150,12 @@
                 }
                 return `Không có kỳ nào có số ${filterNonexistNum} màu ${colorLabel}${styleHint} trong nonexist.`;
             }
+            if (isPosnfreqFilterMode(normalized)) {
+                if (posnfreqSpecimenNum == null || !Number.isFinite(posnfreqSpecimenNum)) {
+                    return 'Chọn specimen: kéo lục giác từ header vào ô số trên bảng trái (kỳ nguồn = kỳ đang focus).';
+                }
+                return 'Không có kỳ nào khớp posnfreq với specimen hiện tại.';
+            }
             const hint = getFilterModeTitleHint(normalized);
             const tags = getActiveNoteTagFilterValues();
             if (tags.length > 0) {
@@ -4509,7 +5322,11 @@
         }
 
         function selectPeriodFilterMode(mode) {
+            const prevMode = periodFilterMode;
             periodFilterMode = normalizeFilterMode(mode);
+            if (isPosnfreqFilterMode(prevMode) && !isPosnfreqFilterMode(periodFilterMode)) {
+                clearPosnfreqMarkersInIframe();
+            }
             try {
                 localStorage.setItem(PERIOD_FILTER_MODE_KEY, periodFilterMode);
             } catch (e) { }
@@ -4607,7 +5424,127 @@
             }
         }
 
+        function collectFilterPopupPosnfreqGreenHitIndicesOrdered(wrap) {
+            if (!wrap) {
+                return [];
+            }
+            return [...wrap.querySelectorAll('tbody tr.filter-popup-posnfreq-submit-hit[data-idx]')]
+                .map((tr) => Number(tr.dataset.idx))
+                .filter((idx) => Number.isFinite(idx));
+        }
+
+        function getFilterPopupEffectiveListIndices() {
+            if (!filterPopupPosnfreqGreenOnly || !periodFilterEnabled || !isPosnfreqFilterMode(periodFilterMode)) {
+                return filterPopupIndices;
+            }
+            const wrap = el('filterTableWrap');
+            return collectFilterPopupPosnfreqGreenHitIndicesOrdered(wrap);
+        }
+
+        function getFilterPopupNavListLength() {
+            return getFilterPopupEffectiveListIndices().length;
+        }
+
+        function getFilterPopupDisplayedRowCountForMatchUi() {
+            if (!periodFilterEnabled || !sheetManager || sheetManager.activeSheet !== 'sheet1') {
+                return 0;
+            }
+            if (filterPopupPosnfreqGreenOnly && isPosnfreqFilterMode(periodFilterMode)) {
+                return getFilterPopupNavListLength();
+            }
+            if (filterPopupIndices.length > 0) {
+                return filterPopupIndices.length;
+            }
+            return getFilterMatchingIndicesForMode(periodFilterMode).length;
+        }
+
+        function reconcileFilterPopupActiveAfterGreenOnlyToggle(opts = {}) {
+            const previewOnly = opts.syncPreview !== false;
+            if (!filterPopupPosnfreqGreenOnly) {
+                filterPopupActiveIdx = resolveFilterPopupActiveIdx(filterPopupIndices);
+                applyFilterPopupRowFocus(filterPopupActiveIdx);
+                if (filterPopupActiveIdx >= 0) {
+                    syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly });
+                }
+                const positionInput = el('filterPopupPositionInput');
+                if (positionInput && filterPopupActiveIdx >= 0) {
+                    const pos = filterPopupIndices.indexOf(filterPopupActiveIdx);
+                    if (pos >= 0) {
+                        const posText = String(pos + 1);
+                        setFilterPopupPositionText(positionInput, posText);
+                        setFilterPopupPositionInputWidth(positionInput, posText);
+                    }
+                }
+                return;
+            }
+            const list = getFilterPopupEffectiveListIndices();
+            if (!list.length) {
+                filterPopupActiveIdx = -1;
+                clearFilterPopupRowFocus();
+                resetFilterPopupPositionUi();
+                return;
+            }
+            if (!list.includes(filterPopupActiveIdx)) {
+                filterPopupActiveIdx = list[0];
+            }
+            applyFilterPopupRowFocus(filterPopupActiveIdx);
+            syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly });
+            const positionInput = el('filterPopupPositionInput');
+            if (positionInput) {
+                const pos = list.indexOf(filterPopupActiveIdx);
+                const posText = pos >= 0 ? String(pos + 1) : '';
+                setFilterPopupPositionText(positionInput, posText);
+                setFilterPopupPositionInputWidth(positionInput, posText);
+            }
+        }
+
+        function setFilterPopupPosnfreqGreenOnly(on, opts = {}) {
+            const next = !!on;
+            filterPopupPosnfreqGreenOnly = next;
+            const wrap = el('filterTableWrap');
+            const btn = el('filterPopupPosnfreqOverlapPct');
+            if (wrap) {
+                wrap.classList.toggle('filter-popup-posnfreq-green-only', next);
+            }
+            if (btn && !btn.hidden) {
+                btn.setAttribute('aria-pressed', next ? 'true' : 'false');
+            }
+            if (!opts.skipReconcile) {
+                reconcileFilterPopupActiveAfterGreenOnlyToggle();
+            }
+            if (!opts.skipCounts) {
+                updateFilterPopupMatchCount();
+                syncPeriodFilterNavModeToIframe();
+            }
+            requestAnimationFrame(() => {
+                if (filterPopupActiveIdx >= 0) {
+                    scrollFilterPopupRowIntoView();
+                }
+            });
+        }
+
+        function initFilterPopupPosnfreqOverlapPctToggle() {
+            const btn = el('filterPopupPosnfreqOverlapPct');
+            if (!btn || btn.dataset.greenOnlyBound === '1') {
+                return;
+            }
+            btn.dataset.greenOnlyBound = '1';
+            btn.addEventListener('mousedown', (event) => {
+                event.stopPropagation();
+            });
+            btn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                if (btn.hidden) {
+                    return;
+                }
+                setFilterPopupPosnfreqGreenOnly(!filterPopupPosnfreqGreenOnly);
+            });
+        }
+
         function getFilterPopupListTotal(fallbackTotal) {
+            if (filterPopupPosnfreqGreenOnly && periodFilterEnabled && isPosnfreqFilterMode(periodFilterMode)) {
+                return getFilterPopupNavListLength();
+            }
             if (filterPopupIndices.length > 0) {
                 return filterPopupIndices.length;
             }
@@ -4615,10 +5552,11 @@
         }
 
         function getFilterPopupListPosition() {
-            if (filterPopupActiveIdx < 0 || !filterPopupIndices.includes(filterPopupActiveIdx)) {
+            const list = getFilterPopupEffectiveListIndices();
+            if (filterPopupActiveIdx < 0 || !list.includes(filterPopupActiveIdx)) {
                 return 0;
             }
-            return filterPopupIndices.indexOf(filterPopupActiveIdx) + 1;
+            return list.indexOf(filterPopupActiveIdx) + 1;
         }
 
         function getFilterPopupPositionText(positionEl) {
@@ -4641,12 +5579,13 @@
         }
 
         function focusFilterPopupByListPosition(position) {
-            const total = filterPopupIndices.length;
+            const list = getFilterPopupEffectiveListIndices();
+            const total = list.length;
             if (total === 0) {
                 return false;
             }
             const pos = Math.max(1, Math.min(total, Math.floor(Number(position) || 0)));
-            const idx = filterPopupIndices[pos - 1];
+            const idx = list[pos - 1];
             if (typeof idx !== 'number') {
                 return false;
             }
@@ -4693,9 +5632,14 @@
                 && periodFilterEnabled
                 && filteredTotal > 0
                 && (listPos > 0 || isEditing);
+            const compactPosnfreqCountUi = periodFilterEnabled && isPosnfreqFilterMode(normalized);
+            const parentSuffix = el('filterPopupParentSuffix');
 
             filteredEl.textContent = String(filteredTotal);
             parentEl.textContent = String(parentTotal);
+            if (parentSuffix) {
+                parentSuffix.classList.toggle('hidden', compactPosnfreqCountUi);
+            }
             if (positionWrap) {
                 positionWrap.classList.toggle('hidden', !showPosition);
             }
@@ -4707,9 +5651,13 @@
             }
 
             const noteTagLabel = getActiveNoteTagFilterValues().map((n) => `${n}:`).join(', ');
-            let title = `Có ${filteredTotal} / ${parentTotal} kỳ khớp ${label}`;
+            let title = compactPosnfreqCountUi
+                ? `Có ${filteredTotal} kỳ khớp ${label}`
+                : `Có ${filteredTotal} / ${parentTotal} kỳ khớp ${label}`;
             if (noteTagLabel) {
-                title = `Có ${filteredTotal} / ${parentTotal} kỳ (${label}, note ${noteTagLabel})`;
+                title = compactPosnfreqCountUi
+                    ? `Có ${filteredTotal} kỳ (${label}, note ${noteTagLabel})`
+                    : `Có ${filteredTotal} / ${parentTotal} kỳ (${label}, note ${noteTagLabel})`;
             }
             if (isNonexistFilterMode(normalized) && periodFilterEnabled) {
                 const colorLabel = getNonexistFilterColorLabelList();
@@ -4721,11 +5669,17 @@
             if (!periodFilterEnabled) {
                 title = 'Số kỳ: vị trí / đã lọc / mode (All)';
             } else if (isPreview) {
-                title = `Xem trước: ${filteredTotal} / ${parentTotal} kỳ khớp ${label}`;
+                title = compactPosnfreqCountUi
+                    ? `Xem trước: ${filteredTotal} kỳ khớp ${label}`
+                    : `Xem trước: ${filteredTotal} / ${parentTotal} kỳ khớp ${label}`;
             } else if (showPosition && listPos > 0) {
-                title = `Kỳ ${listPos} / ${filteredTotal} / ${parentTotal} — gõ số để nhảy (${label})`;
+                title = compactPosnfreqCountUi
+                    ? `Kỳ ${listPos} / ${filteredTotal} — gõ số để nhảy (${label})`
+                    : `Kỳ ${listPos} / ${filteredTotal} / ${parentTotal} — gõ số để nhảy (${label})`;
             } else if (filteredTotal > 0) {
-                title = `Gõ thứ tự: x / ${filteredTotal} / ${parentTotal} (${label})`;
+                title = compactPosnfreqCountUi
+                    ? `Gõ thứ tự: x / ${filteredTotal} (${label})`
+                    : `Gõ thứ tự: x / ${filteredTotal} / ${parentTotal} (${label})`;
             }
 
             if (periodFilterEnabled && sheetManager && typeof sheetManager.computePrevPeriodRecallFoldStats === 'function') {
@@ -4747,7 +5701,7 @@
 
         function tryAppendFilterPopupPositionDigit(digit) {
             const input = el('filterPopupPositionInput');
-            const total = filterPopupIndices.length;
+            const total = getFilterPopupNavListLength();
             if (!input || total === 0) {
                 return false;
             }
@@ -4773,7 +5727,7 @@
             if (!input) {
                 return false;
             }
-            const total = filterPopupIndices.length;
+            const total = getFilterPopupNavListLength();
             const nextText = getFilterPopupPositionText(input).slice(0, -1);
             setFilterPopupPositionText(input, nextText);
             setFilterPopupPositionInputWidth(input, nextText);
@@ -4879,7 +5833,7 @@
             });
 
             input.addEventListener('keydown', (event) => {
-                if (!periodFilterEnabled || filterPopupIndices.length === 0) {
+                if (!periodFilterEnabled || getFilterPopupNavListLength() === 0) {
                     return;
                 }
                 const key = String(event.key || '');
@@ -4901,7 +5855,7 @@
                     event.stopPropagation();
                 });
                 popup.addEventListener('click', (event) => {
-                    if (filterPopupIndices.length === 0) {
+                    if (getFilterPopupNavListLength() === 0) {
                         return;
                     }
                     const wrap = el('filterPopupPositionWrap');
@@ -4953,9 +5907,7 @@
             const normalized = normalizeFilterMode(mode);
             let filteredTotal = 0;
             if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1') {
-                filteredTotal = filterPopupIndices.length > 0
-                    ? filterPopupIndices.length
-                    : getFilterMatchingIndicesForMode(normalized).length;
+                filteredTotal = getFilterPopupDisplayedRowCountForMatchUi();
             }
 
             syncFilterPopupMatchCountUi(mode, isPreview, filteredTotal);
@@ -4969,9 +5921,7 @@
         function updateFilterPopupMatchCount() {
             let filteredTotal = 0;
             if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1') {
-                filteredTotal = filterPopupIndices.length > 0
-                    ? filterPopupIndices.length
-                    : getFilterMatchingIndicesForMode(periodFilterMode).length;
+                filteredTotal = getFilterPopupDisplayedRowCountForMatchUi();
             }
             syncFilterPopupMatchCountUi(periodFilterMode, false, filteredTotal);
             fitPeriodFilterMatchCountWidth();
@@ -5087,6 +6037,7 @@
             applyPeriodFilterModeVisual(popup.modeLabel, periodFilterMode);
             highlightPeriodFilterModeMenu(null);
             syncFilterPopupNonexistToolsUi();
+            syncFilterPopupPosnfreqToolsUi();
             syncFilterPopupNoteTagUi();
 
             if (light) {
@@ -5491,7 +6442,7 @@
         function isFilterPopupNavActive() {
             return periodFilterEnabled
                 && !el('filterPopupDock')?.classList.contains('hidden')
-                && filterPopupIndices.length > 0;
+                && getFilterPopupNavListLength() > 0;
         }
 
         function syncPeriodFilterNavModeToIframe() {
@@ -5613,21 +6564,25 @@
         }
 
         function previewFilterPopupNavStep(step) {
-            if (!periodFilterEnabled || filterPopupIndices.length === 0) {
+            if (!periodFilterEnabled) {
+                return false;
+            }
+            const list = getFilterPopupEffectiveListIndices();
+            if (!list.length) {
                 return false;
             }
             const delta = Number(step) || 0;
             if (!delta) {
                 return false;
             }
-            const pos = filterPopupIndices.indexOf(filterPopupActiveIdx);
+            const pos = list.indexOf(filterPopupActiveIdx);
             const basePos = pos >= 0 ? pos : 0;
-            const nextPos = Math.max(0, Math.min(filterPopupIndices.length - 1, basePos + delta));
-            if (filterPopupIndices[nextPos] === filterPopupActiveIdx) {
+            const nextPos = Math.max(0, Math.min(list.length - 1, basePos + delta));
+            if (list[nextPos] === filterPopupActiveIdx) {
                 return false;
             }
             rememberKeyboardFocusTarget('filter');
-            filterPopupActiveIdx = filterPopupIndices[nextPos];
+            filterPopupActiveIdx = list[nextPos];
             applyFilterPopupRowFocus(filterPopupActiveIdx);
             scrollFilterPopupRowIntoView();
             const positionInput = el('filterPopupPositionInput');
@@ -5641,7 +6596,7 @@
         }
 
         function commitFilterPopupNav() {
-            if (!periodFilterEnabled || filterPopupIndices.length === 0 || filterPopupActiveIdx < 0) {
+            if (!periodFilterEnabled || getFilterPopupNavListLength() === 0 || filterPopupActiveIdx < 0) {
                 return false;
             }
             rememberKeyboardFocusTarget('filter');
@@ -5782,6 +6737,21 @@
             const styles = filterNonexistStyles.slice().sort().join(',');
             const colors = filterNonexistColors.slice().sort().join(',');
             const num = filterNonexistNum != null ? String(filterNonexistNum) : '';
+            let posnfreqKey = '';
+            if (isPosnfreqFilterMode(periodFilterMode)) {
+                const sn = posnfreqSpecimenNum != null && Number.isFinite(posnfreqSpecimenNum)
+                    ? String(posnfreqSpecimenNum)
+                    : 'x';
+                const src = Number.isFinite(posnfreqSourceRowIndex) && posnfreqSourceRowIndex >= 0
+                    ? String(posnfreqSourceRowIndex)
+                    : 'x';
+                const strict = posnfreqSpecimenStrict ? '1' : '0';
+                let sig = 'x';
+                if (posnfreqRefSignature && Array.isArray(posnfreqRefSignature.positions)) {
+                    sig = `${posnfreqRefSignature.frequency}:${posnfreqRefSignature.positions.join('.')}`;
+                }
+                posnfreqKey = `pf:${sn}:${src}:${strict}:${sig}`;
+            }
             return [
                 periodFilterMode,
                 tags,
@@ -5789,7 +6759,8 @@
                 colors,
                 styles,
                 rowLen,
-                rightPaneZoom
+                rightPaneZoom,
+                posnfreqKey
             ].join('|');
         }
 
@@ -5864,13 +6835,33 @@
 
         function applyFilterPopupFastOpen(wrap, options = {}) {
             wrap.style.setProperty('--right-table-zoom', String(rightPaneZoom));
+            const freshIdx = getFilterMatchingIndicesForMode(periodFilterMode);
+            const domIdx = [...wrap.querySelectorAll('tbody tr[data-idx]')].map((tr) => Number(tr.dataset.idx));
+            let domMatchesFresh = freshIdx.length === domIdx.length;
+            if (domMatchesFresh) {
+                for (let i = 0; i < freshIdx.length; i++) {
+                    if (freshIdx[i] !== domIdx[i]) {
+                        domMatchesFresh = false;
+                        break;
+                    }
+                }
+            }
+            if (!domMatchesFresh) {
+                invalidateFilterPopupRenderCache();
+                refreshFilterPopupHeavy({
+                    syncMain: options.syncMain === true,
+                    clearPopupNav: options.clearPopupNav === true
+                });
+                return;
+            }
             if (!filterPopupHasLiveTable(wrap, getFilterPopupRenderCacheKey())) {
                 wrap.innerHTML = filterPopupHtmlCache;
             }
-            filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
+            filterPopupIndices = freshIdx;
             filterPopupIndicesCached = filterPopupIndices.slice();
             applyFilterPopupNonexistIdGapBorders(wrap);
             updateFilterPopupPrevRecallFoldTooltips();
+            syncFilterPopupPosnfreqSubmitOverlap();
             if (options.clearPopupNav) {
                 filterPopupActiveIdx = -1;
                 clearFilterPopupRowFocus();
@@ -5917,6 +6908,92 @@
             syncFilterPopupNoteTagUi();
         }
 
+        function syncFilterPopupPosnfreqSubmitOverlap() {
+            const wrap = el('filterTableWrap');
+            const pctEl = el('filterPopupPosnfreqOverlapPct');
+            const hidePct = () => {
+                const wasGreenOnly = filterPopupPosnfreqGreenOnly;
+                filterPopupPosnfreqGreenOnly = false;
+                const w = el('filterTableWrap');
+                if (w) {
+                    w.classList.remove('filter-popup-posnfreq-green-only');
+                }
+                if (pctEl) {
+                    pctEl.hidden = true;
+                    pctEl.textContent = '';
+                    pctEl.setAttribute('aria-pressed', 'false');
+                }
+                if (wasGreenOnly) {
+                    reconcileFilterPopupActiveAfterGreenOnlyToggle();
+                }
+                updateFilterPopupMatchCount();
+                syncPeriodFilterNavModeToIframe();
+            };
+            if (!wrap || !sheetManager) {
+                hidePct();
+                return;
+            }
+            wrap.querySelectorAll('tbody tr.filter-popup-posnfreq-submit-hit').forEach((tr) => {
+                tr.classList.remove('filter-popup-posnfreq-submit-hit');
+            });
+            if (!periodFilterEnabled || !isPosnfreqFilterMode(periodFilterMode) || !posnfreqRefSignature) {
+                hidePct();
+                return;
+            }
+            const rows = sheetManager.getSourceSheetRows();
+            if (!Array.isArray(rows) || !rows.length) {
+                hidePct();
+                return;
+            }
+            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                const idx = Number(tr.dataset.idx);
+                if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
+                    return;
+                }
+                const row = rows[idx];
+                if (!row || sheetManager.isEmptyResultRow(row)) {
+                    return;
+                }
+                const nums = sheetManager.parseMainNums(row.result || row.Result || '');
+                if (!nums.length) {
+                    return;
+                }
+                const allM = typeof sheetManager.findAllPosnfreqMatchingNumbers === 'function'
+                    ? sheetManager.findAllPosnfreqMatchingNumbers(rows, idx, posnfreqRefSignature)
+                    : [];
+                if (!allM.length) {
+                    return;
+                }
+                const numSet = new Set(nums);
+                if (allM.some((m) => numSet.has(m))) {
+                    tr.classList.add('filter-popup-posnfreq-submit-hit');
+                }
+            });
+            const total = wrap.querySelectorAll('tbody tr[data-idx]').length;
+            const green = wrap.querySelectorAll('tbody tr.filter-popup-posnfreq-submit-hit').length;
+            if (!pctEl) {
+                return;
+            }
+            if (total === 0) {
+                hidePct();
+                return;
+            }
+            const pct = Math.round((green / total) * 100);
+            pctEl.hidden = false;
+            pctEl.textContent = `${pct}%`;
+            if (filterPopupPosnfreqGreenOnly && green === 0) {
+                setFilterPopupPosnfreqGreenOnly(false);
+            } else if (filterPopupPosnfreqGreenOnly) {
+                wrap.classList.add('filter-popup-posnfreq-green-only');
+                pctEl.setAttribute('aria-pressed', 'true');
+                reconcileFilterPopupActiveAfterGreenOnlyToggle();
+            } else {
+                pctEl.setAttribute('aria-pressed', 'false');
+            }
+            updateFilterPopupMatchCount();
+            syncPeriodFilterNavModeToIframe();
+        }
+
         function buildFilterPopupTable(wrap, options = {}) {
             const syncMain = options.syncMain === true;
             const cacheKey = options.cacheKey || getFilterPopupRenderCacheKey();
@@ -5930,6 +7007,7 @@
             });
             filterPopupIndicesCached = filterPopupIndices.slice();
             applyFilterPopupNonexistIdGapBorders(wrap);
+            syncFilterPopupPosnfreqSubmitOverlap();
             filterPopupHtmlCache = wrap.innerHTML;
             filterPopupRenderCacheKey = cacheKey;
             updateFilterPopupPrevRecallFoldTooltips();
@@ -5947,6 +7025,11 @@
             if (sheetManager.activeSheet !== 'sheet1') {
                 filterPopupIndices = [];
                 filterPopupActiveIdx = -1;
+                filterPopupPosnfreqGreenOnly = false;
+                const w = el('filterTableWrap');
+                if (w) {
+                    w.classList.remove('filter-popup-posnfreq-green-only');
+                }
                 invalidateFilterPopupRenderCache();
                 wrap.innerHTML = '<div class="filter-popup-empty">Lọc chỉ áp dụng cho sheet dữ liệu chính.</div>';
                 updatePeriodFilterMatchCount();
@@ -5967,6 +7050,8 @@
 
             if (filterPopupIndices.length === 0) {
                 invalidateFilterPopupRenderCache();
+                filterPopupPosnfreqGreenOnly = false;
+                wrap.classList.remove('filter-popup-posnfreq-green-only');
                 wrap.innerHTML = '<div class="filter-popup-empty">' + getFilterPopupEmptyMessage(periodFilterMode) + '</div>';
                 finishFilterPopupOpen({ syncMain });
                 return;
@@ -6053,8 +7138,40 @@
             let startY = 0;
             let startLeft = 0;
             let startTop = 0;
+            let lastMoveX = 0;
+            let lastMoveY = 0;
+            let dragMoveRaf = 0;
 
             const panel = el('filterPopupPanel');
+
+            function flushFilterPopupDragTransform() {
+                dragMoveRaf = 0;
+                if (!dragging) {
+                    return;
+                }
+                const dx = lastMoveX - startX;
+                const ty = Math.max(8 - startTop, lastMoveY - startY);
+                dock.style.transform = `translate3d(${dx}px, ${ty}px, 0)`;
+            }
+
+            function scheduleFilterPopupDragTransform() {
+                if (dragMoveRaf) {
+                    return;
+                }
+                dragMoveRaf = requestAnimationFrame(flushFilterPopupDragTransform);
+            }
+
+            function isFilterPopupHeaderNonDragTarget(target) {
+                if (!target || !(target instanceof Element)) {
+                    return false;
+                }
+                if (target.closest('.period-filter-mode-menu:not(.hidden)')
+                    || target.closest('.filter-popup-note-tag-menu:not(.hidden)')
+                    || target.closest('.filter-popup-nonexist-color-menu:not(.hidden)')) {
+                    return true;
+                }
+                return !!target.closest('button, input, select, textarea, a, [role="textbox"], [contenteditable="true"]');
+            }
 
             function blockFilterPopupDblclickExpand(event) {
                 event.preventDefault();
@@ -6072,18 +7189,22 @@
             }
 
             header.addEventListener('mousedown', (event) => {
-                const onTitleDrag = !!event.target.closest('.filter-popup-title-label');
                 if (event.button !== 0
                     || event.target.closest('#filterPopupClose')
-                    || (event.target.closest('.filter-popup-filter-tools') && !onTitleDrag)) {
+                    || event.target.closest('.filter-popup-header-trail')
+                    || isFilterPopupHeaderNonDragTarget(event.target)) {
                     return;
                 }
                 const geometry = pinFilterPopupGeometry(dock, panel);
                 dragging = true;
+                dock.classList.add('is-filter-popup-header-dragging');
+                dock.style.transform = '';
                 startX = event.clientX;
                 startY = event.clientY;
                 startLeft = geometry.left;
                 startTop = geometry.top;
+                lastMoveX = startX;
+                lastMoveY = startY;
                 event.preventDefault();
             });
 
@@ -6091,8 +7212,9 @@
                 if (!dragging) {
                     return;
                 }
-                dock.style.left = `${startLeft + event.clientX - startX}px`;
-                dock.style.top = `${Math.max(8, startTop + event.clientY - startY)}px`;
+                lastMoveX = event.clientX;
+                lastMoveY = event.clientY;
+                scheduleFilterPopupDragTransform();
             });
 
             document.addEventListener('mouseup', () => {
@@ -6100,6 +7222,16 @@
                     return;
                 }
                 dragging = false;
+                if (dragMoveRaf) {
+                    cancelAnimationFrame(dragMoveRaf);
+                    dragMoveRaf = 0;
+                }
+                const dx = lastMoveX - startX;
+                const dy = lastMoveY - startY;
+                dock.style.transform = '';
+                dock.style.left = `${Math.round(startLeft + dx)}px`;
+                dock.style.top = `${Math.round(Math.max(8, startTop + dy))}px`;
+                dock.classList.remove('is-filter-popup-header-dragging');
                 scheduleSaveFilterPopupLayout();
             });
 
@@ -6362,6 +7494,26 @@
             let startY = 0;
             let startLeft = 0;
             let startTop = 0;
+            let lastMoveX = 0;
+            let lastMoveY = 0;
+            let dragMoveRaf = 0;
+
+            function flushAnswerPopupDragTransform() {
+                dragMoveRaf = 0;
+                if (!dragging) {
+                    return;
+                }
+                const dx = lastMoveX - startX;
+                const ty = Math.max(8 - startTop, lastMoveY - startY);
+                dock.style.transform = `translate3d(${dx}px, ${ty}px, 0)`;
+            }
+
+            function scheduleAnswerPopupDragTransform() {
+                if (dragMoveRaf) {
+                    return;
+                }
+                dragMoveRaf = requestAnimationFrame(flushAnswerPopupDragTransform);
+            }
 
             header.addEventListener('mousedown', (event) => {
                 if (event.button !== 0) {
@@ -6375,10 +7527,14 @@
                 }
                 const geometry = pinFilterPopupGeometry(dock, panel);
                 dragging = true;
+                dock.classList.add('is-answer-popup-header-dragging');
+                dock.style.transform = '';
                 startX = event.clientX;
                 startY = event.clientY;
                 startLeft = geometry.left;
                 startTop = geometry.top;
+                lastMoveX = startX;
+                lastMoveY = startY;
                 event.preventDefault();
             });
 
@@ -6386,8 +7542,9 @@
                 if (!dragging) {
                     return;
                 }
-                dock.style.left = `${startLeft + event.clientX - startX}px`;
-                dock.style.top = `${Math.max(8, startTop + event.clientY - startY)}px`;
+                lastMoveX = event.clientX;
+                lastMoveY = event.clientY;
+                scheduleAnswerPopupDragTransform();
             });
 
             document.addEventListener('mouseup', () => {
@@ -6395,6 +7552,16 @@
                     return;
                 }
                 dragging = false;
+                if (dragMoveRaf) {
+                    cancelAnimationFrame(dragMoveRaf);
+                    dragMoveRaf = 0;
+                }
+                const dx = lastMoveX - startX;
+                const dy = lastMoveY - startY;
+                dock.style.transform = '';
+                dock.style.left = `${Math.round(startLeft + dx)}px`;
+                dock.style.top = `${Math.round(Math.max(8, startTop + dy))}px`;
+                dock.classList.remove('is-answer-popup-header-dragging');
                 scheduleSaveAnswerPopupLayout();
             });
 
@@ -6615,6 +7782,8 @@
             initPeriodFilterModePicker();
             initFilterPopupNonexistControls();
             initFilterPopupNoteTagControls();
+            initFilterPopupPosnfreqControls();
+            initFilterPopupPosnfreqOverlapPctToggle();
             initFilterPopupPositionInput();
             initPeriodFilterCtrlShortcut();
             syncPeriodFilterToolbarUi();
@@ -6941,6 +8110,9 @@
                 if (sheetManager && sheetManager.activeSheet === 'combo_1') {
                     scheduleComboH1ReplaceFromLeftCircled();
                 }
+                if (periodFilterEnabled && isPosnfreqFilterMode(periodFilterMode) && detail.sheetName === 'sheet1' && typeof detail.focusRowIndex === 'number') {
+                    onPosnfreqMainFocusRowChanged(detail.focusRowIndex);
+                }
             });
 
             window.addEventListener('message', (ev) => {
@@ -6997,6 +8169,49 @@
                         return;
                     }
                     queueRightPaneNav('filter', step);
+                    return;
+                }
+                if (msg.type === 'posnfreqLeftHexRequestSync') {
+                    const frame = el('okFrame');
+                    if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
+                        return;
+                    }
+                    try {
+                        broadcastLeftPanePosnfreqHexUi();
+                    } catch (eSync) {
+                        /* ignore */
+                    }
+                    return;
+                }
+                if (msg.type === 'posnfreqLeftHexPickNum') {
+                    const frame = el('okFrame');
+                    if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
+                        return;
+                    }
+                    const n = Number(msg.num);
+                    if (!Number.isFinite(n) || n < 1 || n > 35) {
+                        return;
+                    }
+                    if (!periodFilterEnabled || !isPosnfreqFilterMode(periodFilterMode)) {
+                        return;
+                    }
+                    scheduleApplyPosnfreqSpecimenNumAfterLeftPaint(n);
+                    return;
+                }
+                if (msg.type === 'posnfreqLeftHexToggleStrict') {
+                    const frame = el('okFrame');
+                    if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
+                        return;
+                    }
+                    if (!periodFilterEnabled || !isPosnfreqFilterMode(periodFilterMode)) {
+                        return;
+                    }
+                    if (posnfreqSpecimenNum == null || !Number.isFinite(posnfreqSpecimenNum) || !posnfreqRefSignature) {
+                        return;
+                    }
+                    posnfreqSpecimenStrict = !posnfreqSpecimenStrict;
+                    syncPosnfreqMetaText();
+                    schedulePosnfreqDeferredHeavyUi();
                     return;
                 }
                 if (msg.type === 'rightPaneNavKey') {
