@@ -1,7 +1,47 @@
 /**
  * Right Pane Sheet Manager & Styling
  * Inspired by Module1-5 VBA patterns: grouping, frequency analysis, color-coding
+ *
+ * Trọng số dự đoán special tracking: đồng bộ proj/scripts/special-tracking-predict-core.mjs
+ * (tối ưu sâu: `node ... --tune-coord` ~vài phút; nhanh: `--tune-coord-quick`).
  */
+const SPECIAL_TRACKING_PREDICT_WT = Object.freeze({
+    uw50: 1.635,
+    uw20: 1.843,
+    uw100: 0.622,
+    c4mul: 1.439,
+    bgG: 2.545,
+    bgR: 11.197,
+    tri: 10.952,
+    gapSqrt: 0.573,
+    gapTail: 0.163,
+    gapThr: 19,
+    vel: 1.365,
+    velHiSlot: 7,
+    velHi: 1.12,
+    cumCap: 1.78,
+    cumK: 0.235,
+    medCap: 1.491,
+    medK: 0.268,
+    w144: 0.433,
+    mslotVel: 0.594,
+    vel10mul: 0.512,
+    vel10a: 0.703,
+    vel10b: 0.277,
+    hot50rat: 1.669,
+    penalHot50: 1.032,
+    hot100rat: 1.525,
+    penalHot100: 0.539,
+    echo3: 10.904,
+    echo5: 1.251,
+    penB: 4.509,
+    repeat: 8.372,
+    echoSwap: 0.07,
+    bgAlpha: 0.491,
+    triAlpha: 0.266,
+    recentWin: 86,
+    triWinCap: 104
+});
 
 class RightPaneSheetManager {
     constructor() {
@@ -84,12 +124,20 @@ class RightPaneSheetManager {
      */
     rebuildSheetsFromSource() {
         const comboSheets = this.buildComboSheetsFromRows(this.sourceRows || []);
+        const stSeries = this.buildSpecialTrackingSeries(this.sourceRows || []);
+        const stFrames = this.buildSpecialTrackingFrames(stSeries);
         this.sheets = {
             sheet1: {
                 kind: 'source',
                 data: this.sourceRows || []
             },
-            ...comboSheets
+            ...comboSheets,
+            specialtracking: {
+                kind: 'specialtracking',
+                data: [],
+                series: stSeries,
+                frames: stFrames
+            }
         };
     }
 
@@ -586,9 +634,29 @@ class RightPaneSheetManager {
      * Render data table with frequency-based styling
      */
     renderTable(tableWrap) {
+        if (tableWrap) {
+            tableWrap.classList.remove('table-wrap--specialtracking');
+        }
+        if (tableWrap && typeof tableWrap.__specialTrackingCleanup === 'function') {
+            try {
+                tableWrap.__specialTrackingCleanup();
+            } catch (eSt) {
+                /* ignore */
+            }
+            tableWrap.__specialTrackingCleanup = null;
+        }
+
         const sheet = this.sheets[this.activeSheet];
         if (!sheet) {
             tableWrap.innerHTML = '<div class="sheet-empty">Không có dữ liệu. Tải dữ liệu từ data.json</div>';
+            return;
+        }
+
+        if (sheet.kind === 'specialtracking') {
+            this.ensureSpecialTrackingFrames(sheet);
+            tableWrap.classList.add('table-wrap--specialtracking');
+            tableWrap.innerHTML = this.renderSpecialTrackingShell(sheet);
+            this.wireSpecialTrackingUi(tableWrap, sheet);
             return;
         }
 
@@ -3937,6 +4005,9 @@ class RightPaneSheetManager {
         if (sheetName === 'sheet1') {
             return false; // Cannot delete default sheet1
         }
+        if (sheetName === 'specialtracking') {
+            return false;
+        }
         if (!this.sheets[sheetName]) {
             return false; // Not found
         }
@@ -3976,7 +4047,15 @@ class RightPaneSheetManager {
         const tabBar = document.createElement('div');
         tabBar.className = 'sheet-tabs-bar';
 
-        const sheetNames = ['sheet1', 'combo_1', 'combo_2', 'combo_3', 'combo_4', 'combo_5'];
+        const sheetNames = [
+            'sheet1',
+            'combo_1',
+            'combo_2',
+            'combo_3',
+            'combo_4',
+            'combo_5',
+            'specialtracking'
+        ];
         for (const name of sheetNames) {
             if (!this.sheets[name]) {
                 continue;
@@ -3986,7 +4065,8 @@ class RightPaneSheetManager {
             if (name === this.activeSheet) {
                 tab.classList.add('active');
             }
-            tab.textContent = name;
+            tab.textContent = name === 'specialtracking' ? 'specialtracking' : name;
+            tab.title = name === 'specialtracking' ? 'Theo dõi tần suất 12 số đặc biệt theo timeline' : name;
             tab.addEventListener('click', () => {
                 const tableWrap = document.getElementById('tableWrap');
                 if (tableWrap) {
@@ -3999,7 +4079,7 @@ class RightPaneSheetManager {
             // Right-click context menu
             tab.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
-                if (name !== 'sheet1') {
+                if (name !== 'sheet1' && name !== 'specialtracking') {
                     const confirmed = confirm(`Xóa sheet "${name}"?`);
                     if (confirmed) {
                         this.deleteSheet(name);
@@ -4328,11 +4408,960 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Chuỗi các số đặc biệt 1–12 theo thứ tự thời gian (cột result, phần sau |).
+     * Tham khảo vid.py: tách special và chỉ giữ kỳ có số hợp lệ.
+     */
+    buildSpecialTrackingSeries(rows) {
+        const series = [];
+        for (const row of rows || []) {
+            const raw = row.result || row.Result || '';
+            const part = this.parseSpecialPart(raw);
+            if (!part) {
+                continue;
+            }
+            const tokens = String(part)
+                .split(/[\s,;]+/)
+                .map((t) => t.trim())
+                .filter(Boolean);
+            let n = null;
+            for (const t of tokens) {
+                const v = parseInt(t, 10);
+                if (Number.isFinite(v) && v >= 1 && v <= 12) {
+                    n = v;
+                    break;
+                }
+            }
+            if (n != null) {
+                series.push(n);
+            }
+        }
+        return series;
+    }
+
+    /**
+     * Mỗi bước: tích lũy count + thứ tự giảm dần theo count (vid.py).
+     */
+    buildSpecialTrackingFrames(series) {
+        const counts = {};
+        for (let i = 1; i <= 12; i++) {
+            counts[i] = 0;
+        }
+        const frames = [];
+        const list = series || [];
+        for (let f = 0; f < list.length; f++) {
+            const just = list[f];
+            counts[just] += 1;
+            const sorted = Object.keys(counts)
+                .map((k) => ({ n: Number(k), v: counts[k] }))
+                .sort((a, b) => b.v - a.v || a.n - b.n);
+            const maxV = Math.max(1, sorted.length ? sorted[0].v : 1);
+            /** @type {number[]} slot 0 = trên cùng (nhiều nhất) … 11 = dưới cùng */
+            const slotByNum = new Array(13).fill(11);
+            for (let s = 0; s < sorted.length; s++) {
+                slotByNum[sorted[s].n] = s;
+            }
+            const wPctByNum = new Array(13).fill(0);
+            for (let n = 1; n <= 12; n++) {
+                wPctByNum[n] = (counts[n] / maxV) * 100;
+            }
+            frames.push({
+                step: f + 1,
+                justDrawn: just,
+                byNum: { ...counts },
+                sorted,
+                maxV,
+                slotByNum,
+                wPctByNum
+            });
+        }
+        return frames;
+    }
+
+    /** Hue 0…1 cho gradient hạng: hạng 1 (slot 0) = 2/12 (vàng), còn lại (slot+1)/12 */
+    static specialTrackingRankHueT(slot) {
+        const s = Number(slot);
+        const t = Number.isFinite(s) ? Math.max(0, Math.min(11, Math.floor(s))) : 0;
+        return t === 0 ? 2 / 12 : Math.min(1, (t + 1) / 12);
+    }
+
+    /**
+     * Ứ viên “kỳ tiếp” khi timeline ở cuối — heuristic theo predict.txt (mở rộng):
+     * rolling 20/50/100 (#4), gap (#7), velocity ~20 bước (#4, #8), bottom đang leo (#5),
+     * lệch tích lũy so kỳ vọng N/12 (#6, #8), dưới median count toàn cục (#6),
+     * mean rank gần đây × velocity (recovery), gia tốc hạng 10 vs 20 bước (#4),
+     * Markov bậc 1 (chuẩn hoá min–max), cụm 4 kỳ, lệch tích lũy có trần, median có trần,
+     * rolling 144 kỳ, bonus lặp kỳ liền trước, bonus “hồi âm” số ở N−3 / N−5 (#7).
+     * Không random; không đảm bảo xác suất.
+     * @param {number[]} series
+     * @param {object[]} frames — full frames (length ≥ chuỗi)
+     * @param {number|null} [prefixLen] — nếu set (≥1), chỉ dùng series[0..prefixLen-1] như độ dài N (dự đoán kỳ tiếp sau prefix đó)
+     * @returns {number[]} 1–3 số: thường luôn top-3 điểm (sau heuristic đổi chỗ echo); t0≤0 thì chỉ #1.
+     */
+    static computeSpecialTrackingPredictRankStats(series, frames) {
+        const nFull = series && series.length ? series.length : 0;
+        if (nFull < 4 || !frames || frames.length < nFull) {
+            return {
+                total: 0,
+                n1: 0,
+                n2: 0,
+                n3: 0,
+                pct1: 0,
+                pct2: 0,
+                pct3: 0
+            };
+        }
+        let n1 = 0;
+        let n2 = 0;
+        let n3 = 0;
+        let tot = 0;
+        for (let i = 3; i < nFull; i++) {
+            const cand = RightPaneSheetManager.computeSpecialTrackingPredictCandidates(series, frames, i);
+            const actual = series[i];
+            tot++;
+            if (cand[0] === actual) {
+                n1++;
+            } else if (cand.length > 1 && cand[1] === actual) {
+                n2++;
+            } else if (cand.length > 2 && cand[2] === actual) {
+                n3++;
+            }
+        }
+        return {
+            total: tot,
+            n1,
+            n2,
+            n3,
+            pct1: tot ? (n1 / tot) * 100 : 0,
+            pct2: tot ? (n2 / tot) * 100 : 0,
+            pct3: tot ? (n3 / tot) * 100 : 0
+        };
+    }
+
+    static computeSpecialTrackingPredictCandidates(series, frames, prefixLen = null) {
+        const nFull = series && series.length ? series.length : 0;
+        const N = prefixLen != null && prefixLen >= 1 ? Math.min(prefixLen, nFull) : nFull;
+        if (!N || !frames || frames.length < 1) {
+            return [];
+        }
+        const lastIdx = Math.min(frames.length, N) - 1;
+        const last = frames[lastIdx];
+        if (!last || !last.slotByNum || !last.byNum) {
+            return [];
+        }
+        const wt = SPECIAL_TRACKING_PREDICT_WT;
+        const K = Math.min(20, lastIdx);
+        const past = K > 0 ? frames[lastIdx - K] : last;
+        const K10 = Math.min(10, lastIdx);
+        const past10 = K10 > 0 ? frames[lastIdx - K10] : last;
+
+        const W20 = Math.min(20, N);
+        const W50 = Math.min(50, N);
+        const W100 = Math.min(100, N);
+        const scores = new Array(13).fill(0);
+
+        const recentCount = (n, W) => {
+            let c = 0;
+            const from = Math.max(0, N - W);
+            for (let i = from; i < N; i++) {
+                if (series[i] === n) {
+                    c++;
+                }
+            }
+            return c;
+        };
+
+        const gapSince = new Array(13).fill(N);
+        for (let i = N - 1; i >= 0; i--) {
+            const x = series[i];
+            if (x >= 1 && x <= 12 && gapSince[x] === N) {
+                gapSince[x] = N - 1 - i;
+            }
+        }
+
+        const exp20 = W20 / 12;
+        const exp50 = W50 / 12;
+        const exp100 = W100 / 12;
+        const idealCum = N / 12;
+
+        const counts12 = [];
+        for (let x = 1; x <= 12; x++) {
+            counts12.push(last.byNum[x] || 0);
+        }
+        counts12.sort((a, b) => a - b);
+        const medianCnt = (counts12[5] + counts12[6]) / 2;
+
+        const Lmean = Math.min(60, lastIdx + 1);
+        const meanSlotRecent = (n) => {
+            if (Lmean < 1) {
+                return last.slotByNum[n] ?? 11;
+            }
+            let sum = 0;
+            const from = lastIdx - Lmean + 1;
+            for (let j = from; j <= lastIdx; j++) {
+                sum += frames[j].slotByNum[n] ?? 11;
+            }
+            return sum / Lmean;
+        };
+
+        const prevDraw = series[N - 1];
+        const penDraw = N >= 2 ? series[N - 2] : prevDraw;
+
+        const buildBigramNorm = (iLo, iHi) => {
+            const follow = new Array(13).fill(0);
+            let cnt = 0;
+            const a = Math.max(0, iLo);
+            const b = Math.min(N - 2, iHi);
+            for (let i = a; i <= b; i++) {
+                if (series[i] === prevDraw) {
+                    cnt++;
+                    const nx = series[i + 1];
+                    if (nx >= 1 && nx <= 12) {
+                        follow[nx]++;
+                    }
+                }
+            }
+            const alpha = wt.bgAlpha;
+            const denom = cnt + 12 * alpha;
+            let mn = Infinity;
+            let mx = -Infinity;
+            const raw = new Array(13).fill(0);
+            for (let x = 1; x <= 12; x++) {
+                const r = (follow[x] + alpha) / denom;
+                raw[x] = r;
+                if (r < mn) {
+                    mn = r;
+                }
+                if (r > mx) {
+                    mx = r;
+                }
+            }
+            const sp = mx - mn || 1;
+            const norm = new Array(13).fill(0);
+            for (let x = 1; x <= 12; x++) {
+                norm[x] = (raw[x] - mn) / sp;
+            }
+            return norm;
+        };
+
+        const normBgGlobal = buildBigramNorm(0, N - 2);
+        const loRecent = Math.max(0, N - wt.recentWin);
+        const normBgRecent = buildBigramNorm(loRecent, N - 2);
+
+        let triCnt = 0;
+        const triFollow = new Array(13).fill(0);
+        const triWin = Math.min(wt.triWinCap, Math.max(0, N - 2));
+        for (let i = Math.max(0, N - 2 - triWin); i < N - 2; i++) {
+            if (series[i] === prevDraw && series[i + 1] === penDraw) {
+                triCnt++;
+                const nx = series[i + 2];
+                if (nx >= 1 && nx <= 12) {
+                    triFollow[nx]++;
+                }
+            }
+        }
+        const triAlpha = wt.triAlpha;
+        const triDenom = triCnt + 12 * triAlpha;
+        let triMn = Infinity;
+        let triMx = -Infinity;
+        const rawTri = new Array(13).fill(0);
+        for (let x = 1; x <= 12; x++) {
+            const r = (triFollow[x] + triAlpha) / triDenom;
+            rawTri[x] = r;
+            if (r < triMn) {
+                triMn = r;
+            }
+            if (r > triMx) {
+                triMx = r;
+            }
+        }
+        const triSp = triMx - triMn || 1;
+        const normTri = new Array(13).fill(0);
+        for (let x = 1; x <= 12; x++) {
+            normTri[x] = (rawTri[x] - triMn) / triSp;
+        }
+
+        for (let n = 1; n <= 12; n++) {
+            let s = 0;
+            const c20 = recentCount(n, W20);
+            const c50 = recentCount(n, W50);
+            const c100 = recentCount(n, W100);
+            s += Math.max(0, exp50 - c50) * wt.uw50;
+            s += Math.max(0, exp20 - c20) * wt.uw20;
+            s += Math.max(0, exp100 - c100) * wt.uw100;
+
+            const W4 = Math.min(4, N);
+            const c4 = recentCount(n, W4);
+            if (c4 >= 2) {
+                s += wt.c4mul * (c4 - 1);
+            }
+
+            s += normBgGlobal[n] * wt.bgG + normBgRecent[n] * wt.bgR;
+            if (N >= 3) {
+                s += normTri[n] * wt.tri;
+            }
+
+            const g = gapSince[n];
+            s += Math.sqrt(g + 1) * wt.gapSqrt;
+            if (g > wt.gapThr) {
+                s += (g - wt.gapThr) * wt.gapTail;
+            }
+
+            const slotNow = last.slotByNum[n] ?? 11;
+            const slotPast = past.slotByNum[n] ?? 11;
+            const vel = slotPast - slotNow;
+            s += vel * wt.vel;
+
+            if (slotNow >= wt.velHiSlot && vel > 0) {
+                s += vel * wt.velHi;
+            }
+
+            const cum = last.byNum[n] || 0;
+            /* Tích lũy dài dễ “đè” một số suốt 500+ kỳ — giới hạn đóng góp */
+            s += Math.min(wt.cumCap, Math.max(0, idealCum - cum) * wt.cumK);
+            if (cum < medianCnt) {
+                s += Math.min(wt.medCap, (medianCnt - cum) * wt.medK);
+            }
+
+            const W144 = Math.min(144, N);
+            const exp144 = W144 / 12;
+            const c144 = recentCount(n, W144);
+            s += Math.max(0, exp144 - c144) * wt.w144;
+
+            const mSlot = meanSlotRecent(n);
+            s += (mSlot / 11) * Math.max(0, vel) * wt.mslotVel;
+
+            const slotPast10 = past10.slotByNum[n] ?? 11;
+            const vel10 = slotPast10 - slotNow;
+            if (vel10 > 0 && vel > 0 && vel10 > vel * wt.vel10mul) {
+                s += (vel10 - vel) * wt.vel10a + wt.vel10b;
+            }
+
+            if (slotNow <= 1 && c50 > exp50 * wt.hot50rat) {
+                s -= wt.penalHot50;
+            }
+            if (slotNow <= 2 && c100 > exp100 * wt.hot100rat) {
+                s -= wt.penalHot100;
+            }
+            /* Số cách 2 kỳ (N−3) khác kỳ vừa ra: kiểu …8, 12, 3 → 8 (#7 cục bộ / “hồi âm”) */
+            if (N >= 4) {
+                const echo = series[N - 3];
+                if (echo >= 1 && echo <= 12 && echo !== prevDraw && n === echo) {
+                    s += wt.echo3;
+                }
+            }
+            if (N >= 6) {
+                const echo5 = series[N - 5];
+                if (
+                    echo5 >= 1
+                    && echo5 <= 12
+                    && echo5 !== prevDraw
+                    && echo5 !== series[N - 3]
+                    && n === echo5
+                ) {
+                    s += wt.echo5;
+                }
+            }
+            /* Số ngay kề trước kỳ vừa ra (pen) — hỗ trợ …8→7, …7→8 */
+            if (N >= 3 && penDraw >= 1 && penDraw <= 12 && penDraw !== prevDraw && n === penDraw) {
+                s += wt.penB;
+            }
+            if (n === prevDraw) {
+                s += wt.repeat;
+            }
+            scores[n] = s;
+        }
+
+        const pairs = [];
+        for (let n = 1; n <= 12; n++) {
+            pairs.push([n, scores[n]]);
+        }
+        pairs.sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+        const echoN = N >= 4 ? series[N - 3] : 0;
+        if (
+            echoN >= 1
+            && echoN <= 12
+            && echoN !== series[N - 1]
+            && pairs.length > 1
+            && pairs[0][0] !== echoN
+            && pairs[1][0] === echoN
+            && pairs[0][1] - pairs[1][1] <= pairs[0][1] * wt.echoSwap
+        ) {
+            const t = pairs[0];
+            pairs[0] = pairs[1];
+            pairs[1] = t;
+        }
+        const t0 = pairs[0][1];
+        const out = [pairs[0][0]];
+        if (t0 <= 0) {
+            return out;
+        }
+        /* Luôn top-3 (neon 3 bar + nhãn #1 #2 #3) để tối đa xác suất trúng trong 3 ô */
+        if (pairs.length > 1) {
+            out.push(pairs[1][0]);
+        }
+        if (pairs.length > 2) {
+            out.push(pairs[2][0]);
+        }
+        return out;
+    }
+
+    ensureSpecialTrackingFrames(sheet) {
+        if (!sheet || sheet.kind !== 'specialtracking') {
+            return;
+        }
+        const fr0 = sheet.frames && sheet.frames[0];
+        if (sheet.frames && sheet.frames.length && fr0 && Array.isArray(fr0.slotByNum) && Array.isArray(fr0.wPctByNum)) {
+            return;
+        }
+        const series =
+            sheet.series && sheet.series.length
+                ? sheet.series
+                : this.buildSpecialTrackingSeries(this.sourceRows || []);
+        sheet.series = series;
+        sheet.frames = this.buildSpecialTrackingFrames(series);
+    }
+
+    renderSpecialTrackingShell(sheet) {
+        this.ensureSpecialTrackingFrames(sheet);
+        const frames = sheet.frames || [];
+        if (!frames.length) {
+            return (
+                '<div class="special-tracking-root">'
+                + '<div class="special-tracking-empty">Chưa có kỳ nào có số đặc biệt 1–12 sau dấu | trong cột result. '
+                + 'Tải sheet1 dạng <code>…|7</code>.</div>'
+                + '</div>'
+            );
+        }
+        const total = frames.length;
+        const fr0 = frames[0];
+        let rankBarsHtml = '';
+        for (let n = 1; n <= 12; n++) {
+            const slot = fr0.slotByNum[n] ?? 0;
+            const hueT = RightPaneSheetManager.specialTrackingRankHueT(slot);
+            rankBarsHtml += `<div class="special-tracking-rank-bar" data-st-bar="${n}" data-special-num="${n}" style="--st-slot:${slot};--st-hue-t:${hueT}" role="button" tabindex="0" aria-label="Số ${n}, click để tô sáng">`
+                + '<div class="special-tracking-rank-bar-main">'
+                + '<div class="special-tracking-rank-track">'
+                + '<span class="special-tracking-rank-fill" data-fill>'
+                + `<span class="special-tracking-rank-num" data-st-num>${n}</span>`
+                + '</span>'
+                + '</div>'
+                + '</div>'
+                + '<div class="special-tracking-rank-meta">'
+                + '<span class="special-tracking-rank-count" data-count>0</span>'
+                + '<span class="special-tracking-rank-prio" data-st-predict-rank aria-hidden="true"></span>'
+                + '</div>'
+                + '</div>';
+        }
+        return (
+            '<div class="special-tracking-root" data-st-root>'
+            + '<div class="special-tracking-stage">'
+            + '<div class="special-tracking-rank-wrap">'
+            + '<div class="special-tracking-rank-shell">'
+            + `<div class="special-tracking-rank-stack" data-st-rank-stack>${rankBarsHtml}</div>`
+            + '</div>'
+            + '</div>'
+            + '</div>'
+            + '<div class="special-tracking-controls">'
+            + '<div class="special-tracking-controls-row special-tracking-controls-row--timeline">'
+            + '<div class="special-tracking-timeline-head" data-st-timeline-head>'
+            + '<div class="special-tracking-timeline-wrap">'
+            + '<div class="special-tracking-timeline" data-st-timeline role="slider" aria-valuemin="0" aria-valuemax="'
+            + (total - 1)
+            + '" aria-valuenow="0" aria-label="Timeline">'
+            + '<div class="special-tracking-timeline-fill" data-st-tl-fill></div>'
+            + '<div class="special-tracking-timeline-thumb" data-st-tl-thumb></div>'
+            + '<div class="special-tracking-timeline-rail" data-st-tl-hit></div>'
+            + '</div>'
+            + '<div class="special-tracking-timeline-meta-row">'
+            + '<div class="special-tracking-meta-spacer" aria-hidden="true"></div>'
+            + `<p class="special-tracking-step-label" data-st-step><strong>1</strong> / ${total}</p>`
+            + '<div class="special-tracking-meta-right">'
+            + '<button type="button" class="special-tracking-predict-toggle" data-st-predict-toggle '
+            + 'aria-pressed="false" title="Bật/tắt neon dự đoán #1–#3 theo từng vị trí timeline" aria-label="Predict">Predict</button>'
+            + '<div class="special-tracking-rank-stats" data-st-rank-stats aria-label="Tỷ lệ trúng theo hạng dự đoán toàn lịch sử"></div>'
+            + '</div>'
+            + '</div>'
+            + '</div>'
+            + '</div>'
+            + '</div>'
+            + '<div class="special-tracking-controls-row special-tracking-controls-row--transport">'
+            + '<button type="button" class="special-tracking-icon-btn special-tracking-icon-btn--glyph" data-st-first title="Về đầu" aria-label="Về đầu"><span aria-hidden="true">\u23ee\uFE0E</span></button>'
+            + '<button type="button" class="special-tracking-icon-btn special-tracking-icon-btn--glyph" data-st-prev title="Lùi 1 kỳ" aria-label="Lùi một kỳ"><span aria-hidden="true">\u23ea\uFE0E</span></button>'
+            + '<button type="button" class="special-tracking-icon-btn special-tracking-icon-btn--play" data-st-play title="Phát" aria-label="Phát">'
+            + '<svg class="special-tracking-svg-play" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="currentColor" d="M9 6.5v11L18 12 9 6.5z"/></svg>'
+            + '<svg class="special-tracking-svg-pause" viewBox="0 0 24 24" width="28" height="28" aria-hidden="true"><path fill="currentColor" d="M8 7h3v10H8V7zm5 0h3v10h-3V7z"/></svg></button>'
+            + '<button type="button" class="special-tracking-icon-btn special-tracking-icon-btn--glyph" data-st-next title="Tiến 1 kỳ" aria-label="Tiến một kỳ"><span aria-hidden="true">\u23e9\uFE0E</span></button>'
+            + '<button type="button" class="special-tracking-icon-btn special-tracking-icon-btn--glyph" data-st-last title="Cuối" aria-label="Đến cuối"><span aria-hidden="true">\u23ed\uFE0E</span></button>'
+            + '<div class="special-tracking-speed-slider-wrap">'
+            + '<span class="special-tracking-speed-hint">Tốc độ</span>'
+            + '<input type="range" class="special-tracking-speed-slider" data-st-speed-slider '
+            + 'min="0.5" max="3" step="0.5" value="1" aria-valuemin="0.5" aria-valuemax="3" aria-valuenow="1" aria-label="Tốc độ phát" />'
+            + '<span class="special-tracking-speed-readout" data-st-speed-val>1×</span>'
+            + '</div>'
+            + '</div>'
+            + '</div>'
+            + `<input type="hidden" data-st-total value="${total}" />`
+            + '</div>'
+        );
+    }
+
+    wireSpecialTrackingUi(tableWrap, sheet) {
+        this.ensureSpecialTrackingFrames(sheet);
+        const frames = sheet.frames || [];
+        const root = tableWrap.querySelector('[data-st-root]');
+        if (!root || !frames.length) {
+            tableWrap.__specialTrackingCleanup = null;
+            return;
+        }
+
+        const total = frames.length;
+        const progPct = new Float32Array(total);
+        for (let i = 0; i < total; i++) {
+            progPct[i] = total <= 1 ? 100 : (i / (total - 1)) * 100;
+        }
+
+        const series = Array.isArray(sheet.series) ? sheet.series : [];
+        let frameIndex = 0;
+        let playing = false;
+        let speed = 1;
+        let focusNum = null;
+        let timer = null;
+        const BASE_MS = 420;
+
+        const btnFirst = root.querySelector('[data-st-first]');
+        const btnPrev = root.querySelector('[data-st-prev]');
+        const btnPlay = root.querySelector('[data-st-play]');
+        const btnNext = root.querySelector('[data-st-next]');
+        const btnLast = root.querySelector('[data-st-last]');
+        const syncPlayBtnUi = () => {
+            if (!btnPlay) {
+                return;
+            }
+            btnPlay.classList.toggle('is-playing', playing);
+            btnPlay.setAttribute('aria-label', playing ? 'Tạm dừng' : 'Phát');
+            btnPlay.setAttribute('title', playing ? 'Tạm dừng' : 'Phát');
+        };
+        const stepEl = root.querySelector('[data-st-step]');
+        const predictToggle = root.querySelector('[data-st-predict-toggle]');
+        const statsRankEl = root.querySelector('[data-st-rank-stats]');
+        let predictNeonOn = false;
+
+        const formatRankStats = (st) => {
+            if (!st || st.total < 1) {
+                return '—';
+            }
+            return `#1 ${st.pct1.toFixed(1)}% · #2 ${st.pct2.toFixed(1)}% · #3 ${st.pct3.toFixed(1)}%`;
+        };
+        const rankStatsTitle = (st) => {
+            if (!st || st.total < 1) {
+                return '';
+            }
+            return (
+                '#1/#2/#3 ở đây là thứ tự theo điểm heuristic (trọng số + tie-break + hoán echo #1↔#2 khi gần điểm), '
+                + 'không phải thứ tự theo tần suất trúng trên lịch sử. '
+                + 'Ba % là ba nhóm loại trừ: mỗi kỳ chỉ đếm một ô — nên % ô #3 hoàn toàn có thể cao hơn % ô #1. '
+                + `Backtest: ${st.total} bước.`
+            );
+        };
+        if (statsRankEl && series.length === total && frames.length === total) {
+            const st = RightPaneSheetManager.computeSpecialTrackingPredictRankStats(series, frames);
+            statsRankEl.textContent = formatRankStats(st);
+            statsRankEl.title = rankStatsTitle(st);
+        } else if (statsRankEl) {
+            statsRankEl.textContent = '—';
+            statsRankEl.removeAttribute('title');
+        }
+
+        const onPredictToggle = () => {
+            predictNeonOn = !predictNeonOn;
+            if (predictToggle) {
+                predictToggle.classList.toggle('is-on', predictNeonOn);
+                predictToggle.setAttribute('aria-pressed', predictNeonOn ? 'true' : 'false');
+            }
+            paint();
+        };
+        if (predictToggle) {
+            predictToggle.addEventListener('click', onPredictToggle);
+        }
+
+        const tl = root.querySelector('[data-st-timeline]');
+        const tlFill = root.querySelector('[data-st-tl-fill]');
+        const tlThumb = root.querySelector('[data-st-tl-thumb]');
+        const tlHit = root.querySelector('[data-st-tl-hit]');
+        const speedSlider = root.querySelector('[data-st-speed-slider]');
+        const speedVal = root.querySelector('[data-st-speed-val]');
+        const formatSpeed = (v) => {
+            const n = Number(v);
+            if (!Number.isFinite(n)) {
+                return '1×';
+            }
+            return `${Number.isInteger(n) ? n : n.toFixed(1)}×`;
+        };
+        const syncSpeedUi = () => {
+            if (speedSlider) {
+                speedSlider.setAttribute('aria-valuenow', String(speed));
+            }
+            if (speedVal) {
+                speedVal.textContent = formatSpeed(speed);
+            }
+        };
+        /** @type {Record<number, HTMLElement>} */
+        const barByNum = {};
+        root.querySelectorAll('[data-st-bar]').forEach((el) => {
+            const n = parseInt(el.getAttribute('data-st-bar'), 10);
+            if (Number.isFinite(n)) {
+                barByNum[n] = el;
+            }
+        });
+
+        let tlRectCache = null;
+        const refreshTlRect = () => {
+            if (tl) {
+                tlRectCache = tl.getBoundingClientRect();
+            }
+        };
+
+        let paintRaf = 0;
+        const clearTimer = () => {
+            if (timer) {
+                clearTimeout(timer);
+                timer = null;
+            }
+        };
+
+        const scheduleNext = () => {
+            clearTimer();
+            if (!playing || frameIndex >= total - 1) {
+                if (frameIndex >= total - 1) {
+                    playing = false;
+                    if (btnPlay) {
+                        syncPlayBtnUi();
+                    }
+                }
+                return;
+            }
+            const ms = Math.max(40, BASE_MS / speed);
+            timer = setTimeout(() => {
+                timer = null;
+                frameIndex += 1;
+                paint();
+                scheduleNext();
+            }, ms);
+        };
+
+        const setScrubbing = (on) => {
+            root.classList.toggle('special-tracking-root--scrubbing', on);
+        };
+
+        const paint = () => {
+            const fr = frames[frameIndex];
+            if (!fr) {
+                return;
+            }
+            const p = progPct[frameIndex];
+            const canRetroPredict = series.length === total && frames.length === total;
+            let predictList = [];
+            if (predictNeonOn && canRetroPredict) {
+                const prefixLen = frameIndex + 1;
+                if (prefixLen >= 3) {
+                    predictList = RightPaneSheetManager.computeSpecialTrackingPredictCandidates(
+                        series,
+                        frames,
+                        prefixLen
+                    );
+                }
+            }
+            let actualNext = null;
+            if (frameIndex + 1 < series.length) {
+                actualNext = series[frameIndex + 1];
+            }
+            /** @type {Map<number, number>} số → thứ hạng dự đoán 1..3 */
+            const predictRankByNum = new Map();
+            if (predictList.length) {
+                predictList.forEach((pn, idx) => {
+                    predictRankByNum.set(pn, idx + 1);
+                });
+            }
+            const predictNeonActive = predictNeonOn && predictList.length > 0;
+            root.classList.toggle('special-tracking-root--predict-neon-on', predictNeonActive);
+
+            for (let n = 1; n <= 12; n++) {
+                const el = barByNum[n];
+                if (!el) {
+                    continue;
+                }
+                const slot = fr.slotByNum[n] ?? 0;
+                el.style.setProperty('--st-slot', String(slot));
+                const hueT = RightPaneSheetManager.specialTrackingRankHueT(slot);
+                el.style.setProperty('--st-hue-t', String(hueT));
+                const fillEl = el.querySelector('[data-fill]');
+                const countEl = el.querySelector('[data-count]');
+                const prioEl = el.querySelector('[data-st-predict-rank]');
+                if (countEl) {
+                    countEl.textContent = String(fr.byNum[n] || 0);
+                }
+                if (fillEl) {
+                    fillEl.style.width = `${fr.wPctByNum[n]}%`;
+                }
+                const pr = predictRankByNum.get(n);
+                const predictHit = Boolean(pr) && actualNext != null && n === actualNext;
+                el.classList.toggle('special-tracking-rank-bar--just', n === fr.justDrawn);
+                el.classList.toggle('special-tracking-rank-bar--focus', focusNum != null && n === focusNum);
+                el.classList.toggle('special-tracking-rank-bar--predict', Boolean(pr));
+                el.classList.toggle('special-tracking-rank-bar--predict-hit', predictHit);
+                el.classList.toggle('special-tracking-rank-bar--predict-1', pr === 1);
+                el.classList.toggle('special-tracking-rank-bar--predict-2', pr === 2);
+                el.classList.toggle('special-tracking-rank-bar--predict-3', pr === 3);
+                if (prioEl) {
+                    prioEl.textContent = pr ? `#${pr}` : '';
+                    prioEl.setAttribute('aria-hidden', pr ? 'false' : 'true');
+                }
+                let aria = `Số ${n}, click để tô sáng`;
+                if (pr) {
+                    aria = predictHit
+                        ? `Số ${n}, ứng viên dự đoán hạng ${pr}, trùng đáp án kỳ tiếp theo`
+                        : `Số ${n}, ứng viên dự đoán hạng ${pr}, click để tô sáng`;
+                }
+                el.setAttribute('aria-label', aria);
+            }
+            if (stepEl) {
+                stepEl.innerHTML = `<strong>${fr.step}</strong> / ${total}`;
+            }
+            if (tlFill) {
+                tlFill.style.width = `${p}%`;
+            }
+            if (tlThumb) {
+                tlThumb.style.left = `${p}%`;
+            }
+            if (tl) {
+                tl.setAttribute('aria-valuenow', String(frameIndex));
+            }
+        };
+
+        const schedulePaint = () => {
+            if (paintRaf) {
+                cancelAnimationFrame(paintRaf);
+            }
+            paintRaf = requestAnimationFrame(() => {
+                paintRaf = 0;
+                paint();
+            });
+        };
+
+        const setFrame = (idx) => {
+            frameIndex = Math.max(0, Math.min(total - 1, idx));
+            paint();
+            scheduleNext();
+        };
+
+        const setFrameRaf = (idx) => {
+            frameIndex = Math.max(0, Math.min(total - 1, idx));
+            schedulePaint();
+            scheduleNext();
+        };
+
+        const togglePlay = () => {
+            if (frameIndex >= total - 1) {
+                frameIndex = 0;
+            }
+            playing = !playing;
+            if (btnPlay) {
+                syncPlayBtnUi();
+            }
+            scheduleNext();
+        };
+
+        const onTimelineSeek = (clientX) => {
+            if (!tl) {
+                return;
+            }
+            const r = tlRectCache || tl.getBoundingClientRect();
+            const x = Math.min(Math.max(0, clientX - r.left), r.width);
+            const t = r.width > 0 ? x / r.width : 0;
+            const idx = Math.round(t * (total - 1));
+            setFrameRaf(idx);
+        };
+
+        let scrubDrag = false;
+        const onScrubMove = (ev) => {
+            if (!scrubDrag) {
+                return;
+            }
+            const cx = ev.clientX != null ? ev.clientX : (ev.touches && ev.touches[0] ? ev.touches[0].clientX : 0);
+            onTimelineSeek(cx);
+        };
+        const onScrubUp = () => {
+            scrubDrag = false;
+            setScrubbing(false);
+            tlRectCache = null;
+            window.removeEventListener('mousemove', onScrubMove, true);
+            window.removeEventListener('mouseup', onScrubUp, true);
+            window.removeEventListener('touchmove', onScrubTouchMove, true);
+            window.removeEventListener('touchend', onScrubTouchEnd, true);
+            window.removeEventListener('touchcancel', onScrubTouchEnd, true);
+        };
+
+        const onScrubTouchMove = (ev) => {
+            if (!scrubDrag || !ev.touches || !ev.touches[0]) {
+                return;
+            }
+            onTimelineSeek(ev.touches[0].clientX);
+        };
+
+        const onScrubTouchEnd = () => {
+            onScrubUp();
+        };
+
+        const onTlDown = (ev) => {
+            const cx = ev.clientX != null ? ev.clientX : (ev.touches && ev.touches[0] ? ev.touches[0].clientX : 0);
+            scrubDrag = true;
+            setScrubbing(true);
+            refreshTlRect();
+            window.addEventListener('mousemove', onScrubMove, true);
+            window.addEventListener('mouseup', onScrubUp, true);
+            window.addEventListener('touchmove', onScrubTouchMove, { passive: true, capture: true });
+            window.addEventListener('touchend', onScrubTouchEnd, true);
+            window.addEventListener('touchcancel', onScrubTouchEnd, true);
+            onTimelineSeek(cx);
+            playing = false;
+            if (btnPlay) {
+                syncPlayBtnUi();
+            }
+            clearTimer();
+        };
+        if (tlHit) {
+            tlHit.addEventListener('mousedown', onTlDown);
+            tlHit.addEventListener('touchstart', onTlDown, { passive: true });
+        }
+
+        if (btnFirst) {
+            btnFirst.addEventListener('click', () => {
+                playing = false;
+                if (btnPlay) {
+                    syncPlayBtnUi();
+                }
+                setFrame(0);
+            });
+        }
+        if (btnLast) {
+            btnLast.addEventListener('click', () => {
+                playing = false;
+                if (btnPlay) {
+                    syncPlayBtnUi();
+                }
+                setFrame(total - 1);
+            });
+        }
+        if (btnPrev) {
+            btnPrev.addEventListener('click', () => {
+                setFrame(frameIndex - 1);
+            });
+        }
+        if (btnNext) {
+            btnNext.addEventListener('click', () => {
+                setFrame(frameIndex + 1);
+            });
+        }
+        if (btnPlay) {
+            btnPlay.addEventListener('click', togglePlay);
+        }
+
+        if (speedSlider) {
+            speedSlider.addEventListener('input', () => {
+                const v = Number(speedSlider.value);
+                speed = Number.isFinite(v) ? v : 1;
+                syncSpeedUi();
+                if (playing) {
+                    scheduleNext();
+                }
+            });
+            const initV = Number(speedSlider.value);
+            speed = Number.isFinite(initV) ? initV : 1;
+            syncSpeedUi();
+        }
+
+        root.querySelectorAll('[data-st-bar]').forEach((row) => {
+            const onPick = () => {
+                const n = parseInt(row.dataset.specialNum, 10);
+                if (!Number.isFinite(n)) {
+                    return;
+                }
+                focusNum = focusNum === n ? null : n;
+                paint();
+            };
+            row.addEventListener('click', onPick);
+            row.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onPick();
+                }
+            });
+        });
+
+        const onSpecialTrackingArrowNav = (ev) => {
+            if (!tableWrap.classList.contains('table-wrap--specialtracking')) {
+                return;
+            }
+            if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') {
+                return;
+            }
+            if (ev.ctrlKey || ev.metaKey || ev.altKey) {
+                return;
+            }
+            const t = ev.target;
+            if (t instanceof Element && t.closest('input, textarea, select, [contenteditable="true"]')) {
+                return;
+            }
+            ev.preventDefault();
+            if (ev.key === 'ArrowLeft') {
+                setFrame(frameIndex - 1);
+            } else {
+                setFrame(frameIndex + 1);
+            }
+        };
+        window.addEventListener('keydown', onSpecialTrackingArrowNav, true);
+
+        paint();
+        if (btnPlay) {
+            syncPlayBtnUi();
+        }
+
+        tableWrap.__specialTrackingCleanup = () => {
+            clearTimer();
+            scrubDrag = false;
+            setScrubbing(false);
+            tlRectCache = null;
+            if (paintRaf) {
+                cancelAnimationFrame(paintRaf);
+                paintRaf = 0;
+            }
+            window.removeEventListener('mousemove', onScrubMove, true);
+            window.removeEventListener('mouseup', onScrubUp, true);
+            if (tlHit) {
+                tlHit.removeEventListener('mousedown', onTlDown);
+                tlHit.removeEventListener('touchstart', onTlDown);
+            }
+            window.removeEventListener('touchmove', onScrubTouchMove, true);
+            window.removeEventListener('touchend', onScrubTouchEnd, true);
+            window.removeEventListener('touchcancel', onScrubTouchEnd, true);
+            if (predictToggle) {
+                predictToggle.removeEventListener('click', onPredictToggle);
+            }
+            window.removeEventListener('keydown', onSpecialTrackingArrowNav, true);
+        };
+    }
+
+    /**
      * Save state to localStorage
      */
     save() {
+        let sheetsForSave = this.sheets;
+        const st = this.sheets && this.sheets.specialtracking;
+        if (st && st.kind === 'specialtracking' && (st.frames || st.series)) {
+            sheetsForSave = { ...this.sheets, specialtracking: { kind: 'specialtracking', data: [] } };
+        }
         const data = {
-            sheets: this.sheets,
+            sheets: sheetsForSave,
             activeSheet: this.activeSheet,
             comboFocusRowId: this.comboFocusRowId,
             comboFocusRowIndex: this.comboFocusRowIndex,
