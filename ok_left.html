@@ -466,6 +466,24 @@
             background: transparent;
         }
 
+        /* Gợi ý kỳ tham khảo (sheet1) — chỉ đọc, parent đẩy nội dung qua postMessage */
+        #referenceHint {
+            width: 100%;
+            box-sizing: border-box;
+            min-height: 2.6em;
+            max-height: 3.1em;
+            height: 2.85em;
+            font-size: 12px;
+            line-height: 1.35;
+            color: #153015;
+            background: #f2faf2;
+            border: 1px solid #9ec49e;
+            resize: none;
+            overflow-y: auto;
+            margin-bottom: 6px;
+            font-family: system-ui, "Segoe UI", sans-serif;
+        }
+
         /* Left compact sizing (match ok.py) */
         #left table {
             font-size: 13px;
@@ -1249,9 +1267,9 @@
         <div class="container">
             <div class="left-container">
                 <div class="controls">
-                    <textarea id="input" rows="1"
-                        placeholder="Paste tối đa 11 chuỗi, cách nhau bằng khoảng trắng"></textarea>
-                    <br>
+                    <textarea id="referenceHint" readonly rows="2" spellcheck="false" autocomplete="off"
+                        aria-label="Gợi ý kỳ tham khảo trong cửa sổ 10 kỳ (sheet1)"
+                        placeholder="Gợi ý kỳ tham khảo (sheet1) sẽ hiện khi bạn chọn một dòng ở bảng phải…"></textarea>
                     <div class="mode-row">
                         <select id="mode">
                             <option value="modeq">?</option>
@@ -1305,6 +1323,8 @@
         window.__checknote_lastData = null;
         window.__checknotePending = null;
         window.__periodFilterNavMode = false;
+        /** Dữ liệu dòng từ parent (postMessage setLines); không còn textarea paste thủ công. */
+        let leftPaneRawLines = '';
 
         function tryFilterPopupNavFromLeft(event, step) {
             if (!window.__periodFilterNavMode) {
@@ -2840,8 +2860,8 @@
         }
 
         function process() {
-            let rawText = document.getElementById("input").value.trim();
-            debugLog('process() called — input length:', rawText.length);
+            let rawText = (typeof leftPaneRawLines === 'string' ? leftPaneRawLines : '').trim();
+            debugLog('process() called — raw lines length:', rawText.length);
             // Clear selections when new data is loaded (sheet/dataset change)
             if (!preserveSelectionOnNextProcess) {
                 selected.clear();
@@ -7615,8 +7635,11 @@
                     }
                     disableSubmitForCurrentData = !!msg.disableSubmit;
                     syncSubmitButtonAvailability();
-                    const input = document.getElementById('input');
-                    input.value = msg.lines.join('\n');
+                    const refHint = document.getElementById('referenceHint');
+                    if (refHint) {
+                        refHint.value = (typeof msg.referenceHint === 'string') ? msg.referenceHint : '';
+                    }
+                    leftPaneRawLines = Array.isArray(msg.lines) ? msg.lines.join('\n') : '';
 
                     // Save the submit state before process() might reset it (empty focus row = no submit preview)
                     const wasSubmitActive = (submitActive || msg.submitActive) && !msg.disableSubmit;
@@ -7866,9 +7889,6 @@
                 }
             } catch (e) { console.error(e); }
         });
-
-        // Wire input events
-        document.getElementById('input').addEventListener('input', process);
 
         (function wireSearchBoxAndModeLikeOkPy() {
             try {

@@ -2,7 +2,7 @@
  * Right Pane Sheet Manager & Styling
  * Inspired by Module1-5 VBA patterns: grouping, frequency analysis, color-coding
  *
- * Trọng số dự đoán special tracking: đồng bộ proj/scripts/special-tracking-predict-core.mjs
+ * Trọng số + predictMode (`heuristic` | `globalTrigram`): đồng bộ proj/scripts/special-tracking-predict-core.mjs
  * (tối ưu sâu: `node ... --tune-coord` ~vài phút; nhanh: `--tune-coord-quick`).
  */
 const SPECIAL_TRACKING_PREDICT_WT = Object.freeze({
@@ -40,8 +40,59 @@ const SPECIAL_TRACKING_PREDICT_WT = Object.freeze({
     bgAlpha: 0.491,
     triAlpha: 0.266,
     recentWin: 86,
-    triWinCap: 104
+    triWinCap: 104,
+    predictMode: 'globalTrigram'
 });
+
+/** Đồng bộ globalTrigram với special-tracking-predict-core.mjs (browser không import module). */
+const specialTrackingGlobalTrigramCache = new WeakMap();
+
+function specialTrackingBuildGlobalTrigramByKey(series, len) {
+    const byKey = new Map();
+    for (let p = 1; p < len - 1; p++) {
+        const a = series[p - 1];
+        const b = series[p];
+        const nx = series[p + 1];
+        if (a < 1 || a > 12 || b < 1 || b > 12 || nx < 1 || nx > 12) {
+            continue;
+        }
+        const key = a * 16 + b;
+        if (!byKey.has(key)) {
+            byKey.set(key, new Map());
+        }
+        const m = byKey.get(key);
+        m.set(nx, (m.get(nx) || 0) + 1);
+    }
+    return byKey;
+}
+
+function specialTrackingGetGlobalTrigramByKey(series, len) {
+    let slot = specialTrackingGlobalTrigramCache.get(series);
+    if (!slot || slot.len !== len) {
+        slot = { len, byKey: specialTrackingBuildGlobalTrigramByKey(series, len) };
+        specialTrackingGlobalTrigramCache.set(series, slot);
+    }
+    return slot.byKey;
+}
+
+/** @returns {number[] | null} */
+function specialTrackingTop3FromGlobalTrigram(series, len, pen, prev) {
+    const byKey = specialTrackingGetGlobalTrigramByKey(series, len);
+    const key = pen * 16 + prev;
+    const m = byKey.get(key);
+    if (!m || m.size === 0) {
+        return null;
+    }
+    const tp = [];
+    for (let n = 1; n <= 12; n++) {
+        tp.push([n, m.get(n) || 0]);
+    }
+    tp.sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+    return [tp[0][0], tp[1][0], tp[2][0]];
+}
+
+/** sessionStorage + sheet.specialTrackingUi: khôi phục timeline / predict khi quay lại sheet */
+const SPECIAL_TRACKING_UI_STORAGE_KEY = 'rp-special-tracking-ui-v1';
 
 class RightPaneSheetManager {
     constructor() {
@@ -67,6 +118,22 @@ class RightPaneSheetManager {
         this._comboHMarchingRange = null;
         this._comboHCutPending = null;
         this.scrollPositions = {};
+        /** Cache filter mode connection (invalid khi refreshDerivedState). */
+        this._connectionFilterIndicesCache = null;
+        this._connectionFilterIndicesCacheRowLen = 0;
+        this._connectionFilterNoteCacheRef = null;
+        /** Cache mẫu KNN học từ note các kỳ (theo độ dài sheet1). */
+        this._knnNoteRefTrainCache = null;
+        this._knnNoteRefTrainRowsLen = -1;
+        this._knnNoteRefTrainVecDim = 0;
+        /** Blend KNN + combo prefix + overlap cửa sổ + tần suất note + recency + Markov (chỉnh qua tune-reference-predictor.mjs). */
+        this.refHintBlend = Object.freeze({ wKnn: 1, wCombo: 0.55, wUnion: 0.12, wFreq: 0.48, wRec: 0.32, wMarkov: 0 });
+        /** Trọng số combo_1 / combo_2 / combo_3 trong điểm log-tần suất (prefix &lt; dòng hiện tại). */
+        this.refHintComboW = Object.freeze({ w1: 0.42, w2: 0.38, w3: 0.2 });
+        /** Ngưỡng prune danh sách gợi ý prevId (maxPick, so với top và mục trước). */
+        this.refHintPrune = Object.freeze({ maxPick: 3, minRelTop: 0.22, minRelPrev: 0.38 });
+        /** kNeighbors cho KNN gợi ý chuỗi tham khảo (chỉnh qua tune-reference-predictor.mjs). */
+        this.refHintKNeighbors = 9;
         this.frequencyMap = {};
         this.colorPalette = [
             'rgb(255, 192, 0)',    // Gold
@@ -139,6 +206,11 @@ class RightPaneSheetManager {
                 frames: stFrames
             }
         };
+        try {
+            sessionStorage.removeItem(SPECIAL_TRACKING_UI_STORAGE_KEY);
+        } catch (e) {
+            /* ignore */
+        }
     }
 
     /**
@@ -167,6 +239,12 @@ class RightPaneSheetManager {
         this.datebandFilterIndicesCacheRowLen = 0;
         this.datebandRowDistCache = null;
         this.datebandRowDistCacheRowLen = 0;
+        this._connectionFilterIndicesCache = null;
+        this._connectionFilterIndicesCacheRowLen = 0;
+        this._connectionFilterNoteCacheRef = null;
+        this._knnNoteRefTrainCache = null;
+        this._knnNoteRefTrainRowsLen = -1;
+        this._knnNoteRefTrainVecDim = 0;
     }
 
     /** Rows used for sheet1 / nonexist filter (independent of active combo tab). */
@@ -1032,6 +1110,10 @@ class RightPaneSheetManager {
             return indices;
         }
 
+        if (mode === 'connection') {
+            return this.ensureConnectionFilterIndicesCache().slice();
+        }
+
         if (mode === 'posnfreq') {
             const o = filterOptions || {};
             const specimen = parseInt(o.specimenNum, 10);
@@ -1064,6 +1146,76 @@ class RightPaneSheetManager {
             }
         }
         return indices;
+    }
+
+    /**
+     * Note có "connection": một số xuất hiện trong ≥2 cặp `{a,b}` (ví dụ 6 trong `{6,23}` và `{4,6}`).
+     * @param {string} noteText
+     * @returns {boolean}
+     */
+    noteTextHasConnectionPairing(noteText) {
+        const text = String(noteText || '');
+        if (text.indexOf('{') === -1 || text.indexOf(',') === -1 || text.indexOf('}') === -1) {
+            return false;
+        }
+        const re = /\{(\d+)\s*,\s*(\d+)\}/g;
+        /** @type {Map<number, Set<number>>} */
+        const numToPairIdx = new Map();
+        let pairIndex = 0;
+        let m;
+        while ((m = re.exec(text)) !== null) {
+            const a = parseInt(m[1], 10);
+            const b = parseInt(m[2], 10);
+            if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                continue;
+            }
+            for (const n of [a, b]) {
+                let set = numToPairIdx.get(n);
+                if (!set) {
+                    set = new Set();
+                    numToPairIdx.set(n, set);
+                }
+                set.add(pairIndex);
+            }
+            pairIndex++;
+        }
+        for (const s of numToPairIdx.values()) {
+            if (s.size >= 2) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Danh sách chỉ số dòng có note connection — cache theo noteCache + độ dài sheet (tránh quét lặp).
+     * @returns {number[]}
+     */
+    ensureConnectionFilterIndicesCache() {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        const nc = this.noteCache;
+        if (
+            this._connectionFilterIndicesCache
+            && this._connectionFilterIndicesCacheRowLen === n
+            && this._connectionFilterNoteCacheRef === nc
+        ) {
+            return this._connectionFilterIndicesCache;
+        }
+        const indices = [];
+        for (let i = 0; i < n; i++) {
+            if (this.isEmptyResultRow(rows[i])) {
+                continue;
+            }
+            const noteText = this.getNoteTextForRowFilter(i);
+            if (this.noteTextHasConnectionPairing(noteText)) {
+                indices.push(i);
+            }
+        }
+        this._connectionFilterIndicesCache = indices;
+        this._connectionFilterIndicesCacheRowLen = n;
+        this._connectionFilterNoteCacheRef = nc;
+        return this._connectionFilterIndicesCache;
     }
 
     /**
@@ -2797,6 +2949,414 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Danh sách prevId trong note (thứ tự khối trái → phải), parse nhanh từ chuỗi đã build.
+     */
+    parseAllPrevIdsFromNoteText(noteText) {
+        const t = String(noteText || '').trim();
+        if (!t || t === '?') {
+            return [];
+        }
+        const parts = t.split(/\s{3,}/);
+        const out = [];
+        for (let i = 0; i < parts.length; i++) {
+            const m = parts[i].trim().match(/^(\d+)-(\d+)/);
+            if (m) {
+                const prevId = this.parseRowId(m[2]);
+                if (prevId !== null) {
+                    out.push(prevId);
+                }
+            }
+        }
+        return out;
+    }
+
+    l2SquaredDistanceKnnVector(a, b, dim) {
+        const d = Number(dim) || 60;
+        let s = 0;
+        for (let i = 0; i < d; i++) {
+            const u = a[i] || 0;
+            const v = b[i] || 0;
+            const df = u - v;
+            s += df * df;
+        }
+        return s;
+    }
+
+    /**
+     * Vector 50 chiều = 5 số chính × 10 dòng cửa sổ ngay trước endExclusive (không gồm dòng endExclusive).
+     */
+    getWindowFeatureVectorForKnn(rows, endExclusive) {
+        const vec = [];
+        const start = Math.max(0, endExclusive - 10);
+        for (let i = start; i < endExclusive; i++) {
+            const nums = this.parseMainNums(rows[i].result || rows[i].Result || '');
+            for (let t = 0; t < 5; t++) {
+                vec.push(nums[t] !== undefined ? nums[t] : 0);
+            }
+        }
+        while (vec.length < 50) {
+            vec.unshift(0);
+        }
+        return vec.length > 50 ? vec.slice(-50) : vec;
+    }
+
+    /**
+     * 60 chiều: 50 số + 10 ID kỳ trong cửa sổ (chuẩn hoá min–max trong cửa sổ).
+     */
+    getWindowKnnFeatureExtended(rows, endExclusive) {
+        const base = this.getWindowFeatureVectorForKnn(rows, endExclusive);
+        const start = Math.max(0, endExclusive - 10);
+        const ids = [];
+        let minI = Infinity;
+        let maxI = -Infinity;
+        for (let i = start; i < endExclusive; i++) {
+            const id = this.parseRowId(rows[i].id || rows[i].ID || '');
+            const v = id !== null ? id : 0;
+            ids.push(v);
+            if (id !== null) {
+                minI = Math.min(minI, id);
+                maxI = Math.max(maxI, id);
+            }
+        }
+        while (ids.length < 10) {
+            ids.unshift(0);
+        }
+        const idSlice = ids.length > 10 ? ids.slice(-10) : ids;
+        const ext = base.slice();
+        if (!Number.isFinite(minI) || !Number.isFinite(maxI)) {
+            for (let k = 0; k < 10; k++) {
+                ext.push(0);
+            }
+        } else {
+            const span = Math.max(1, maxI - minI);
+            for (let k = 0; k < 10; k++) {
+                ext.push((idSlice[k] - minI) / span);
+            }
+        }
+        return ext;
+    }
+
+    /** Tập prevId hợp lệ trong cửa sổ 10 dòng trước rowIndex. */
+    getWindowPrevIdsSet(rows, rowIndex) {
+        const set = new Set();
+        const start = Math.max(0, rowIndex - 10);
+        for (let i = start; i < rowIndex; i++) {
+            const id = this.parseRowId(rows[i].id || rows[i].ID || '');
+            if (id !== null) {
+                set.add(id);
+            }
+        }
+        return set;
+    }
+
+    /**
+     * Hàng trong cửa sổ 10 có ID = prevId. Ưu tiên dòng *sát nhất* (Chuỗi 1 trước) nếu trùng ID.
+     */
+    findWindowRowIndexForPrevId(rows, focusedIdx, prevId) {
+        const lo = Math.max(0, focusedIdx - 10);
+        for (let i = focusedIdx - 1; i >= lo; i--) {
+            if (this.parseRowId(rows[i].id || rows[i].ID || '') === prevId) {
+                return i;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Nhãn bảng 2 giống ok_left renderTable2: Chuỗi (focusedIdx - refRowIdx), ref gần hơn → số nhỏ hơn.
+     */
+    rankedPrevIdsToChuoiLabels(rows, focusedIdx, rankedPrevIds) {
+        const seen = new Set();
+        const out = [];
+        for (let p = 0; p < rankedPrevIds.length; p++) {
+            const prevId = rankedPrevIds[p];
+            const ri = this.findWindowRowIndexForPrevId(rows, focusedIdx, prevId);
+            if (ri === null) {
+                continue;
+            }
+            const n = focusedIdx - ri;
+            if (n < 1 || n > 10) {
+                continue;
+            }
+            const lab = `Chuỗi ${n}`;
+            if (seen.has(lab)) {
+                continue;
+            }
+            seen.add(lab);
+            out.push(lab);
+        }
+        return out;
+    }
+
+    /**
+     * Tần suất prevId trong note các dòng [10, endExclusive) — walk-forward.
+     */
+    buildPrevIdNoteFreqMapBefore(noteCache, endExclusive) {
+        const m = new Map();
+        const n = Math.max(0, endExclusive | 0);
+        for (let j = 10; j < n; j++) {
+            const txt = String((noteCache[j] && noteCache[j].text) || '').trim();
+            if (!txt || txt === '?') continue;
+            for (const id of this.parseAllPrevIdsFromNoteText(txt)) {
+                m.set(id, (m.get(id) || 0) + 1);
+            }
+        }
+        return m;
+    }
+
+    /**
+     * Đếm (id dòng j-1, prevId trong note j), j ∈ [11, endExclusive) — không dùng result dòng đang chấm.
+     */
+    buildMarkovPrevRowToPrevIdCounts(rows, noteCache, endExclusive) {
+        const m = new Map();
+        const n = Math.max(0, endExclusive | 0);
+        for (let j = 11; j < n; j++) {
+            const prevRowId = this.parseRowId((rows[j - 1] && (rows[j - 1].id || rows[j - 1].ID)) || '');
+            if (prevRowId === null) continue;
+            const txt = String((noteCache[j] && noteCache[j].text) || '').trim();
+            if (!txt || txt === '?') continue;
+            for (const id of this.parseAllPrevIdsFromNoteText(txt)) {
+                const key = prevRowId + '\0' + id;
+                m.set(key, (m.get(key) || 0) + 1);
+            }
+        }
+        return m;
+    }
+
+    /**
+     * Mỗi dòng j≥10: vector mở rộng từ 10 dòng trước j + nhãn prevId trong note của j.
+     */
+    ensureKnnNoteRefTrainingSamples(rows) {
+        const n = rows.length;
+        const vecDim = 60;
+        if (this._knnNoteRefTrainCache && this._knnNoteRefTrainRowsLen === n && this._knnNoteRefTrainVecDim === vecDim) {
+            return this._knnNoteRefTrainCache;
+        }
+        const noteMetas = this.buildNotesFromRows(rows);
+        const samples = [];
+        for (let j = 10; j < n; j++) {
+            const vec = this.getWindowKnnFeatureExtended(rows, j);
+            const txt = String((noteMetas[j] && noteMetas[j].text) || '').trim();
+            const labels = (txt && txt !== '?') ? this.parseAllPrevIdsFromNoteText(txt) : [];
+            samples.push({ j, vec, labels });
+        }
+        this._knnNoteRefTrainCache = samples;
+        this._knnNoteRefTrainRowsLen = n;
+        this._knnNoteRefTrainVecDim = vecDim;
+        return samples;
+    }
+
+    /**
+     * Rút gọn danh sách prevId theo điểm: ít gợi ý, giữ những mục còn tương đối mạnh so với top.
+     * @param {Array<[number, number]>} sortedEntries — [prevId, score], score giảm dần
+     */
+    pruneKnnNoteRefScores(sortedEntries, opts) {
+        const maxPick = (opts && opts.maxPick) || 3;
+        const minRelTop = (opts && opts.minRelTop) || 0.36;
+        const minRelPrev = (opts && opts.minRelPrev) || 0.52;
+        if (!sortedEntries.length) {
+            return [];
+        }
+        const top = sortedEntries[0][1];
+        if (!(top > 0)) {
+            return sortedEntries.map((e) => e[0]);
+        }
+        const out = [sortedEntries[0][0]];
+        for (let i = 1; i < sortedEntries.length && out.length < maxPick; i++) {
+            const [id, sc] = sortedEntries[i];
+            if (sc < minRelTop * top) {
+                break;
+            }
+            if (sc < minRelPrev * sortedEntries[i - 1][1]) {
+                break;
+            }
+            out.push(id);
+        }
+        return out;
+    }
+
+    /**
+     * Gợi ý prevId: KNN 60D + combo(prefix) + overlap cửa sổ + tần suất prev trong note trước
+     * + recency trong cửa sổ + Markov (ID dòng liền trước → prevId); không dùng result/note dòng idx.
+     */
+    predictNoteRefsFromKnn(rows, idx, kNeighbors) {
+        const neighborCap = Math.min(22, Math.max(14, (kNeighbors || 8) * 2 + 4));
+        const n = rows.length;
+        const noteMetas = (this.noteCache && this.noteCache.length === n)
+            ? this.noteCache
+            : this.buildNotesFromRows(rows);
+        const samplesAll = this.ensureKnnNoteRefTrainingSamples(rows);
+        const samples = samplesAll.filter((s) => s.j < idx);
+        const windowIds = this.getWindowPrevIdsSet(rows, idx);
+        if (!windowIds.size) {
+            return { ranked: [], trainN: samples.length, kUsed: 0, reason: 'no_window_ids' };
+        }
+        if (!samples.length) {
+            return { ranked: [], trainN: 0, kUsed: 0, reason: 'no_train' };
+        }
+        const vecT = this.getWindowKnnFeatureExtended(rows, idx);
+        const scored = samples.map((s) => ({
+            s,
+            dist: this.l2SquaredDistanceKnnVector(vecT, s.vec, 60)
+        }));
+        scored.sort((a, b) => a.dist - b.dist);
+        const slice = scored.slice(0, Math.min(neighborCap, scored.length));
+        const dists = slice.map((x) => x.dist).sort((a, b) => a - b);
+        const qIdx = Math.max(0, Math.floor((dists.length - 1) * 0.28));
+        const sigmaSq = Math.max(dists[qIdx] * 0.85, 1e-4);
+        const knnVotes = new Map();
+        for (let t = 0; t < slice.length; t++) {
+            const w = Math.exp(-slice[t].dist / (2 * sigmaSq));
+            const labels = slice[t].s.labels;
+            const dil = Math.max(1, labels.length);
+            for (let u = 0; u < labels.length; u++) {
+                const id = labels[u];
+                if (windowIds.has(id)) {
+                    knnVotes.set(id, (knnVotes.get(id) || 0) + w / dil);
+                }
+            }
+        }
+        const fillFromFreq = () => {
+            const freq = new Map();
+            for (let i = 0; i < samples.length; i++) {
+                const labels = samples[i].labels;
+                const dil = Math.max(1, labels.length);
+                for (let u = 0; u < labels.length; u++) {
+                    const id = labels[u];
+                    if (windowIds.has(id)) {
+                        freq.set(id, (freq.get(id) || 0) + 1 / dil);
+                    }
+                }
+            }
+            knnVotes.clear();
+            for (const [id, v] of freq.entries()) {
+                knnVotes.set(id, v);
+            }
+        };
+        if (!knnVotes.size) {
+            fillFromFreq();
+        }
+        let knnMax = 0;
+        for (const v of knnVotes.values()) {
+            knnMax = Math.max(knnMax, v);
+        }
+        if (knnMax < 1e-12) {
+            fillFromFreq();
+            knnMax = 0;
+            for (const v of knnVotes.values()) {
+                knnMax = Math.max(knnMax, v);
+            }
+        }
+        if (knnMax < 1e-12) {
+            knnMax = 1e-12;
+        }
+        const noteFreqBefore = this.buildPrevIdNoteFreqMapBefore(noteMetas, idx);
+        const markovCounts = this.buildMarkovPrevRowToPrevIdCounts(rows, noteMetas, idx);
+        const prevRowIdForMarkov = this.parseRowId((rows[idx - 1] && (rows[idx - 1].id || rows[idx - 1].ID)) || '');
+        const loWin = Math.max(0, idx - 10);
+        const denomRec = Math.max(1, idx - 1 - loWin);
+
+        const comboMaps = this.buildComboRawCountMapsUpTo(rows, idx);
+        const windowUnion = this.getWindowMainNumUnionSet(rows, idx);
+        const blendBase = { wKnn: 1, wCombo: 0.55, wUnion: 0.12, wFreq: 0.48, wRec: 0.32, wMarkov: 0 };
+        const blend = { ...blendBase, ...(this.refHintBlend || {}) };
+        const cw = this.refHintComboW || { w1: 0.42, w2: 0.38, w3: 0.2 };
+        const rowsArr = [];
+        for (const id of windowIds) {
+            const ri = this.findWindowRowIndexForPrevId(rows, idx, id);
+            const mains = ri !== null ? this.parseMainNums((rows[ri] && (rows[ri].result || rows[ri].Result)) || '') : [];
+            const comp = this.scoreReferenceAuxComponentsForPrevRow(mains, comboMaps, windowUnion);
+            const kn = (knnVotes.get(id) || 0) / knnMax;
+            const freqN = Math.log1p(noteFreqBefore.get(id) || 0);
+            let rec = 0;
+            if (ri !== null) {
+                rec = (ri - loWin) / denomRec;
+            }
+            let mark = 0;
+            if (prevRowIdForMarkov !== null) {
+                const mk = prevRowIdForMarkov + '\0' + id;
+                mark = Math.log1p((markovCounts.get(mk) || 0) + 0.5);
+            }
+            rowsArr.push({ id, kn, s1: comp.s1, s2m: comp.s2m, s3m: comp.s3m, union: comp.union, freqN, rec, mark });
+        }
+        let maxC = 0;
+        let maxU = 0;
+        let maxF = 0;
+        let maxR = 0;
+        let maxM = 0;
+        for (let i = 0; i < rowsArr.length; i++) {
+            const row = rowsArr[i];
+            const combo = cw.w1 * row.s1 + cw.w2 * row.s2m + cw.w3 * row.s3m;
+            maxC = Math.max(maxC, combo);
+            maxU = Math.max(maxU, row.union);
+            maxF = Math.max(maxF, row.freqN);
+            maxR = Math.max(maxR, row.rec);
+            maxM = Math.max(maxM, row.mark);
+        }
+        if (maxC < 1e-9) {
+            maxC = 1e-9;
+        }
+        if (maxU < 1e-9) {
+            maxU = 1e-9;
+        }
+        if (maxF < 1e-9) {
+            maxF = 1e-9;
+        }
+        if (maxR < 1e-9) {
+            maxR = 1e-9;
+        }
+        if (maxM < 1e-9) {
+            maxM = 1e-9;
+        }
+        const sortedEntries = rowsArr.map(({ id, kn, s1, s2m, s3m, union, freqN, rec, mark }) => {
+            const combo = cw.w1 * s1 + cw.w2 * s2m + cw.w3 * s3m;
+            const cN = combo / maxC;
+            const uN = union / maxU;
+            const sc = blend.wKnn * kn
+                + blend.wCombo * cN
+                + blend.wUnion * uN
+                + blend.wFreq * (freqN / maxF)
+                + blend.wRec * (rec / maxR)
+                + blend.wMarkov * (mark / maxM);
+            return [id, sc];
+        }).sort((a, b) => b[1] - a[1]);
+        const pr = this.refHintPrune || { maxPick: 3, minRelTop: 0.22, minRelPrev: 0.38 };
+        const ranked = this.pruneKnnNoteRefScores(sortedEntries, pr);
+        return {
+            ranked,
+            trainN: samples.length,
+            kUsed: slice.length,
+            reason: 'ok'
+        };
+    }
+
+    /**
+     * Gợi ý Chuỗi 1…10 (bảng 2): tối đa 3 chuỗi; KNN + combo(prefix) + overlap cửa sổ — không dùng result/note dòng đang chọn.
+     */
+    getNoteReferenceHintForRowIndex(rowIndex) {
+        const rows = this.getSourceSheetRows();
+        const idx = Number(rowIndex);
+        if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
+            return '';
+        }
+        if (idx < 10) {
+            return 'Chưa đủ 10 dòng lịch sử phía trước để dự đoán (KNN).';
+        }
+        const pred = this.predictNoteRefsFromKnn(rows, idx, this.refHintKNeighbors || 9);
+        if (pred.reason === 'no_train') {
+            return 'Chưa có mẫu học.';
+        }
+        if (pred.reason === 'no_window_ids' || !pred.ranked.length) {
+            return 'Không suy ra được kỳ trong cửa sổ 10 (thiếu ID các dòng trước).';
+        }
+        const labels = this.rankedPrevIdsToChuoiLabels(rows, idx, pred.ranked);
+        if (!labels.length) {
+            return 'Không ánh xạ được sang Chuỗi 1…10 trong cửa sổ (kiểm tra ID các dòng trước).';
+        }
+        return `Gợi ý tham khảo (tối đa 3 chuỗi — KNN + combo + overlap + tần suất note + Markov + recency; không dùng result/note dòng này): ${labels.join(', ')}.`;
+    }
+
+    /**
      * Get the computed note for a row, falling back to a raw note only if needed.
      */
     getComputedNoteMeta(rowIndex, row) {
@@ -4096,40 +4656,32 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Build Module2-style combo sheets from source rows.
+     * Tích lũy dict combo (1..5) + special từ một đoạn dòng (không chỉnh latestRow).
      */
-    buildComboSheetsFromRows(rows) {
-        const dicts = [null, new Map(), new Map(), new Map(), new Map(), new Map()];
-        const dictSpecial = new Map();
-
-        for (const row of rows || []) {
+    _accumulateComboDictsFromRows(rowsSlice, dicts, dictSpecial) {
+        for (const row of rowsSlice || []) {
             const result = row.result || row.Result || '';
             if (!result) {
                 continue;
             }
-
             const mainNums = this.parseMainNums(result);
             if (mainNums.length !== 5) {
                 continue;
             }
-
             const special = this.parseSpecialPart(result);
             if (special) {
                 dictSpecial.set(special, (dictSpecial.get(special) || 0) + 1);
             }
-
             for (const num of mainNums) {
                 const key = String(num);
                 dicts[1].set(key, (dicts[1].get(key) || 0) + 1);
             }
-
             for (let a = 0; a < 4; a++) {
                 for (let b = a + 1; b < 5; b++) {
                     const key = `${mainNums[a]},${mainNums[b]}`;
                     dicts[2].set(key, (dicts[2].get(key) || 0) + 1);
                 }
             }
-
             for (let a = 0; a < 3; a++) {
                 for (let b = a + 1; b < 4; b++) {
                     for (let c = b + 1; c < 5; c++) {
@@ -4138,7 +4690,6 @@ class RightPaneSheetManager {
                     }
                 }
             }
-
             for (let a = 0; a < 2; a++) {
                 for (let b = a + 1; b < 3; b++) {
                     for (let c = b + 1; c < 4; c++) {
@@ -4149,12 +4700,105 @@ class RightPaneSheetManager {
                     }
                 }
             }
-
             const combo5Key = mainNums.join(',');
             dicts[5].set(combo5Key, (dicts[5].get(combo5Key) || 0) + 1);
         }
+    }
 
-        const latestRow = this.getLatestValidResultRow(rows || []);
+    /**
+     * Map tần suất combo_1/2/3 chỉ từ các dòng [0, endExclusive) — walk-forward cho gợi ý tại endExclusive.
+     */
+    buildComboRawCountMapsUpTo(rows, endExclusive) {
+        const dicts = [null, new Map(), new Map(), new Map(), new Map(), new Map()];
+        const dictSpecial = new Map();
+        const n = Math.max(0, endExclusive | 0);
+        this._accumulateComboDictsFromRows((rows || []).slice(0, n), dicts, dictSpecial);
+        return { m1: dicts[1], m2: dicts[2], m3: dicts[3], dictSpecial };
+    }
+
+    /**
+     * Thành phần log-tần suất combo (s1 TB, s2m/s3m max cặp/bộ ba) + overlap cửa sổ.
+     */
+    scoreReferenceAuxComponentsForPrevRow(prevMainNums, comboMaps, windowNumUnion) {
+        if (!prevMainNums || prevMainNums.length !== 5 || !comboMaps) {
+            return { s1: 0, s2m: 0, s3m: 0, union: 0 };
+        }
+        const { m1, m2, m3 } = comboMaps;
+        let s1 = 0;
+        for (let i = 0; i < 5; i++) {
+            s1 += Math.log1p(m1.get(String(prevMainNums[i])) || 0);
+        }
+        s1 /= 5;
+        let s2m = 0;
+        for (let a = 0; a < 4; a++) {
+            for (let b = a + 1; b < 5; b++) {
+                const key = `${prevMainNums[a]},${prevMainNums[b]}`;
+                s2m = Math.max(s2m, Math.log1p(m2.get(key) || 0));
+            }
+        }
+        let s3m = 0;
+        for (let a = 0; a < 3; a++) {
+            for (let b = a + 1; b < 4; b++) {
+                for (let c = b + 1; c < 5; c++) {
+                    const key = `${prevMainNums[a]},${prevMainNums[b]},${prevMainNums[c]}`;
+                    s3m = Math.max(s3m, Math.log1p(m3.get(key) || 0));
+                }
+            }
+        }
+        let ov = 0;
+        if (windowNumUnion && windowNumUnion.size) {
+            for (let i = 0; i < 5; i++) {
+                if (windowNumUnion.has(prevMainNums[i])) {
+                    ov++;
+                }
+            }
+            ov /= 5;
+        }
+        return { s1, s2m, s3m, union: ov };
+    }
+
+    /**
+     * Điểm combo + độ chồng với hợp các số main trong cửa sổ 10 (không gồm dòng idx).
+     */
+    scoreReferenceAuxForPrevRow(rows, idx, prevMainNums, comboMaps, windowNumUnion) {
+        const c = this.scoreReferenceAuxComponentsForPrevRow(prevMainNums, comboMaps, windowNumUnion);
+        const w = this.refHintComboW || { w1: 0.42, w2: 0.38, w3: 0.2 };
+        const combo = w.w1 * c.s1 + w.w2 * c.s2m + w.w3 * c.s3m;
+        return { combo, union: c.union };
+    }
+
+    /**
+     * Hợp tập các số main (5 số đầu) trong 10 dòng trước idx (không gồm idx).
+     */
+    getWindowMainNumUnionSet(rows, idx) {
+        const set = new Set();
+        const lo = Math.max(0, idx - 10);
+        for (let i = lo; i < idx; i++) {
+            const nums = this.parseMainNums((rows[i] && (rows[i].result || rows[i].Result)) || '');
+            for (let t = 0; t < nums.length; t++) {
+                set.add(nums[t]);
+            }
+        }
+        return set;
+    }
+
+    /**
+     * Build Module2-style combo sheets from source rows.
+     */
+    buildComboSheetsFromRows(rows) {
+        return this.buildComboSheetsFromRowsUpTo(rows, (rows || []).length);
+    }
+
+    /**
+     * Giống buildComboSheetsFromRows nhưng chỉ dùng rows[0..endExclusive).
+     */
+    buildComboSheetsFromRowsUpTo(rows, endExclusive) {
+        const dicts = [null, new Map(), new Map(), new Map(), new Map(), new Map()];
+        const dictSpecial = new Map();
+        const n = Math.max(0, endExclusive | 0);
+        this._accumulateComboDictsFromRows((rows || []).slice(0, n), dicts, dictSpecial);
+
+        const latestRow = this.getLatestValidResultRow((rows || []).slice(0, n));
         const latestNumbers = latestRow ? this.parseMainNums(latestRow.result || latestRow.Result || '') : [];
         const latestSpecial = latestRow ? this.parseSpecialPart(latestRow.result || latestRow.Result || '') : '';
 
@@ -4549,6 +5193,18 @@ class RightPaneSheetManager {
             return [];
         }
         const wt = SPECIAL_TRACKING_PREDICT_WT;
+        const predictMode = wt.predictMode === 'globalTrigram' ? 'globalTrigram' : 'heuristic';
+        if (predictMode === 'globalTrigram' && nFull >= 3 && N >= 3) {
+            const penD = series[N - 2];
+            const prD = series[N - 1];
+            if (penD >= 1 && penD <= 12 && prD >= 1 && prD <= 12) {
+                const tg = specialTrackingTop3FromGlobalTrigram(series, nFull, penD, prD);
+                if (tg) {
+                    return tg;
+                }
+            }
+        }
+
         const K = Math.min(20, lastIdx);
         const past = K > 0 ? frames[lastIdx - K] : last;
         const K10 = Math.min(10, lastIdx);
@@ -4914,19 +5570,82 @@ class RightPaneSheetManager {
             return;
         }
 
+        const series = Array.isArray(sheet.series) ? sheet.series : [];
         const total = frames.length;
+        const srcRows = this.sourceRows || [];
+        const tailRow = srcRows.length ? srcRows[srcRows.length - 1] : {};
+        const tailId = String(tailRow.id ?? tailRow.ID ?? '');
+        const uiSig = `${total}|${series.length}|${srcRows.length}|${tailId}`;
+
+        const readSavedStUi = () => {
+            let u = sheet.specialTrackingUi;
+            if (u && u.sig === uiSig) {
+                return u;
+            }
+            try {
+                const raw = sessionStorage.getItem(SPECIAL_TRACKING_UI_STORAGE_KEY);
+                if (!raw) {
+                    return null;
+                }
+                const o = JSON.parse(raw);
+                if (o && o.sig === uiSig) {
+                    return o;
+                }
+            } catch (e) {
+                /* ignore */
+            }
+            return null;
+        };
+        const savedSt = readSavedStUi();
+        const clampStIdx = (i) => {
+            const n = Number(i);
+            if (!Number.isFinite(n)) {
+                return 0;
+            }
+            return Math.max(0, Math.min(total - 1, Math.floor(n)));
+        };
+
+        let frameIndex = savedSt ? clampStIdx(savedSt.frameIndex) : 0;
+        let playing = savedSt ? !!savedSt.playing : false;
+        let speed = 1;
+        if (savedSt && Number.isFinite(savedSt.speed)) {
+            speed = Math.min(3, Math.max(0.5, savedSt.speed));
+        }
+        let focusNum = null;
+        if (savedSt && savedSt.focusNum != null) {
+            const fn = Number(savedSt.focusNum);
+            if (Number.isFinite(fn) && fn >= 1 && fn <= 12) {
+                focusNum = fn;
+            }
+        }
+        let predictNeonOn = savedSt ? !!savedSt.predictNeonOn : false;
+        /** Đồng bộ pha neon giữa 3 thanh dự đoán khi đổi timeline */
+        let lastPredictNeonSyncKey = '';
+
         const progPct = new Float32Array(total);
         for (let i = 0; i < total; i++) {
             progPct[i] = total <= 1 ? 100 : (i / (total - 1)) * 100;
         }
 
-        const series = Array.isArray(sheet.series) ? sheet.series : [];
-        let frameIndex = 0;
-        let playing = false;
-        let speed = 1;
-        let focusNum = null;
         let timer = null;
         const BASE_MS = 420;
+
+        const persistSpecialTrackingUi = () => {
+            try {
+                const snap = {
+                    sig: uiSig,
+                    frameIndex,
+                    playing,
+                    speed,
+                    predictNeonOn,
+                    focusNum
+                };
+                sheet.specialTrackingUi = snap;
+                sessionStorage.setItem(SPECIAL_TRACKING_UI_STORAGE_KEY, JSON.stringify(snap));
+            } catch (e) {
+                /* ignore quota / private mode */
+            }
+        };
 
         const btnFirst = root.querySelector('[data-st-first]');
         const btnPrev = root.querySelector('[data-st-prev]');
@@ -4944,7 +5663,10 @@ class RightPaneSheetManager {
         const stepEl = root.querySelector('[data-st-step]');
         const predictToggle = root.querySelector('[data-st-predict-toggle]');
         const statsRankEl = root.querySelector('[data-st-rank-stats]');
-        let predictNeonOn = false;
+        if (predictToggle) {
+            predictToggle.classList.toggle('is-on', predictNeonOn);
+            predictToggle.setAttribute('aria-pressed', predictNeonOn ? 'true' : 'false');
+        }
 
         const formatRankStats = (st) => {
             if (!st || st.total < 1) {
@@ -5084,6 +5806,18 @@ class RightPaneSheetManager {
             }
             const predictNeonActive = predictNeonOn && predictList.length > 0;
             root.classList.toggle('special-tracking-root--predict-neon-on', predictNeonActive);
+            if (!predictNeonActive) {
+                lastPredictNeonSyncKey = '';
+                root.style.removeProperty('--st-predict-neon-delay');
+            } else {
+                const syncKey = `${frameIndex}:${predictList.join(',')}:${actualNext == null ? '-' : String(actualNext)}`;
+                if (syncKey !== lastPredictNeonSyncKey) {
+                    lastPredictNeonSyncKey = syncKey;
+                    const periodSec = 2 * 0.72;
+                    const phase = (performance.now() / 1000) % periodSec;
+                    root.style.setProperty('--st-predict-neon-delay', `${-phase}s`);
+                }
+            }
 
             for (let n = 1; n <= 12; n++) {
                 const el = barByNum[n];
@@ -5267,6 +6001,7 @@ class RightPaneSheetManager {
         }
 
         if (speedSlider) {
+            speedSlider.value = String(speed);
             speedSlider.addEventListener('input', () => {
                 const v = Number(speedSlider.value);
                 speed = Number.isFinite(v) ? v : 1;
@@ -5325,8 +6060,12 @@ class RightPaneSheetManager {
         if (btnPlay) {
             syncPlayBtnUi();
         }
+        if (playing) {
+            scheduleNext();
+        }
 
         tableWrap.__specialTrackingCleanup = () => {
+            persistSpecialTrackingUi();
             clearTimer();
             scrubDrag = false;
             setScrubbing(false);
