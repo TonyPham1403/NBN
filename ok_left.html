@@ -555,6 +555,20 @@
             min-width: 0;
             margin-left: 0;
             --chuoi-pair-tracked-frame: rgba(0, 150, 55, 0.9);
+            /* Viền ô index cặp kề: đậm hơn neon ô submit (--neon-color), tách khỏi glow sáng */
+            --chuoi-pair-trk-adj-freq-frame: rgb(0, 104, 42);
+            /* Viền kép chân index: viền ngoài mỏng hơn viền trong; chéo theo gap + viền ngoài */
+            --chuoi-adj-dbl-border-outer: 1px;
+            --chuoi-adj-dbl-border-inner: 1.5px;
+            --chuoi-adj-dbl-line: 1.2px;
+            --chuoi-adj-dbl-gap: 4px;
+            --chuoi-adj-diag-l: calc((var(--chuoi-adj-dbl-gap) + var(--chuoi-adj-dbl-border-outer)) * 1.41421356);
+        }
+
+        @supports (color: color-mix(in srgb, red, blue)) {
+            #right {
+                --chuoi-pair-trk-adj-freq-frame: color-mix(in srgb, var(--neon-color) 32%, rgb(0, 70, 28) 68%);
+            }
         }
 
         #right td,
@@ -605,6 +619,76 @@
 
         #right tr.chuoi-pattern-row.chuoi-pair-tracked-solo>td:nth-child(2) {
             box-shadow: inset -3px 0 0 0 var(--chuoi-pair-tracked-frame), inset 0 -3px 0 0 var(--chuoi-pair-tracked-frame);
+        }
+
+        /*
+         * Viền kép + chéo: viền = màu viền main chuỗi; khe giữa hai viền = nền xanh mint cùng tông;
+         * bốn đoạn chéo nối góc viền ngoài ↔ góc viền trong (::before), độ dài theo gap+border.
+         */
+        #right tr.chuoi-pattern-row .cell.index.chuoi-pair-trk-adj-freq {
+            position: relative;
+            z-index: 2;
+            box-sizing: border-box;
+            color: #111111;
+            border: var(--chuoi-adj-dbl-border-outer) solid var(--chuoi-pair-trk-adj-freq-frame);
+            background: linear-gradient(165deg,
+                    rgba(232, 248, 238, 0.96) 0%,
+                    rgba(210, 236, 220, 0.94) 45%,
+                    rgba(190, 226, 205, 0.92) 100%);
+            border-radius: 1px;
+            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.82);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+        }
+
+        #right tr.chuoi-pattern-row .cell.index.chuoi-pair-trk-adj-freq::before {
+            content: "";
+            position: absolute;
+            inset: var(--chuoi-adj-dbl-gap);
+            border: var(--chuoi-adj-dbl-border-inner) solid var(--chuoi-pair-trk-adj-freq-frame);
+            box-sizing: border-box;
+            pointer-events: none;
+            z-index: 0;
+            background: rgba(255, 255, 255, 0.22);
+        }
+
+        #right tr.chuoi-pattern-row .cell.index.chuoi-pair-trk-adj-freq .chuoi-adj-line {
+            position: absolute;
+            background: var(--chuoi-pair-trk-adj-freq-frame);
+            width: var(--chuoi-adj-diag-l);
+            height: var(--chuoi-adj-dbl-line);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        /* Nối góc ngoài (cạnh viền ngoài) → góc trong (cạnh viền ::before), cùng trục 45° */
+        #right tr.chuoi-pattern-row .cell.index.chuoi-pair-trk-adj-freq .chuoi-adj-line-tl {
+            top: calc(var(--chuoi-adj-dbl-border-outer) * 0.35);
+            left: calc(var(--chuoi-adj-dbl-border-outer) * 0.35);
+            transform-origin: left top;
+            transform: rotate(45deg);
+        }
+
+        #right tr.chuoi-pattern-row .cell.index.chuoi-pair-trk-adj-freq .chuoi-adj-line-tr {
+            top: calc(var(--chuoi-adj-dbl-border-outer) * 0.35);
+            right: calc(var(--chuoi-adj-dbl-border-outer) * 0.35);
+            left: auto;
+            transform-origin: right top;
+            transform: rotate(-45deg);
+        }
+
+        #right tr.chuoi-pattern-row .cell.index.chuoi-pair-trk-adj-freq .chuoi-adj-line-bl {
+            bottom: calc(var(--chuoi-adj-dbl-border-outer) * 0.35);
+            left: calc(var(--chuoi-adj-dbl-border-outer) * 0.35);
+            transform-origin: left bottom;
+            transform: rotate(-45deg);
+        }
+
+        #right tr.chuoi-pattern-row .cell.index.chuoi-pair-trk-adj-freq .chuoi-adj-line-br {
+            bottom: calc(var(--chuoi-adj-dbl-border-outer) * 0.35);
+            right: calc(var(--chuoi-adj-dbl-border-outer) * 0.35);
+            left: auto;
+            transform-origin: right bottom;
+            transform: rotate(45deg);
         }
 
         /* Make Chuỗi rows feel taller by enlarging the visible label and numbers slightly.
@@ -4718,13 +4802,144 @@
             return out;
         }
 
-        /** Gắn/gỡ class viền chuỗi tại chỗ — theo cặp đang khoanh trên strip pair hoặc tail. Submit ON: theo simulated. */
+        /** Mọi chỉ số dòng chuỗi có cả hai số a,b trong 5 số kết quả. */
+        function findAllChuoiDisplayLineIndicesContainingBoth(a, b) {
+            const s = new Set();
+            if (!raw || !Array.isArray(raw.lines) || raw.lines.length < 10) {
+                return s;
+            }
+            if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                return s;
+            }
+            const displayLines = getRawDisplayLines();
+            for (let i = 0; i < displayLines.length; i++) {
+                const nums = getNumsFromLineObj(displayLines[i]);
+                if (nums.indexOf(a) !== -1 && nums.indexOf(b) !== -1) {
+                    s.add(i);
+                }
+            }
+            return s;
+        }
+
+        /**
+         * Hai Chuỗi liền kề (i, i+1) tách a|b: mỗi dòng chỉ có một trong hai số.
+         * Nếu đã có main (chuỗi chứa cả a và b): boundary hợp lệ **không** được chạm vào bất kỳ dòng main nào
+         * (tránh nhầm ví dụ main ở chuỗi 9 cùng cạnh 9–10 với chuỗi 10).
+         * Trên mỗi dòng solo: viền chân index cho a và b. Adjacent: 2 ô / mỗi cặp tách hợp lệ (tổng 2x ô, x = số boundary hợp lệ).
+         * Chỉ áp cho **pair** (#pairList); **tail** không tạo viền vuông này.
+         */
+        function getAdjacentPairChuoiFreqHighlightSpecs() {
+            const out = [];
+            if (!raw || !Array.isArray(raw.lines) || raw.lines.length < 10) {
+                return out;
+            }
+            let eff;
+            try {
+                eff = getEffectiveSelectionSetForPairNeon();
+            } catch (eEff) {
+                return out;
+            }
+            if (!eff || eff.size < 2) {
+                return out;
+            }
+            const displayLines = getRawDisplayLines();
+            const maxBound = displayLines.length - 1;
+            const seen = new Set();
+
+            function addSpec(li, num) {
+                const k = li + ':' + num;
+                if (seen.has(k)) {
+                    return;
+                }
+                seen.add(k);
+                out.push({ lineIndex: li, num: num });
+            }
+
+            function considerPair(a, b) {
+                if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                    return;
+                }
+                if (!pairTailButtonShouldShowPairSelected(a, b, eff)) {
+                    return;
+                }
+                const soloSet = findAllChuoiDisplayLineIndicesContainingBoth(a, b);
+                soloSet.forEach(function (k) {
+                    addSpec(k, a);
+                    addSpec(k, b);
+                });
+                for (let i = 0; i < maxBound; i++) {
+                    if (soloSet.size > 0 && (soloSet.has(i) || soloSet.has(i + 1))) {
+                        continue;
+                    }
+                    const nums0 = getNumsFromLineObj(displayLines[i]);
+                    const nums1 = getNumsFromLineObj(displayLines[i + 1]);
+                    const h0a = nums0.indexOf(a) !== -1;
+                    const h0b = nums0.indexOf(b) !== -1;
+                    const h1a = nums1.indexOf(a) !== -1;
+                    const h1b = nums1.indexOf(b) !== -1;
+                    if (h0a && !h0b && h1b && !h1a) {
+                        addSpec(i, a);
+                        addSpec(i + 1, b);
+                    } else if (h0b && !h0a && h1a && !h1b) {
+                        addSpec(i, b);
+                        addSpec(i + 1, a);
+                    }
+                }
+            }
+
+            try {
+                const pairs = computePairs() || [];
+                for (let pi = 0; pi < pairs.length; pi++) {
+                    const p = pairs[pi];
+                    if (p && p.length >= 2) {
+                        considerPair(p[0], p[1]);
+                    }
+                }
+            } catch (eP) { /* ignore */ }
+            return out;
+        }
+
+        function stripChuoiPairAdjFreqDecor(span) {
+            if (!span || !span.querySelectorAll) {
+                return;
+            }
+            try {
+                span.querySelectorAll('.chuoi-adj-line').forEach(function (el) {
+                    try {
+                        el.remove();
+                    } catch (eR) { /* ignore */ }
+                });
+            } catch (eStrip) { /* ignore */ }
+        }
+
+        function ensureChuoiPairAdjFreqDecor(span) {
+            if (!span || span.querySelector('.chuoi-adj-line')) {
+                return;
+            }
+            const anchor = span.firstChild;
+            const corners = ['tl', 'tr', 'bl', 'br'];
+            for (let ci = 0; ci < corners.length; ci++) {
+                const el = document.createElement('span');
+                el.className = 'chuoi-adj-line chuoi-adj-line-' + corners[ci];
+                el.setAttribute('aria-hidden', 'true');
+                span.insertBefore(el, anchor);
+            }
+        }
+
+        /** Gắn/gỡ class viền chuỗi tại chỗ — khung solo: pair + tail; viền vuông kép chân index: chỉ pair. Submit ON: theo simulated. */
         function syncChuoiPairTrackedSoloInDOM() {
             try {
                 try { syncSubmitPreviewBodyClasses(); } catch (eB) { /* ignore */ }
                 const right = document.getElementById('right');
                 if (!right) {
                     return;
+                }
+                const prevAdj = right.querySelectorAll('.cell.index.chuoi-pair-trk-adj-freq');
+                for (let u = 0; u < prevAdj.length; u++) {
+                    try {
+                        stripChuoiPairAdjFreqDecor(prevAdj[u]);
+                        prevAdj[u].classList.remove('chuoi-pair-trk-adj-freq');
+                    } catch (eU) { /* ignore */ }
                 }
                 const trackedSet = getTrackedPairChuoiLineIndicesSet();
                 const mains = right.querySelectorAll('tr.chuoi-main-row');
@@ -4739,6 +4954,27 @@
                         tr.classList.toggle('chuoi-pair-tracked-solo', trackedSet.has(i));
                     } catch (eTr2) { /* ignore */ }
                 });
+                const adjSpecs = getAdjacentPairChuoiFreqHighlightSpecs();
+                for (let ai = 0; ai < adjSpecs.length; ai++) {
+                    const sp = adjSpecs[ai];
+                    const li = sp.lineIndex | 0;
+                    const num = sp.num;
+                    const ptr = patterns[li];
+                    if (!ptr) {
+                        continue;
+                    }
+                    const td2 = ptr.children[1];
+                    if (!td2) {
+                        continue;
+                    }
+                    const span = td2.querySelector('.cell.index[data-num="' + String(num) + '"]');
+                    if (span) {
+                        try {
+                            span.classList.add('chuoi-pair-trk-adj-freq');
+                            ensureChuoiPairAdjFreqDecor(span);
+                        } catch (eS) { /* ignore */ }
+                    }
+                }
             } catch (e) { /* ignore */ }
         }
 

@@ -191,8 +191,8 @@ class RightPaneSheetManager {
      */
     rebuildSheetsFromSource() {
         const comboSheets = this.buildComboSheetsFromRows(this.sourceRows || []);
-        const stSeries = this.buildSpecialTrackingSeries(this.sourceRows || []);
-        const stFrames = this.buildSpecialTrackingFrames(stSeries);
+        const stMeta = this.buildSpecialTrackingSeriesMeta(this.sourceRows || []);
+        const stFrames = this.buildSpecialTrackingFrames(stMeta.series);
         this.sheets = {
             sheet1: {
                 kind: 'source',
@@ -202,7 +202,8 @@ class RightPaneSheetManager {
             specialtracking: {
                 kind: 'specialtracking',
                 data: [],
-                series: stSeries,
+                series: stMeta.series,
+                seriesSourceRowIndices: stMeta.sourceRowIndices,
                 frames: stFrames
             }
         };
@@ -655,7 +656,25 @@ class RightPaneSheetManager {
             const appear = freq.get(combo) || 0;
             comboRows.push({ combo, appear, arrow: '' });
         }
-        comboRows.sort((left, right) => right.appear - left.appear || Number(left.combo) - Number(right.combo));
+        const combo1Reach = new Map();
+        for (let ci = 0; ci < comboRows.length; ci++) {
+            const row = comboRows[ci];
+            combo1Reach.set(
+                row.combo,
+                this.rowIndexWhenComboAppearReached(sourceRows, 0, freqEnd, 1, row.combo, row.appear)
+            );
+        }
+        comboRows.sort((left, right) => {
+            if (right.appear !== left.appear) {
+                return right.appear - left.appear;
+            }
+            const ta = combo1Reach.get(left.combo);
+            const tb = combo1Reach.get(right.combo);
+            if (ta !== tb) {
+                return ta - tb;
+            }
+            return Number(left.combo) - Number(right.combo);
+        });
 
         const targetArrowSet = comboState.arrowSet;
         for (const row of comboRows) {
@@ -668,7 +687,24 @@ class RightPaneSheetManager {
         for (const [special, count] of specialCounts.entries()) {
             specialRows.push({ special, count, arrow: '' });
         }
-        specialRows.sort((left, right) => right.count - left.count || String(left.special).localeCompare(String(right.special)));
+        const keysSpecialRt = new Set(specialCounts.keys());
+        const special1Reach = this.buildSpecialReachRowMapOnePass(
+            sourceRows,
+            specialEnd + 1,
+            specialCounts,
+            keysSpecialRt
+        );
+        specialRows.sort((left, right) => {
+            if (right.count !== left.count) {
+                return right.count - left.count;
+            }
+            const ta = special1Reach.get(left.special);
+            const tb = special1Reach.get(right.special);
+            if (ta !== tb) {
+                return ta - tb;
+            }
+            return String(left.special).localeCompare(String(right.special));
+        });
 
         const targetSpecialKey = this.normalizeNumberKey(comboState.targetSpecial);
         for (const row of specialRows) {
@@ -4509,6 +4545,14 @@ class RightPaneSheetManager {
             }
         }
 
+        if (this.activeSheet === 'sheet1' && !isEmptyRow) {
+            try {
+                this.syncSpecialTrackingTimelineFromSheet1Row(idx);
+            } catch (eStSync) {
+                /* ignore */
+            }
+        }
+
         if (!options.skipSave) {
             this.save();
         }
@@ -4706,6 +4750,264 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Đóng góp của một key combo trong một dòng (khớp _accumulateComboDictsFromRows).
+     */
+    countComboSlotKeyContributionInRow(mainNums, comboSlot, comboKey) {
+        if (!mainNums || mainNums.length !== 5 || comboKey == null || comboKey === '') {
+            return 0;
+        }
+        if (comboSlot === 1) {
+            let c = 0;
+            for (let i = 0; i < mainNums.length; i++) {
+                if (String(mainNums[i]) === comboKey) {
+                    c++;
+                }
+            }
+            return c;
+        }
+        if (comboSlot === 2) {
+            for (let a = 0; a < 4; a++) {
+                for (let b = a + 1; b < 5; b++) {
+                    if (`${mainNums[a]},${mainNums[b]}` === comboKey) {
+                        return 1;
+                    }
+                }
+            }
+            return 0;
+        }
+        if (comboSlot === 3) {
+            for (let a = 0; a < 3; a++) {
+                for (let b = a + 1; b < 4; b++) {
+                    for (let c = b + 1; c < 5; c++) {
+                        if (`${mainNums[a]},${mainNums[b]},${mainNums[c]}` === comboKey) {
+                            return 1;
+                        }
+                    }
+                }
+            }
+            return 0;
+        }
+        if (comboSlot === 4) {
+            for (let a = 0; a < 2; a++) {
+                for (let b = a + 1; b < 3; b++) {
+                    for (let c = b + 1; c < 4; c++) {
+                        for (let d = c + 1; d < 5; d++) {
+                            if (`${mainNums[a]},${mainNums[b]},${mainNums[c]},${mainNums[d]}` === comboKey) {
+                                return 1;
+                            }
+                        }
+                    }
+                }
+            }
+            return 0;
+        }
+        if (comboSlot === 5) {
+            return mainNums.join(',') === comboKey ? 1 : 0;
+        }
+        return 0;
+    }
+
+    /**
+     * Chỉ số dòng trong [startRow..endRowInclusive] khi tích lũy appear cho key đạt >= targetAppear.
+     * Hòa điểm: ai đạt mốc trước (chỉ số nhỏ hơn) xếp trên — cùng luật special tracking.
+     */
+    rowIndexWhenComboAppearReached(rows, startRow, endRowInclusive, comboSlot, comboKey, targetAppear) {
+        if (targetAppear <= 0) {
+            return -1;
+        }
+        let sum = 0;
+        const lo = Math.max(0, startRow | 0);
+        const hi = Math.max(lo, endRowInclusive | 0);
+        const arr = rows || [];
+        for (let r = lo; r <= hi; r++) {
+            const row = arr[r] || {};
+            const mn = this.parseMainNums(row.result || row.Result || '');
+            sum += this.countComboSlotKeyContributionInRow(mn, comboSlot, comboKey);
+            if (sum >= targetAppear) {
+                return r;
+            }
+        }
+        return hi;
+    }
+
+    /** Chỉ số dòng khi tích count cho đúng chuỗi special (khớp dictSpecial). */
+    rowIndexWhenSpecialCountReached(rows, startRow, endRowInclusive, specialKey, targetCount) {
+        if (targetCount <= 0 || specialKey == null || specialKey === '') {
+            return -1;
+        }
+        let sum = 0;
+        const lo = Math.max(0, startRow | 0);
+        const hi = Math.max(lo, endRowInclusive | 0);
+        const arr = rows || [];
+        for (let r = lo; r <= hi; r++) {
+            const row = arr[r] || {};
+            const sp = this.parseSpecialPart(row.result || row.Result || '');
+            if (sp === specialKey) {
+                sum++;
+            }
+            if (sum >= targetCount) {
+                return r;
+            }
+        }
+        return hi;
+    }
+
+    /**
+     * Đóng góp theo key trong một hàng (slot 1..5), khớp _accumulateComboDictsFromRows.
+     * @returns {Array<[string, number]>} cặp [key, delta] — số phần tử bị chặn (≤10).
+     */
+    getComboSlotRowContributionDeltas(mainNums, comboSlot) {
+        if (!mainNums || mainNums.length !== 5) {
+            return [];
+        }
+        const mn = mainNums;
+        if (comboSlot === 1) {
+            const freq = new Map();
+            for (let i = 0; i < 5; i++) {
+                const k = String(mn[i]);
+                freq.set(k, (freq.get(k) || 0) + 1);
+            }
+            const out = [];
+            freq.forEach((delta, k) => {
+                out.push([k, delta]);
+            });
+            return out;
+        }
+        if (comboSlot === 2) {
+            const out = [];
+            for (let a = 0; a < 4; a++) {
+                for (let b = a + 1; b < 5; b++) {
+                    out.push([`${mn[a]},${mn[b]}`, 1]);
+                }
+            }
+            return out;
+        }
+        if (comboSlot === 3) {
+            const out = [];
+            for (let a = 0; a < 3; a++) {
+                for (let b = a + 1; b < 4; b++) {
+                    for (let c = b + 1; c < 5; c++) {
+                        out.push([`${mn[a]},${mn[b]},${mn[c]}`, 1]);
+                    }
+                }
+            }
+            return out;
+        }
+        if (comboSlot === 4) {
+            const out = [];
+            for (let a = 0; a < 2; a++) {
+                for (let b = a + 1; b < 3; b++) {
+                    for (let c = b + 1; c < 4; c++) {
+                        for (let d = c + 1; d < 5; d++) {
+                            out.push([`${mn[a]},${mn[b]},${mn[c]},${mn[d]}`, 1]);
+                        }
+                    }
+                }
+            }
+            return out;
+        }
+        if (comboSlot === 5) {
+            return [[mn.join(','), 1]];
+        }
+        return [];
+    }
+
+    /**
+     * Một lượt quét dòng [0, endExclusive): chỉ số dòng đầu tiên mà cộng dồn đạt target trong targetByKey.
+     * O(N × hằng số) thay vì O(K × N) khi gọi rowIndexWhenComboAppearReached từng key.
+     */
+    buildComboReachRowMapOnePass(rows, endExclusive, comboSlot, targetByKey, keysNeedingReach) {
+        const reach = new Map();
+        if (!keysNeedingReach || keysNeedingReach.size === 0) {
+            return reach;
+        }
+        const running = new Map();
+        const n = Math.max(0, endExclusive | 0);
+        const hi = n > 0 ? n - 1 : -1;
+        for (const key of keysNeedingReach) {
+            running.set(key, 0);
+            reach.set(key, null);
+        }
+        const arr = rows || [];
+        for (let r = 0; r < n; r++) {
+            const row = arr[r] || {};
+            const mn = this.parseMainNums(row.result || row.Result || '');
+            if (mn.length !== 5) {
+                continue;
+            }
+            const deltas = this.getComboSlotRowContributionDeltas(mn, comboSlot);
+            for (let i = 0; i < deltas.length; i++) {
+                const key = deltas[i][0];
+                const delta = deltas[i][1];
+                if (!keysNeedingReach.has(key) || delta <= 0) {
+                    continue;
+                }
+                const target = targetByKey.get(key) | 0;
+                if (target <= 0) {
+                    continue;
+                }
+                const prev = running.get(key) || 0;
+                const next = prev + delta;
+                if (reach.get(key) === null && prev < target && next >= target) {
+                    reach.set(key, r);
+                }
+                running.set(key, next);
+            }
+        }
+        if (hi >= 0) {
+            for (const key of keysNeedingReach) {
+                if (reach.get(key) === null) {
+                    reach.set(key, hi);
+                }
+            }
+        }
+        return reach;
+    }
+
+    /**
+     * Một lượt quét cho special: chỉ số dòng đầu tiên đạt count (khớp rowIndexWhenSpecialCountReached).
+     */
+    buildSpecialReachRowMapOnePass(rows, endExclusive, countByKey, keysNeedingReach) {
+        const reach = new Map();
+        if (!keysNeedingReach || keysNeedingReach.size === 0) {
+            return reach;
+        }
+        const running = new Map();
+        const n = Math.max(0, endExclusive | 0);
+        const hi = n > 0 ? n - 1 : -1;
+        for (const key of keysNeedingReach) {
+            running.set(key, 0);
+            reach.set(key, null);
+        }
+        const arr = rows || [];
+        for (let r = 0; r < n; r++) {
+            const row = arr[r] || {};
+            const sp = this.parseSpecialPart(row.result || row.Result || '');
+            if (!sp || !keysNeedingReach.has(sp)) {
+                continue;
+            }
+            const target = countByKey.get(sp) | 0;
+            if (target <= 0) {
+                continue;
+            }
+            const prev = running.get(sp) || 0;
+            const next = prev + 1;
+            if (reach.get(sp) === null && prev < target && next >= target) {
+                reach.set(sp, r);
+            }
+            running.set(sp, next);
+        }
+        if (hi >= 0) {
+            for (const key of keysNeedingReach) {
+                if (reach.get(key) === null) {
+                    reach.set(key, hi);
+                }
+            }
+        }
+        return reach;
+    }
+
+    /**
      * Map tần suất combo_1/2/3 chỉ từ các dòng [0, endExclusive) — walk-forward cho gợi ý tại endExclusive.
      */
     buildComboRawCountMapsUpTo(rows, endExclusive) {
@@ -4811,7 +5113,24 @@ class RightPaneSheetManager {
                 }
             }
 
-            data.sort((left, right) => right.appear - left.appear || left.combo.localeCompare(right.combo));
+            /* Tie-break row index: một lượt O(N), tránh O(K×N) khi gọi rowIndexWhenComboAppearReached từng key. */
+            const keysAppear2 = new Set();
+            for (let di = 0; di < data.length; di++) {
+                keysAppear2.add(data[di].combo);
+            }
+            const comboReachRow = this.buildComboReachRowMapOnePass(rows, n, s, dicts[s], keysAppear2);
+
+            data.sort((left, right) => {
+                if (right.appear !== left.appear) {
+                    return right.appear - left.appear;
+                }
+                const ta = comboReachRow.get(left.combo);
+                const tb = comboReachRow.get(right.combo);
+                if (ta !== tb) {
+                    return ta - tb;
+                }
+                return String(left.combo).localeCompare(String(right.combo));
+            });
 
             if (s === 1 && latestNumbers.length === 5) {
                 const latestSet = new Set(latestNumbers.map(num => String(num)));
@@ -4837,7 +5156,20 @@ class RightPaneSheetManager {
                 for (const [special, count] of dictSpecial.entries()) {
                     specialRows.push({ special, count, arrow: '' });
                 }
-                specialRows.sort((left, right) => right.count - left.count || left.special.localeCompare(right.special));
+                const keysSpecial = new Set(dictSpecial.keys());
+                const specialReachRow = this.buildSpecialReachRowMapOnePass(rows, n, dictSpecial, keysSpecial);
+
+                specialRows.sort((left, right) => {
+                    if (right.count !== left.count) {
+                        return right.count - left.count;
+                    }
+                    const ta = specialReachRow.get(left.special);
+                    const tb = specialReachRow.get(right.special);
+                    if (ta !== tb) {
+                        return ta - tb;
+                    }
+                    return String(left.special).localeCompare(String(right.special));
+                });
 
                 if (latestSpecial) {
                     const latestSpecialSet = new Set(latestSpecial.split(',').map(item => this.normalizeNumberKey(item)).filter(Boolean));
@@ -5053,11 +5385,14 @@ class RightPaneSheetManager {
 
     /**
      * Chuỗi các số đặc biệt 1–12 theo thứ tự thời gian (cột result, phần sau |).
-     * Tham khảo vid.py: tách special và chỉ giữ kỳ có số hợp lệ.
+     * `sourceRowIndices[k]` = chỉ số dòng sheet1 (0-based) tạo ra `series[k]`.
      */
-    buildSpecialTrackingSeries(rows) {
+    buildSpecialTrackingSeriesMeta(rows) {
         const series = [];
-        for (const row of rows || []) {
+        const sourceRowIndices = [];
+        const list = rows || [];
+        for (let ri = 0; ri < list.length; ri++) {
+            const row = list[ri];
             const raw = row.result || row.Result || '';
             const part = this.parseSpecialPart(raw);
             if (!part) {
@@ -5077,13 +5412,132 @@ class RightPaneSheetManager {
             }
             if (n != null) {
                 series.push(n);
+                sourceRowIndices.push(ri);
             }
         }
-        return series;
+        return { series, sourceRowIndices };
     }
 
     /**
-     * Mỗi bước: tích lũy count + thứ tự giảm dần theo count (vid.py).
+     * Chuỗi các số đặc biệt 1–12 theo thứ tự thời gian (cột result, phần sau |).
+     * Tham khảo vid.py: tách special và chỉ giữ kỳ có số hợp lệ.
+     */
+    buildSpecialTrackingSeries(rows) {
+        return this.buildSpecialTrackingSeriesMeta(rows).series;
+    }
+
+    /**
+     * Sheet1 → specialtracking một chiều: record id đang focus là X thì timeline tua tới
+     * mốc đã xử lý đến kỳ có id (X−1) — số bước = số lần có special trên các dòng từ đầu đến dòng đó.
+     * Scrub timeline / transport ST không gọi ngược lại sheet1.
+     */
+    syncSpecialTrackingTimelineFromSheet1Row(focusRowIndex) {
+        const st = this.sheets && this.sheets.specialtracking;
+        if (!st || st.kind !== 'specialtracking') {
+            return;
+        }
+        const rows = this.sourceRows || [];
+        const row = rows[focusRowIndex];
+        if (!row) {
+            return;
+        }
+        const idNum = parseInt(String(row.id != null ? row.id : row.ID || '').trim(), 10);
+        if (!Number.isFinite(idNum)) {
+            return;
+        }
+        this.ensureSpecialTrackingFrames(st);
+        const series = st.series || [];
+        const srcIx = st.seriesSourceRowIndices || [];
+        const frames = st.frames || [];
+        const total = frames.length;
+        if (total < 1 || !series.length) {
+            return;
+        }
+        if (srcIx.length !== series.length) {
+            return;
+        }
+
+        const targetId = idNum - 1;
+        let targetRowIdx = -1;
+        if (targetId >= 1) {
+            for (let i = 0; i < rows.length; i++) {
+                const rid = parseInt(String(rows[i].id != null ? rows[i].id : rows[i].ID || '').trim(), 10);
+                if (Number.isFinite(rid) && rid === targetId) {
+                    targetRowIdx = i;
+                    break;
+                }
+            }
+            if (targetRowIdx < 0) {
+                for (let i = rows.length - 1; i >= 0; i--) {
+                    const rid = parseInt(String(rows[i].id != null ? rows[i].id : rows[i].ID || '').trim(), 10);
+                    if (Number.isFinite(rid) && rid <= targetId) {
+                        targetRowIdx = i;
+                        break;
+                    }
+                }
+            }
+        }
+
+        let frameIdx = 0;
+        if (targetRowIdx >= 0) {
+            let count = 0;
+            for (let s = 0; s < srcIx.length; s++) {
+                if (srcIx[s] <= targetRowIdx) {
+                    count++;
+                }
+            }
+            frameIdx = Math.max(0, count - 1);
+        }
+        frameIdx = Math.max(0, Math.min(total - 1, frameIdx));
+
+        const tailRow = rows.length ? rows[rows.length - 1] : {};
+        const tailId = String(tailRow.id ?? tailRow.ID ?? '');
+        const uiSig = `${total}|${series.length}|${rows.length}|${tailId}`;
+        const prev = st.specialTrackingUi && typeof st.specialTrackingUi === 'object' ? st.specialTrackingUi : {};
+        const speed = Number.isFinite(prev.speed) ? Math.min(3, Math.max(0.5, prev.speed)) : 1;
+        const snap = {
+            sig: uiSig,
+            frameIndex: frameIdx,
+            playing: false,
+            speed,
+            predictNeonOn: !!prev.predictNeonOn,
+            focusNum: prev.focusNum != null ? prev.focusNum : null
+        };
+        st.specialTrackingUi = snap;
+        try {
+            sessionStorage.setItem(SPECIAL_TRACKING_UI_STORAGE_KEY, JSON.stringify(snap));
+        } catch (e) {
+            /* ignore */
+        }
+
+        const tw = document.getElementById('tableWrap');
+        if (tw && tw.classList.contains('table-wrap--specialtracking') && typeof tw.__specialTrackingSeekFrame === 'function') {
+            tw.__specialTrackingSeekFrame(frameIdx);
+        }
+    }
+
+    /**
+     * Bước s trong [0..end] mà số n vừa đạt đúng lần xuất hiện thứ v (v≥1).
+     */
+    static specialTrackingStepOfVthHit(series, n, v, endInclusive) {
+        if (v <= 0) {
+            return -1;
+        }
+        let seen = 0;
+        for (let s = 0; s <= endInclusive; s++) {
+            if (series[s] === n) {
+                seen++;
+                if (seen === v) {
+                    return s;
+                }
+            }
+        }
+        return endInclusive;
+    }
+
+    /**
+     * Mỗi bước: tích lũy count + thứ tự giảm dần theo count.
+     * Hòa điểm: ai đạt mốc count hiện tại *trước* (bước nhỏ hơn) đứng trên; ai đến sau đứng dưới.
      */
     buildSpecialTrackingFrames(series) {
         const counts = {};
@@ -5096,8 +5550,16 @@ class RightPaneSheetManager {
             const just = list[f];
             counts[just] += 1;
             const sorted = Object.keys(counts)
-                .map((k) => ({ n: Number(k), v: counts[k] }))
-                .sort((a, b) => b.v - a.v || a.n - b.n);
+                .map((k) => {
+                    const n = Number(k);
+                    const v = counts[n];
+                    const t = v > 0
+                        ? RightPaneSheetManager.specialTrackingStepOfVthHit(list, n, v, f)
+                        : -1;
+                    return { n, v, t };
+                })
+                .sort((a, b) => (b.v - a.v) || (a.t - b.t) || (a.n - b.n))
+                .map(({ n, v }) => ({ n, v }));
             const maxV = Math.max(1, sorted.length ? sorted[0].v : 1);
             /** @type {number[]} slot 0 = trên cùng (nhiều nhất) … 11 = dưới cùng */
             const slotByNum = new Array(13).fill(11);
@@ -5466,15 +5928,17 @@ class RightPaneSheetManager {
             return;
         }
         const fr0 = sheet.frames && sheet.frames[0];
-        if (sheet.frames && sheet.frames.length && fr0 && Array.isArray(fr0.slotByNum) && Array.isArray(fr0.wPctByNum)) {
+        const framesOk = !!(sheet.frames && sheet.frames.length && fr0 && Array.isArray(fr0.slotByNum) && Array.isArray(fr0.wPctByNum));
+        const srs = sheet.series || [];
+        const idxOk = Array.isArray(sheet.seriesSourceRowIndices)
+            && sheet.seriesSourceRowIndices.length === srs.length;
+        if (framesOk && idxOk) {
             return;
         }
-        const series =
-            sheet.series && sheet.series.length
-                ? sheet.series
-                : this.buildSpecialTrackingSeries(this.sourceRows || []);
-        sheet.series = series;
-        sheet.frames = this.buildSpecialTrackingFrames(series);
+        const meta = this.buildSpecialTrackingSeriesMeta(this.sourceRows || []);
+        sheet.series = meta.series;
+        sheet.seriesSourceRowIndices = meta.sourceRowIndices;
+        sheet.frames = this.buildSpecialTrackingFrames(meta.series);
     }
 
     renderSpecialTrackingShell(sheet) {
@@ -5619,7 +6083,6 @@ class RightPaneSheetManager {
             }
         }
         let predictNeonOn = savedSt ? !!savedSt.predictNeonOn : false;
-        /** Đồng bộ pha neon giữa 3 thanh dự đoán khi đổi timeline */
         let lastPredictNeonSyncKey = '';
 
         const progPct = new Float32Array(total);
@@ -5894,6 +6357,11 @@ class RightPaneSheetManager {
             scheduleNext();
         };
 
+        tableWrap.__specialTrackingSeekFrame = (idx) => {
+            setFrameRaf(clampStIdx(idx));
+            persistSpecialTrackingUi();
+        };
+
         const togglePlay = () => {
             if (frameIndex >= total - 1) {
                 frameIndex = 0;
@@ -6065,6 +6533,11 @@ class RightPaneSheetManager {
         }
 
         tableWrap.__specialTrackingCleanup = () => {
+            try {
+                delete tableWrap.__specialTrackingSeekFrame;
+            } catch (eDelSeek) {
+                /* ignore */
+            }
             persistSpecialTrackingUi();
             clearTimer();
             scrubDrag = false;

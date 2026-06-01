@@ -133,12 +133,6 @@
             box-shadow: 0 1px 0 #cbd5e1;
         }
 
-            display: flex;
-            gap: 8px;
-            align-items: center;
-            margin-top: 8px
-        }
-
         select,
         button,
         input[type=text]:not(.filter-popup-position-input):not(.submit-ring-x-input):not(.combo-cell-input) {
@@ -195,16 +189,6 @@
             padding: 6px;
             border: 1px solid #22303a;
             font-size: 13px
-        }
-
-        .pane.right table thead th {
-            position: sticky;
-            top: 0;
-            z-index: 3;
-            background: #ffffff;
-            border: 1px solid #94a3b8;
-            border-bottom: 2px solid #64748b;
-            box-shadow: 0 1px 0 #cbd5e1;
         }
 
         .row-actions button {
@@ -469,62 +453,34 @@
             box-sizing: border-box;
         }
 
-        /* Dự đoán (chưa trúng đáp án kỳ tiếp): neon xanh dương */
+        /* Dự đoán: cùng một animation (chỉ opacity) + cùng delay trên root → 3 viền luôn đồng pha; màu tách riêng */
         .special-tracking-rank-bar--predict:not(.special-tracking-rank-bar--predict-hit)::before {
-            animation: st-predict-neon-blink-blue 0.72s ease-in-out infinite alternate;
+            animation: st-predict-neon-pulse 0.72s ease-in-out infinite alternate;
             animation-delay: var(--st-predict-neon-delay, 0s);
             box-shadow:
-                inset 0 0 0 2px rgba(25, 90, 200, 0.92),
-                inset 0 0 18px rgba(20, 70, 180, 0.42),
-                inset 0 0 36px rgba(40, 120, 220, 0.2);
+                inset 0 0 0 3px rgba(35, 100, 215, 0.95),
+                inset 0 0 20px rgba(25, 75, 185, 0.45),
+                inset 0 0 40px rgba(45, 125, 235, 0.22);
         }
 
-        @keyframes st-predict-neon-blink-blue {
+        @keyframes st-predict-neon-pulse {
             from {
-                opacity: 0.58;
-                box-shadow:
-                    inset 0 0 0 2px rgba(30, 85, 190, 0.78),
-                    inset 0 0 14px rgba(25, 65, 160, 0.35),
-                    inset 0 0 28px rgba(50, 110, 210, 0.12);
+                opacity: 0.55;
             }
 
             to {
                 opacity: 1;
-                box-shadow:
-                    inset 0 0 0 4px rgba(40, 115, 235, 1),
-                    inset 0 0 0 6px rgba(80, 150, 255, 0.22),
-                    inset 0 0 32px rgba(50, 130, 230, 0.5),
-                    inset 0 0 48px rgba(25, 90, 200, 0.32);
             }
         }
 
-        /* Trùng đáp án kỳ tiếp (trong top-3): neon xanh lá như cũ */
+        /* Trùng đáp án: cùng animation opacity, viền xanh lá */
         .special-tracking-rank-bar--predict.special-tracking-rank-bar--predict-hit::before {
-            animation: st-predict-neon-blink 0.72s ease-in-out infinite alternate;
+            animation: st-predict-neon-pulse 0.72s ease-in-out infinite alternate;
             animation-delay: var(--st-predict-neon-delay, 0s);
             box-shadow:
-                inset 0 0 0 2px rgba(0, 105, 58, 0.92),
-                inset 0 0 18px rgba(0, 85, 48, 0.45),
-                inset 0 0 36px rgba(0, 140, 75, 0.22);
-        }
-
-        @keyframes st-predict-neon-blink {
-            from {
-                opacity: 0.58;
-                box-shadow:
-                    inset 0 0 0 2px rgba(0, 88, 48, 0.75),
-                    inset 0 0 14px rgba(0, 70, 40, 0.38),
-                    inset 0 0 28px rgba(0, 120, 65, 0.12);
-            }
-
-            to {
-                opacity: 1;
-                box-shadow:
-                    inset 0 0 0 4px rgba(0, 145, 78, 1),
-                    inset 0 0 0 6px rgba(0, 200, 110, 0.22),
-                    inset 0 0 32px rgba(0, 155, 85, 0.55),
-                    inset 0 0 48px rgba(0, 110, 62, 0.35);
-            }
+                inset 0 0 0 3px rgba(0, 125, 68, 0.95),
+                inset 0 0 20px rgba(0, 95, 52, 0.48),
+                inset 0 0 40px rgba(0, 150, 82, 0.26);
         }
 
         .special-tracking-rank-bar-main {
