@@ -470,9 +470,9 @@
         #referenceHint {
             width: 100%;
             box-sizing: border-box;
-            min-height: 2.6em;
-            max-height: 3.1em;
-            height: 2.85em;
+            min-height: 4.5em;
+            max-height: 6.8em;
+            height: 5.5em;
             font-size: 12px;
             line-height: 1.35;
             color: #153015;
@@ -482,6 +482,12 @@
             overflow-y: auto;
             margin-bottom: 6px;
             font-family: system-ui, "Segoe UI", sans-serif;
+            flex-shrink: 0;
+            flex-grow: 0;
+        }
+
+        .left-container > .controls {
+            flex-shrink: 0;
         }
 
         /* Left compact sizing (match ok.py) */
@@ -851,20 +857,54 @@
             z-index: 9999;
         }
 
+        /* Nút 📑 nổi: bình thường tối giản; chỉ khi nhấn (:active) mới nền gradient teal */
         .copyBtnFloating {
             position: absolute;
             pointer-events: auto;
-            width: 24px;
-            height: 24px;
-            font-size: 11px;
-            border-radius: 5px;
-            border: 1px solid #ccc;
-            background: #f7f7f7;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            margin: 0;
+            font-size: 14px;
+            line-height: 1;
+            border-radius: 6px;
+            border: 1px solid rgba(148, 163, 184, 0.55);
+            background: rgba(255, 255, 255, 0.45);
+            color: #64748b;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+            box-sizing: border-box;
+            box-shadow: none;
             cursor: pointer;
+            -webkit-appearance: none;
+            appearance: none;
+            transition: background 0.1s ease, color 0.1s ease, border-color 0.1s ease,
+                box-shadow 0.1s ease, transform 0.08s ease;
+        }
+
+        .copyBtnFloating:hover {
+            background: rgba(248, 250, 252, 0.92);
+            border-color: #94a3b8;
+            color: #475569;
+        }
+
+        .copyBtnFloating:active,
+        .copyBtnFloating.is-selected {
+            border: 2px solid #0f766e;
+            background: linear-gradient(180deg, #ecfdf5 0%, #ccfbf1 55%, #99f6e4 100%);
+            color: #134e4a;
+            box-shadow: 0 2px 8px rgba(15, 118, 110, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.75);
+            transform: scale(0.96);
+        }
+
+        .copyBtnFloating.is-selected:hover {
+            filter: brightness(1.03);
+        }
+
+        .copyBtnFloating:focus-visible {
+            outline: 2px solid #06b6d4;
+            outline-offset: 2px;
         }
 
         /* highlights for note / nonexist */
@@ -964,7 +1004,8 @@
 
         #resetBtn,
         #submitBtn,
-        #blockBtn {
+        #blockBtn,
+        #hintBtn {
             font-size: 12px;
             padding: 4px 10px;
             font-weight: bold;
@@ -1035,6 +1076,62 @@
             color: #334155;
             border-color: #64748b;
             background: #f8fafc;
+        }
+
+        /* Hint toggle — OFF: giống Block OFF */
+        #hintBtn:not(.active) {
+            background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+            color: #64748b;
+            border: 1px dashed #94a3b8;
+            box-shadow: none;
+        }
+
+        #hintBtn:not(.active):hover {
+            color: #334155;
+            border-color: #64748b;
+            background: #f8fafc;
+        }
+
+        /* Hint ON: nền vàng chữ đen — khoanh picks trên bảng 1 & dòng số chuỗi bảng 2 */
+        #hintBtn.active {
+            background: #facc15;
+            color: #111111;
+            border-color: #ca8a04;
+            box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.06);
+        }
+
+        /* Viền kim cương hint: cam đậm — tách rõ nền/xanh submit (#2e7d32, neon) */
+        :root {
+            --reference-hint-diamond-border: #ea580c;
+            --reference-hint-diamond-glow: rgba(234, 88, 12, 0.45);
+        }
+
+        /* Viền vuông xoay 45° — ::before trên .num-label để không đụng posnfreq (::before của .cell.num) */
+        #left .cell.num > .num-label,
+        #right tr.chuoi-main-row .cell.num > .num-label {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            z-index: 1;
+        }
+
+        #left .cell.num.reference-hint-pick > .num-label::before,
+        #right tr.chuoi-main-row .cell.num.reference-hint-pick > .num-label::before {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 15px;
+            height: 15px;
+            box-sizing: border-box;
+            border: 2px solid var(--reference-hint-diamond-border);
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35), 0 0 6px var(--reference-hint-diamond-glow);
+            transform: translate(-50%, -50%) rotate(45deg);
+            pointer-events: none;
+            z-index: 0;
         }
 
         /* Actions row directly above the left table (hidden until we align after scaling) */
@@ -1351,9 +1448,9 @@
         <div class="container">
             <div class="left-container">
                 <div class="controls">
-                    <textarea id="referenceHint" readonly rows="2" spellcheck="false" autocomplete="off"
-                        aria-label="Gợi ý kỳ tham khảo trong cửa sổ 10 kỳ (sheet1)"
-                        placeholder="Gợi ý kỳ tham khảo (sheet1) sẽ hiện khi bạn chọn một dòng ở bảng phải…"></textarea>
+                    <textarea id="referenceHint" readonly rows="4" spellcheck="false" autocomplete="off"
+                        aria-label="Dự đoán pool 10 số chính (sheet1, walk-forward)"
+                        placeholder="Dự đoán pool top-10 số chính cho kỳ đang chọn (sheet1) hiện khi bạn chọn một dòng ở bảng phải…"></textarea>
                     <div class="mode-row">
                         <select id="mode">
                             <option value="modeq">?</option>
@@ -1378,6 +1475,7 @@
                         <div class="actions-left">
                             <button id="submitBtn" type="button">Submit</button>
                             <button id="blockBtn" type="button" aria-pressed="true">Block</button>
+                            <button id="hintBtn" type="button" aria-pressed="false">Hint</button>
                         </div>
                         <div class="actions-right">
                             <button type="button" id="leftPosnfreqHexBtn" class="left-posnfreq-hex" hidden
@@ -1548,6 +1646,9 @@
         let forceClearPicksOnSubmitOff = false;
         const BLOCK_FEATURE_KEY = 'leftPaneBlockEnabled';
         let blockFeatureEnabled = true;
+        const HINT_FEATURE_KEY = 'leftPaneHintEnabled';
+        let hintFeatureEnabled = false;
+        let referenceHintPicksSet = new Set();
         let preserveSubmitOnNextProcess = false;
         let preserveSelectionOnNextProcess = false;
         let answerNums = [];
@@ -2486,6 +2587,47 @@
             } catch (e) { }
         }
 
+        function isHintFeatureEnabled() {
+            return hintFeatureEnabled === true;
+        }
+
+        function loadHintFeatureSetting() {
+            try {
+                const saved = localStorage.getItem(HINT_FEATURE_KEY);
+                hintFeatureEnabled = saved === '1';
+            } catch (e) {
+                hintFeatureEnabled = false;
+            }
+        }
+
+        function saveHintFeatureSetting() {
+            try {
+                localStorage.setItem(HINT_FEATURE_KEY, hintFeatureEnabled ? '1' : '0');
+            } catch (e) { }
+        }
+
+        function syncHintBtnUi() {
+            const btn = document.getElementById('hintBtn');
+            if (!btn) {
+                return;
+            }
+            const on = isHintFeatureEnabled();
+            btn.classList.toggle('active', on);
+            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            btn.setAttribute('title', on
+                ? 'Đang bật khoanh số gợi ý (viền kim cương vàng). Bấm để tắt'
+                : 'Đang tắt khoanh gợi ý. Bấm để bật (cần picks từ parent khi focus sheet1)');
+        }
+
+        function toggleHintFeature() {
+            hintFeatureEnabled = !hintFeatureEnabled;
+            saveHintFeatureSetting();
+            syncHintBtnUi();
+            try { updateLeftHintSubmitFracDom(); } catch (eFrac) { /* ignore */ }
+            try { applySelectionAndBlockedInDOM(); } catch (e) { }
+            try { alignTableActionsAndCenter(); } catch (eAlign) { /* ignore */ }
+        }
+
         function syncBlockBtnUi() {
             const btn = document.getElementById('blockBtn');
             if (!btn) {
@@ -2918,6 +3060,10 @@
                             // number cells: show selected ring and blocked state
                             el.classList.toggle('selected', selected.has(v));
                             el.classList.toggle('blocked', isBlocked(v));
+                            try {
+                                var inHintTable = (el.closest && (el.closest('#left') || el.closest('tr.chuoi-main-row')));
+                                el.classList.toggle('reference-hint-pick', !!(isHintFeatureEnabled() && inHintTable && referenceHintPicksSet && referenceHintPicksSet.has(v)));
+                            } catch (eHint) { el.classList.remove('reference-hint-pick'); }
                             if (!submitActive) el.classList.remove('submit-highlight');
                         } else if (el.classList.contains('index')) {
                             // index cells: do not apply blocked; only show idx-highlight for left table entries
@@ -3115,6 +3261,7 @@
             try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
             try { requestChecknoteDataIfNeeded(); } catch (e) { }
             try { syncPendingPosnfreqMarkersAfterRender(); } catch (eP) { /* ignore */ }
+            try { applySelectionAndBlockedInDOM(); } catch (eSel) { /* ignore */ }
             setTimeout(function () { try { updateFocusIndicator(); } catch (e) { } }, 40);
         }
 
@@ -4594,6 +4741,46 @@
             refreshPairTailNumberStyles();
         }
 
+        function countHintSubmitOverlapForTableHeader() {
+            let hintSubmitHit = 0;
+            try {
+                const ansArr = Array.isArray(answerNums) ? answerNums : [];
+                const ansSet = new Set();
+                for (let ai = 0; ai < ansArr.length; ai++) {
+                    const u = Number(ansArr[ai]);
+                    if (Number.isFinite(u)) {
+                        ansSet.add(u);
+                    }
+                }
+                if (referenceHintPicksSet && referenceHintPicksSet.size && ansSet.size) {
+                    referenceHintPicksSet.forEach(function (hn) {
+                        if (ansSet.has(hn)) {
+                            hintSubmitHit++;
+                        }
+                    });
+                }
+            } catch (eHit) {
+                hintSubmitHit = 0;
+            }
+            return hintSubmitHit | 0;
+        }
+
+        /** Chỉ cập nhật x/5 trong header bảng 1 — tránh renderTable1() làm reflow toàn trang. */
+        function updateLeftHintSubmitFracDom() {
+            const wrap = document.getElementById('leftHintSubmitFracWrap');
+            if (!wrap) {
+                return;
+            }
+            if (!isHintFeatureEnabled()) {
+                wrap.innerHTML = '';
+                return;
+            }
+            const x = countHintSubmitOverlapForTableHeader();
+            wrap.innerHTML = '<span style="font-weight:bold;line-height:inherit;white-space:nowrap;">'
+                + '<span style="color:#facc15;">' + String(x) + '</span>'
+                + '<span style="color:#2e7d32;">/5</span></span>';
+        }
+
         function renderTable1() {
             const left = document.getElementById('left');
             if (!raw) {
@@ -4618,7 +4805,19 @@
             const aggregatedNoteSet = agg.noteSet;
             const aggregatedNonexistSet = agg.nonexistSet;
             let blockCount = blockedSet.size;
-            let blockLabel = `<div style="display:flex;justify-content:space-between;align-items:center;"><span>Các số</span><span style="font-weight:bold;text-align:right;">${blockCount}</span></div>`;
+            let fracInner = '';
+            if (isHintFeatureEnabled()) {
+                const hx = countHintSubmitOverlapForTableHeader();
+                fracInner = '<span style="font-weight:bold;line-height:inherit;white-space:nowrap;">'
+                    + '<span style="color:#facc15;">' + String(hx) + '</span>'
+                    + '<span style="color:#2e7d32;">/5</span></span>';
+            }
+            let blockLabel = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
+                + '<span style="display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap;">'
+                + '<span>Các số</span>'
+                + '<span id="leftHintSubmitFracWrap">' + fracInner + '</span>'
+                + '</span>'
+                + '<span style="font-weight:bold;text-align:right;">' + blockCount + '</span></div>';
             let html = `<table><tr><th>Số lần</th><th>${blockLabel}</th><th>Tổng</th></tr>`;
             let groups = {};
             Object.entries(freq).forEach(([n, f]) => { if (!groups[f]) groups[f] = []; groups[f].push(parseInt(n)); });
@@ -4655,7 +4854,7 @@
                     } else if (submitActive && submitTextColor && !isFreqZeroRow) {
                         style = `color:${submitTextColor};font-weight:bold;`;
                     }
-                    return `<span class="cell num${cls}" data-num="${n}" ${clickAttr} style='${style}'>${n}</span>`;
+                    return `<span class="cell num${cls}" data-num="${n}" ${clickAttr} style='${style}'><span class="num-label">${n}</span></span>`;
                 }).join("") + "</td>";
                 html += "<td>" + arr.length + "</td>";
                 html += "</tr>";
@@ -5077,7 +5276,7 @@
                     cls += freqOneItalicFromCh11Ch12Class(n);
                     let style = '';
                     if (submitActive && answerNums.indexOf(n) !== -1) cls += ' submit-highlight';
-                    return `<span class="cell num${cls}" data-num="${n}" ${clickAttr} style='${style}'>${n}</span>`;
+                    return `<span class="cell num${cls}" data-num="${n}" ${clickAttr} style='${style}'><span class="num-label">${n}</span></span>`;
                 }).join('') + `<button id="copyBtn-${i}" class="copyBtn" onclick="copyLine(${i})">📑</button></td>`;
                 html += `</tr>`;
 
@@ -5105,7 +5304,25 @@
         }
 
         // Create/update floating copy buttons in the right-half fixed container
+        function bindFloatingCopySelectionDismiss() {
+            if (document.documentElement.dataset.floatingCopySelectDismiss === '1') {
+                return;
+            }
+            document.documentElement.dataset.floatingCopySelectDismiss = '1';
+            document.addEventListener('mousedown', function (ev) {
+                var t = ev.target;
+                if (t && typeof t.closest === 'function' && t.closest('.copyBtnFloating')) {
+                    return;
+                }
+                document.querySelectorAll('.copyBtnFloating.is-selected').forEach(function (el) {
+                    el.classList.remove('is-selected');
+                    el.setAttribute('aria-pressed', 'false');
+                });
+            }, true);
+        }
+
         function updateFloatingCopyButtons() {
+            bindFloatingCopySelectionDismiss();
             var container = document.getElementById('floatingCopyContainer');
             if (!container) {
                 container = document.createElement('div');
@@ -5124,7 +5341,7 @@
 
             var mainRows = table.querySelectorAll('tr.chuoi-main-row');
             var numLines = mainRows.length;
-            var btnH = 24;
+            var btnH = 28;
             for (var i = 0; i < numLines; i++) {
                 var mainRow = mainRows[i];
                 if (!mainRow) continue;
@@ -5132,21 +5349,41 @@
                 if (!td) continue;
                 var rect = td.getBoundingClientRect();
                 var btn = document.createElement('button');
+                btn.type = 'button';
                 btn.className = 'copyBtnFloating';
                 btn.id = 'floatingCopyBtn-' + i;
                 btn.textContent = '📑';
+                btn.setAttribute('aria-label', 'Chuỗi dòng ' + (i + 1));
+                btn.setAttribute('title', 'Chuỗi dòng (📑)');
+                btn.setAttribute('aria-pressed', 'false');
                 // compute top in viewport coordinates (container.top == 0)
                 var top = rect.top + rect.height / 2 - btnH / 2;
                 top = Math.max(4, Math.min(window.innerHeight - btnH - 4, top));
                 btn.style.top = top + 'px';
                 // place the button just to the right of the numbers cell
-                var btnW = 24;
+                var btnW = 28;
                 var leftX = Math.round(rect.right + 6); // 6px gap
                 // clamp to viewport so it doesn't go off-screen
                 if (leftX + btnW > window.innerWidth - 4) leftX = window.innerWidth - btnW - 4;
                 if (leftX < 4) leftX = 4;
                 btn.style.left = leftX + 'px';
-                (function (idx) { btn.addEventListener('click', function (e) { e.stopPropagation(); copyLine(idx); }); })(i);
+                (function (idx, btnRef) {
+                    btnRef.addEventListener('click', function (e) {
+                        e.stopPropagation();
+                        copyLine(idx);
+                        var wrap = document.getElementById('floatingCopyContainer');
+                        if (wrap) {
+                            wrap.querySelectorAll('.copyBtnFloating').forEach(function (el) {
+                                var on = el === btnRef;
+                                el.classList.toggle('is-selected', on);
+                                el.setAttribute('aria-pressed', on ? 'true' : 'false');
+                            });
+                        } else {
+                            btnRef.classList.add('is-selected');
+                            btnRef.setAttribute('aria-pressed', 'true');
+                        }
+                    });
+                })(i, btn);
                 container.appendChild(btn);
             }
         }
@@ -6036,7 +6273,6 @@
         function copyLine(idx) {
             if (!raw) return;
             const row = getRawDisplayLineAt(idx) || "";
-            const btn = document.getElementById('copyBtn-' + idx);
             let txt = "";
             if (!row) return;
             let resultPart = '';
@@ -6049,17 +6285,9 @@
             }
             if (!txt) return;
             try { lastClickedChuoiText = resultPart; window.__lastClickedChuoi = resultPart; } catch (e) { }
-            function _flashBtn(text) { if (!btn) return; const old = btn.textContent; btn.textContent = text; setTimeout(function () { const el = document.getElementById('copyBtn-' + idx); if (el) el.textContent = old; }, 800); }
-            if (navigator && navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(txt).then(function () { _flashBtn('✓'); }).catch(function () { fallbackCopy(); });
-            } else { fallbackCopy(); }
-            function fallbackCopy() {
-                const ta = document.createElement('textarea'); ta.value = txt; document.body.appendChild(ta); ta.select();
-                try { document.execCommand('copy'); _flashBtn('Copied'); } catch (e) { console.error(e); }
-                ta.remove();
-            }
+            var anchor = document.getElementById('floatingCopyBtn-' + idx) || document.getElementById('copyBtn-' + idx);
             try {
-                previewChecknoteForRow(idx, btn, { pinned: true });
+                previewChecknoteForRow(idx, anchor, { pinned: true });
             } catch (e) { console.error(e); }
         }
 
@@ -7040,6 +7268,21 @@
 
         loadBlockFeatureSetting();
         syncBlockBtnUi();
+        loadHintFeatureSetting();
+        syncHintBtnUi();
+
+        (function () {
+            try {
+                var hb = document.getElementById('hintBtn');
+                if (!hb) return;
+                hb.addEventListener('click', function (ev) {
+                    try {
+                        ev.preventDefault();
+                        toggleHintFeature();
+                    } catch (e) { console.error(e); }
+                });
+            } catch (e) { }
+        })();
 
         (function () {
             try {
@@ -7485,6 +7728,10 @@
                             span.classList.toggle('selected', selected.has(val));
                             span.classList.toggle('pre-submit-manual-pick', showPreSubmitManualPickRings && preSubmitSelected.has(val));
                             span.classList.toggle('blocked', isBlocked(val));
+                            try {
+                                var inChuoiHint = span.closest && span.closest('tr.chuoi-main-row');
+                                span.classList.toggle('reference-hint-pick', !!(isHintFeatureEnabled() && inChuoiHint && referenceHintPicksSet && referenceHintPicksSet.has(val)));
+                            } catch (eHCh) { span.classList.remove('reference-hint-pick'); }
                             if (should) {
                                 try { span.style.removeProperty('color'); } catch (e) { }
                                 try { span.style.removeProperty('font-weight'); } catch (e) { }
@@ -7515,6 +7762,10 @@
                         span.classList.toggle('selected', selected.has(val));
                         span.classList.toggle('pre-submit-manual-pick', showPreSubmitManualPickRings && preSubmitSelected.has(val));
                         span.classList.toggle('blocked', isBlocked(val));
+                        try {
+                            var inHintTable = span.closest && (span.closest('#left') || span.closest('tr.chuoi-main-row'));
+                            span.classList.toggle('reference-hint-pick', !!(isHintFeatureEnabled() && inHintTable && referenceHintPicksSet && referenceHintPicksSet.has(val)));
+                        } catch (eH2) { span.classList.remove('reference-hint-pick'); }
                     } else {
                         span.classList.remove('blocked');
                     }
@@ -7874,6 +8125,15 @@
                     const refHint = document.getElementById('referenceHint');
                     if (refHint) {
                         refHint.value = (typeof msg.referenceHint === 'string') ? msg.referenceHint : '';
+                    }
+                    referenceHintPicksSet = new Set();
+                    if (Array.isArray(msg.referenceHintPicks)) {
+                        for (let hi = 0; hi < msg.referenceHintPicks.length; hi++) {
+                            const hv = parseInt(msg.referenceHintPicks[hi], 10);
+                            if (!isNaN(hv) && hv >= 1 && hv <= 35) {
+                                referenceHintPicksSet.add(hv);
+                            }
+                        }
                     }
                     leftPaneRawLines = Array.isArray(msg.lines) ? msg.lines.join('\n') : '';
 

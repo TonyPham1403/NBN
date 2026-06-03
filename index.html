@@ -1253,6 +1253,65 @@
             cursor: not-allowed;
         }
 
+        /* Ô số nonexist: giữ đúng layout cũ (3ch, trong suốt). Cột ▴▾ là flex item kế tiếp, không bọc thêm wrapper. */
+        .filter-popup-position-input.filter-popup-nonexist-num {
+            width: 3ch;
+            min-width: 3ch;
+            max-width: 3ch;
+            flex: 0 0 3ch;
+            text-align: center;
+        }
+
+        #filterPopupNonexistNumSpin {
+            display: flex;
+            flex-direction: column;
+            flex: 0 0 auto;
+            width: 16px;
+            min-width: 16px;
+            height: 22px;
+            margin: 0 0 0 2px;
+            border: 1px solid #cbd5e1;
+            border-radius: 3px;
+            overflow: hidden;
+            box-sizing: border-box;
+            align-self: center;
+        }
+
+        #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn {
+            flex: 1 1 50%;
+            min-height: 0;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: #006400 !important;
+            color: #ffffff !important;
+            font-size: 7px;
+            line-height: 1;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-sizing: border-box;
+        }
+
+        #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn {
+            border-top: 1px solid rgba(255, 255, 255, 0.35);
+        }
+
+        #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled) {
+            background: #047857 !important;
+        }
+
+        #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled) {
+            background: #065f46 !important;
+        }
+
+        #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
         .visually-hidden {
             position: absolute;
             width: 1px;
@@ -1452,9 +1511,7 @@
         }
 
         .filter-popup-note-tag-btn:not(:disabled) {
-            background: #006400;
-            color: #ffffff;
-            border-left-color: #004d00;
+            transition: background 0.08s ease, color 0.08s ease, box-shadow 0.08s ease, border-color 0.08s ease;
         }
 
         .filter-popup-note-tag-btn:disabled {
@@ -1462,6 +1519,67 @@
             color: #64748b;
             cursor: not-allowed;
             background: #f1f5f9;
+        }
+
+        .filter-popup-note-tag-btn-emoji {
+            flex-shrink: 0;
+            font-size: 14px;
+            line-height: 1;
+            opacity: 0.92;
+            transition: transform 0.12s ease, opacity 0.12s ease, filter 0.12s ease;
+            filter: drop-shadow(0 0 0 transparent);
+        }
+
+        /* Màu rõ ràng — #id + !important tránh bị ghi đè; .is-note-tag-pressing từ pointer (ổn định hơn :active) */
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled) {
+            background: #006400;
+            color: #ffffff;
+            border-left-color: #004d00;
+            -webkit-tap-highlight-color: rgba(250, 204, 21, 0.5);
+        }
+
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-note-tag-pressing:not(.is-menu-open),
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled):active:not(.is-menu-open) {
+            background: #facc15 !important;
+            color: #1c0a02 !important;
+            border-left-color: #a16207 !important;
+            box-shadow: inset 0 0 0 3px #92400e !important;
+        }
+
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-note-tag-pressing:not(.is-menu-open) .filter-popup-note-tag-btn-emoji,
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled):active:not(.is-menu-open) .filter-popup-note-tag-btn-emoji {
+            transform: scale(1.12);
+            opacity: 1;
+            filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+        }
+
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open {
+            background: #ccfbf1 !important;
+            color: #134e4a !important;
+            border-left-color: #0d9488 !important;
+            box-shadow: inset 0 0 0 3px #0f766e !important;
+        }
+
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open .period-filter-mode-caret {
+            color: #0f766e !important;
+        }
+
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open .filter-popup-note-tag-btn-emoji {
+            transform: scale(1.12);
+            opacity: 1;
+            filter: drop-shadow(0 1px 2px rgba(15, 118, 110, 0.45));
+        }
+
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open.is-note-tag-pressing,
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open:active {
+            background: #5eead4 !important;
+            color: #042f2e !important;
+            box-shadow: inset 0 0 0 3px #115e59 !important;
+        }
+
+        .filter-popup-note-tag-btn:disabled .filter-popup-note-tag-btn-emoji {
+            opacity: 0.4;
+            filter: none;
         }
 
         .filter-popup-note-tag-menu .period-filter-mode-item.selected,
@@ -1905,6 +2023,109 @@
             display: none;
         }
 
+        .filter-popup-nonexist-green005-picker {
+            display: inline-flex;
+            align-items: center;
+            flex-shrink: 0;
+            position: relative;
+            height: 24px;
+            margin-left: 2px;
+        }
+
+        .filter-popup-nonexist-green005-picker.hidden {
+            display: none;
+        }
+
+        .filter-popup-nonexist-green005-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            height: 22px;
+            padding: 0 5px 0 4px;
+            border: 1px solid #94a3b8;
+            border-radius: 3px;
+            background: linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+            cursor: pointer;
+            font-size: 10px;
+            color: #334155;
+        }
+
+        .filter-popup-nonexist-green005-btn:hover {
+            border-color: #64748b;
+        }
+
+        .filter-popup-nonexist-green005-btn[aria-pressed="true"] {
+            border-color: #005000;
+            box-shadow: inset 0 0 0 1px #005000;
+        }
+
+        .filter-popup-nonexist-green005-btn-inner {
+            width: 14px;
+            height: 12px;
+            border-radius: 2px;
+            background: #cbd5e1;
+            border: 1px solid #94a3b8;
+        }
+
+        .filter-popup-nonexist-green005-btn[aria-pressed="true"] .filter-popup-nonexist-green005-btn-inner {
+            background: #005000;
+            border-color: #003300;
+        }
+
+        .filter-popup-nonexist-green005-menu {
+            min-width: 148px;
+            z-index: 12050;
+        }
+
+        .filter-popup-nonexist-005-pct {
+            display: inline-block;
+            margin-right: 6px;
+            padding: 1px 6px;
+            border-radius: 3px;
+            font: 700 11px Inter, Segoe UI, Arial, sans-serif;
+            font-variant-numeric: tabular-nums;
+            color: #0f172a;
+            background: #e2e8f0;
+            border: 1px solid #94a3b8;
+            white-space: nowrap;
+            vertical-align: middle;
+        }
+
+        .filter-popup-nonexist-005-pct[hidden] {
+            display: none !important;
+        }
+
+        #filterTableWrap tbody tr.filter-popup-nx005-border-green td {
+            box-shadow: inset 0 0 0 3px #22c55e;
+        }
+
+        #filterTableWrap tbody tr.filter-popup-nx005-border-yellow td {
+            box-shadow: inset 0 0 0 3px #ffff00;
+        }
+
+        #filterTableWrap tbody tr.filter-popup-nx005-border-red td {
+            box-shadow: inset 0 0 0 3px #ff0000;
+        }
+
+        /* Focus + #005000: hai vòng — ngoài = quan sát, trong = focus (tách khỏi màu xanh lá/vàng/đỏ). */
+        #filterTableWrap tr.filter-popup-row-focus.filter-popup-nx005-border-green td {
+            box-shadow:
+                inset 0 0 0 3px #22c55e,
+                inset 0 0 0 5px #1d4ed8;
+        }
+
+        #filterTableWrap tr.filter-popup-row-focus.filter-popup-nx005-border-yellow td {
+            box-shadow:
+                inset 0 0 0 3px #ffff00,
+                inset 0 0 0 5px #1d4ed8;
+        }
+
+        #filterTableWrap tr.filter-popup-row-focus.filter-popup-nx005-border-red td {
+            box-shadow:
+                inset 0 0 0 3px #ff0000,
+                inset 0 0 0 5px #1d4ed8;
+        }
+
         .filter-popup-posnfreq-tools {
             display: inline-flex;
             align-items: center;
@@ -2013,14 +2234,6 @@
 
         .filter-popup-posnfreq-source-btn:hover {
             background: #cbd5e1;
-        }
-
-        .filter-popup-position-input.filter-popup-nonexist-num {
-            width: 3ch;
-            min-width: 3ch;
-            max-width: 3ch;
-            flex: 0 0 3ch;
-            text-align: center;
         }
 
         .filter-popup-nonexist-style-wrap {
@@ -2166,12 +2379,12 @@
         }
 
         #filterTableWrap tr.filter-popup-row-focus td {
-            box-shadow: inset 0 0 0 2px #1d4ed8;
+            box-shadow: inset 0 0 0 3px #1d4ed8;
         }
 
-        /* posnfreq: kỳ có số khớp pattern trùng một trong các số result (giống viền xanh phiếu Answer ≥3/5) */
+        /* posnfreq: kỳ có số khớp pattern trùng một trong các số result (viền inset trong ô) */
         #filterTableWrap tr.filter-popup-posnfreq-submit-hit:not(.filter-popup-row-focus) td {
-            box-shadow: inset 0 0 0 2px #22c55e, 0 0 10px rgba(34, 197, 94, 0.35);
+            box-shadow: inset 0 0 0 2px #22c55e;
         }
 
         #filterTableWrap.filter-popup-posnfreq-green-only tbody tr[data-idx]:not(.filter-popup-posnfreq-submit-hit) {
@@ -2179,10 +2392,12 @@
         }
 
         #filterTableWrap tr.filter-popup-posnfreq-submit-hit.filter-popup-row-focus td {
-            box-shadow: inset 0 0 0 2px #1d4ed8, 0 0 8px rgba(34, 197, 94, 0.45);
+            box-shadow:
+                inset 0 0 0 2px #22c55e,
+                inset 0 0 0 4px #1d4ed8;
         }
 
-        /* Ngăn nhóm id không liền kề (đỏ/tím): xám đậm, khác viền focus xanh */
+        /* Ngăn nhóm id không liền kề (đỏ/tím): xám đậm trên cạnh trong của ô */
         #filterTableWrap tr.filter-popup-id-gap-before td {
             border-top: 4px solid #64748b !important;
         }
@@ -2551,6 +2766,58 @@
             visibility: visible;
         }
 
+        /* L+V #005000: tooltip tùy chỉnh (tham khảo corner fold) */
+        .filter-popup-nx005-pct-tooltip {
+            position: fixed;
+            z-index: 200001;
+            padding: 6px 10px 7px;
+            font-size: 12px;
+            font-weight: 600;
+            line-height: 1.4;
+            color: #000;
+            background: #ffffe1;
+            border: 1px solid #555;
+            border-radius: 2px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+            pointer-events: none;
+            opacity: 0;
+            visibility: hidden;
+            min-width: 148px;
+            max-width: min(320px, calc(100vw - 16px));
+        }
+
+        .filter-popup-nx005-pct-tooltip.is-visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .filter-popup-nx005-pct-tooltip-hdr {
+            font-size: 11px;
+            font-weight: 700;
+            color: #334155;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+            margin: 0 0 5px;
+            padding-bottom: 4px;
+        }
+
+        .filter-popup-nx005-pct-tooltip-line {
+            margin: 0;
+            padding: 1px 0;
+            white-space: nowrap;
+        }
+
+        .filter-popup-nx005-pct-tooltip-line.nx005-tip-green {
+            color: rgb(0, 100, 0);
+        }
+
+        .filter-popup-nx005-pct-tooltip-line.nx005-tip-yellow {
+            color: #856404;
+        }
+
+        .filter-popup-nx005-pct-tooltip-line.nx005-tip-red {
+            color: #b91c1c;
+        }
+
         .sheet-data-table td.cell-note {
             position: relative;
             padding-right: 28px;
@@ -2860,7 +3127,7 @@
 
         .answer-popup-dock {
             position: fixed;
-            z-index: 1250;
+            z-index: 1200;
             top: 88px;
             left: 48px;
             right: auto;
@@ -3179,7 +3446,7 @@
         }
 
         #answerTableWrap tr.answer-ticket-row.is-winning td {
-            box-shadow: inset 0 0 0 2px #22c55e, 0 0 10px rgba(34, 197, 94, 0.35);
+            box-shadow: inset 0 0 0 2px #22c55e;
         }
 
         .answer-popup-fireworks {
@@ -3412,16 +3679,16 @@
                                 <option value="custom">x</option>
                             </select>
                         </div>
-                        <div id="submitRingCustomXWrap" class="submit-ring-x-adjoin hidden" title="Số x (1–35)">
+                        <div id="submitRingCustomXWrap" class="submit-ring-x-adjoin hidden" title="Số x (1–35), ▴▾ xoay vòng">
                             <label for="submitRingCustomXInput" class="visually-hidden">x 1–35</label>
                             <input id="submitRingCustomXInput" class="submit-ring-x-input" type="text"
                                 inputmode="numeric" maxlength="2" pattern="[0-9]*" autocomplete="off" spellcheck="false"
-                                aria-label="Giá trị x autoring từ 1 đến 35" />
-                            <div class="submit-ring-x-spin" role="group" aria-label="Tăng giảm x">
+                                aria-label="Giá trị x autoring 1–35; phím + − xoay vòng khi chế độ x" />
+                            <div class="submit-ring-x-spin" role="group" aria-label="Tăng giảm x (xoay vòng 1–35)">
                                 <button type="button" id="submitRingCustomXInc" class="submit-ring-x-spin-btn"
-                                    title="Tăng x" aria-label="Tăng x">▴</button>
+                                    title="Tăng x (35→1)" aria-label="Tăng x">▴</button>
                                 <button type="button" id="submitRingCustomXDec" class="submit-ring-x-spin-btn"
-                                    title="Giảm x" aria-label="Giảm x">▾</button>
+                                    title="Giảm x (1→35)" aria-label="Giảm x">▾</button>
                             </div>
                         </div>
                     </div>
@@ -3492,6 +3759,7 @@
                     <div id="filterPopupNoteTagPicker" class="filter-popup-note-tag-picker hidden">
                         <button type="button" id="filterPopupNoteTagBtn" class="filter-popup-note-tag-btn" disabled
                             aria-haspopup="listbox" aria-expanded="false" title="Lọc theo nhãn trong note">
+                            <span class="filter-popup-note-tag-btn-emoji" aria-hidden="true">📑</span>
                             <span id="filterPopupNoteTagBtnLabel">All</span>
                             <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
                         </button>
@@ -3502,7 +3770,13 @@
                     <div id="filterPopupNonexistTools" class="filter-popup-nonexist-tools hidden">
                         <span id="filterPopupNonexistNum" class="filter-popup-position-input filter-popup-nonexist-num"
                             tabindex="0" role="textbox" aria-label="Số nonexist 1-35"
-                            title="Số 1-35 trong cột nonexist"></span>
+                            title="Số 1-35 trong cột nonexist; +/− hoặc ▴▾ xoay vòng (1↔35)"></span>
+                        <div id="filterPopupNonexistNumSpin" role="group" aria-label="Tăng giảm số nonexist (xoay vòng 1–35)">
+                            <button type="button" id="filterPopupNonexistNumInc" class="filter-popup-nonexist-num-spin-btn"
+                                title="Tăng số (35→1)" aria-label="Tăng số nonexist">▴</button>
+                            <button type="button" id="filterPopupNonexistNumDec" class="filter-popup-nonexist-num-spin-btn"
+                                title="Giảm số (1→35)" aria-label="Giảm số nonexist">▾</button>
+                        </div>
                         <div id="filterPopupNonexistColorPicker" class="filter-popup-nonexist-color-picker">
                             <button type="button" id="filterPopupNonexistColorBtn"
                                 class="filter-popup-nonexist-color-btn" aria-haspopup="listbox" aria-expanded="false"
@@ -3534,9 +3808,24 @@
                                 <span class="filter-popup-nonexist-style-toggle-letter" aria-hidden="true"></span>
                             </button>
                         </div>
+                        <div id="filterPopupNonexistGreen005Picker" class="filter-popup-nonexist-green005-picker hidden"
+                            title="Chế độ #005000: boost theo cửa 10; gọi lại = trúng trong 5 số của một trong 10 kỳ sau dòng đó">
+                            <button type="button" id="filterPopupNonexistGreen005Btn"
+                                class="filter-popup-nonexist-green005-btn" aria-haspopup="listbox" aria-expanded="false"
+                                aria-pressed="false" title="Dropdown #005000 — boost cửa 10 + gọi trong 10 kỳ sau">
+                                <span id="filterPopupNonexistGreen005BtnInner"
+                                    class="filter-popup-nonexist-green005-btn-inner" aria-hidden="true"></span>
+                                <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
+                            </button>
+                            <ul id="filterPopupNonexistGreen005Menu"
+                                class="period-filter-mode-menu filter-popup-nonexist-green005-menu hidden" role="listbox"
+                                aria-label="Chế độ quan sát #005000"></ul>
+                        </div>
                     </div>
                 </div>
                 <div class="filter-popup-header-trail">
+                    <span id="filterPopupNonexist005Pct" class="filter-popup-nonexist-005-pct" hidden
+                        aria-label="L+V: tỷ lệ xanh và vàng trong các kỳ có viền quan sát"></span>
                     <button type="button" id="filterPopupPosnfreqOverlapPct" class="filter-popup-posnfreq-overlap-pct"
                         hidden aria-pressed="false"
                         title="% kỳ có viền xanh / tổng kỳ đang lọc. Bật: chỉ hiện các kỳ có viền xanh; tắt: hiện đủ lại.">0%</button>
@@ -3631,6 +3920,7 @@
         const FILTER_NONEXIST_NUM_KEY = 'filterNonexistNum';
         const FILTER_NONEXIST_STYLES_KEY = 'filterNonexistStyles';
         const FILTER_NONEXIST_COLORS_KEY = 'filterNonexistColors';
+        const FILTER_NONEXIST_GREEN005_KEY = 'filterNonexistGreen005';
         const NONEXIST_FILTER_COLORS = ['green', 'red', 'purple', 'yellow'];
         const NONEXIST_FILTER_COLOR_TITLES = {
             green: 'Xanh lá',
@@ -3684,6 +3974,8 @@
         const VALID_FILTER_MODES = Object.keys(FILTER_MODE_LABELS);
         let sheetManager = null;
         let answerPopup = null;
+        /** Tăng dần khi click filter / answer dock để popup nào click sau nổi trên. */
+        let floatingPopupDockZCounter = 0;
 
         function isSpecialTrackingActive() {
             return !!(sheetManager && sheetManager.activeSheet === 'specialtracking');
@@ -3695,6 +3987,7 @@
             closePeriodFilterModeMenu();
             closeFilterPopupNoteTagMenu();
             closeFilterPopupNonexistColorMenu();
+            closeFilterPopupNonexistGreen005Menu();
             if (answerPopup && typeof answerPopup.isOpen === 'function' && answerPopup.isOpen()
                 && typeof answerPopup.close === 'function') {
                 answerPopup.close();
@@ -3725,6 +4018,8 @@
         let filterNonexistNum = null;
         let filterNonexistStyles = [];
         let filterNonexistColors = ['green'];
+        /** Chỉ mode nonexist: dropdown phụ #005000 — boost cửa 10 + gọi lại trong 10 kỳ sau dòng. */
+        let filterNonexistGreen005000 = false;
         /** posnfreq: specimen 1–35, chữ ký { frequency, positions } theo kỳ nguồn */
         let posnfreqSpecimenNum = null;
         let posnfreqRefSignature = null;
@@ -4095,6 +4390,16 @@
             return Math.min(35, Math.max(1, n));
         }
 
+        /** x cố định autoring 1–35: cộng/trừ xoay vòng (35 + 1 → 1, 1 − 1 → 35). */
+        function wrapRingCustomXValue(v) {
+            const u = Math.trunc(Number(v));
+            if (!Number.isFinite(u)) {
+                return 15;
+            }
+            const m = ((u - 1) % 35 + 35) % 35;
+            return m + 1;
+        }
+
         function sendSubmitRingConfigToIframe() {
             const frame = el('okFrame');
             if (!frame || !frame.contentWindow) {
@@ -4173,6 +4478,19 @@
             }
         }
 
+        function bumpSubmitRingCustomXBy(delta) {
+            if (!submitRingEnabled || submitRingMode !== 'custom') {
+                return false;
+            }
+            submitRingCustomX = wrapRingCustomXValue(submitRingCustomX + delta);
+            try {
+                localStorage.setItem(SUBMIT_RING_CUSTOM_X_KEY, String(submitRingCustomX));
+            } catch (e) { /* ignore */ }
+            syncSubmitRingToolbarUi();
+            sendSubmitRingConfigToIframe();
+            return true;
+        }
+
         function initSubmitRingToolbar() {
             try {
                 const savedEnabled = localStorage.getItem(SUBMIT_RING_ENABLED_KEY);
@@ -4219,6 +4537,8 @@
                     requestAnimationFrame(() => restoreKeyboardFocusTarget());
                 });
             }
+            const bumpRingCustomX = bumpSubmitRingCustomXBy;
+
             if (customInput) {
                 const persistX = () => {
                     submitRingCustomX = clampRingCustomX(customInput.value);
@@ -4237,18 +4557,21 @@
                 });
                 customInput.addEventListener('change', persistX);
                 customInput.addEventListener('blur', persistX);
+                customInput.addEventListener('keydown', (event) => {
+                    if (!submitRingEnabled || submitRingMode !== 'custom') {
+                        return;
+                    }
+                    const key = String(event.key || '');
+                    const code = String(event.code || '');
+                    const isPlus = key === '+' || code === 'NumpadAdd' || (code === 'Equal' && event.shiftKey);
+                    const isMinus = key === '-' || code === 'NumpadSubtract' || code === 'Minus';
+                    if (!isPlus && !isMinus) {
+                        return;
+                    }
+                    event.preventDefault();
+                    bumpRingCustomX(isPlus ? 1 : -1);
+                });
             }
-            const bumpRingCustomX = (delta) => {
-                if (!submitRingEnabled || submitRingMode !== 'custom') {
-                    return;
-                }
-                submitRingCustomX = clampRingCustomX(submitRingCustomX + delta);
-                try {
-                    localStorage.setItem(SUBMIT_RING_CUSTOM_X_KEY, String(submitRingCustomX));
-                } catch (e) { /* ignore */ }
-                syncSubmitRingToolbarUi();
-                sendSubmitRingConfigToIframe();
-            };
             if (customDec) {
                 customDec.addEventListener('click', (e) => {
                     e.preventDefault();
@@ -4681,6 +5004,7 @@
             menu.classList.remove('hidden');
             scheduleRebuildFilterNoteTagMenuCounts();
             btn.setAttribute('aria-expanded', 'true');
+            btn.classList.add('is-menu-open');
         }
 
         function closeFilterPopupNoteTagMenu() {
@@ -4695,6 +5019,8 @@
             }
             if (btn) {
                 btn.setAttribute('aria-expanded', 'false');
+                btn.classList.remove('is-menu-open');
+                btn.classList.remove('is-note-tag-pressing');
             }
         }
 
@@ -4772,6 +5098,32 @@
             picker.addEventListener('click', (event) => event.stopPropagation());
 
             btn.addEventListener('mousedown', (event) => event.stopPropagation());
+            btn.addEventListener('pointerdown', (event) => {
+                event.stopPropagation();
+                if (!btn.disabled) {
+                    btn.classList.add('is-note-tag-pressing');
+                }
+            });
+            btn.addEventListener('pointerup', (event) => {
+                event.stopPropagation();
+                btn.classList.remove('is-note-tag-pressing');
+            });
+            btn.addEventListener('pointercancel', () => {
+                btn.classList.remove('is-note-tag-pressing');
+            });
+            if (document.documentElement.dataset.noteTagGlobalPointerUp !== '1') {
+                document.documentElement.dataset.noteTagGlobalPointerUp = '1';
+                window.addEventListener(
+                    'pointerup',
+                    () => {
+                        const b = el('filterPopupNoteTagBtn');
+                        if (b) {
+                            b.classList.remove('is-note-tag-pressing');
+                        }
+                    },
+                    true
+                );
+            }
             btn.addEventListener('click', (event) => {
                 event.preventDefault();
                 event.stopPropagation();
@@ -4832,6 +5184,7 @@
                 }
                 localStorage.setItem(FILTER_NONEXIST_STYLES_KEY, JSON.stringify(filterNonexistStyles));
                 localStorage.setItem(FILTER_NONEXIST_COLORS_KEY, JSON.stringify(filterNonexistColors));
+                localStorage.setItem(FILTER_NONEXIST_GREEN005_KEY, filterNonexistGreen005000 ? '1' : '0');
             } catch (e) { }
         }
 
@@ -4867,10 +5220,16 @@
                 if (filterNonexistColors.length === 0) {
                     filterNonexistColors = ['green'];
                 }
+                const g005 = localStorage.getItem(FILTER_NONEXIST_GREEN005_KEY);
+                filterNonexistGreen005000 = g005 === '1';
+                if (!filterNonexistColors.includes('green')) {
+                    filterNonexistGreen005000 = false;
+                }
             } catch (e) {
                 filterNonexistNum = null;
                 filterNonexistStyles = [];
                 filterNonexistColors = ['green'];
+                filterNonexistGreen005000 = false;
             }
         }
 
@@ -4993,6 +5352,9 @@
             if (filterNonexistColors.length === 0) {
                 filterNonexistColors = [color];
             }
+            if (!filterNonexistColors.includes('green') && filterNonexistGreen005000) {
+                filterNonexistGreen005000 = false;
+            }
             saveFilterNonexistSettings();
             syncFilterPopupNonexistColorBtn();
             highlightFilterPopupNonexistColorMenu();
@@ -5037,6 +5399,385 @@
             });
         }
 
+        function closeFilterPopupNonexistGreen005Menu() {
+            const menu = el('filterPopupNonexistGreen005Menu');
+            const btn = el('filterPopupNonexistGreen005Btn');
+            if (menu) {
+                menu.classList.add('hidden');
+            }
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+            }
+        }
+
+        function positionFilterPopupNonexistGreen005Menu() {
+            const menu = el('filterPopupNonexistGreen005Menu');
+            const btn = el('filterPopupNonexistGreen005Btn');
+            if (!menu || !btn) {
+                return;
+            }
+            const rect = btn.getBoundingClientRect();
+            menu.style.left = `${Math.max(8, rect.left)}px`;
+            menu.style.top = `${rect.bottom + 2}px`;
+            menu.style.minWidth = `${Math.max(rect.width, 148)}px`;
+        }
+
+        function buildFilterPopupNonexistGreen005Menu() {
+            const menu = el('filterPopupNonexistGreen005Menu');
+            if (!menu || menu.dataset.built === '1') {
+                return;
+            }
+            menu.dataset.built = '1';
+            menu.innerHTML = '';
+            const offItem = document.createElement('li');
+            offItem.className = 'period-filter-mode-item';
+            offItem.setAttribute('role', 'option');
+            offItem.dataset.green005 = 'off';
+            offItem.textContent = 'Tắt #005000';
+            offItem.addEventListener('mousedown', (event) => event.preventDefault());
+            offItem.addEventListener('click', () => {
+                setFilterNonexistGreen005000(false);
+                closeFilterPopupNonexistGreen005Menu();
+            });
+            menu.appendChild(offItem);
+            const onItem = document.createElement('li');
+            onItem.className = 'period-filter-mode-item';
+            onItem.setAttribute('role', 'option');
+            onItem.dataset.green005 = 'on';
+            const sw = document.createElement('span');
+            sw.className = 'filter-popup-nonexist-color-swatch';
+            sw.style.cssText = 'background:#005000';
+            sw.title = '#005000';
+            onItem.appendChild(sw);
+            const lab = document.createElement('span');
+            lab.className = 'period-filter-mode-item-label';
+            lab.textContent = ' Quan sát boost + gọi lại';
+            onItem.appendChild(lab);
+            onItem.addEventListener('mousedown', (event) => event.preventDefault());
+            onItem.addEventListener('click', () => {
+                setFilterNonexistGreen005000(true);
+                closeFilterPopupNonexistGreen005Menu();
+            });
+            menu.appendChild(onItem);
+        }
+
+        function highlightFilterPopupNonexistGreen005Menu() {
+            const menu = el('filterPopupNonexistGreen005Menu');
+            if (!menu) {
+                return;
+            }
+            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
+                const v = item.dataset.green005 || '';
+                if (v === 'off') {
+                    item.classList.toggle('selected', !filterNonexistGreen005000);
+                } else if (v === 'on') {
+                    item.classList.toggle('selected', filterNonexistGreen005000);
+                }
+            });
+        }
+
+        function setFilterNonexistGreen005000(on) {
+            const next = !!on;
+            if (filterNonexistGreen005000 === next) {
+                syncFilterPopupNonexistGreen005PickerUi();
+                highlightFilterPopupNonexistGreen005Menu();
+                return;
+            }
+            filterNonexistGreen005000 = next;
+            saveFilterNonexistSettings();
+            invalidateFilterPopupRenderCache();
+            syncFilterPopupNonexistGreen005PickerUi();
+            highlightFilterPopupNonexistGreen005Menu();
+            if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
+                refreshFilterPopup({ syncMain: false, immediateRender: true });
+            } else {
+                updateFilterPopupNonexist005ObservationHeader();
+            }
+        }
+
+        function isNonexist005000ObservationUiActive() {
+            return !!(periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1'
+                && isNonexistFilterMode(periodFilterMode)
+                && filterNonexistGreen005000
+                && filterNonexistNum != null
+                && filterNonexistColors.includes('green')
+                && filterNonexistStyles.length > 0);
+        }
+
+        function applyFilterPopupNonexist005000RowBorders(wrap) {
+            if (!wrap) {
+                return;
+            }
+            const cls = ['filter-popup-nx005-border-green', 'filter-popup-nx005-border-yellow', 'filter-popup-nx005-border-red'];
+            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                for (let c = 0; c < cls.length; c++) {
+                    tr.classList.remove(cls[c]);
+                }
+            });
+            if (!isNonexist005000ObservationUiActive() || !sheetManager) {
+                return;
+            }
+            const indices = filterPopupIndicesCached.length ? filterPopupIndicesCached : filterPopupIndices;
+            for (let i = 0; i < indices.length; i++) {
+                const idx = indices[i];
+                const tr = wrap.querySelector(`tbody tr[data-idx="${idx}"]`);
+                if (!tr) {
+                    continue;
+                }
+                const kind = typeof sheetManager.getNonexist005000BoostBorderKindForRow === 'function'
+                    ? sheetManager.getNonexist005000BoostBorderKindForRow(idx)
+                    : 'none';
+                if (kind === 'green') {
+                    tr.classList.add('filter-popup-nx005-border-green');
+                } else if (kind === 'yellow') {
+                    tr.classList.add('filter-popup-nx005-border-yellow');
+                } else if (kind === 'red') {
+                    tr.classList.add('filter-popup-nx005-border-red');
+                }
+            }
+        }
+
+        function updateFilterPopupNonexist005ObservationHeader() {
+            const pctEl = el('filterPopupNonexist005Pct');
+            if (!pctEl) {
+                return;
+            }
+            const tipWasVisible = !!(filterPopupNonexist005PctTooltipEl
+                && filterPopupNonexist005PctTooltipEl.classList.contains('is-visible'));
+            if (!isNonexist005000ObservationUiActive() || !sheetManager
+                || typeof sheetManager.countNonexist005000BorderKindsInIndices !== 'function') {
+                pctEl.hidden = true;
+                pctEl.textContent = '';
+                pctEl.removeAttribute('data-nx005-denom');
+                pctEl.removeAttribute('data-nx005-green');
+                pctEl.removeAttribute('data-nx005-yellow');
+                pctEl.removeAttribute('data-nx005-red');
+                pctEl.removeAttribute('title');
+                hideFilterPopupNonexist005PctTooltip();
+                return;
+            }
+            const indices = filterPopupIndices.length ? filterPopupIndices : filterPopupIndicesCached;
+            const counts = sheetManager.countNonexist005000BorderKindsInIndices(indices);
+            const bordered = counts.green + counts.yellow + counts.red;
+            const popupPct = bordered > 0 ? Math.round(((counts.green + counts.yellow) / bordered) * 100) : 0;
+            pctEl.dataset.nx005Denom = String(bordered);
+            pctEl.dataset.nx005Green = String(counts.green);
+            pctEl.dataset.nx005Yellow = String(counts.yellow);
+            pctEl.dataset.nx005Red = String(counts.red);
+            pctEl.textContent = bordered > 0 ? `L+V ${popupPct}%` : 'L+V —';
+            pctEl.hidden = false;
+            if (tipWasVisible && typeof pctEl.matches === 'function' && pctEl.matches(':hover')) {
+                showFilterPopupNonexist005PctTooltip(
+                    pctEl,
+                    filterPopupNonexist005PctTooltipLastX,
+                    filterPopupNonexist005PctTooltipLastY
+                );
+            } else if (tipWasVisible) {
+                hideFilterPopupNonexist005PctTooltip();
+            }
+        }
+
+        let filterPopupNonexist005PctTooltipEl = null;
+        let filterPopupNonexist005PctTooltipTimer = null;
+        let filterPopupNonexist005PctTooltipHoverTarget = null;
+        let filterPopupNonexist005PctTooltipLastX = 0;
+        let filterPopupNonexist005PctTooltipLastY = 0;
+        const FILTER_POPUP_NX005_PCT_TOOLTIP_SHOW_MS = 40;
+
+        function ensureFilterPopupNonexist005PctTooltipEl() {
+            if (filterPopupNonexist005PctTooltipEl && filterPopupNonexist005PctTooltipEl.isConnected) {
+                return filterPopupNonexist005PctTooltipEl;
+            }
+            filterPopupNonexist005PctTooltipEl = document.getElementById('filterPopupNonexist005PctTooltip');
+            if (!filterPopupNonexist005PctTooltipEl) {
+                filterPopupNonexist005PctTooltipEl = document.createElement('div');
+                filterPopupNonexist005PctTooltipEl.id = 'filterPopupNonexist005PctTooltip';
+                filterPopupNonexist005PctTooltipEl.className = 'filter-popup-nx005-pct-tooltip';
+                filterPopupNonexist005PctTooltipEl.setAttribute('role', 'tooltip');
+                document.body.appendChild(filterPopupNonexist005PctTooltipEl);
+            }
+            return filterPopupNonexist005PctTooltipEl;
+        }
+
+        function hideFilterPopupNonexist005PctTooltip() {
+            clearTimeout(filterPopupNonexist005PctTooltipTimer);
+            filterPopupNonexist005PctTooltipTimer = null;
+            filterPopupNonexist005PctTooltipHoverTarget = null;
+            if (filterPopupNonexist005PctTooltipEl) {
+                filterPopupNonexist005PctTooltipEl.classList.remove('is-visible');
+            }
+        }
+
+        function positionFilterPopupNonexist005PctTooltip(anchorEl, clientX, clientY) {
+            const tip = ensureFilterPopupNonexist005PctTooltipEl();
+            tip.classList.add('is-visible');
+            const rect = anchorEl.getBoundingClientRect();
+            const offsetX = 14;
+            const offsetY = 18;
+            let left = (typeof clientX === 'number' ? clientX : rect.right) + offsetX;
+            let top = (typeof clientY === 'number' ? clientY : rect.bottom) + offsetY;
+            const pad = 8;
+            const tipW = tip.offsetWidth;
+            const tipH = tip.offsetHeight;
+            const vw = window.innerWidth;
+            const vh = window.innerHeight;
+            if (left + tipW + pad > vw) {
+                left = Math.max(pad, (typeof clientX === 'number' ? clientX : rect.left) - tipW - 10);
+            }
+            if (top + tipH + pad > vh) {
+                top = Math.max(pad, (typeof clientY === 'number' ? clientY : rect.top) - tipH - 10);
+            }
+            tip.style.left = `${Math.round(left)}px`;
+            tip.style.top = `${Math.round(top)}px`;
+        }
+
+        function showFilterPopupNonexist005PctTooltip(anchorEl, clientX, clientY) {
+            const tip = ensureFilterPopupNonexist005PctTooltipEl();
+            const denom = parseInt(anchorEl.dataset.nx005Denom || '0', 10) || 0;
+            const g = parseInt(anchorEl.dataset.nx005Green || '0', 10) || 0;
+            const yel = parseInt(anchorEl.dataset.nx005Yellow || '0', 10) || 0;
+            const r = parseInt(anchorEl.dataset.nx005Red || '0', 10) || 0;
+            tip.replaceChildren();
+            const hdr = document.createElement('div');
+            hdr.className = 'filter-popup-nx005-pct-tooltip-hdr';
+            hdr.textContent = denom > 0 ? `Mẫu ${denom} kỳ (có viền)` : 'Không kỳ nào có viền trong lọc';
+            tip.appendChild(hdr);
+            const addLine = (cls, label, count, pct) => {
+                const line = document.createElement('div');
+                line.className = `filter-popup-nx005-pct-tooltip-line ${cls}`;
+                line.textContent = denom > 0
+                    ? `${label} ${count}/${denom} ${pct}%`
+                    : `${label} —`;
+                tip.appendChild(line);
+            };
+            const pg = denom > 0 ? Math.round((g / denom) * 100) : 0;
+            const py = denom > 0 ? Math.round((yel / denom) * 100) : 0;
+            const pr = denom > 0 ? Math.round((r / denom) * 100) : 0;
+            addLine('nx005-tip-green', 'xanh lá', g, pg);
+            addLine('nx005-tip-yellow', 'vàng', yel, py);
+            addLine('nx005-tip-red', 'đỏ', r, pr);
+            positionFilterPopupNonexist005PctTooltip(anchorEl, clientX, clientY);
+        }
+
+        function initFilterPopupNonexist005PctTooltip() {
+            const pctEl = el('filterPopupNonexist005Pct');
+            if (!pctEl || pctEl.dataset.nx005TipBound === '1') {
+                return;
+            }
+            pctEl.dataset.nx005TipBound = '1';
+            pctEl.addEventListener('mouseenter', (event) => {
+                if (pctEl.hidden || !pctEl.dataset.nx005Denom) {
+                    return;
+                }
+                filterPopupNonexist005PctTooltipHoverTarget = pctEl;
+                filterPopupNonexist005PctTooltipLastX = event.clientX;
+                filterPopupNonexist005PctTooltipLastY = event.clientY;
+                clearTimeout(filterPopupNonexist005PctTooltipTimer);
+                filterPopupNonexist005PctTooltipTimer = setTimeout(() => {
+                    if (filterPopupNonexist005PctTooltipHoverTarget === pctEl && !pctEl.hidden) {
+                        showFilterPopupNonexist005PctTooltip(
+                            pctEl,
+                            filterPopupNonexist005PctTooltipLastX,
+                            filterPopupNonexist005PctTooltipLastY
+                        );
+                    }
+                }, FILTER_POPUP_NX005_PCT_TOOLTIP_SHOW_MS);
+            });
+            pctEl.addEventListener('mousemove', (event) => {
+                if (filterPopupNonexist005PctTooltipHoverTarget !== pctEl) {
+                    return;
+                }
+                filterPopupNonexist005PctTooltipLastX = event.clientX;
+                filterPopupNonexist005PctTooltipLastY = event.clientY;
+                if (filterPopupNonexist005PctTooltipEl && filterPopupNonexist005PctTooltipEl.classList.contains('is-visible')) {
+                    positionFilterPopupNonexist005PctTooltip(
+                        pctEl,
+                        filterPopupNonexist005PctTooltipLastX,
+                        filterPopupNonexist005PctTooltipLastY
+                    );
+                }
+            });
+            pctEl.addEventListener('mouseleave', (event) => {
+                const to = event.relatedTarget;
+                if (to && pctEl.contains(to)) {
+                    return;
+                }
+                hideFilterPopupNonexist005PctTooltip();
+            });
+        }
+
+        function syncFilterPopupNonexistGreen005PickerUi() {
+            const wrap = el('filterPopupNonexistGreen005Picker');
+            const btn = el('filterPopupNonexistGreen005Btn');
+            const show = periodFilterEnabled && isNonexistFilterMode(periodFilterMode)
+                && filterNonexistColors.includes('green');
+            if (wrap) {
+                wrap.classList.toggle('hidden', !show);
+            }
+            if (btn) {
+                btn.disabled = !show;
+                btn.setAttribute('aria-pressed', filterNonexistGreen005000 && show ? 'true' : 'false');
+            }
+            buildFilterPopupNonexistGreen005Menu();
+            highlightFilterPopupNonexistGreen005Menu();
+            updateFilterPopupNonexist005ObservationHeader();
+        }
+
+        function openFilterPopupNonexistGreen005Menu() {
+            buildFilterPopupNonexistGreen005Menu();
+            const menu = el('filterPopupNonexistGreen005Menu');
+            const btn = el('filterPopupNonexistGreen005Btn');
+            if (!menu || !btn) {
+                return;
+            }
+            closeFilterPopupNonexistColorMenu();
+            highlightFilterPopupNonexistGreen005Menu();
+            positionFilterPopupNonexistGreen005Menu();
+            menu.classList.remove('hidden');
+            btn.setAttribute('aria-expanded', 'true');
+        }
+
+        function initFilterPopupNonexistGreen005Controls() {
+            const picker = el('filterPopupNonexistGreen005Picker');
+            const btn = el('filterPopupNonexistGreen005Btn');
+            const menu = el('filterPopupNonexistGreen005Menu');
+            if (!picker || !btn || !menu || picker.dataset.bound === '1') {
+                return;
+            }
+            picker.dataset.bound = '1';
+            picker.addEventListener('mousedown', (event) => event.stopPropagation());
+            picker.addEventListener('click', (event) => event.stopPropagation());
+            btn.addEventListener('mousedown', (event) => event.stopPropagation());
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (btn.disabled) {
+                    return;
+                }
+                if (menu.classList.contains('hidden')) {
+                    openFilterPopupNonexistGreen005Menu();
+                } else {
+                    closeFilterPopupNonexistGreen005Menu();
+                }
+            });
+            menu.addEventListener('click', (event) => event.stopPropagation());
+            document.addEventListener('mousedown', (event) => {
+                if (menu.classList.contains('hidden')) {
+                    return;
+                }
+                const target = event.target;
+                if (picker.contains(target) || menu.contains(target)) {
+                    return;
+                }
+                closeFilterPopupNonexistGreen005Menu();
+            });
+            window.addEventListener('resize', () => {
+                if (!menu.classList.contains('hidden')) {
+                    positionFilterPopupNonexistGreen005Menu();
+                }
+            });
+        }
+
         function syncFilterPopupNonexistToolsUi() {
             const tools = el('filterPopupNonexistTools');
             const numInput = el('filterPopupNonexistNum');
@@ -5051,6 +5792,8 @@
             syncFilterPopupNonexistColorBtn();
             syncFilterPopupNonexistStyleToggles();
             syncFilterPopupDropdownCounts();
+            syncFilterPopupNonexistGreen005PickerUi();
+            syncFilterPopupNonexistSpinButtons();
         }
 
         function clearPosnfreqMarkersInIframe() {
@@ -5762,8 +6505,12 @@
                 return;
             }
             filterNonexistNum = parseFilterNonexistNumInput(getFilterPopupPositionText(numInput));
+            if (filterNonexistNum == null && filterNonexistGreen005000) {
+                filterNonexistGreen005000 = false;
+            }
             const text = filterNonexistNum != null ? String(filterNonexistNum) : '';
             setFilterPopupPositionText(numInput, text);
+            syncFilterPopupNonexistSpinButtons();
         }
 
         function tryAppendFilterPopupNonexistDigit(digit) {
@@ -5785,6 +6532,7 @@
                 rebuildNonexistFilterModeCountOnly();
                 updatePeriodFilterMatchCount();
             }
+            syncFilterPopupNonexistSpinButtons();
             return true;
         }
 
@@ -5796,6 +6544,9 @@
             const nextText = getFilterPopupPositionText(input).slice(0, -1);
             setFilterPopupPositionText(input, nextText);
             filterNonexistNum = parseFilterNonexistNumInput(nextText);
+            if (filterNonexistNum == null && filterNonexistGreen005000) {
+                filterNonexistGreen005000 = false;
+            }
             saveFilterNonexistSettings();
             if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
                 refreshFilterPopup({ syncMain: false, immediateRender: true });
@@ -5803,12 +6554,70 @@
                 rebuildNonexistFilterModeCountOnly();
                 updatePeriodFilterMatchCount();
             }
+            syncFilterPopupNonexistSpinButtons();
+            return true;
+        }
+
+        function syncFilterPopupNonexistSpinButtons() {
+            const inc = el('filterPopupNonexistNumInc');
+            const dec = el('filterPopupNonexistNumDec');
+            if (!inc || !dec) {
+                return;
+            }
+            const active = periodFilterEnabled && isNonexistFilterMode(periodFilterMode);
+            inc.disabled = !active;
+            dec.disabled = !active;
+        }
+
+        /** Số nonexist 1–35: bước +/− xoay vòng. */
+        function wrapNonexistNum1To35(n) {
+            const u = Math.trunc(Number(n));
+            if (!Number.isFinite(u)) {
+                return 1;
+            }
+            const m = ((u - 1) % 35 + 35) % 35;
+            return m + 1;
+        }
+
+        function bumpFilterPopupNonexistNum(delta) {
+            if (!periodFilterEnabled || !isNonexistFilterMode(periodFilterMode)) {
+                return false;
+            }
+            const input = el('filterPopupNonexistNum');
+            if (!input) {
+                return false;
+            }
+            let v = filterNonexistNum;
+            if (delta > 0) {
+                if (v == null) {
+                    v = 1;
+                } else {
+                    v = wrapNonexistNum1To35(v + 1);
+                }
+            } else if (delta < 0) {
+                if (v == null) {
+                    v = 35;
+                } else {
+                    v = wrapNonexistNum1To35(v - 1);
+                }
+            } else {
+                return false;
+            }
+            filterNonexistNum = v;
+            setFilterPopupPositionText(input, filterNonexistNum != null ? String(filterNonexistNum) : '');
+            if (filterNonexistNum == null && filterNonexistGreen005000) {
+                filterNonexistGreen005000 = false;
+            }
+            saveFilterNonexistSettings();
+            syncFilterPopupNonexistSpinButtons();
+            refreshFilterPopup({ syncMain: false, immediateRender: true });
             return true;
         }
 
         function applyNonexistFilterSettingsFromUi() {
             commitFilterPopupNonexistNumFromUi();
             saveFilterNonexistSettings();
+            syncFilterPopupNonexistSpinButtons();
             if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
                 refreshFilterPopup({ syncMain: false, immediateRender: true });
             } else {
@@ -6473,8 +7282,50 @@
                         event.preventDefault();
                         event.stopPropagation();
                         tryBackspaceFilterPopupNonexistNum();
+                        return;
+                    }
+                    const code = String(event.code || '');
+                    const isPlus = key === '+' || code === 'NumpadAdd' || (code === 'Equal' && event.shiftKey);
+                    const isMinus = key === '-' || code === 'NumpadSubtract' || code === 'Minus';
+                    if (isPlus || isMinus) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        bumpFilterPopupNonexistNum(isPlus ? 1 : -1);
                     }
                 });
+            }
+
+            const spinMount = el('filterPopupNonexistNumSpin');
+            const incBtn = el('filterPopupNonexistNumInc');
+            const decBtn = el('filterPopupNonexistNumDec');
+            if (spinMount && spinMount.dataset.spinBound !== '1') {
+                spinMount.dataset.spinBound = '1';
+                if (incBtn) {
+                    incBtn.addEventListener('mousedown', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    });
+                    incBtn.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (!incBtn.disabled) {
+                            bumpFilterPopupNonexistNum(1);
+                        }
+                    });
+                }
+                if (decBtn) {
+                    decBtn.addEventListener('mousedown', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    });
+                    decBtn.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (!decBtn.disabled) {
+                            bumpFilterPopupNonexistNum(-1);
+                        }
+                    });
+                }
             }
 
             if (styleWrap && styleWrap.dataset.bound !== '1') {
@@ -6498,6 +7349,61 @@
 
             syncFilterPopupNonexistToolsUi();
             initFilterPopupNonexistColorControls();
+            initFilterPopupNonexistGreen005Controls();
+            initFilterPopupNonexist005PctTooltip();
+        }
+
+        /** +/− toàn trang: nonexist khi popup mở + mode nonexist (không cần focus ô số); autoring x khi popup đóng. */
+        function initGlobalPlusMinusShortcuts() {
+            if (document.documentElement.dataset.globalPlusMinusShortcutsBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.globalPlusMinusShortcutsBound = '1';
+            document.addEventListener('keydown', (event) => {
+                if (event.defaultPrevented || event.repeat) {
+                    return;
+                }
+                const key = String(event.key || '');
+                const code = String(event.code || '');
+                const isPlus = key === '+' || code === 'NumpadAdd' || (code === 'Equal' && event.shiftKey);
+                const isMinus = key === '-' || code === 'NumpadSubtract' || code === 'Minus';
+                if (!isPlus && !isMinus) {
+                    return;
+                }
+                const delta = isPlus ? 1 : -1;
+                const dock = el('filterPopupDock');
+                const popupOpen = !!(dock && !dock.classList.contains('hidden'));
+                const positionInput = el('filterPopupPositionInput');
+                const nonexistNumEl = el('filterPopupNonexistNum');
+                const ae = document.activeElement;
+
+                if (popupOpen && periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
+                    if (ae === nonexistNumEl) {
+                        return;
+                    }
+                    if (ae === positionInput) {
+                        return;
+                    }
+                    if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+                        return;
+                    }
+                    if (bumpFilterPopupNonexistNum(delta)) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                    return;
+                }
+
+                if (!popupOpen) {
+                    if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+                        return;
+                    }
+                    if (bumpSubmitRingCustomXBy(delta)) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
+                }
+            }, true);
         }
 
         function initFilterPopupPositionInput() {
@@ -6609,6 +7515,7 @@
             }
             syncFilterPopupMatchCountUi(periodFilterMode, false, filteredTotal);
             fitPeriodFilterMatchCountWidth();
+            updateFilterPopupNonexist005ObservationHeader();
         }
 
         function bindPeriodFilterModeButton(which) {
@@ -6936,6 +7843,37 @@
             });
         }
 
+        const FLOATING_POPUP_DOCK_Z_BASE = 1200;
+
+        function raiseFloatingPopupDock(dock) {
+            if (!dock || dock.classList.contains('hidden')) {
+                return;
+            }
+            floatingPopupDockZCounter += 1;
+            dock.style.zIndex = String(FLOATING_POPUP_DOCK_Z_BASE + floatingPopupDockZCounter);
+        }
+
+        /** Popup nào được click (chuột trái) gần nhất thì z-index cao hơn popup kia. */
+        function initFloatingPopupDockStacking() {
+            if (document.documentElement.dataset.floatingPopupDockStackBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.floatingPopupDockStackBound = '1';
+            const bind = (dock) => {
+                if (!dock) {
+                    return;
+                }
+                dock.addEventListener('mousedown', (event) => {
+                    if (event.button !== 0) {
+                        return;
+                    }
+                    raiseFloatingPopupDock(dock);
+                }, true);
+            };
+            bind(el('filterPopupDock'));
+            bind(el('answerPopupDock'));
+        }
+
         function openFilterPopup() {
             if (isSpecialTrackingActive()) {
                 return;
@@ -6953,6 +7891,7 @@
         }
 
         function closeFilterPopup() {
+            hideFilterPopupNonexist005PctTooltip();
             const dock = el('filterPopupDock');
             if (!dock) {
                 return;
@@ -7450,7 +8389,8 @@
                 styles,
                 rowLen,
                 rightPaneZoom,
-                posnfreqKey
+                posnfreqKey,
+                filterNonexistGreen005000 ? 'g005:1' : 'g005:0'
             ].join('|');
         }
 
@@ -7552,6 +8492,7 @@
             applyFilterPopupNonexistIdGapBorders(wrap);
             updateFilterPopupPrevRecallFoldTooltips();
             syncFilterPopupPosnfreqSubmitOverlap();
+            applyFilterPopupNonexist005000RowBorders(wrap);
             if (options.clearPopupNav) {
                 filterPopupActiveIdx = -1;
                 clearFilterPopupRowFocus();
@@ -7608,6 +8549,7 @@
                 if (w) {
                     w.classList.remove('filter-popup-posnfreq-green-only');
                 }
+                applyFilterPopupNonexist005000RowBorders(wrap);
                 if (pctEl) {
                     pctEl.hidden = true;
                     pctEl.textContent = '';
@@ -7682,6 +8624,7 @@
             }
             updateFilterPopupMatchCount();
             syncPeriodFilterNavModeToIframe();
+            applyFilterPopupNonexist005000RowBorders(wrap);
         }
 
         function buildFilterPopupTable(wrap, options = {}) {
@@ -7698,6 +8641,7 @@
             filterPopupIndicesCached = filterPopupIndices.slice();
             applyFilterPopupNonexistIdGapBorders(wrap);
             syncFilterPopupPosnfreqSubmitOverlap();
+            applyFilterPopupNonexist005000RowBorders(wrap);
             filterPopupHtmlCache = wrap.innerHTML;
             filterPopupRenderCacheKey = cacheKey;
             updateFilterPopupPrevRecallFoldTooltips();
@@ -7870,7 +8814,8 @@
                 }
                 if (target.closest('.period-filter-mode-menu:not(.hidden)')
                     || target.closest('.filter-popup-note-tag-menu:not(.hidden)')
-                    || target.closest('.filter-popup-nonexist-color-menu:not(.hidden)')) {
+                    || target.closest('.filter-popup-nonexist-color-menu:not(.hidden)')
+                    || target.closest('.filter-popup-nonexist-green005-menu:not(.hidden)')) {
                     return true;
                 }
                 return !!target.closest('button, input, select, textarea, a, [role="textbox"], [contenteditable="true"]');
@@ -7894,7 +8839,6 @@
             header.addEventListener('mousedown', (event) => {
                 if (event.button !== 0
                     || event.target.closest('#filterPopupClose')
-                    || event.target.closest('.filter-popup-header-trail')
                     || isFilterPopupHeaderNonDragTarget(event.target)) {
                     return;
                 }
@@ -8488,6 +9432,7 @@
             initFilterPopupPosnfreqControls();
             initFilterPopupPosnfreqOverlapPctToggle();
             initFilterPopupPositionInput();
+            initGlobalPlusMinusShortcuts();
             initPeriodFilterCtrlShortcut();
             syncPeriodFilterToolbarUi();
             initFilterPopupLayoutOnWindowResize();
@@ -8682,6 +9627,7 @@
             initAnswerPopupDrag();
             initAnswerPopupResize();
             initAnswerPopupLayoutOnWindowResize();
+            initFloatingPopupDockStacking();
             loadData();
 
             // Listen for sheet changes
@@ -8785,16 +9731,28 @@
                 // Send selected lines to iframe for updating submit state
                 const frame = el('okFrame');
                 let referenceHint = '';
+                let referenceHintPicks = [];
                 if (
                     detail.sheetName === 'sheet1'
                     && sheetManager
                     && typeof detail.focusRowIndex === 'number'
-                    && typeof sheetManager.getNoteReferenceHintForRowIndex === 'function'
                 ) {
                     try {
-                        referenceHint = sheetManager.getNoteReferenceHintForRowIndex(detail.focusRowIndex);
+                        if (typeof sheetManager.getNoteReferenceHintMeta === 'function') {
+                            const meta = sheetManager.getNoteReferenceHintMeta(detail.focusRowIndex);
+                            if (meta && meta.error) {
+                                referenceHint = meta.error;
+                                referenceHintPicks = [];
+                            } else if (meta && meta.text != null) {
+                                referenceHint = meta.text;
+                                referenceHintPicks = Array.isArray(meta.picks) ? meta.picks : [];
+                            }
+                        } else if (typeof sheetManager.getNoteReferenceHintForRowIndex === 'function') {
+                            referenceHint = sheetManager.getNoteReferenceHintForRowIndex(detail.focusRowIndex);
+                        }
                     } catch (errRef) {
                         referenceHint = '';
+                        referenceHintPicks = [];
                     }
                 }
                 if (frame && frame.contentWindow && selectedLines.length > 0) {
@@ -8824,7 +9782,8 @@
                         submitAutoCircleEnabled: submitRingEnabled,
                         submitAutoCircleMode: submitRingMode,
                         submitAutoCircleCustomX: clampRingCustomX(submitRingCustomX),
-                        referenceHint: referenceHint || ''
+                        referenceHint: referenceHint || '',
+                        referenceHintPicks: referenceHintPicks
                     }, '*');
                 }
                 if (sheetManager && sheetManager.activeSheet === 'combo_1') {

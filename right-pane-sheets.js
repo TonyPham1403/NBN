@@ -2,23 +2,25 @@
  * Right Pane Sheet Manager & Styling
  * Inspired by Module1-5 VBA patterns: grouping, frequency analysis, color-coding
  *
- * Trọng số + predictMode (`heuristic` | `globalTrigram`): đồng bộ proj/scripts/special-tracking-predict-core.mjs
+ * Trọng số + predictMode (`heuristic` | `globalTrigram` | `blend` | `stackedNgram` | `temporalRank`): đồng bộ proj/scripts/special-tracking-predict-core.mjs
+ * (`blend` có thể bật `temporalMix` > 0 để trộn z predict.txt; mặc định 0 trên data.json hiện tại).
  * (tối ưu sâu: `node ... --tune-coord` ~vài phút; nhanh: `--tune-coord-quick`).
  */
 const SPECIAL_TRACKING_PREDICT_WT = Object.freeze({
-    uw50: 1.635,
+    /** Đồng bộ DEFAULT_SPECIAL_TRACKING_PREDICT_WEIGHTS (đã --tune-coord trên data.json). */
+    uw50: 1.9293,
     uw20: 1.843,
     uw100: 0.622,
     c4mul: 1.439,
     bgG: 2.545,
     bgR: 11.197,
-    tri: 10.952,
+    tri: 8.98064,
     gapSqrt: 0.573,
     gapTail: 0.163,
     gapThr: 19,
     vel: 1.365,
     velHiSlot: 7,
-    velHi: 1.12,
+    velHi: 1.1648,
     cumCap: 1.78,
     cumK: 0.235,
     medCap: 1.491,
@@ -29,27 +31,47 @@ const SPECIAL_TRACKING_PREDICT_WT = Object.freeze({
     vel10a: 0.703,
     vel10b: 0.277,
     hot50rat: 1.669,
-    penalHot50: 1.032,
+    penalHot50: 1.21776,
     hot100rat: 1.525,
     penalHot100: 0.539,
     echo3: 10.904,
     echo5: 1.251,
     penB: 4.509,
     repeat: 8.372,
-    echoSwap: 0.07,
+    echoSwap: 0.05,
     bgAlpha: 0.491,
     triAlpha: 0.266,
-    recentWin: 86,
-    triWinCap: 104,
-    predictMode: 'globalTrigram'
+    recentWin: 87,
+    triWinCap: 107,
+    /**
+     * heuristic | globalTrigram | blend | stackedNgram | temporalRank — đồng bộ special-tracking-predict-core.mjs
+     * blend = heuristic + triGlobal·log1p(honest trigram) + marginal Dirichlet (prefix).
+     * temporalRank = predict.txt (rolling/gap/rank-velocity/recovery/z), không random.
+     */
+    triGlobal: 2.35,
+    margAlpha: 2,
+    margLong: 0.35,
+    margShortWin: 72,
+    margShort: 0,
+    /** Chỉ blend: cộng temporalMix × z(predict.txt timeline). Đồng bộ DEFAULT trong special-tracking-predict-core.mjs */
+    temporalMix: 0,
+    predictMode: 'blend'
 });
 
 /** Đồng bộ globalTrigram với special-tracking-predict-core.mjs (browser không import module). */
 const specialTrackingGlobalTrigramCache = new WeakMap();
 
-function specialTrackingBuildGlobalTrigramByKey(series, len) {
+function specialTrackingGlobalTrigramCacheKey(len, horizon) {
+    return `${len}|${horizon}`;
+}
+
+function specialTrackingBuildGlobalTrigramByKey(series, len, horizon = null) {
+    const H = horizon != null ? horizon : len;
     const byKey = new Map();
     for (let p = 1; p < len - 1; p++) {
+        if (p + 1 >= H) {
+            continue;
+        }
         const a = series[p - 1];
         const b = series[p];
         const nx = series[p + 1];
@@ -66,18 +88,23 @@ function specialTrackingBuildGlobalTrigramByKey(series, len) {
     return byKey;
 }
 
-function specialTrackingGetGlobalTrigramByKey(series, len) {
-    let slot = specialTrackingGlobalTrigramCache.get(series);
-    if (!slot || slot.len !== len) {
-        slot = { len, byKey: specialTrackingBuildGlobalTrigramByKey(series, len) };
-        specialTrackingGlobalTrigramCache.set(series, slot);
+function specialTrackingGetGlobalTrigramByKey(series, len, horizon = null) {
+    const H = horizon != null ? horizon : len;
+    const key = specialTrackingGlobalTrigramCacheKey(len, H);
+    let inner = specialTrackingGlobalTrigramCache.get(series);
+    if (!inner) {
+        inner = new Map();
+        specialTrackingGlobalTrigramCache.set(series, inner);
     }
-    return slot.byKey;
+    if (!inner.has(key)) {
+        inner.set(key, specialTrackingBuildGlobalTrigramByKey(series, len, H));
+    }
+    return inner.get(key);
 }
 
 /** @returns {number[] | null} */
-function specialTrackingTop3FromGlobalTrigram(series, len, pen, prev) {
-    const byKey = specialTrackingGetGlobalTrigramByKey(series, len);
+function specialTrackingTop3FromGlobalTrigram(series, len, pen, prev, horizon = null) {
+    const byKey = specialTrackingGetGlobalTrigramByKey(series, len, horizon);
     const key = pen * 16 + prev;
     const m = byKey.get(key);
     if (!m || m.size === 0) {
@@ -91,10 +118,291 @@ function specialTrackingTop3FromGlobalTrigram(series, len, pen, prev) {
     return [tp[0][0], tp[1][0], tp[2][0]];
 }
 
+/** Đồng bộ computeStackedNgramTop3 trong special-tracking-predict-core.mjs */
+function specialTrackingComputeStackedNgramTop3(series, nFull, N, wt) {
+    if (N < 1) {
+        return [1, 2, 3];
+    }
+    const alpha =
+        typeof wt.stackLaplace === 'number' && Number.isFinite(wt.stackLaplace) && wt.stackLaplace > 0
+            ? wt.stackLaplace
+            : 0.55;
+    const sm = typeof wt.stackMarg === 'number' && Number.isFinite(wt.stackMarg) ? wt.stackMarg : 0.85;
+    const sb = typeof wt.stackBi === 'number' && Number.isFinite(wt.stackBi) ? wt.stackBi : 1.15;
+    const st = typeof wt.stackTri === 'number' && Number.isFinite(wt.stackTri) ? wt.stackTri : 2.2;
+
+    const pen = N >= 2 ? series[N - 2] : 0;
+    const prev = series[N - 1];
+
+    const cM = new Array(13).fill(0);
+    for (let j = 0; j < N; j++) {
+        const x = series[j];
+        if (x >= 1 && x <= 12) {
+            cM[x]++;
+        }
+    }
+    const denM = N + 12 * alpha;
+
+    const fb = new Array(13).fill(0);
+    let cntB = 0;
+    if (prev >= 1 && prev <= 12) {
+        for (let j = 0; j <= N - 2; j++) {
+            if (series[j] === prev) {
+                cntB++;
+                const nx = series[j + 1];
+                if (nx >= 1 && nx <= 12) {
+                    fb[nx]++;
+                }
+            }
+        }
+    }
+    const denB = cntB + 12 * alpha;
+
+    const ft = new Array(13).fill(0);
+    let triTot = 0;
+    if (N >= 3 && pen >= 1 && pen <= 12 && prev >= 1 && prev <= 12) {
+        const byKey = specialTrackingGetGlobalTrigramByKey(series, nFull, N);
+        const triMap = byKey.get(pen * 16 + prev);
+        if (triMap) {
+            for (let n = 1; n <= 12; n++) {
+                const v = triMap.get(n) || 0;
+                ft[n] = v;
+                triTot += v;
+            }
+        }
+    }
+    const denT = triTot + 12 * alpha;
+
+    const scores = new Array(13).fill(0);
+    for (let n = 1; n <= 12; n++) {
+        const phM = (cM[n] + alpha) / denM;
+        scores[n] += sm * Math.log(12 * phM);
+        const phB = (fb[n] + alpha) / denB;
+        scores[n] += sb * Math.log(12 * phB);
+        const phT = (ft[n] + alpha) / denT;
+        scores[n] += st * Math.log(12 * phT);
+    }
+
+    const pairs = [];
+    for (let n = 1; n <= 12; n++) {
+        pairs.push([n, scores[n]]);
+    }
+    pairs.sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+    return [pairs[0][0], pairs[1][0], pairs[2][0]];
+}
+
+/** @param {number[]} vals13 — chỉ số 1..12 */
+function specialTrackingZScore12(vals13) {
+    let s = 0;
+    let s2 = 0;
+    const c = 12;
+    for (let n = 1; n <= 12; n++) {
+        const v = vals13[n] || 0;
+        s += v;
+        s2 += v * v;
+    }
+    const mean = s / c;
+    const vr = s2 / c - mean * mean;
+    const std = Math.sqrt(Math.max(vr, 1e-12));
+    const out = new Array(13).fill(0);
+    for (let n = 1; n <= 12; n++) {
+        out[n] = ((vals13[n] || 0) - mean) / std;
+    }
+    return out;
+}
+
+/**
+ * Điểm composite predict.txt (1..12) — dùng cho temporalMix trong blend.
+ * @returns {number[] | null}
+ */
+function specialTrackingComputeTemporalRankScores13(series, frames, N) {
+    const lastIdx = Math.min(frames.length, N) - 1;
+    if (lastIdx < 0) {
+        return null;
+    }
+    const last = frames[lastIdx];
+    if (!last || !last.slotByNum || !last.byNum) {
+        return null;
+    }
+    const W20 = Math.min(20, N);
+    const W50 = Math.min(50, N);
+    const W100 = Math.min(100, N);
+    const exp20 = W20 / 12;
+    const exp50 = W50 / 12;
+    const exp100 = W100 / 12;
+
+    const recentCount = (n, W) => {
+        let cc = 0;
+        const from = Math.max(0, N - W);
+        for (let i = from; i < N; i++) {
+            if (series[i] === n) {
+                cc++;
+            }
+        }
+        return cc;
+    };
+
+    const lastAt = new Array(13).fill(-1);
+    const maxBetween = new Array(13).fill(0);
+    const gapSum = new Array(13).fill(0);
+    const gapCnt = new Array(13).fill(0);
+    for (let i = 0; i < N; i++) {
+        const x = series[i];
+        if (x < 1 || x > 12) {
+            continue;
+        }
+        if (lastAt[x] >= 0) {
+            const g = i - lastAt[x];
+            maxBetween[x] = Math.max(maxBetween[x], g);
+            gapSum[x] += g;
+            gapCnt[x]++;
+        }
+        lastAt[x] = i;
+    }
+    const gapCurrent = new Array(13).fill(N);
+    const avgGap = new Array(13).fill(0);
+    for (let n = 1; n <= 12; n++) {
+        gapCurrent[n] = lastAt[n] >= 0 ? N - 1 - lastAt[n] : N;
+        avgGap[n] = gapCnt[n] > 0 ? gapSum[n] / gapCnt[n] : N;
+    }
+
+    const under20 = new Array(13).fill(0);
+    const under50 = new Array(13).fill(0);
+    const under100 = new Array(13).fill(0);
+    for (let n = 1; n <= 12; n++) {
+        under20[n] = Math.max(0, exp20 - recentCount(n, W20));
+        under50[n] = Math.max(0, exp50 - recentCount(n, W50));
+        under100[n] = Math.max(0, exp100 - recentCount(n, W100));
+    }
+
+    const slotAt = (fIdx, n) => {
+        const fr = frames[fIdx];
+        return fr && fr.slotByNum ? fr.slotByNum[n] ?? 11 : 11;
+    };
+    const pastFi = (delta) => Math.max(0, lastIdx - delta);
+
+    const slotNow = new Array(13).fill(0);
+    const vel20 = new Array(13).fill(0);
+    const vel50 = new Array(13).fill(0);
+    const accel = new Array(13).fill(0);
+    for (let n = 1; n <= 12; n++) {
+        const sn = slotAt(lastIdx, n);
+        slotNow[n] = sn;
+        const s20 = slotAt(pastFi(20), n);
+        const s50 = slotAt(pastFi(50), n);
+        const s10 = slotAt(pastFi(10), n);
+        vel20[n] = s20 - sn;
+        vel50[n] = s50 - sn;
+        const v10 = s10 - sn;
+        accel[n] = v10 - vel20[n];
+    }
+
+    const overdueR = new Array(13).fill(0);
+    const gapLog = new Array(13).fill(0);
+    const maxgAnom = new Array(13).fill(0);
+    for (let n = 1; n <= 12; n++) {
+        const gc = gapCurrent[n];
+        overdueR[n] = gc / (avgGap[n] + 0.25);
+        gapLog[n] = Math.log(1 + gc / (avgGap[n] + 0.2));
+        const mx = Math.max(maxBetween[n] || 0, 1);
+        maxgAnom[n] = Math.log(1 + gc / (mx + 0.15));
+    }
+
+    const ideal = N / 12;
+    const cumDef = new Array(13).fill(0);
+    const recovery = new Array(13).fill(0);
+    const leadWeakPen = new Array(13).fill(0);
+    for (let n = 1; n <= 12; n++) {
+        const cum = last.byNum[n] || 0;
+        cumDef[n] = Math.max(0, ideal - cum);
+        recovery[n] = (slotNow[n] >= 6 ? 1 : 0) * Math.max(0, vel20[n]);
+        const c50 = recentCount(n, W50);
+        if (slotNow[n] <= 1 && c50 > exp50 * 1.08) {
+            leadWeakPen[n] = 1;
+        }
+    }
+
+    const zU20 = specialTrackingZScore12(under20);
+    const zU50 = specialTrackingZScore12(under50);
+    const zU100 = specialTrackingZScore12(under100);
+    const zGap = specialTrackingZScore12(gapLog);
+    const zOd = specialTrackingZScore12(overdueR);
+    const zMaxg = specialTrackingZScore12(maxgAnom);
+    const zV20 = specialTrackingZScore12(vel20);
+    const zV50 = specialTrackingZScore12(vel50);
+    const zAcc = specialTrackingZScore12(accel);
+    const zCumD = specialTrackingZScore12(cumDef);
+    const zRec = specialTrackingZScore12(recovery);
+
+    const score = new Array(13).fill(0);
+    for (let n = 1; n <= 12; n++) {
+        score[n] =
+            0.22 * zU20[n]
+            + 0.16 * zU50[n]
+            + 0.08 * zU100[n]
+            + 0.12 * zGap[n]
+            + 0.08 * zOd[n]
+            + 0.06 * zMaxg[n]
+            + 0.12 * zV20[n]
+            + 0.04 * zV50[n]
+            + 0.06 * zAcc[n]
+            + 0.06 * zCumD[n]
+            + 0.08 * zRec[n]
+            - (leadWeakPen[n] ? 0.72 : 0);
+    }
+
+    return score;
+}
+
+/** @returns {number[]} top-3 theo predict.txt timeline */
+function specialTrackingPredictTxtTemporalTop3(series, frames, N) {
+    const score = specialTrackingComputeTemporalRankScores13(series, frames, N);
+    if (!score) {
+        return [1, 2, 3];
+    }
+    const pairs = [];
+    for (let n = 1; n <= 12; n++) {
+        pairs.push([n, score[n]]);
+    }
+    pairs.sort((a, b) => b[1] - a[1] || a[0] - b[0]);
+    return [pairs[0][0], pairs[1][0], pairs[2][0]];
+}
+
 /** sessionStorage + sheet.specialTrackingUi: khôi phục timeline / predict khi quay lại sheet */
 const SPECIAL_TRACKING_UI_STORAGE_KEY = 'rp-special-tracking-ui-v1';
 
+/** Chuột phải ô nonexist: nhảy tới kỳ có id = id hàng hiện tại + delta (vd 00014 → 00024 khi delta=10). */
+const NONEXIST_CONTEXTMENU_ID_DELTA = 10;
+
 class RightPaneSheetManager {
+    /** Pool gợi ý Hint: số ô tối đa khoanh (top theo margin Dirichlet). */
+    static MAIN_FIVE_HINT_POOL_SIZE = 10;
+    /** Số dòng sheet liền trước dòng focus dùng cho cửa sổ (tối đa) — cùng ý multiset với bảng 1 trái khi đủ 10 dòng. */
+    static MAIN_FIVE_HINT_SLIDE_LEN = 10;
+    /**
+     * Trọng số điểm margin Dirichlet trên tần suất cửa sổ (0..1); phần còn lại là tích lũy toàn bộ kỳ trước dòng.
+     */
+    static MAIN_FIVE_HINT_SLIDE_WEIGHT = 0.45;
+    /**
+     * Alpha Dirichlet chỉ dùng cho hint — lớn hơn → ít bám sát raw count, giảm “chỉ số hot”.
+     */
+    static MAIN_FIVE_HINT_DIRICHLET_ALPHA = 1.65;
+    /**
+     * Độ rộng dải xếp hạng khi chọn pool: band = min(35, max(poolN, ceil(poolN * mult))).
+     * Pool lấy theo bước thứ hạng trong band (không lấy liền N ô đầu).
+     */
+    static MAIN_FIVE_HINT_DIVERSITY_BAND_MULT = 3;
+    /**
+     * true: lần đầu cần hint, chạy benchmark walk-forward trên toàn sheet1 và chọn thuật overlap TB cao nhất.
+     */
+    static MAIN_FIVE_HINT_AUTO_SELECT_STRATEGY = true;
+    /** Số kỳ hợp lệ gần nhất (trong validIdx) dùng cho margin recent + triple. */
+    static MAIN_FIVE_HINT_RECENT_VALID_K = 20;
+    /**
+     * predict.txt §13: số lần lấy mẫu pool có trọng số (seed deterministic từ ctx) — giữ nhỏ để benchmark không đơ.
+     */
+    static MAIN_FIVE_HINT_MC_POOL_SAMPLES = 40;
+
     constructor() {
         this.sheets = {};
         this.activeSheet = 'sheet1';
@@ -122,18 +430,6 @@ class RightPaneSheetManager {
         this._connectionFilterIndicesCache = null;
         this._connectionFilterIndicesCacheRowLen = 0;
         this._connectionFilterNoteCacheRef = null;
-        /** Cache mẫu KNN học từ note các kỳ (theo độ dài sheet1). */
-        this._knnNoteRefTrainCache = null;
-        this._knnNoteRefTrainRowsLen = -1;
-        this._knnNoteRefTrainVecDim = 0;
-        /** Blend KNN + combo prefix + overlap cửa sổ + tần suất note + recency + Markov (chỉnh qua tune-reference-predictor.mjs). */
-        this.refHintBlend = Object.freeze({ wKnn: 1, wCombo: 0.55, wUnion: 0.12, wFreq: 0.48, wRec: 0.32, wMarkov: 0 });
-        /** Trọng số combo_1 / combo_2 / combo_3 trong điểm log-tần suất (prefix &lt; dòng hiện tại). */
-        this.refHintComboW = Object.freeze({ w1: 0.42, w2: 0.38, w3: 0.2 });
-        /** Ngưỡng prune danh sách gợi ý prevId (maxPick, so với top và mục trước). */
-        this.refHintPrune = Object.freeze({ maxPick: 3, minRelTop: 0.22, minRelPrev: 0.38 });
-        /** kNeighbors cho KNN gợi ý chuỗi tham khảo (chỉnh qua tune-reference-predictor.mjs). */
-        this.refHintKNeighbors = 9;
         this.frequencyMap = {};
         this.colorPalette = [
             'rgb(255, 192, 0)',    // Gold
@@ -243,9 +539,7 @@ class RightPaneSheetManager {
         this._connectionFilterIndicesCache = null;
         this._connectionFilterIndicesCacheRowLen = 0;
         this._connectionFilterNoteCacheRef = null;
-        this._knnNoteRefTrainCache = null;
-        this._knnNoteRefTrainRowsLen = -1;
-        this._knnNoteRefTrainVecDim = 0;
+        this._mainFiveHintStrategyCache = null;
     }
 
     /** Rows used for sheet1 / nonexist filter (independent of active combo tab). */
@@ -1404,6 +1698,216 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Display kind for one number on a source row (nonexist column), for filter-popup #005000 observation.
+     */
+    getNonexistDisplayKindForNumberOnSourceRow(rowIndex, num) {
+        const rows = this.getSourceSheetRows();
+        const row = rows[rowIndex];
+        if (!row) {
+            return '';
+        }
+        if (!this.nonexistCache || this.nonexistCache.length !== rows.length) {
+            this.nonexistCache = this.buildNonexistFromRows(rows);
+        }
+        const nonexistMeta = this.getNonexistMetaForSourceRow(rowIndex, row);
+        const nx = String(nonexistMeta.text || '').trim();
+        if (!nx || nx === 'N/A') {
+            return '';
+        }
+        if (this.parseNums(nx).indexOf(num) === -1) {
+            return '';
+        }
+        const res = row.result || row.Result || '';
+        return this.getNonexistDisplayKindForNumber(rowIndex, num, nx, res, null);
+    }
+
+    /**
+     * True when y is yellow on rowIndex and ∃ sliding window [w..w+9] containing rowIndex
+     * with every row having 5 mains and y ∈ nonexist(bottom row w+9).
+     * Bỏ qua cửa sổ có đáy e === rowIndex: khi đó y luôn ∈ nonexist(e) nếu y nằm trong ô nonexist của dòng đó
+     * (boost 1.5em chỉ có ý nghĩa khi đáy cửa sổ nằm dưới dòng đang xét).
+     */
+    nonexistYellowHasBoostInSlidingWindowTen(rowIndex, y) {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        if (!this.nonexistCache || this.nonexistCache.length !== n) {
+            this.nonexistCache = this.buildNonexistFromRows(rows);
+        }
+        const cache = this.nonexistCache;
+        const wMin = Math.max(10, rowIndex - 9);
+        const wMax = Math.min(rowIndex, n - 10);
+        if (wMin > wMax) {
+            return false;
+        }
+        if (this.getNonexistDisplayKindForNumberOnSourceRow(rowIndex, y) !== 'yellow') {
+            return false;
+        }
+        for (let w = wMin; w <= wMax; w++) {
+            const e = w + 9;
+            if (e === rowIndex) {
+                continue;
+            }
+            let ok = true;
+            for (let i = w; i <= e; i++) {
+                const r = rows[i];
+                if (!r || this.isEmptyResultRow(r) || this.parseMainNums(r.result || r.Result || '').length !== 5) {
+                    ok = false;
+                    break;
+                }
+            }
+            if (!ok) {
+                continue;
+            }
+            const bottom = String(cache[e].text || '').trim();
+            if (!bottom || bottom === 'N/A') {
+                continue;
+            }
+            if (this.parseNums(bottom).indexOf(y) === -1) {
+                continue;
+            }
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * Số vàng y tại rowIndex: y xuất hiện trong 5 số chính của ít nhất một kỳ trong (rowIndex, rowIndex+10]
+     * (mỗi kỳ đó phải đủ 5 số chính). Không yêu cầu cùng cửa sổ 10 với boost — ví dụ 00053 + 10 kỳ sau tới 00063.
+     */
+    nonexistYellowCalledInNextTenRowsAfter(rowIndex, y) {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        const hi = Math.min(rowIndex + 10, n - 1);
+        for (let k = rowIndex + 1; k <= hi; k++) {
+            const r = rows[k];
+            if (!r || this.isEmptyResultRow(r)) {
+                continue;
+            }
+            const mains = this.parseMainNums(r.result || r.Result || '');
+            if (mains.length !== 5) {
+                continue;
+            }
+            if (mains.indexOf(y) !== -1) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Yellow y trên rowIndex: boost như nonexistYellowHasBoostInSlidingWindowTen
+     * và "gọi lại" = trúng trong 5 số chính của một trong 10 kỳ liền sau dòng đó.
+     */
+    nonexistYellowHasBoostAndCalledInSlidingWindowTen(rowIndex, y) {
+        return (
+            this.nonexistYellowHasBoostInSlidingWindowTen(rowIndex, y) &&
+            this.nonexistYellowCalledInNextTenRowsAfter(rowIndex, y)
+        );
+    }
+
+    /**
+     * Filter popup nonexist #005000: viền theo số vàng — boost (đáy > dòng, cửa 10) + gọi lại (10 kỳ sau).
+     * @returns {'none'|'green'|'yellow'|'red'}
+     */
+    getNonexist005000BoostBorderKindForRow(rowIndex) {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        if (rowIndex < 10 || rowIndex >= n) {
+            return 'none';
+        }
+        const row = rows[rowIndex];
+        if (!row || this.isEmptyResultRow(row)) {
+            return 'none';
+        }
+        if (!this.nonexistCache || this.nonexistCache.length !== n) {
+            this.nonexistCache = this.buildNonexistFromRows(rows);
+        }
+        const nonexistMeta = this.getNonexistMetaForSourceRow(rowIndex, row);
+        const nx = String(nonexistMeta.text || '').trim();
+        if (!nx || nx === 'N/A') {
+            return 'none';
+        }
+        const candidates = this.parseNums(nx);
+        const yellows = [];
+        for (let i = 0; i < candidates.length; i++) {
+            const y = candidates[i];
+            if (this.getNonexistDisplayKindForNumberOnSourceRow(rowIndex, y) === 'yellow') {
+                yellows.push(y);
+            }
+        }
+        if (yellows.length === 0) {
+            return 'none';
+        }
+        let anyFull = false;
+        let allFull = true;
+        for (let j = 0; j < yellows.length; j++) {
+            const ok = this.nonexistYellowHasBoostAndCalledInSlidingWindowTen(rowIndex, yellows[j]);
+            if (ok) {
+                anyFull = true;
+            } else {
+                allFull = false;
+            }
+        }
+        if (!anyFull) {
+            return 'red';
+        }
+        if (allFull) {
+            return 'green';
+        }
+        return 'yellow';
+    }
+
+    /**
+     * Toàn sheet: các dòng khớp lọc nonexist (num+colors+styles) + thống kê viền quan sát #005000 (boost+gọi).
+     */
+    computeNonexist005000DatasetObservation(colors, styles, num) {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        let totalFilter = 0;
+        let greenYellowBorder = 0;
+        const missIds = [];
+        for (let r = 10; r < n; r++) {
+            if (!this.rowMatchesNonexistColorFilter(r, colors, styles, num)) {
+                continue;
+            }
+            totalFilter++;
+            const kind = this.getNonexist005000BoostBorderKindForRow(r);
+            if (kind === 'green' || kind === 'yellow') {
+                greenYellowBorder++;
+            } else {
+                missIds.push(String(rows[r].id || rows[r].ID || r));
+            }
+        }
+        const pctDataset = totalFilter ? (100 * greenYellowBorder) / totalFilter : 0;
+        return {
+            totalFilter,
+            greenYellowBorder,
+            missIds,
+            pctDataset
+        };
+    }
+
+    countNonexist005000BorderKindsInIndices(indices) {
+        const out = { green: 0, yellow: 0, red: 0, none: 0 };
+        if (!Array.isArray(indices)) {
+            return out;
+        }
+        for (let i = 0; i < indices.length; i++) {
+            const k = this.getNonexist005000BoostBorderKindForRow(indices[i]);
+            if (k === 'green') {
+                out.green++;
+            } else if (k === 'yellow') {
+                out.yellow++;
+            } else if (k === 'red') {
+                out.red++;
+            } else {
+                out.none++;
+            }
+        }
+        return out;
+    }
+
+    /**
      * Answer popup open + Submit OFF: dim result/note and show empty-style nonexist on focus row.
      */
     setAnswerPopupFocusMask(opts) {
@@ -1566,6 +2070,13 @@ class RightPaneSheetManager {
         } else {
             tableWrap.querySelectorAll('tbody tr').forEach(tr => {
                 tr.style.cursor = 'pointer';
+            });
+        }
+
+        if (!tableWrap.dataset.nonexistContextmenuBound) {
+            tableWrap.dataset.nonexistContextmenuBound = '1';
+            tableWrap.addEventListener('contextmenu', (e) => {
+                this.handleNonexistCellContextMenu(e, tableWrap);
             });
         }
 
@@ -2984,412 +3495,1441 @@ class RightPaneSheetManager {
         };
     }
 
+
     /**
-     * Danh sách prevId trong note (thứ tự khối trái → phải), parse nhanh từ chuỗi đã build.
+     * Chỉ số dòng < endExclusive có đủ 5 số chính (walk-forward; không gồm kỳ đang dự đoán).
      */
-    parseAllPrevIdsFromNoteText(noteText) {
-        const t = String(noteText || '').trim();
-        if (!t || t === '?') {
-            return [];
-        }
-        const parts = t.split(/\s{3,}/);
+    collectValidMainDrawIndicesBefore(rows, endExclusive) {
         const out = [];
-        for (let i = 0; i < parts.length; i++) {
-            const m = parts[i].trim().match(/^(\d+)-(\d+)/);
-            if (m) {
-                const prevId = this.parseRowId(m[2]);
-                if (prevId !== null) {
-                    out.push(prevId);
-                }
+        const rowsArr = rows || [];
+        const n = Math.min(endExclusive | 0, rowsArr.length);
+        for (let j = 0; j < n; j++) {
+            const m = this.parseMainNums((rowsArr[j] && (rowsArr[j].result || rowsArr[j].Result)) || '');
+            if (m.length === 5) {
+                out.push(j);
             }
         }
         return out;
     }
 
-    l2SquaredDistanceKnnVector(a, b, dim) {
-        const d = Number(dim) || 60;
+    mainFiveValidNum(n) {
+        const u = Number(n);
+        return Number.isFinite(u) && u >= 1 && u <= 35;
+    }
+
+    mainFiveMarginalLog(countArr, n, alpha) {
+        const a = Number(alpha) > 0 ? alpha : 0.35;
+        let tot = 0;
+        for (let i = 1; i <= 35; i++) {
+            tot += countArr[i] || 0;
+        }
+        const c = countArr[n] || 0;
+        return Math.log((c + a) / (tot + 35 * a));
+    }
+
+    /**
+     * Đếm multiset main (5 số) trên tail kỳ hợp lệ cuối của validIdx (walk-forward).
+     */
+    mainFiveHintCountMainOnValidTail(validIdx, rowsArr, tailLen) {
+        const c = new Array(36).fill(0);
+        const L = validIdx.length;
+        const t = Math.max(1, Math.min(L, tailLen | 0));
+        const start = Math.max(0, L - t);
+        for (let i = start; i < L; i++) {
+            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
+            for (let u = 0; u < m.length; u++) {
+                const x = m[u];
+                if (this.mainFiveValidNum(x)) {
+                    c[x]++;
+                }
+            }
+        }
+        return c;
+    }
+
+    /**
+     * gapDraws[n] = số kỳ hợp lệ kể từ lần cuối n xuất hiện đến kỳ hợp lệ cuối; avgGap[n] = TB khoảng cách (theo chỉ số kỳ hợp lệ) giữa các lần xuất hiện.
+     */
+    mainFiveHintGapStatsOnValid(validIdx, rowsArr) {
+        const L = validIdx.length;
+        const lastAt = new Array(36).fill(-1);
+        const gapSum = new Array(36).fill(0);
+        const gapCnt = new Array(36).fill(0);
+        for (let i = 0; i < L; i++) {
+            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
+            for (let u = 0; u < m.length; u++) {
+                const x = m[u];
+                if (!this.mainFiveValidNum(x)) {
+                    continue;
+                }
+                if (lastAt[x] >= 0) {
+                    gapSum[x] += i - lastAt[x];
+                    gapCnt[x]++;
+                }
+                lastAt[x] = i;
+            }
+        }
+        const gapDraws = new Array(36).fill(0);
+        const avgGap = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            gapDraws[n] = lastAt[n] >= 0 ? L - 1 - lastAt[n] : L;
+            avgGap[n] = gapCnt[n] > 0 ? gapSum[n] / gapCnt[n] : L;
+        }
+        return { gapDraws, avgGap };
+    }
+
+    /**
+     * Mỗi cạnh (a,b) trong cùng một kỳ (tail hợp lệ): +1 vào bậc hai đỉnh (đại lượng co-occurrence đơn giản).
+     */
+    mainFiveHintPairDegreeOnValidTail(validIdx, rowsArr, tailLen) {
+        const deg = new Array(36).fill(0);
+        const L = validIdx.length;
+        const t = Math.max(1, Math.min(L, tailLen | 0));
+        const start = Math.max(0, L - t);
+        for (let i = start; i < L; i++) {
+            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
+            const nums = [];
+            for (let u = 0; u < m.length; u++) {
+                if (this.mainFiveValidNum(m[u])) {
+                    nums.push(m[u]);
+                }
+            }
+            for (let a = 0; a < nums.length; a++) {
+                for (let b = a + 1; b < nums.length; b++) {
+                    deg[nums[a]]++;
+                    deg[nums[b]]++;
+                }
+            }
+        }
+        return deg;
+    }
+
+    /** Chuẩn hóa z-score trên 35 số (chỉ số 1..35). */
+    mainFiveHintZScore36(vals36) {
         let s = 0;
-        for (let i = 0; i < d; i++) {
-            const u = a[i] || 0;
-            const v = b[i] || 0;
-            const df = u - v;
-            s += df * df;
+        let s2 = 0;
+        const c = 35;
+        for (let n = 1; n <= 35; n++) {
+            const v = vals36[n] || 0;
+            s += v;
+            s2 += v * v;
         }
-        return s;
-    }
-
-    /**
-     * Vector 50 chiều = 5 số chính × 10 dòng cửa sổ ngay trước endExclusive (không gồm dòng endExclusive).
-     */
-    getWindowFeatureVectorForKnn(rows, endExclusive) {
-        const vec = [];
-        const start = Math.max(0, endExclusive - 10);
-        for (let i = start; i < endExclusive; i++) {
-            const nums = this.parseMainNums(rows[i].result || rows[i].Result || '');
-            for (let t = 0; t < 5; t++) {
-                vec.push(nums[t] !== undefined ? nums[t] : 0);
-            }
-        }
-        while (vec.length < 50) {
-            vec.unshift(0);
-        }
-        return vec.length > 50 ? vec.slice(-50) : vec;
-    }
-
-    /**
-     * 60 chiều: 50 số + 10 ID kỳ trong cửa sổ (chuẩn hoá min–max trong cửa sổ).
-     */
-    getWindowKnnFeatureExtended(rows, endExclusive) {
-        const base = this.getWindowFeatureVectorForKnn(rows, endExclusive);
-        const start = Math.max(0, endExclusive - 10);
-        const ids = [];
-        let minI = Infinity;
-        let maxI = -Infinity;
-        for (let i = start; i < endExclusive; i++) {
-            const id = this.parseRowId(rows[i].id || rows[i].ID || '');
-            const v = id !== null ? id : 0;
-            ids.push(v);
-            if (id !== null) {
-                minI = Math.min(minI, id);
-                maxI = Math.max(maxI, id);
-            }
-        }
-        while (ids.length < 10) {
-            ids.unshift(0);
-        }
-        const idSlice = ids.length > 10 ? ids.slice(-10) : ids;
-        const ext = base.slice();
-        if (!Number.isFinite(minI) || !Number.isFinite(maxI)) {
-            for (let k = 0; k < 10; k++) {
-                ext.push(0);
-            }
-        } else {
-            const span = Math.max(1, maxI - minI);
-            for (let k = 0; k < 10; k++) {
-                ext.push((idSlice[k] - minI) / span);
-            }
-        }
-        return ext;
-    }
-
-    /** Tập prevId hợp lệ trong cửa sổ 10 dòng trước rowIndex. */
-    getWindowPrevIdsSet(rows, rowIndex) {
-        const set = new Set();
-        const start = Math.max(0, rowIndex - 10);
-        for (let i = start; i < rowIndex; i++) {
-            const id = this.parseRowId(rows[i].id || rows[i].ID || '');
-            if (id !== null) {
-                set.add(id);
-            }
-        }
-        return set;
-    }
-
-    /**
-     * Hàng trong cửa sổ 10 có ID = prevId. Ưu tiên dòng *sát nhất* (Chuỗi 1 trước) nếu trùng ID.
-     */
-    findWindowRowIndexForPrevId(rows, focusedIdx, prevId) {
-        const lo = Math.max(0, focusedIdx - 10);
-        for (let i = focusedIdx - 1; i >= lo; i--) {
-            if (this.parseRowId(rows[i].id || rows[i].ID || '') === prevId) {
-                return i;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Nhãn bảng 2 giống ok_left renderTable2: Chuỗi (focusedIdx - refRowIdx), ref gần hơn → số nhỏ hơn.
-     */
-    rankedPrevIdsToChuoiLabels(rows, focusedIdx, rankedPrevIds) {
-        const seen = new Set();
-        const out = [];
-        for (let p = 0; p < rankedPrevIds.length; p++) {
-            const prevId = rankedPrevIds[p];
-            const ri = this.findWindowRowIndexForPrevId(rows, focusedIdx, prevId);
-            if (ri === null) {
-                continue;
-            }
-            const n = focusedIdx - ri;
-            if (n < 1 || n > 10) {
-                continue;
-            }
-            const lab = `Chuỗi ${n}`;
-            if (seen.has(lab)) {
-                continue;
-            }
-            seen.add(lab);
-            out.push(lab);
+        const mean = s / c;
+        const vrc = s2 / c - mean * mean;
+        const std = Math.sqrt(Math.max(vrc, 1e-12));
+        const out = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            out[n] = ((vals36[n] || 0) - mean) / std;
         }
         return out;
     }
 
     /**
-     * Tần suất prevId trong note các dòng [10, endExclusive) — walk-forward.
+     * Giống mainFiveHintGapStatsOnValid nhưng thêm max khoảng cách giữa hai lần xuất hiện liên tiếp (theo chỉ số kỳ hợp lệ).
      */
-    buildPrevIdNoteFreqMapBefore(noteCache, endExclusive) {
-        const m = new Map();
-        const n = Math.max(0, endExclusive | 0);
-        for (let j = 10; j < n; j++) {
-            const txt = String((noteCache[j] && noteCache[j].text) || '').trim();
-            if (!txt || txt === '?') continue;
-            for (const id of this.parseAllPrevIdsFromNoteText(txt)) {
-                m.set(id, (m.get(id) || 0) + 1);
-            }
-        }
-        return m;
-    }
-
-    /**
-     * Đếm (id dòng j-1, prevId trong note j), j ∈ [11, endExclusive) — không dùng result dòng đang chấm.
-     */
-    buildMarkovPrevRowToPrevIdCounts(rows, noteCache, endExclusive) {
-        const m = new Map();
-        const n = Math.max(0, endExclusive | 0);
-        for (let j = 11; j < n; j++) {
-            const prevRowId = this.parseRowId((rows[j - 1] && (rows[j - 1].id || rows[j - 1].ID)) || '');
-            if (prevRowId === null) continue;
-            const txt = String((noteCache[j] && noteCache[j].text) || '').trim();
-            if (!txt || txt === '?') continue;
-            for (const id of this.parseAllPrevIdsFromNoteText(txt)) {
-                const key = prevRowId + '\0' + id;
-                m.set(key, (m.get(key) || 0) + 1);
-            }
-        }
-        return m;
-    }
-
-    /**
-     * Mỗi dòng j≥10: vector mở rộng từ 10 dòng trước j + nhãn prevId trong note của j.
-     */
-    ensureKnnNoteRefTrainingSamples(rows) {
-        const n = rows.length;
-        const vecDim = 60;
-        if (this._knnNoteRefTrainCache && this._knnNoteRefTrainRowsLen === n && this._knnNoteRefTrainVecDim === vecDim) {
-            return this._knnNoteRefTrainCache;
-        }
-        const noteMetas = this.buildNotesFromRows(rows);
-        const samples = [];
-        for (let j = 10; j < n; j++) {
-            const vec = this.getWindowKnnFeatureExtended(rows, j);
-            const txt = String((noteMetas[j] && noteMetas[j].text) || '').trim();
-            const labels = (txt && txt !== '?') ? this.parseAllPrevIdsFromNoteText(txt) : [];
-            samples.push({ j, vec, labels });
-        }
-        this._knnNoteRefTrainCache = samples;
-        this._knnNoteRefTrainRowsLen = n;
-        this._knnNoteRefTrainVecDim = vecDim;
-        return samples;
-    }
-
-    /**
-     * Rút gọn danh sách prevId theo điểm: ít gợi ý, giữ những mục còn tương đối mạnh so với top.
-     * @param {Array<[number, number]>} sortedEntries — [prevId, score], score giảm dần
-     */
-    pruneKnnNoteRefScores(sortedEntries, opts) {
-        const maxPick = (opts && opts.maxPick) || 3;
-        const minRelTop = (opts && opts.minRelTop) || 0.36;
-        const minRelPrev = (opts && opts.minRelPrev) || 0.52;
-        if (!sortedEntries.length) {
-            return [];
-        }
-        const top = sortedEntries[0][1];
-        if (!(top > 0)) {
-            return sortedEntries.map((e) => e[0]);
-        }
-        const out = [sortedEntries[0][0]];
-        for (let i = 1; i < sortedEntries.length && out.length < maxPick; i++) {
-            const [id, sc] = sortedEntries[i];
-            if (sc < minRelTop * top) {
-                break;
-            }
-            if (sc < minRelPrev * sortedEntries[i - 1][1]) {
-                break;
-            }
-            out.push(id);
-        }
-        return out;
-    }
-
-    /**
-     * Gợi ý prevId: KNN 60D + combo(prefix) + overlap cửa sổ + tần suất prev trong note trước
-     * + recency trong cửa sổ + Markov (ID dòng liền trước → prevId); không dùng result/note dòng idx.
-     */
-    predictNoteRefsFromKnn(rows, idx, kNeighbors) {
-        const neighborCap = Math.min(22, Math.max(14, (kNeighbors || 8) * 2 + 4));
-        const n = rows.length;
-        const noteMetas = (this.noteCache && this.noteCache.length === n)
-            ? this.noteCache
-            : this.buildNotesFromRows(rows);
-        const samplesAll = this.ensureKnnNoteRefTrainingSamples(rows);
-        const samples = samplesAll.filter((s) => s.j < idx);
-        const windowIds = this.getWindowPrevIdsSet(rows, idx);
-        if (!windowIds.size) {
-            return { ranked: [], trainN: samples.length, kUsed: 0, reason: 'no_window_ids' };
-        }
-        if (!samples.length) {
-            return { ranked: [], trainN: 0, kUsed: 0, reason: 'no_train' };
-        }
-        const vecT = this.getWindowKnnFeatureExtended(rows, idx);
-        const scored = samples.map((s) => ({
-            s,
-            dist: this.l2SquaredDistanceKnnVector(vecT, s.vec, 60)
-        }));
-        scored.sort((a, b) => a.dist - b.dist);
-        const slice = scored.slice(0, Math.min(neighborCap, scored.length));
-        const dists = slice.map((x) => x.dist).sort((a, b) => a - b);
-        const qIdx = Math.max(0, Math.floor((dists.length - 1) * 0.28));
-        const sigmaSq = Math.max(dists[qIdx] * 0.85, 1e-4);
-        const knnVotes = new Map();
-        for (let t = 0; t < slice.length; t++) {
-            const w = Math.exp(-slice[t].dist / (2 * sigmaSq));
-            const labels = slice[t].s.labels;
-            const dil = Math.max(1, labels.length);
-            for (let u = 0; u < labels.length; u++) {
-                const id = labels[u];
-                if (windowIds.has(id)) {
-                    knnVotes.set(id, (knnVotes.get(id) || 0) + w / dil);
+    mainFiveHintGapStatsWithMaxOnValid(validIdx, rowsArr) {
+        const L = validIdx.length;
+        const lastAt = new Array(36).fill(-1);
+        const maxBetween = new Array(36).fill(0);
+        const gapSum = new Array(36).fill(0);
+        const gapCnt = new Array(36).fill(0);
+        for (let i = 0; i < L; i++) {
+            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
+            for (let u = 0; u < m.length; u++) {
+                const x = m[u];
+                if (!this.mainFiveValidNum(x)) {
+                    continue;
                 }
-            }
-        }
-        const fillFromFreq = () => {
-            const freq = new Map();
-            for (let i = 0; i < samples.length; i++) {
-                const labels = samples[i].labels;
-                const dil = Math.max(1, labels.length);
-                for (let u = 0; u < labels.length; u++) {
-                    const id = labels[u];
-                    if (windowIds.has(id)) {
-                        freq.set(id, (freq.get(id) || 0) + 1 / dil);
+                if (lastAt[x] >= 0) {
+                    const g = i - lastAt[x];
+                    gapSum[x] += g;
+                    gapCnt[x]++;
+                    if (g > maxBetween[x]) {
+                        maxBetween[x] = g;
                     }
                 }
-            }
-            knnVotes.clear();
-            for (const [id, v] of freq.entries()) {
-                knnVotes.set(id, v);
-            }
-        };
-        if (!knnVotes.size) {
-            fillFromFreq();
-        }
-        let knnMax = 0;
-        for (const v of knnVotes.values()) {
-            knnMax = Math.max(knnMax, v);
-        }
-        if (knnMax < 1e-12) {
-            fillFromFreq();
-            knnMax = 0;
-            for (const v of knnVotes.values()) {
-                knnMax = Math.max(knnMax, v);
+                lastAt[x] = i;
             }
         }
-        if (knnMax < 1e-12) {
-            knnMax = 1e-12;
+        const gapDraws = new Array(36).fill(0);
+        const avgGap = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            gapDraws[n] = lastAt[n] >= 0 ? L - 1 - lastAt[n] : L;
+            avgGap[n] = gapCnt[n] > 0 ? gapSum[n] / gapCnt[n] : L;
         }
-        const noteFreqBefore = this.buildPrevIdNoteFreqMapBefore(noteMetas, idx);
-        const markovCounts = this.buildMarkovPrevRowToPrevIdCounts(rows, noteMetas, idx);
-        const prevRowIdForMarkov = this.parseRowId((rows[idx - 1] && (rows[idx - 1].id || rows[idx - 1].ID)) || '');
-        const loWin = Math.max(0, idx - 10);
-        const denomRec = Math.max(1, idx - 1 - loWin);
+        return { gapDraws, avgGap, maxBetween };
+    }
 
-        const comboMaps = this.buildComboRawCountMapsUpTo(rows, idx);
-        const windowUnion = this.getWindowMainNumUnionSet(rows, idx);
-        const blendBase = { wKnn: 1, wCombo: 0.55, wUnion: 0.12, wFreq: 0.48, wRec: 0.32, wMarkov: 0 };
-        const blend = { ...blendBase, ...(this.refHintBlend || {}) };
-        const cw = this.refHintComboW || { w1: 0.42, w2: 0.38, w3: 0.2 };
-        const rowsArr = [];
-        for (const id of windowIds) {
-            const ri = this.findWindowRowIndexForPrevId(rows, idx, id);
-            const mains = ri !== null ? this.parseMainNums((rows[ri] && (rows[ri].result || rows[ri].Result)) || '') : [];
-            const comp = this.scoreReferenceAuxComponentsForPrevRow(mains, comboMaps, windowUnion);
-            const kn = (knnVotes.get(id) || 0) / knnMax;
-            const freqN = Math.log1p(noteFreqBefore.get(id) || 0);
-            let rec = 0;
-            if (ri !== null) {
-                rec = (ri - loWin) / denomRec;
+    /** Ma trận đồng xuất hiện cặp (đối xứng) trên tail kỳ hợp lệ. */
+    mainFiveHintPairMatrixTail(validIdx, rowsArr, tailLen) {
+        const P = [];
+        for (let i = 0; i < 36; i++) {
+            P[i] = new Array(36).fill(0);
+        }
+        const L = validIdx.length;
+        const t = Math.max(1, Math.min(L, tailLen | 0));
+        const start = Math.max(0, L - t);
+        for (let i = start; i < L; i++) {
+            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
+            const nums = [];
+            for (let u = 0; u < m.length; u++) {
+                if (this.mainFiveValidNum(m[u])) {
+                    nums.push(m[u]);
+                }
             }
-            let mark = 0;
-            if (prevRowIdForMarkov !== null) {
-                const mk = prevRowIdForMarkov + '\0' + id;
-                mark = Math.log1p((markovCounts.get(mk) || 0) + 0.5);
+            for (let a = 0; a < nums.length; a++) {
+                for (let b = a + 1; b < nums.length; b++) {
+                    const u = nums[a];
+                    const v = nums[b];
+                    P[u][v]++;
+                    P[v][u]++;
+                }
             }
-            rowsArr.push({ id, kn, s1: comp.s1, s2m: comp.s2m, s3m: comp.s3m, union: comp.union, freqN, rec, mark });
         }
-        let maxC = 0;
-        let maxU = 0;
-        let maxF = 0;
-        let maxR = 0;
-        let maxM = 0;
-        for (let i = 0; i < rowsArr.length; i++) {
-            const row = rowsArr[i];
-            const combo = cw.w1 * row.s1 + cw.w2 * row.s2m + cw.w3 * row.s3m;
-            maxC = Math.max(maxC, combo);
-            maxU = Math.max(maxU, row.union);
-            maxF = Math.max(maxF, row.freqN);
-            maxR = Math.max(maxR, row.rec);
-            maxM = Math.max(maxM, row.mark);
+        return P;
+    }
+
+    /** Hub = tổng trọng số cạnh; tam giác = tổng min(P_na,P_nb) (proxy triple / cụm). */
+    mainFiveHintPairHubTriangle36(P) {
+        const hub = new Array(36).fill(0);
+        const tri = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            let h = 0;
+            let tr = 0;
+            for (let a = 1; a <= 35; a++) {
+                if (a === n) {
+                    continue;
+                }
+                const pan = P[n][a] || 0;
+                h += pan;
+                for (let b = a + 1; b <= 35; b++) {
+                    if (b === n) {
+                        continue;
+                    }
+                    tr += Math.min(pan, P[n][b] || 0);
+                }
+            }
+            hub[n] = h;
+            tri[n] = tr;
         }
-        if (maxC < 1e-9) {
-            maxC = 1e-9;
+        return { hub, tri };
+    }
+
+    /** Phương sai tần suất xuất hiện qua các đoạn tail (proxy volatility §5). */
+    mainFiveHintSegVolatility36(validIdx, rowsArr, tailDraws, nSeg) {
+        const L = validIdx.length;
+        const T = Math.max(nSeg, Math.min(L, tailDraws | 0));
+        const start = L - T;
+        const segLen = Math.max(1, Math.floor(T / Math.max(2, nSeg | 0)));
+        const nS = Math.max(2, nSeg | 0);
+        const segC = [];
+        for (let s = 0; s < nS; s++) {
+            segC.push(new Array(36).fill(0));
         }
-        if (maxU < 1e-9) {
-            maxU = 1e-9;
+        for (let j = 0; j < T; j++) {
+            const i = start + j;
+            const si = Math.min(nS - 1, Math.floor(j / segLen));
+            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
+            for (let u = 0; u < m.length; u++) {
+                const x = m[u];
+                if (this.mainFiveValidNum(x)) {
+                    segC[si][x]++;
+                }
+            }
         }
-        if (maxF < 1e-9) {
-            maxF = 1e-9;
+        const vol = new Array(36).fill(0);
+        const stab = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            let s = 0;
+            for (let t = 0; t < nS; t++) {
+                s += segC[t][n];
+            }
+            const mean = s / nS;
+            let v = 0;
+            for (let t = 0; t < nS; t++) {
+                const d = segC[t][n] - mean;
+                v += d * d;
+            }
+            v /= nS;
+            vol[n] = v;
+            stab[n] = 1 / (1 + 4 * v);
         }
-        if (maxR < 1e-9) {
-            maxR = 1e-9;
+        return { vol, stab };
+    }
+
+    /**
+     * Khi n xuất hiện trong tail: độ lệch cấu trúc kỳ (|lẻ−2.5| + |thấp(1–17)−2.5|) / 2 — cao hơn = kỳ lệch (§6 proxy).
+     * Trả về điểm âm TB (ưu tiên số hay nằm trong kỳ “cân” hơn).
+     */
+    mainFiveHintHitStructuralSkew36(validIdx, rowsArr, tailLen) {
+        const sumSk = new Array(36).fill(0);
+        const hitCnt = new Array(36).fill(0);
+        const sumSpread = new Array(36).fill(0);
+        const L = validIdx.length;
+        const t = Math.max(1, Math.min(L, tailLen | 0));
+        const start = Math.max(0, L - t);
+        for (let i = start; i < L; i++) {
+            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
+            const nums = [];
+            for (let u = 0; u < m.length; u++) {
+                if (this.mainFiveValidNum(m[u])) {
+                    nums.push(m[u]);
+                }
+            }
+            if (nums.length < 5) {
+                continue;
+            }
+            let odd = 0;
+            let low = 0;
+            for (let k = 0; k < nums.length; k++) {
+                if (nums[k] % 2 === 1) {
+                    odd++;
+                }
+                if (nums[k] <= 17) {
+                    low++;
+                }
+            }
+            const sk = (Math.abs(odd - 2.5) + Math.abs(low - 2.5)) * 0.5;
+            const sm = nums.slice().sort((a, b) => a - b);
+            const spread = (sm[sm.length - 1] - sm[0]) / 34;
+            for (let k = 0; k < nums.length; k++) {
+                const n = nums[k];
+                sumSk[n] += sk;
+                sumSpread[n] += spread;
+                hitCnt[n]++;
+            }
         }
-        if (maxM < 1e-9) {
-            maxM = 1e-9;
+        const balHit = new Array(36).fill(0);
+        const spreadHit = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            const c = hitCnt[n] || 0;
+            if (c > 0) {
+                balHit[n] = -(sumSk[n] / c);
+                spreadHit[n] = sumSpread[n] / c;
+            }
         }
-        const sortedEntries = rowsArr.map(({ id, kn, s1, s2m, s3m, union, freqN, rec, mark }) => {
-            const combo = cw.w1 * s1 + cw.w2 * s2m + cw.w3 * s3m;
-            const cN = combo / maxC;
-            const uN = union / maxU;
-            const sc = blend.wKnn * kn
-                + blend.wCombo * cN
-                + blend.wUnion * uN
-                + blend.wFreq * (freqN / maxF)
-                + blend.wRec * (rec / maxR)
-                + blend.wMarkov * (mark / maxM);
-            return [id, sc];
-        }).sort((a, b) => b[1] - a[1]);
-        const pr = this.refHintPrune || { maxPick: 3, minRelTop: 0.22, minRelPrev: 0.38 };
-        const ranked = this.pruneKnnNoteRefScores(sortedEntries, pr);
+        return { balHit, spreadHit };
+    }
+
+    /** PRNG deterministic (§13 Monte Carlo có thể lặp lại theo seed). */
+    mainFiveHintMulberry32(seed) {
+        let a = seed >>> 0;
+        return () => {
+            a += 0x6d2b79f5;
+            let t = a;
+            t = Math.imul(t ^ (t >>> 15), t | 1);
+            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
+    mainFiveHintMcPoolTallyFromComposite(ctx, poolN, sampleCount) {
+        const { ptxtComposite, countArr, windowCountArr } = ctx;
+        const M = Math.min(35, Math.max(1, poolN | 0));
+        const samples = Math.max(8, Math.min(200, sampleCount | 0));
+        let seed = (ctx.forecastIdx | 0) * 2654435761;
+        for (let n = 1; n <= 35; n++) {
+            seed = (Math.imul(seed + (countArr[n] | 0), n + 31)) >>> 0;
+        }
+        const rnd = this.mainFiveHintMulberry32(seed);
+        const tally = new Array(36).fill(0);
+        for (let s = 0; s < samples; s++) {
+            const avail = [];
+            for (let n = 1; n <= 35; n++) {
+                avail.push(n);
+            }
+            for (let pick = 0; pick < M; pick++) {
+                let sumw = 0;
+                const w = [];
+                for (let i = 0; i < avail.length; i++) {
+                    const n = avail[i];
+                    const sc = Math.max(1e-6, Math.exp(0.85 * (ptxtComposite[n] || 0)));
+                    w.push(sc);
+                    sumw += sc;
+                }
+                let r = rnd() * sumw;
+                let chosen = 0;
+                for (let i = 0; i < avail.length; i++) {
+                    r -= w[i];
+                    if (r <= 0) {
+                        chosen = i;
+                        break;
+                    }
+                }
+                const n = avail[chosen];
+                tally[n]++;
+                avail[chosen] = avail[avail.length - 1];
+                avail.pop();
+            }
+        }
+        const score36 = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            score36[n] = tally[n] + 0.001 * (ptxtComposite[n] || 0);
+        }
+        return this.mainFiveHintSortCandidatesFromScore36(score36, countArr, windowCountArr).slice(0, M);
+    }
+
+    /**
+     * Pool §11: ổn định / momentum / overdue / hub theo tỉ lệ 3:3:2:2 (scale theo poolN).
+     */
+    mainFiveHintPicksStratified3322Top(ctx, poolN) {
+        const {
+            ptxtStab,
+            ptxtMom,
+            ptxtOverdueRatio,
+            ptxtPairHub,
+            ptxtComposite,
+            countArr,
+            windowCountArr
+        } = ctx;
+        const M = Math.min(35, Math.max(1, poolN | 0));
+        const sortBy = (arr) => this.mainFiveHintSortCandidatesFromScore36(arr, countArr, windowCountArr);
+        const nSt = Math.max(1, Math.round((3 * M) / 10));
+        const nMo = Math.max(1, Math.round((3 * M) / 10));
+        const nOv = Math.max(1, Math.round((2 * M) / 10));
+        const nHb = Math.max(1, M - nSt - nMo - nOv);
+        const lists = [
+            sortBy(ptxtStab),
+            sortBy(ptxtMom),
+            sortBy(ptxtOverdueRatio),
+            sortBy(ptxtPairHub)
+        ];
+        const quotas = [nSt, nMo, nOv, nHb];
+        const ptr = [0, 0, 0, 0];
+        const used = new Set();
+        const out = [];
+        const takeFrom = (lane, need) => {
+            const lst = lists[lane];
+            let got = 0;
+            while (got < need && ptr[lane] < lst.length) {
+                const n = lst[ptr[lane]++];
+                if (!used.has(n)) {
+                    used.add(n);
+                    out.push(n);
+                    got++;
+                }
+            }
+            return got;
+        };
+        for (let lane = 0; lane < 4; lane++) {
+            takeFrom(lane, quotas[lane]);
+        }
+        if (out.length < M) {
+            const fill = sortBy(ptxtComposite);
+            for (let i = 0; i < fill.length && out.length < M; i++) {
+                if (!used.has(fill[i])) {
+                    used.add(fill[i]);
+                    out.push(fill[i]);
+                }
+            }
+        }
+        return out.slice(0, M);
+    }
+
+    /**
+     * Bảng 1 (copy ý hai cột): số lần : các số — chỉ các số được dự đoán (picks),
+     * số lần = tần suất xuất hiện trong các kỳ học (countArr).
+     */
+    mainFiveFormatPredictedFrequencyTableLines(picks, countArr) {
+        const byCount = new Map();
+        for (let i = 0; i < picks.length; i++) {
+            const n = picks[i];
+            const c = countArr[n] || 0;
+            if (!byCount.has(c)) {
+                byCount.set(c, []);
+            }
+            byCount.get(c).push(n);
+        }
+        const counts = Array.from(byCount.keys()).sort((a, b) => b - a);
+        const out = [];
+        for (let j = 0; j < counts.length; j++) {
+            const c = counts[j];
+            const nums = byCount.get(c).slice().sort((a, b) => a - b);
+            out.push(`${c}: ${nums.join(', ')}`);
+        }
+        return out;
+    }
+
+    /**
+     * Chọn pool hint từ danh sách 1..35 đã sắp theo điểm (cao → thấp): trải đều theo thứ hạng
+     * trong dải top-band — tránh toàn bộ pool là N số freq cao nhất liền nhau.
+     * @param {number[]} sortedCandidates
+     * @param {number} poolN
+     * @param {number} bandMult
+     * @returns {number[]}
+     */
+    mainFiveHintPickSpacedPool(sortedCandidates, poolN, bandMult) {
+        const M = Math.min(35, Math.max(1, poolN | 0));
+        const mult = Number(bandMult) > 0 ? bandMult : 3;
+        const bandSize = Math.min(
+            35,
+            Math.max(M, Math.ceil(M * mult))
+        );
+        const band = sortedCandidates.slice(0, bandSize);
+        const last = band.length - 1;
+        if (M === 1 || last <= 0) {
+            return band.slice(0, M);
+        }
+        const picks = [];
+        const used = new Set();
+        for (let k = 0; k < M; k++) {
+            let idx = Math.floor((k * last) / (M - 1));
+            idx = Math.max(0, Math.min(last, idx));
+            let guard = 0;
+            while (used.has(band[idx]) && guard <= last + 1) {
+                idx = (idx + 1) % band.length;
+                guard++;
+            }
+            const n = band[idx];
+            used.add(n);
+            picks.push(n);
+        }
+        const rankByNum = new Map();
+        for (let i = 0; i < sortedCandidates.length; i++) {
+            rankByNum.set(sortedCandidates[i], i);
+        }
+        picks.sort((a, b) => (rankByNum.get(a) - rankByNum.get(b)));
+        return picks;
+    }
+
+    /** Thứ tự ưu tiên khi benchmark hòa điểm (cái đứng trước được giữ). */
+    static MAIN_FIVE_HINT_STRATEGY_IDS = [
+        'blend_spaced',
+        'equal_spaced',
+        'full_spaced',
+        'window_spaced',
+        'blend_top',
+        'equal_top',
+        'full_top',
+        'window_top',
+        'cold_spaced',
+        'sumlog_spaced',
+        'sumlog_top',
+        'maxlog_spaced',
+        'maxlog_top',
+        'minlog_spaced',
+        'minlog_top',
+        'recent_spaced',
+        'recent_top',
+        'triple_spaced',
+        'triple_top',
+        'union_half_fill_top',
+        'boost_spaced',
+        'boost_top',
+        'ptxt_roll20_spaced',
+        'ptxt_roll20_top',
+        'ptxt_composite_spaced',
+        'ptxt_composite_top',
+        'ptxt_gap_spaced',
+        'ptxt_gap_top',
+        'ptxt_deg_spaced',
+        'ptxt_deg_top',
+        'ptxt_strat10_top',
+        'ptxt_accel_spaced',
+        'ptxt_accel_top',
+        'ptxt_overdue_spaced',
+        'ptxt_overdue_top',
+        'ptxt_maxgap_anom_spaced',
+        'ptxt_maxgap_anom_top',
+        'ptxt_pairhub_spaced',
+        'ptxt_pairhub_top',
+        'ptxt_tri_cohesion_spaced',
+        'ptxt_tri_cohesion_top',
+        'ptxt_volatile_spaced',
+        'ptxt_volatile_top',
+        'ptxt_stable_spaced',
+        'ptxt_stable_top',
+        'ptxt_balhit_spaced',
+        'ptxt_balhit_top',
+        'ptxt_spreadhit_spaced',
+        'ptxt_spreadhit_top',
+        'ptxt_dyn_composite_spaced',
+        'ptxt_dyn_composite_top',
+        'ptxt_bayes7030_spaced',
+        'ptxt_bayes7030_top',
+        'ptxt_diverse_spaced',
+        'ptxt_diverse_top',
+        'ptxt_multisig_spaced',
+        'ptxt_multisig_top',
+        'ptxt_strat3322_top',
+        'ptxt_mc_pool_top',
+        'ptxt_cls_stable_top',
+        'ptxt_cls_momentum_top',
+        'ptxt_cls_overdue_top',
+        'ptxt_cls_hub_top',
+        'ptxt_cls_tri_top'
+    ];
+
+    /**
+     * @param {number[]} score36 chỉ số 1..35 dùng được
+     * @returns {number[]} 1..35 sắp cao → thấp
+     */
+    mainFiveHintSortCandidatesFromScore36(score36, countArr, windowCountArr) {
+        const candidates = [];
+        for (let n = 1; n <= 35; n++) {
+            candidates.push(n);
+        }
+        candidates.sort((a, b) => {
+            const ds = score36[b] - score36[a];
+            if (Math.abs(ds) > 1e-12) {
+                return ds > 0 ? 1 : -1;
+            }
+            const dc = (countArr[b] || 0) - (countArr[a] || 0);
+            if (dc !== 0) {
+                return dc > 0 ? 1 : -1;
+            }
+            const dwc = (windowCountArr[b] || 0) - (windowCountArr[a] || 0);
+            if (dwc !== 0) {
+                return dwc > 0 ? 1 : -1;
+            }
+            return a - b;
+        });
+        return candidates;
+    }
+
+    /**
+     * Tính count tích lũy / cửa sổ + log margin (walk-forward, không dùng dòng idx).
+     * @returns {object | null}
+     */
+    mainFiveHintBuildScoresAtIndex(rowsArr, idx) {
+        const validIdx = this.collectValidMainDrawIndicesBefore(rowsArr, idx);
+        if (!validIdx.length) {
+            return null;
+        }
+        const alphaRaw = Number(this.constructor.MAIN_FIVE_HINT_DIRICHLET_ALPHA);
+        const alpha = Number.isFinite(alphaRaw) && alphaRaw > 0 ? alphaRaw : 1.65;
+        const L = validIdx.length;
+        const slideLen = Math.min(
+            10,
+            Math.max(1, Number(this.constructor.MAIN_FIVE_HINT_SLIDE_LEN) || 10)
+        );
+        let slideW = Number(this.constructor.MAIN_FIVE_HINT_SLIDE_WEIGHT);
+        if (!Number.isFinite(slideW)) {
+            slideW = 0.45;
+        }
+        slideW = Math.max(0, Math.min(1, slideW));
+        const countArr = new Array(36).fill(0);
+        for (let i = 0; i < L; i++) {
+            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
+            for (let t = 0; t < m.length; t++) {
+                const x = m[t];
+                if (this.mainFiveValidNum(x)) {
+                    countArr[x]++;
+                }
+            }
+        }
+        const table1WinEnd = idx - 1;
+        const table1WinStart = Math.max(0, idx - slideLen);
+        const windowCountArr = new Array(36).fill(0);
+        let sheetWinRowCount = 0;
+        for (let ri = table1WinStart; ri <= table1WinEnd; ri++) {
+            const m = this.parseMainNums((rowsArr[ri] && (rowsArr[ri].result || rowsArr[ri].Result)) || '');
+            for (let t = 0; t < m.length; t++) {
+                const x = m[t];
+                if (this.mainFiveValidNum(x)) {
+                    windowCountArr[x]++;
+                }
+            }
+            sheetWinRowCount++;
+        }
+        const fullLog = new Array(36).fill(0);
+        const winLog = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            fullLog[n] = this.mainFiveMarginalLog(countArr, n, alpha);
+            winLog[n] = this.mainFiveMarginalLog(windowCountArr, n, alpha);
+        }
+        const recentK = Math.min(
+            L,
+            Math.max(1, Number(this.constructor.MAIN_FIVE_HINT_RECENT_VALID_K) || 20)
+        );
+        const recentStart = Math.max(0, L - recentK);
+        const recentCountArr = new Array(36).fill(0);
+        for (let ri = recentStart; ri < L; ri++) {
+            const m = this.parseMainNums((rowsArr[validIdx[ri]] && (rowsArr[validIdx[ri]].result || rowsArr[validIdx[ri]].Result)) || '');
+            for (let t = 0; t < m.length; t++) {
+                const x = m[t];
+                if (this.mainFiveValidNum(x)) {
+                    recentCountArr[x]++;
+                }
+            }
+        }
+        const recentLog = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            recentLog[n] = this.mainFiveMarginalLog(recentCountArr, n, alpha);
+        }
+        const cnt20 = this.mainFiveHintCountMainOnValidTail(validIdx, rowsArr, 20);
+        const cnt50 = this.mainFiveHintCountMainOnValidTail(validIdx, rowsArr, 50);
+        const cnt100 = this.mainFiveHintCountMainOnValidTail(validIdx, rowsArr, 100);
+        const ptxtRoll20Log = new Array(36).fill(0);
+        const ptxtRoll50Log = new Array(36).fill(0);
+        const ptxtRoll100Log = new Array(36).fill(0);
+        const ptxtMom = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            ptxtRoll20Log[n] = this.mainFiveMarginalLog(cnt20, n, alpha);
+            ptxtRoll50Log[n] = this.mainFiveMarginalLog(cnt50, n, alpha);
+            ptxtRoll100Log[n] = this.mainFiveMarginalLog(cnt100, n, alpha);
+            ptxtMom[n] = ptxtRoll20Log[n] - ptxtRoll100Log[n];
+        }
+        const { gapDraws, avgGap, maxBetween } = this.mainFiveHintGapStatsWithMaxOnValid(validIdx, rowsArr);
+        const ptxtGapRaw = new Array(36).fill(0);
+        const ptxtOverdueRatio = new Array(36).fill(0);
+        const ptxtMaxgapAnom = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            const ag = avgGap[n] || 1;
+            const gd = gapDraws[n] || 0;
+            ptxtGapRaw[n] = Math.log(1 + gd / (ag + 0.35));
+            ptxtOverdueRatio[n] = gd / (ag + 0.25);
+            const mx = Math.max(maxBetween[n] || 0, 1);
+            ptxtMaxgapAnom[n] = Math.log(1 + gd / (mx + 0.2));
+        }
+        const ptxtPairDeg = this.mainFiveHintPairDegreeOnValidTail(validIdx, rowsArr, 50);
+        const P50 = this.mainFiveHintPairMatrixTail(validIdx, rowsArr, 50);
+        const { hub: ptxtPairHub, tri: ptxtTriCohesion } = this.mainFiveHintPairHubTriangle36(P50);
+        const { vol: ptxtVol, stab: ptxtStab } = this.mainFiveHintSegVolatility36(validIdx, rowsArr, 120, 6);
+        const { balHit: ptxtBalHit, spreadHit: ptxtSpreadHit } = this.mainFiveHintHitStructuralSkew36(validIdx, rowsArr, 50);
+        const ptxtAccel = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            const v1 = ptxtRoll20Log[n] - ptxtRoll50Log[n];
+            const v2 = ptxtRoll50Log[n] - ptxtRoll100Log[n];
+            ptxtAccel[n] = v1 - v2;
+        }
+        const zR20 = this.mainFiveHintZScore36(ptxtRoll20Log);
+        const zR50 = this.mainFiveHintZScore36(ptxtRoll50Log);
+        const zMom = this.mainFiveHintZScore36(ptxtMom);
+        const zGap = this.mainFiveHintZScore36(ptxtGapRaw);
+        const zDeg = this.mainFiveHintZScore36(ptxtPairDeg);
+        const zFull = this.mainFiveHintZScore36(fullLog);
+        const zOver = this.mainFiveHintZScore36(ptxtOverdueRatio);
+        const zMaxg = this.mainFiveHintZScore36(ptxtMaxgapAnom);
+        const zHub = this.mainFiveHintZScore36(ptxtPairHub);
+        const zTri = this.mainFiveHintZScore36(ptxtTriCohesion);
+        const zVol = this.mainFiveHintZScore36(ptxtVol);
+        const zStab = this.mainFiveHintZScore36(ptxtStab);
+        const zBal = this.mainFiveHintZScore36(ptxtBalHit);
+        const zSpr = this.mainFiveHintZScore36(ptxtSpreadHit);
+        const zAcc = this.mainFiveHintZScore36(ptxtAccel);
+        const ptxtComposite = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            ptxtComposite[n] = 0.32 * zR20[n]
+                + 0.18 * zR50[n]
+                + 0.16 * zMom[n]
+                + 0.12 * zGap[n]
+                + 0.17 * zDeg[n]
+                + 0.05 * zFull[n];
+        }
+        const dynT = Math.min(1, L / 480);
+        const ptxtCompositeDyn = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            ptxtCompositeDyn[n] = (0.34 + 0.11 * dynT) * zR20[n]
+                + (0.19 - 0.05 * dynT) * zR50[n]
+                + 0.14 * zMom[n]
+                + 0.11 * zGap[n]
+                + (0.16 - 0.03 * dynT) * zDeg[n]
+                + 0.05 * zFull[n]
+                + 0.04 * zAcc[n]
+                + 0.03 * zHub[n];
+        }
+        const ptxtDiverseMix = new Array(36).fill(0);
+        const ptxtBayes7030 = new Array(36).fill(0);
+        const ptxtMultiSig = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            ptxtDiverseMix[n] = ptxtComposite[n] - 0.12 * zDeg[n];
+            ptxtBayes7030[n] = 0.7 * fullLog[n] + 0.3 * winLog[n];
+            ptxtMultiSig[n] = 0.28 * zOver[n] + 0.28 * zGap[n] + 0.22 * zHub[n] + 0.22 * zAcc[n];
+        }
         return {
-            ranked,
-            trainN: samples.length,
-            kUsed: slice.length,
-            reason: 'ok'
+            forecastIdx: idx,
+            validIdx,
+            countArr,
+            windowCountArr,
+            recentCountArr,
+            fullLog,
+            winLog,
+            recentLog,
+            ptxtRoll20Log,
+            ptxtRoll50Log,
+            ptxtRoll100Log,
+            ptxtMom,
+            ptxtGapRaw,
+            ptxtOverdueRatio,
+            ptxtMaxgapAnom,
+            ptxtPairDeg,
+            ptxtPairHub,
+            ptxtTriCohesion,
+            ptxtVol,
+            ptxtStab,
+            ptxtBalHit,
+            ptxtSpreadHit,
+            ptxtAccel,
+            ptxtComposite,
+            ptxtCompositeDyn,
+            ptxtDiverseMix,
+            ptxtBayes7030,
+            ptxtMultiSig,
+            sheetWinRowCount,
+            table1WinStart,
+            table1WinEnd,
+            slideLen,
+            slideW,
+            alpha,
+            L,
+            recentK
         };
     }
 
     /**
-     * Gợi ý Chuỗi 1…10 (bảng 2): tối đa 3 chuỗi; KNN + combo(prefix) + overlap cửa sổ — không dùng result/note dòng đang chọn.
+     * @param {string} strategyId một trong MAIN_FIVE_HINT_STRATEGY_IDS
+     * @param {object} ctx kết quả mainFiveHintBuildScoresAtIndex
+     * @returns {number[]}
      */
-    getNoteReferenceHintForRowIndex(rowIndex) {
+    mainFiveHintPicksForStrategy(strategyId, ctx, poolN, bandMult) {
+        const {
+            fullLog,
+            winLog,
+            slideW,
+            countArr,
+            windowCountArr,
+            recentLog,
+            ptxtRoll20Log,
+            ptxtComposite,
+            ptxtCompositeDyn,
+            ptxtGapRaw,
+            ptxtPairDeg,
+            ptxtOverdueRatio,
+            ptxtMaxgapAnom,
+            ptxtPairHub,
+            ptxtTriCohesion,
+            ptxtVol,
+            ptxtStab,
+            ptxtBalHit,
+            ptxtSpreadHit,
+            ptxtAccel,
+            ptxtDiverseMix,
+            ptxtBayes7030,
+            ptxtMultiSig
+        } = ctx;
+        const blend = (n) => (1 - slideW) * fullLog[n] + slideW * winLog[n];
+        if (strategyId === 'union_half_fill_top') {
+            return this.mainFiveHintPicksUnionHalfFillTop(ctx, poolN, blend);
+        }
+        if (strategyId === 'ptxt_strat10_top') {
+            return this.mainFiveHintPicksStratifiedPtxtTop(ctx, poolN);
+        }
+        if (strategyId === 'ptxt_strat3322_top') {
+            return this.mainFiveHintPicksStratified3322Top(ctx, poolN);
+        }
+        if (strategyId === 'ptxt_mc_pool_top') {
+            const Ctor = this.constructor;
+            const ns = Number(Ctor.MAIN_FIVE_HINT_MC_POOL_SAMPLES) || 40;
+            return this.mainFiveHintMcPoolTallyFromComposite(ctx, poolN, ns);
+        }
+        const score36 = new Array(36).fill(0);
+        const equal = (n) => 0.5 * fullLog[n] + 0.5 * winLog[n];
+        switch (strategyId) {
+            case 'blend_spaced':
+            case 'blend_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = blend(n);
+                }
+                break;
+            case 'equal_spaced':
+            case 'equal_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = equal(n);
+                }
+                break;
+            case 'full_spaced':
+            case 'full_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = fullLog[n];
+                }
+                break;
+            case 'window_spaced':
+            case 'window_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = winLog[n];
+                }
+                break;
+            case 'cold_spaced':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = -fullLog[n];
+                }
+                break;
+            case 'sumlog_spaced':
+            case 'sumlog_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = fullLog[n] + winLog[n];
+                }
+                break;
+            case 'maxlog_spaced':
+            case 'maxlog_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = Math.max(fullLog[n], winLog[n]);
+                }
+                break;
+            case 'minlog_spaced':
+            case 'minlog_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = Math.min(fullLog[n], winLog[n]);
+                }
+                break;
+            case 'recent_spaced':
+            case 'recent_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = recentLog[n];
+                }
+                break;
+            case 'triple_spaced':
+            case 'triple_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = (fullLog[n] + winLog[n] + recentLog[n]) / 3;
+                }
+                break;
+            case 'ptxt_roll20_spaced':
+            case 'ptxt_roll20_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtRoll20Log[n];
+                }
+                break;
+            case 'ptxt_composite_spaced':
+            case 'ptxt_composite_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtComposite[n];
+                }
+                break;
+            case 'ptxt_gap_spaced':
+            case 'ptxt_gap_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtGapRaw[n];
+                }
+                break;
+            case 'ptxt_deg_spaced':
+            case 'ptxt_deg_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtPairDeg[n];
+                }
+                break;
+            case 'ptxt_accel_spaced':
+            case 'ptxt_accel_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtAccel[n];
+                }
+                break;
+            case 'ptxt_overdue_spaced':
+            case 'ptxt_overdue_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtOverdueRatio[n];
+                }
+                break;
+            case 'ptxt_maxgap_anom_spaced':
+            case 'ptxt_maxgap_anom_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtMaxgapAnom[n];
+                }
+                break;
+            case 'ptxt_pairhub_spaced':
+            case 'ptxt_pairhub_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtPairHub[n];
+                }
+                break;
+            case 'ptxt_tri_cohesion_spaced':
+            case 'ptxt_tri_cohesion_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtTriCohesion[n];
+                }
+                break;
+            case 'ptxt_volatile_spaced':
+            case 'ptxt_volatile_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtVol[n];
+                }
+                break;
+            case 'ptxt_stable_spaced':
+            case 'ptxt_stable_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtStab[n];
+                }
+                break;
+            case 'ptxt_balhit_spaced':
+            case 'ptxt_balhit_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtBalHit[n];
+                }
+                break;
+            case 'ptxt_spreadhit_spaced':
+            case 'ptxt_spreadhit_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtSpreadHit[n];
+                }
+                break;
+            case 'ptxt_dyn_composite_spaced':
+            case 'ptxt_dyn_composite_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtCompositeDyn[n];
+                }
+                break;
+            case 'ptxt_bayes7030_spaced':
+            case 'ptxt_bayes7030_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtBayes7030[n];
+                }
+                break;
+            case 'ptxt_diverse_spaced':
+            case 'ptxt_diverse_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtDiverseMix[n];
+                }
+                break;
+            case 'ptxt_multisig_spaced':
+            case 'ptxt_multisig_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtMultiSig[n];
+                }
+                break;
+            case 'ptxt_cls_stable_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtStab[n];
+                }
+                break;
+            case 'ptxt_cls_momentum_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtAccel[n];
+                }
+                break;
+            case 'ptxt_cls_overdue_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtOverdueRatio[n];
+                }
+                break;
+            case 'ptxt_cls_hub_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtPairHub[n];
+                }
+                break;
+            case 'ptxt_cls_tri_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = ptxtTriCohesion[n];
+                }
+                break;
+            case 'boost_spaced':
+            case 'boost_top':
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = blend(n)
+                        + 0.12 * Math.min(12, countArr[n] || 0)
+                        + 0.08 * Math.min(8, windowCountArr[n] || 0);
+                }
+                break;
+            default:
+                for (let n = 1; n <= 35; n++) {
+                    score36[n] = blend(n);
+                }
+        }
+        const sorted = this.mainFiveHintSortCandidatesFromScore36(score36, countArr, windowCountArr);
+        const spaced = strategyId.endsWith('_spaced');
+        if (spaced) {
+            return this.mainFiveHintPickSpacedPool(sorted, poolN, bandMult);
+        }
+        return sorted.slice(0, poolN);
+    }
+
+    /**
+     * Lấy ceil(poolN/2) số đầu theo full, ceil(poolN/2) theo window (trùng thì bỏ qua), rồi fill theo blend tới đủ poolN.
+     * @param {function(number): number} blend
+     */
+    mainFiveHintPicksUnionHalfFillTop(ctx, poolN, blend) {
+        const { fullLog, winLog, countArr, windowCountArr } = ctx;
+        const M = Math.min(35, Math.max(1, poolN | 0));
+        const half = Math.min(17, Math.ceil(M / 2));
+        const scoreF = new Array(36).fill(0);
+        const scoreW = new Array(36).fill(0);
+        const scoreB = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            scoreF[n] = fullLog[n];
+            scoreW[n] = winLog[n];
+            scoreB[n] = blend(n);
+        }
+        const sortedF = this.mainFiveHintSortCandidatesFromScore36(scoreF, countArr, windowCountArr);
+        const sortedW = this.mainFiveHintSortCandidatesFromScore36(scoreW, countArr, windowCountArr);
+        const sortedB = this.mainFiveHintSortCandidatesFromScore36(scoreB, countArr, windowCountArr);
+        const out = [];
+        for (let i = 0; i < sortedF.length && out.length < half; i++) {
+            const n = sortedF[i];
+            if (!out.includes(n)) {
+                out.push(n);
+            }
+        }
+        let winAdded = 0;
+        for (let i = 0; i < sortedW.length && winAdded < half && out.length < M; i++) {
+            const n = sortedW[i];
+            if (!out.includes(n)) {
+                out.push(n);
+                winAdded++;
+            }
+        }
+        for (let i = 0; i < sortedB.length && out.length < M; i++) {
+            const n = sortedB[i];
+            if (!out.includes(n)) {
+                out.push(n);
+            }
+        }
+        return out.slice(0, M);
+    }
+
+    /**
+     * Ghép pool theo tỉ lệ 4:3:2:1 (composite : roll20 : gap : pair-degree), lặp chu kỳ 10 slot — top liền, walk-forward.
+     */
+    mainFiveHintPicksStratifiedPtxtTop(ctx, poolN) {
+        const { ptxtComposite, ptxtRoll20Log, ptxtGapRaw, ptxtPairDeg, countArr, windowCountArr } = ctx;
+        const M = Math.min(35, Math.max(1, poolN | 0));
+        const sortBy = (arr) => this.mainFiveHintSortCandidatesFromScore36(arr, countArr, windowCountArr);
+        const lists = [
+            sortBy(ptxtComposite),
+            sortBy(ptxtRoll20Log),
+            sortBy(ptxtGapRaw),
+            sortBy(ptxtPairDeg)
+        ];
+        const laneMap = [0, 0, 0, 0, 1, 1, 1, 2, 2, 3];
+        const ptr = [0, 0, 0, 0];
+        const used = new Set();
+        const out = [];
+        const tryPushFrom = (lane) => {
+            const lst = lists[lane];
+            while (ptr[lane] < lst.length && used.has(lst[ptr[lane]])) {
+                ptr[lane]++;
+            }
+            if (ptr[lane] < lst.length) {
+                const n = lst[ptr[lane]++];
+                used.add(n);
+                out.push(n);
+                return true;
+            }
+            return false;
+        };
+        for (let si = 0; si < M; si++) {
+            const primary = laneMap[si % 10];
+            if (tryPushFrom(primary)) {
+                continue;
+            }
+            let filled = false;
+            for (let r = 0; r < 4 && !filled; r++) {
+                filled = tryPushFrom((primary + 1 + r) % 4);
+            }
+            if (!filled) {
+                break;
+            }
+        }
+        if (out.length < M) {
+            const rest = sortBy(ptxtComposite);
+            for (let i = 0; i < rest.length && out.length < M; i++) {
+                if (!used.has(rest[i])) {
+                    used.add(rest[i]);
+                    out.push(rest[i]);
+                }
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Walk-forward: với mỗi dòng có đủ 5 số thật, pool dự đoán chỉ từ quá khứ; điểm = số trùng trong pool / 5.
+     * @returns {{ winner: string, means: Record<string, number>, evalRows: number }}
+     */
+    runMainFiveHintStrategyBenchmark(rowsArr) {
+        const Ctor = this.constructor;
+        const poolN = Math.min(Math.max(1, Number(Ctor.MAIN_FIVE_HINT_POOL_SIZE) || 10), 35);
+        const bandMult = Number(Ctor.MAIN_FIVE_HINT_DIVERSITY_BAND_MULT) || 3;
+        const ids = Ctor.MAIN_FIVE_HINT_STRATEGY_IDS || ['blend_spaced'];
+        const sums = {};
+        const counts = {};
+        for (let ii = 0; ii < ids.length; ii++) {
+            sums[ids[ii]] = 0;
+            counts[ids[ii]] = 0;
+        }
+        let evalRows = 0;
+        const list = rowsArr || [];
+        for (let idx = 0; idx < list.length; idx++) {
+            const truth = this.parseMainNums((list[idx] && (list[idx].result || list[idx].Result)) || '');
+            if (truth.length !== 5) {
+                continue;
+            }
+            const ctx = this.mainFiveHintBuildScoresAtIndex(list, idx);
+            if (!ctx) {
+                continue;
+            }
+            evalRows++;
+            const truthSet = new Set(truth);
+            for (let si = 0; si < ids.length; si++) {
+                const sid = ids[si];
+                const picks = this.mainFiveHintPicksForStrategy(sid, ctx, poolN, bandMult);
+                let ov = 0;
+                for (let pi = 0; pi < picks.length; pi++) {
+                    if (truthSet.has(picks[pi])) {
+                        ov++;
+                    }
+                }
+                sums[sid] += ov;
+                counts[sid]++;
+            }
+        }
+        const means = {};
+        let winner = ids[0];
+        let bestMean = -1;
+        for (let oi = 0; oi < ids.length; oi++) {
+            const sid = ids[oi];
+            const c = counts[sid] || 0;
+            const mean = c > 0 ? sums[sid] / c : 0;
+            means[sid] = mean;
+            if (mean > bestMean + 1e-12) {
+                bestMean = mean;
+                winner = sid;
+            }
+        }
+        if (evalRows < 1) {
+            winner = 'blend_spaced';
+        }
+        return { winner, means, evalRows };
+    }
+
+    /** Một dòng giải thích chiến lược đang áp (tránh nhầm λ/cửa sổ với full_* / window_*). */
+    mainFiveHintStrategyOneLinerVn(id) {
+        switch (id) {
+            case 'full_top':
+                return 'Giải thích: chỉ xếp hạng theo tích lũy + Dirichlet (α) — lấy đúng 10 số cao nhất liền nhau. Trọng số λ ở dòng “cửa sổ” không tham gia xếp hạng picks của chiến lược này.';
+            case 'full_spaced':
+                return 'Giải thích: chỉ tích lũy + Dirichlet; pool spaced trong top-band. λ không tham gia xếp hạng.';
+            case 'window_top':
+                return 'Giải thích: chỉ multiset cửa sổ 10 dòng + Dirichlet — top 10 liền. λ không tham gia xếp hạng.';
+            case 'window_spaced':
+                return 'Giải thích: chỉ cửa sổ + Dirichlet; pool spaced. λ không tham gia xếp hạng.';
+            case 'blend_top':
+                return 'Giải thích: điểm = (1−λ)·margin(tích lũy) + λ·margin(cửa sổ); lấy top 10 liền.';
+            case 'blend_spaced':
+                return 'Giải thích: điểm = (1−λ)·margin(tích lũy) + λ·margin(cửa sổ); pool spaced trong top-band.';
+            case 'equal_top':
+                return 'Giải thích: điểm = 50% tích lũy + 50% cửa sổ; top 10 liền.';
+            case 'equal_spaced':
+                return 'Giải thích: điểm = 50% tích lũy + 50% cửa sổ; pool spaced.';
+            case 'cold_spaced':
+                return 'Giải thích: ưu tiên số có margin tích lũy thấp (ít “hot”), pool spaced.';
+            case 'sumlog_spaced':
+            case 'sumlog_top':
+                return 'Giải thích: điểm = margin(tích lũy) + margin(cửa sổ dòng sheet).';
+            case 'maxlog_spaced':
+            case 'maxlog_top':
+                return 'Giải thích: điểm = max(margin tích lũy, margin cửa sổ) — mạnh ở một trong hai.';
+            case 'minlog_spaced':
+            case 'minlog_top':
+                return 'Giải thích: điểm = min(hai margin) — ưu tiên số không quá yếu ở cả hai nguồn.';
+            case 'recent_spaced':
+            case 'recent_top':
+                return 'Giải thích: chỉ margin trên K kỳ hợp lệ gần nhất (MAIN_FIVE_HINT_RECENT_VALID_K).';
+            case 'triple_spaced':
+            case 'triple_top':
+                return 'Giải thích: trung bình margin tích lũy + cửa sổ + K kỳ hợp lệ gần nhất.';
+            case 'union_half_fill_top':
+                return 'Giải thích: nửa pool theo tích lũy, nửa theo cửa sổ (trừ trùng), phần còn lại fill theo blend.';
+            case 'boost_spaced':
+            case 'boost_top':
+                return 'Giải thích: blend + nhẹ hệ số theo count tích lũy / cửa sổ (ưu số vừa hot vừa lộ diện nhiều).';
+            case 'ptxt_roll20_spaced':
+            case 'ptxt_roll20_top':
+                return 'Giải thích (predict.txt): margin Dirichlet trên 20 kỳ hợp lệ gần nhất — rolling ngắn.';
+            case 'ptxt_composite_spaced':
+            case 'ptxt_composite_top':
+                return 'Giải thích (predict.txt): điểm tổng hợp z (roll20/50, momentum 20−100, gap, bậc cặp 50 kỳ, nhẹ full margin).';
+            case 'ptxt_gap_spaced':
+            case 'ptxt_gap_top':
+                return 'Giải thích (predict.txt): tín hiệu “gap” — log(1 + khoảng cách kể từ lần cuối / TB khoảng cách).';
+            case 'ptxt_deg_spaced':
+            case 'ptxt_deg_top':
+                return 'Giải thích (predict.txt): bậc đồ thị đơn giản — mỗi cặp trong cùng kỳ (tail 50) cộng 1 cho hai đỉnh.';
+            case 'ptxt_strat10_top':
+                return 'Giải thích (predict.txt): pool ghép stratified top — chu kỳ 10 slot theo tỉ lệ composite:roll20:gap:deg = 4:3:2:1.';
+            case 'ptxt_accel_spaced':
+            case 'ptxt_accel_top':
+                return 'Giải thích (predict.txt §1/§4): acceleration — (margin20−50) − (margin50−100), proxy tốc độ thay đổi rolling.';
+            case 'ptxt_overdue_spaced':
+            case 'ptxt_overdue_top':
+                return 'Giải thích (predict.txt §2): overdue_ratio ≈ gap hiện tại / TB gap (anomaly, không hứa “sắp ra”).';
+            case 'ptxt_maxgap_anom_spaced':
+            case 'ptxt_maxgap_anom_top':
+                return 'Giải thích (predict.txt §2): gap hiện tại so với max gap lịch sử giữa các lần xuất hiện — tín hiệu bất thường.';
+            case 'ptxt_pairhub_spaced':
+            case 'ptxt_pairhub_top':
+            case 'ptxt_cls_hub_top':
+                return 'Giải thích (predict.txt §3): “hub” — tổng trọng số cạnh đồng xuất hiện (ma trận cặp tail 50).';
+            case 'ptxt_tri_cohesion_spaced':
+            case 'ptxt_tri_cohesion_top':
+            case 'ptxt_cls_tri_top':
+                return 'Giải thích (predict.txt §3): tam giác/cụm — Σ min(edge(n,a), edge(n,b)) trên các cặp a,b.';
+            case 'ptxt_volatile_spaced':
+            case 'ptxt_volatile_top':
+                return 'Giải thích (predict.txt §5): volatility — phương sai tần suất qua các đoạn tail (số burst / im lặng thay đổi).';
+            case 'ptxt_stable_spaced':
+            case 'ptxt_stable_top':
+            case 'ptxt_cls_stable_top':
+                return 'Giải thích (predict.txt §5): stability = 1/(1+4·var) trên các đoạn tail — ưu tiên ổn định.';
+            case 'ptxt_balhit_spaced':
+            case 'ptxt_balhit_top':
+                return 'Giải thích (predict.txt §6): khi số xuất hiện trong tail, kỳ đó thường lệch lẻ/cao-thấp ít hay nhiều (âm TB skew → “cân” hơn).';
+            case 'ptxt_spreadhit_spaced':
+            case 'ptxt_spreadhit_top':
+                return 'Giải thích (predict.txt §6): spread kỳ (max−min)/34 trung bình trên các kỳ số đó có mặt — cấu trúc rộng/hẹp.';
+            case 'ptxt_dyn_composite_spaced':
+            case 'ptxt_dyn_composite_top':
+                return 'Giải thích (predict.txt §9): composite z có trọng số phụ thuộc độ dài L (nhấn rolling gần khi L lớn).';
+            case 'ptxt_bayes7030_spaced':
+            case 'ptxt_bayes7030_top':
+                return 'Giải thích (predict.txt §8): tin cậy mềm — 0.7 margin tích lũy + 0.3 margin cửa sổ (smoothing, không cập nhật từng kỳ riêng).';
+            case 'ptxt_diverse_spaced':
+            case 'ptxt_diverse_top':
+                return 'Giải thích (predict.txt §7): composite z trừ nhẹ bậc cặp (tránh pool quá tập trung “hub” cùng kiểu).';
+            case 'ptxt_multisig_spaced':
+            case 'ptxt_multisig_top':
+                return 'Giải thích (predict.txt §9): tổng có trọng số các z overdue, gap, hub, acceleration.';
+            case 'ptxt_strat3322_top':
+                return 'Giải thích (predict.txt §11): pool 3+3+2+2 — stable / momentum / overdue / hub (scale theo poolN), fill composite.';
+            case 'ptxt_mc_pool_top':
+                return 'Giải thích (predict.txt §13): Monte Carlo — nhiều lần lấy mẫu 10 số không lặp theo softmax(composite z), seed deterministic; chọn theo tần suất xuất hiện trong mẫu.';
+            case 'ptxt_cls_momentum_top':
+                return 'Giải thích (predict.txt §12): lớp “Momentum Rising” — xếp theo acceleration (proxy).';
+            case 'ptxt_cls_overdue_top':
+                return 'Giải thích (predict.txt §12): lớp “Overdue Candidate” — xếp theo overdue_ratio.';
+            default:
+                return '';
+        }
+    }
+
+    /**
+     * Chạy benchmark một lần trên tham chiếu mảng dòng (thường sheet1), cache theo rowsRef.
+     */
+    ensureMainFiveHintStrategyFromBenchmark(rowsArr) {
+        const Ctor = this.constructor;
+        if (!Ctor.MAIN_FIVE_HINT_AUTO_SELECT_STRATEGY) {
+            this._mainFiveHintStrategyCache = {
+                rowsRef: rowsArr,
+                winner: 'blend_spaced',
+                means: {},
+                evalRows: 0,
+                autoOff: true
+            };
+            return;
+        }
+        if (this._mainFiveHintStrategyCache && this._mainFiveHintStrategyCache.rowsRef === rowsArr) {
+            return;
+        }
+        const bench = this.runMainFiveHintStrategyBenchmark(rowsArr);
+        this._mainFiveHintStrategyCache = {
+            rowsRef: rowsArr,
+            winner: bench.winner,
+            means: bench.means,
+            evalRows: bench.evalRows
+        };
+    }
+
+    /**
+     * Pool top-N số chính: margin Dirichlet (tích lũy + cửa sổ) — tự chọn chiến lược pool
+     * (spaced vs top, blend vs full vs window…) theo overlap TB walk-forward trên toàn sheet khi bật AUTO.
+     * @returns {{ picks: number[], lines: string[] } | { error: string }}
+     */
+    predictMainFiveHonest(rows, rowIndex) {
+        const rowsArr = rows || [];
+        const idx = Number(rowIndex);
+        if (!Number.isFinite(idx) || idx < 0) {
+            return { error: 'Chỉ số dòng không hợp lệ.' };
+        }
+        const built = this.mainFiveHintBuildScoresAtIndex(rowsArr, idx);
+        if (!built) {
+            return { error: 'Chưa có kỳ nào trước dòng này có đủ 5 số chính (trước dấu |) để dự đoán.' };
+        }
+        this.ensureMainFiveHintStrategyFromBenchmark(rowsArr);
+        const cache = this._mainFiveHintStrategyCache || { winner: 'blend_spaced', means: {}, evalRows: 0 };
+        const strategyId = cache.winner || 'blend_spaced';
+        const poolN = Math.min(
+            Math.max(1, Number(this.constructor.MAIN_FIVE_HINT_POOL_SIZE) || 10),
+            35
+        );
+        const bandMult = Number(this.constructor.MAIN_FIVE_HINT_DIVERSITY_BAND_MULT) || 3;
+        const picks = this.mainFiveHintPicksForStrategy(strategyId, built, poolN, bandMult);
+        const { validIdx, countArr, windowCountArr, sheetWinRowCount, table1WinStart, table1WinEnd, slideLen, slideW, alpha, recentK } = built;
+        const lines = [];
+        lines.push(`Dự đoán pool ${poolN} số chính (kỳ đang chọn, chỉ số dòng ${idx}; không dùng result/note dòng này):`);
+        lines.push(`Chiến lược: ${strategyId}${cache.autoOff ? ' (AUTO tắt, cố định blend_spaced)' : ''}`);
+        const oneLiner = this.mainFiveHintStrategyOneLinerVn(strategyId);
+        if (oneLiner) {
+            lines.push(oneLiner);
+        }
+        if (!cache.autoOff && cache.evalRows > 0) {
+            const wm = cache.means && typeof cache.means[strategyId] === 'number' ? cache.means[strategyId] : 0;
+            lines.push(
+                `Benchmark sheet1: overlap TB ${wm.toFixed(3)} / 5 (${cache.evalRows} kỳ walk-forward).`
+            );
+            const parts = [];
+            const ids = this.constructor.MAIN_FIVE_HINT_STRATEGY_IDS || [];
+            for (let zi = 0; zi < ids.length; zi++) {
+                const id = ids[zi];
+                if (cache.means && typeof cache.means[id] === 'number') {
+                    parts.push(`${id}:${cache.means[id].toFixed(3)}`);
+                }
+            }
+            if (parts.length) {
+                lines.push(`Điểm TB các thuật: ${parts.join(' | ')}`);
+            }
+        }
+        lines.push(`Picks: ${picks.join(', ')}`);
+        lines.push('');
+        lines.push(
+            `Tham số nền (α, cửa sổ ${sheetWinRowCount} dòng ${table1WinStart}–${table1WinEnd}, λ=${slideW.toFixed(2)}, recent=${recentK} kỳ hợp lệ): blend/equal/boost/full/window/…; ptxt_* theo predict.txt (rolling, gap+maxgap, đồ thị cặp/tam giác, volatility/ổn định, cấu trúc kỳ, composite động, Bayes 70/30, đa tín hiệu, strat 4:3:2:1 & 3:3:2:2, MC pool MAIN_FIVE_HINT_MC_POOL_SAMPLES).`
+        );
+        lines.push('');
+        lines.push(`Bảng 1 (tích lũy) — các số được dự đoán (số lần trong ${validIdx.length} kỳ học : các số):`);
+        lines.push(...this.mainFiveFormatPredictedFrequencyTableLines(picks, countArr));
+        lines.push('');
+        lines.push(
+            `Bảng 1 (cửa sổ ${sheetWinRowCount} dòng) — cùng multiset với bảng 1 trái cho cửa sổ này (số lần : các số):`
+        );
+        lines.push(...this.mainFiveFormatPredictedFrequencyTableLines(picks, windowCountArr));
+        lines.push('');
+        lines.push(
+            `Mô hình: multiset + Dirichlet margin (α=${alpha}); pool _top / spaced trong top-${Math.min(35, Math.max(poolN, Math.ceil(poolN * bandMult)))}. Tắt AUTO: MAIN_FIVE_HINT_AUTO_SELECT_STRATEGY = false.`
+        );
+        return { picks, lines };
+    }
+
+    /**
+     * Gợi ý tham chiếu (textarea + picks để khoanh trong iframe trái).
+     * @returns {{ text: string, picks: number[] } | { error: string } | null}
+     */
+    getNoteReferenceHintMeta(rowIndex) {
         const rows = this.getSourceSheetRows();
         const idx = Number(rowIndex);
         if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
+            return null;
+        }
+        const r = this.predictMainFiveHonest(rows, idx);
+        if (r.error) {
+            return { error: r.error };
+        }
+        const cap = Math.min(
+            Math.max(1, Number(this.constructor.MAIN_FIVE_HINT_POOL_SIZE) || 10),
+            35
+        );
+        return { text: r.lines.join('\n'), picks: Array.isArray(r.picks) ? r.picks.slice(0, cap) : [] };
+    }
+
+    /**
+     * Text #referenceHint (iframe trái): dự đoán pool top-N số chính cho kỳ đang focus sheet1.
+     */
+    getNoteReferenceHintForRowIndex(rowIndex) {
+        const m = this.getNoteReferenceHintMeta(rowIndex);
+        if (!m) {
             return '';
         }
-        if (idx < 10) {
-            return 'Chưa đủ 10 dòng lịch sử phía trước để dự đoán (KNN).';
+        if (m.error) {
+            return m.error;
         }
-        const pred = this.predictNoteRefsFromKnn(rows, idx, this.refHintKNeighbors || 9);
-        if (pred.reason === 'no_train') {
-            return 'Chưa có mẫu học.';
-        }
-        if (pred.reason === 'no_window_ids' || !pred.ranked.length) {
-            return 'Không suy ra được kỳ trong cửa sổ 10 (thiếu ID các dòng trước).';
-        }
-        const labels = this.rankedPrevIdsToChuoiLabels(rows, idx, pred.ranked);
-        if (!labels.length) {
-            return 'Không ánh xạ được sang Chuỗi 1…10 trong cửa sổ (kiểm tra ID các dòng trước).';
-        }
-        return `Gợi ý tham khảo (tối đa 3 chuỗi — KNN + combo + overlap + tần suất note + Markov + recency; không dùng result/note dòng này): ${labels.join(', ')}.`;
+        return m.text || '';
     }
 
     /**
@@ -4479,6 +6019,75 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Chỉ số dòng sheet1 có id (số) khớp targetNum (so khớp sau normalize).
+     */
+    findSourceSheetRowIndexByNumericId(targetNum) {
+        const rows = this.getSourceSheetRows();
+        const targetKey = this.normalizeNumberKey(targetNum);
+        if (!targetKey) {
+            return -1;
+        }
+        for (let i = 0; i < rows.length; i++) {
+            if (this.normalizeNumberKey(rows[i].id || rows[i].ID || '') === targetKey) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Chuột phải trên ô nonexist: chặn menu trình duyệt, focus hàng có id = id hàng gốc + NONEXIST_CONTEXTMENU_ID_DELTA.
+     * @param {MouseEvent} event
+     * @param {HTMLElement} tableWrap
+     * @returns {boolean} true nếu đã xử lý (đã preventDefault)
+     */
+    handleNonexistCellContextMenu(event, tableWrap) {
+        if (!event || this.activeSheet !== 'sheet1') {
+            return false;
+        }
+        const td = event.target && event.target.closest && event.target.closest('td.cell-nonexist');
+        if (!td || !tableWrap || !tableWrap.contains(td)) {
+            return false;
+        }
+        const tr = td.closest('tr[data-idx]');
+        if (!tr) {
+            return false;
+        }
+        const idx = Number(tr.dataset.idx);
+        if (!Number.isFinite(idx) || idx < 0) {
+            return false;
+        }
+        const rows = this.getSourceSheetRows();
+        if (idx >= rows.length) {
+            return false;
+        }
+        const row = rows[idx];
+        if (!row || this.isEmptyResultRow(row)) {
+            return false;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const currentIdNum = parseInt(String(row.id || row.ID || '').trim(), 10);
+        if (!Number.isFinite(currentIdNum)) {
+            return true;
+        }
+        const targetIdNum = currentIdNum + NONEXIST_CONTEXTMENU_ID_DELTA;
+        const targetIdx = this.findSourceSheetRowIndexByNumericId(targetIdNum);
+        if (targetIdx < 0 || targetIdx === idx) {
+            return true;
+        }
+        const targetRow = rows[targetIdx];
+        const targetEmpty = this.isEmptyResultRow(targetRow);
+        this.onRowClick(targetIdx, targetEmpty, event, { fromFilterNav: tableWrap.id === 'filterTableWrap' });
+        try {
+            tableWrap.focus({ preventScroll: true });
+        } catch (err) {
+            /* ignore */
+        }
+        return true;
+    }
+
+    /**
      * Handle row click - dispatch to parent
      */
     onRowClick(idx, isEmptyRow, event, options = {}) {
@@ -5005,83 +6614,6 @@ class RightPaneSheetManager {
             }
         }
         return reach;
-    }
-
-    /**
-     * Map tần suất combo_1/2/3 chỉ từ các dòng [0, endExclusive) — walk-forward cho gợi ý tại endExclusive.
-     */
-    buildComboRawCountMapsUpTo(rows, endExclusive) {
-        const dicts = [null, new Map(), new Map(), new Map(), new Map(), new Map()];
-        const dictSpecial = new Map();
-        const n = Math.max(0, endExclusive | 0);
-        this._accumulateComboDictsFromRows((rows || []).slice(0, n), dicts, dictSpecial);
-        return { m1: dicts[1], m2: dicts[2], m3: dicts[3], dictSpecial };
-    }
-
-    /**
-     * Thành phần log-tần suất combo (s1 TB, s2m/s3m max cặp/bộ ba) + overlap cửa sổ.
-     */
-    scoreReferenceAuxComponentsForPrevRow(prevMainNums, comboMaps, windowNumUnion) {
-        if (!prevMainNums || prevMainNums.length !== 5 || !comboMaps) {
-            return { s1: 0, s2m: 0, s3m: 0, union: 0 };
-        }
-        const { m1, m2, m3 } = comboMaps;
-        let s1 = 0;
-        for (let i = 0; i < 5; i++) {
-            s1 += Math.log1p(m1.get(String(prevMainNums[i])) || 0);
-        }
-        s1 /= 5;
-        let s2m = 0;
-        for (let a = 0; a < 4; a++) {
-            for (let b = a + 1; b < 5; b++) {
-                const key = `${prevMainNums[a]},${prevMainNums[b]}`;
-                s2m = Math.max(s2m, Math.log1p(m2.get(key) || 0));
-            }
-        }
-        let s3m = 0;
-        for (let a = 0; a < 3; a++) {
-            for (let b = a + 1; b < 4; b++) {
-                for (let c = b + 1; c < 5; c++) {
-                    const key = `${prevMainNums[a]},${prevMainNums[b]},${prevMainNums[c]}`;
-                    s3m = Math.max(s3m, Math.log1p(m3.get(key) || 0));
-                }
-            }
-        }
-        let ov = 0;
-        if (windowNumUnion && windowNumUnion.size) {
-            for (let i = 0; i < 5; i++) {
-                if (windowNumUnion.has(prevMainNums[i])) {
-                    ov++;
-                }
-            }
-            ov /= 5;
-        }
-        return { s1, s2m, s3m, union: ov };
-    }
-
-    /**
-     * Điểm combo + độ chồng với hợp các số main trong cửa sổ 10 (không gồm dòng idx).
-     */
-    scoreReferenceAuxForPrevRow(rows, idx, prevMainNums, comboMaps, windowNumUnion) {
-        const c = this.scoreReferenceAuxComponentsForPrevRow(prevMainNums, comboMaps, windowNumUnion);
-        const w = this.refHintComboW || { w1: 0.42, w2: 0.38, w3: 0.2 };
-        const combo = w.w1 * c.s1 + w.w2 * c.s2m + w.w3 * c.s3m;
-        return { combo, union: c.union };
-    }
-
-    /**
-     * Hợp tập các số main (5 số đầu) trong 10 dòng trước idx (không gồm idx).
-     */
-    getWindowMainNumUnionSet(rows, idx) {
-        const set = new Set();
-        const lo = Math.max(0, idx - 10);
-        for (let i = lo; i < idx; i++) {
-            const nums = this.parseMainNums((rows[i] && (rows[i].result || rows[i].Result)) || '');
-            for (let t = 0; t < nums.length; t++) {
-                set.add(nums[t]);
-            }
-        }
-        return set;
     }
 
     /**
@@ -5643,6 +7175,11 @@ class RightPaneSheetManager {
         };
     }
 
+    /**
+     * Top-3 ứng viên đặc biệt (1–12) cho kỳ sau prefix — `SPECIAL_TRACKING_PREDICT_WT.predictMode`:
+     * `temporalRank` (predict.txt: rolling/gap/rank-velocity/z), `blend`/`heuristic` (Markov+tuning), `globalTrigram`, `stackedNgram`.
+     * @returns {number[]}
+     */
     static computeSpecialTrackingPredictCandidates(series, frames, prefixLen = null) {
         const nFull = series && series.length ? series.length : 0;
         const N = prefixLen != null && prefixLen >= 1 ? Math.min(prefixLen, nFull) : nFull;
@@ -5655,16 +7192,31 @@ class RightPaneSheetManager {
             return [];
         }
         const wt = SPECIAL_TRACKING_PREDICT_WT;
-        const predictMode = wt.predictMode === 'globalTrigram' ? 'globalTrigram' : 'heuristic';
+        const predictMode =
+            wt.predictMode === 'globalTrigram'
+                ? 'globalTrigram'
+                : wt.predictMode === 'stackedNgram'
+                    ? 'stackedNgram'
+                    : wt.predictMode === 'temporalRank'
+                        ? 'temporalRank'
+                        : wt.predictMode === 'blend'
+                            ? 'blend'
+                            : 'heuristic';
+        if (predictMode === 'stackedNgram') {
+            return specialTrackingComputeStackedNgramTop3(series, nFull, N, wt);
+        }
         if (predictMode === 'globalTrigram' && nFull >= 3 && N >= 3) {
             const penD = series[N - 2];
             const prD = series[N - 1];
             if (penD >= 1 && penD <= 12 && prD >= 1 && prD <= 12) {
-                const tg = specialTrackingTop3FromGlobalTrigram(series, nFull, penD, prD);
+                const tg = specialTrackingTop3FromGlobalTrigram(series, nFull, penD, prD, N);
                 if (tg) {
                     return tg;
                 }
             }
+        }
+        if (predictMode === 'temporalRank') {
+            return specialTrackingPredictTxtTemporalTop3(series, frames, N);
         }
 
         const K = Math.min(20, lastIdx);
@@ -5798,6 +7350,38 @@ class RightPaneSheetManager {
             normTri[x] = (rawTri[x] - triMn) / triSp;
         }
 
+        const cMarg = new Array(13).fill(0);
+        for (let i = 0; i < N; i++) {
+            const x = series[i];
+            if (x >= 1 && x <= 12) {
+                cMarg[x]++;
+            }
+        }
+        const alphaM =
+            typeof wt.margAlpha === 'number' && Number.isFinite(wt.margAlpha) && wt.margAlpha > 0 ? wt.margAlpha : 2;
+        const denM = N + 12 * alphaM;
+        const margW =
+            typeof wt.margLong === 'number' && Number.isFinite(wt.margLong) ? wt.margLong : 0;
+        const margShortW =
+            typeof wt.margShort === 'number' && Number.isFinite(wt.margShort) ? wt.margShort : 0;
+        const margShortWin =
+            typeof wt.margShortWin === 'number' && Number.isFinite(wt.margShortWin) && wt.margShortWin >= 8
+                ? Math.floor(wt.margShortWin)
+                : 72;
+        const cShort = new Array(13).fill(0);
+        let Ws = 0;
+        if (margShortW !== 0 && N >= 1) {
+            const fromS = Math.max(0, N - margShortWin);
+            Ws = N - fromS;
+            for (let i = fromS; i < N; i++) {
+                const x = series[i];
+                if (x >= 1 && x <= 12) {
+                    cShort[x]++;
+                }
+            }
+        }
+        const denS = Ws + 12 * alphaM;
+
         for (let n = 1; n <= 12; n++) {
             let s = 0;
             const c20 = recentCount(n, W20);
@@ -5886,7 +7470,47 @@ class RightPaneSheetManager {
             if (n === prevDraw) {
                 s += wt.repeat;
             }
+            if (margW !== 0 && N >= 1) {
+                const phat = (cMarg[n] + alphaM) / denM;
+                s += margW * Math.log(12 * phat);
+            }
+            if (margShortW !== 0 && Ws >= 1) {
+                const phS = (cShort[n] + alphaM) / denS;
+                s += margShortW * Math.log(12 * phS);
+            }
             scores[n] = s;
+        }
+
+        if (predictMode === 'blend' && N >= 3) {
+            const penG = series[N - 2];
+            const prvG = series[N - 1];
+            if (penG >= 1 && penG <= 12 && prvG >= 1 && prvG <= 12) {
+                const byKey = specialTrackingGetGlobalTrigramByKey(series, nFull, N);
+                const m = byKey.get(penG * 16 + prvG);
+                const eff = typeof wt.triGlobal === 'number' && Number.isFinite(wt.triGlobal) && wt.triGlobal > 0 ? wt.triGlobal : 2.35;
+                if (m) {
+                    for (let nx = 1; nx <= 12; nx++) {
+                        scores[nx] += eff * Math.log1p(m.get(nx) || 0);
+                    }
+                }
+            }
+        }
+
+        const tMix =
+            predictMode === 'blend' &&
+                typeof wt.temporalMix === 'number' &&
+                Number.isFinite(wt.temporalMix) &&
+                wt.temporalMix !== 0
+                ? wt.temporalMix
+                : 0;
+        if (tMix !== 0) {
+            const tSc = specialTrackingComputeTemporalRankScores13(series, frames, N);
+            if (tSc) {
+                const zT = specialTrackingZScore12(tSc);
+                for (let nx = 1; nx <= 12; nx++) {
+                    scores[nx] += tMix * zT[nx];
+                }
+            }
         }
 
         const pairs = [];
