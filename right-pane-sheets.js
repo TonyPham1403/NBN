@@ -1444,6 +1444,19 @@ class RightPaneSheetManager {
             return this.ensureConnectionFilterIndicesCache().slice();
         }
 
+        if (mode === 'intersection') {
+            const kind = (filterOptions || {}).intersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
+            for (let i = 0; i < rows.length; i++) {
+                if (this.isEmptyResultRow(rows[i])) {
+                    continue;
+                }
+                if (this.rowMatchesIntersectionSubmitWindow(rows, i, kind)) {
+                    indices.push(i);
+                }
+            }
+            return indices;
+        }
+
         if (mode === 'posnfreq') {
             const o = filterOptions || {};
             const specimen = parseInt(o.specimenNum, 10);
@@ -1476,6 +1489,167 @@ class RightPaneSheetManager {
             }
         }
         return indices;
+    }
+
+    /**
+     * Cửa sổ 10 chuỗi trước kỳ `rowIndex` (cùng inferMode / posnfreq): nhãn Chuỗi 1 = sát đáp án, L = xa nhất.
+     * `nearintersect`: mỗi số phải xuất hiện trên các chuỗi tạo một dải nhãn liên tiếp; hai dải rời nhau và kề (max(A)+1=min(B) hoặc ngược lại), không chỉ “có một cặp nhãn |i−j|=1”.
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {'intersect' | 'nearintersect'} kind
+     */
+    rowMatchesIntersectionSubmitWindow(rows, rowIndex, kind) {
+        const row = rows[rowIndex];
+        if (!row) {
+            return false;
+        }
+        const answerNums = this.parseMainNums(row.result || row.Result || '');
+        if (answerNums.length < 5) {
+            return false;
+        }
+        const windowStart = Math.max(0, rowIndex - 10);
+        const limit = Math.min(rowIndex - windowStart, 10);
+        if (limit <= 0) {
+            return false;
+        }
+
+        /** @type {{ label: number, nums: number[]}[]} */
+        const lines = [];
+        for (let offset = 0; offset < limit; offset++) {
+            const lineRow = rows[windowStart + offset] || {};
+            const nums = this.parseMainNums(lineRow.result || lineRow.Result || '');
+            const label = limit - offset;
+            lines.push({ label, nums });
+        }
+
+        const freq = new Array(36).fill(0);
+        for (let li = 0; li < lines.length; li++) {
+            const nums = lines[li].nums;
+            for (let k = 0; k < nums.length; k++) {
+                const n = nums[k];
+                if (n >= 1 && n <= 35) {
+                    freq[n]++;
+                }
+            }
+        }
+
+        const hasNum = (nums, x) => nums.indexOf(x) !== -1;
+        const labelsForNum = (x) => {
+            const s = new Set();
+            for (let li = 0; li < lines.length; li++) {
+                if (hasNum(lines[li].nums, x)) {
+                    s.add(lines[li].label);
+                }
+            }
+            return s;
+        };
+        /** Tập nhãn chuỗi (số nguyên liên tiếp 1..L) phải là dải liền — không được {1,10} mà thiếu 2..9. */
+        const labelsFormContiguousRun = (labelSet) => {
+            if (labelSet.size <= 1) {
+                return true;
+            }
+            const arr = Array.from(labelSet).sort((u, v) => u - v);
+            for (let k = 1; k < arr.length; k++) {
+                if (arr[k] !== arr[k - 1] + 1) {
+                    return false;
+                }
+            }
+            return true;
+        };
+        /** Hai dải [lo,hi] rời nhau và chạm cạnh: hi(A)+1 === lo(B) hoặc hi(B)+1 === lo(A). */
+        const twoRunsTouchAdjacent = (sa, sb) => {
+            const aLo = Math.min(...sa);
+            const aHi = Math.max(...sa);
+            const bLo = Math.min(...sb);
+            const bHi = Math.max(...sb);
+            if (aHi < bLo) {
+                return aHi + 1 === bLo;
+            }
+            if (bHi < aLo) {
+                return bHi + 1 === aLo;
+            }
+            return false;
+        };
+
+        for (let ai = 0; ai < answerNums.length; ai++) {
+            for (let bi = ai + 1; bi < answerNums.length; bi++) {
+                const a = answerNums[ai];
+                const b = answerNums[bi];
+                if (a === b || freq[a] < 2 || freq[b] < 2) {
+                    continue;
+                }
+
+                if (kind === 'nearintersect') {
+                    let sharedLine = false;
+                    for (let li = 0; li < lines.length; li++) {
+                        const nums = lines[li].nums;
+                        if (hasNum(nums, a) && hasNum(nums, b)) {
+                            sharedLine = true;
+                            break;
+                        }
+                    }
+                    if (sharedLine) {
+                        continue;
+                    }
+                    const Sa = labelsForNum(a);
+                    const Sb = labelsForNum(b);
+                    if (!labelsFormContiguousRun(Sa) || !labelsFormContiguousRun(Sb)) {
+                        continue;
+                    }
+                    const arrA = Array.from(Sa);
+                    const arrB = Array.from(Sb);
+                    if (twoRunsTouchAdjacent(arrA, arrB)) {
+                        return true;
+                    }
+                    continue;
+                }
+
+                /** intersect: ∃ chuỗi M chứa cả a,b; một số có mặt ở chuỗi nhãn > M, số kia ở nhãn < M. */
+                const mainLabels = [];
+                for (let li = 0; li < lines.length; li++) {
+                    const nums = lines[li].nums;
+                    if (hasNum(nums, a) && hasNum(nums, b)) {
+                        mainLabels.push(lines[li].label);
+                    }
+                }
+                if (mainLabels.length === 0) {
+                    continue;
+                }
+                for (let mi = 0; mi < mainLabels.length; mi++) {
+                    const M = mainLabels[mi];
+                    let aUp = false;
+                    let aLo = false;
+                    let bUp = false;
+                    let bLo = false;
+                    for (let li = 0; li < lines.length; li++) {
+                        const lab = lines[li].label;
+                        if (lab === M) {
+                            continue;
+                        }
+                        const nums = lines[li].nums;
+                        if (lab > M) {
+                            if (hasNum(nums, a)) {
+                                aUp = true;
+                            }
+                            if (hasNum(nums, b)) {
+                                bUp = true;
+                            }
+                        } else if (lab < M) {
+                            if (hasNum(nums, a)) {
+                                aLo = true;
+                            }
+                            if (hasNum(nums, b)) {
+                                bLo = true;
+                            }
+                        }
+                    }
+                    if ((aUp && bLo) || (bUp && aLo)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
     }
 
     /**

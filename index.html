@@ -3750,6 +3750,17 @@
                             <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
                         </button>
                     </div>
+                    <div id="filterPopupIntersectionPicker" class="filter-popup-note-tag-picker hidden" aria-hidden="true">
+                        <button type="button" id="filterPopupIntersectionKindBtn" class="filter-popup-note-tag-btn"
+                            aria-haspopup="listbox" aria-expanded="false"
+                            title="intersect: cùng chuỗi M + một số miền trên M, một số miền dưới M. nearintersect: không cùng chuỗi; mỗi số xuất hiện trên các chuỗi tạo một dải nhãn liên tiếp; hai dải rời nhau và kề (max+1=min hoặc ngược lại)">
+                            <span id="filterPopupIntersectionKindBtnLabel">intersect</span>
+                            <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
+                        </button>
+                        <ul id="filterPopupIntersectionKindMenu"
+                            class="period-filter-mode-menu filter-popup-note-tag-menu hidden" role="listbox"
+                            aria-label="Kiểu intersection"></ul>
+                    </div>
                     <div id="filterPopupPosnfreqTools" class="filter-popup-posnfreq-tools hidden" aria-hidden="true">
                         <button type="button" id="filterPopupPosnfreqHexBtn" class="filter-popup-posnfreq-hex"
                             title="Click nhanh: Mẫu ↔ Số (lọc đúng specimen). Giữ và kéo vào ô số bảng trái để đổi specimen."
@@ -3915,6 +3926,7 @@
         const SUBMIT_RING_CUSTOM_X_KEY = 'submitRingCustomX';
         const PERIOD_FILTER_ENABLED_KEY = 'periodFilterEnabled';
         const PERIOD_FILTER_MODE_KEY = 'periodFilterMode';
+        const PERIOD_FILTER_INTERSECTION_KIND_KEY = 'periodFilterIntersectionKind';
         const FILTER_POPUP_LAYOUT_KEY = 'filterPopupLayout';
         const ANSWER_POPUP_LAYOUT_KEY = 'answerPopupLayout';
         const FILTER_NONEXIST_NUM_KEY = 'filterNonexistNum';
@@ -3968,6 +3980,7 @@
             dateband: '',
             nonexist: 'nonexist',
             connection: 'connection',
+            intersection: 'intersection',
             posnfreq: 'posnfreq'
         };
         const DATEBAND_FILTER_MODE = 'dateband';
@@ -3986,6 +3999,7 @@
             closeFilterPopup();
             closePeriodFilterModeMenu();
             closeFilterPopupNoteTagMenu();
+            closeFilterPopupIntersectionKindMenu();
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupNonexistGreen005Menu();
             if (answerPopup && typeof answerPopup.isOpen === 'function' && answerPopup.isOpen()
@@ -4026,6 +4040,8 @@
         let posnfreqSourceRowIndex = -1;
         /** posnfreq: Số = đúng specimen + cùng f và []; Mẫu = cùng f và [] với số bất kỳ. Chỉ click nhanh lục giác trên header để bật/tắt Số. */
         let posnfreqSpecimenStrict = false;
+        /** intersection: intersect | nearintersect — cửa sổ 10 chuỗi + 5 số submit */
+        let filterIntersectionKind = 'intersect';
         let posnfreqHexDragPointerId = null;
         /** Nhịp 2: marker + rebuild bảng lọc (idle / timeout), gộp khi đổi specimen liên tiếp */
         let posnfreqPhase2IdleId = 0;
@@ -4641,6 +4657,9 @@
             if (normalizeFilterMode(mode) === 'connection') {
                 return 'Note có số connection (xuất hiện trong ≥2 cặp {a,b})';
             }
+            if (normalizeFilterMode(mode) === 'intersection') {
+                return 'intersection (giao / gần giao chuỗi trên 5 số submit + 10 chuỗi)';
+            }
             return getFilterModeLabel(mode);
         }
 
@@ -4654,6 +4673,10 @@
 
         function isPosnfreqFilterMode(mode) {
             return normalizeFilterMode(mode) === 'posnfreq';
+        }
+
+        function isIntersectionFilterMode(mode) {
+            return normalizeFilterMode(mode) === 'intersection';
         }
 
         function getPosnfreqFilterOptionsForMatching() {
@@ -4781,6 +4804,9 @@
             if (isPosnfreqFilterMode(mode)) {
                 return false;
             }
+            if (isIntersectionFilterMode(mode)) {
+                return false;
+            }
             return getFilterNoteTagMaxSelections(mode) > 0;
         }
 
@@ -4803,6 +4829,11 @@
             }
             if (isPosnfreqFilterMode(mode)) {
                 return getPosnfreqFilterOptionsForMatching();
+            }
+            if (isIntersectionFilterMode(mode)) {
+                return {
+                    intersectionKind: filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect'
+                };
             }
             const noteTags = supportsNoteTagFilter(mode) ? getActiveNoteTagFilterValues() : [];
             if (noteTags.length > 0) {
@@ -4989,6 +5020,7 @@
         function openFilterPopupNoteTagMenu() {
             closePeriodFilterModeMenu();
             closeFilterPopupNonexistColorMenu();
+            closeFilterPopupIntersectionKindMenu();
             const menu = el('filterPopupNoteTagMenu');
             const btn = el('filterPopupNoteTagBtn');
             const picker = el('filterPopupNoteTagPicker');
@@ -5022,6 +5054,213 @@
                 btn.classList.remove('is-menu-open');
                 btn.classList.remove('is-note-tag-pressing');
             }
+        }
+
+        function loadFilterIntersectionKindSettings() {
+            try {
+                const raw = localStorage.getItem(PERIOD_FILTER_INTERSECTION_KIND_KEY);
+                if (raw === 'nearintersect' || raw === 'intersect') {
+                    filterIntersectionKind = raw;
+                } else {
+                    filterIntersectionKind = 'intersect';
+                }
+            } catch (e) {
+                filterIntersectionKind = 'intersect';
+            }
+        }
+
+        function saveFilterIntersectionKindSettings() {
+            try {
+                localStorage.setItem(
+                    PERIOD_FILTER_INTERSECTION_KIND_KEY,
+                    filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect'
+                );
+            } catch (e) { /* ignore */ }
+        }
+
+        function getFilterIntersectionKindButtonLabel() {
+            return filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
+        }
+
+        function highlightFilterPopupIntersectionKindMenu() {
+            const menu = el('filterPopupIntersectionKindMenu');
+            if (!menu) {
+                return;
+            }
+            const cur = filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
+            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
+                const k = item.dataset.kind || '';
+                item.classList.toggle('selected', k === cur);
+            });
+        }
+
+        function buildFilterPopupIntersectionKindMenu() {
+            const menu = el('filterPopupIntersectionKindMenu');
+            if (!menu) {
+                return;
+            }
+            if (menu.dataset.built === '1') {
+                highlightFilterPopupIntersectionKindMenu();
+                return;
+            }
+            menu.dataset.built = '1';
+            menu.innerHTML = '';
+            const kinds = [
+                { kind: 'intersect', label: 'intersect' },
+                { kind: 'nearintersect', label: 'nearintersect' }
+            ];
+            for (let i = 0; i < kinds.length; i++) {
+                const item = document.createElement('li');
+                item.className = 'period-filter-mode-item';
+                item.setAttribute('role', 'option');
+                item.dataset.kind = kinds[i].kind;
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'period-filter-mode-item-label';
+                labelSpan.textContent = kinds[i].label;
+                item.appendChild(labelSpan);
+                item.addEventListener('mousedown', (event) => event.preventDefault());
+                item.addEventListener('click', () => selectFilterPopupIntersectionKind(kinds[i].kind));
+                menu.appendChild(item);
+            }
+            highlightFilterPopupIntersectionKindMenu();
+        }
+
+        function positionFilterPopupIntersectionKindMenu() {
+            const menu = el('filterPopupIntersectionKindMenu');
+            const btn = el('filterPopupIntersectionKindBtn');
+            if (!menu || !btn) {
+                return;
+            }
+            const rect = btn.getBoundingClientRect();
+            menu.style.left = `${Math.max(8, rect.left)}px`;
+            menu.style.top = `${rect.bottom + 2}px`;
+            menu.style.minWidth = `${Math.max(rect.width, 88)}px`;
+        }
+
+        function openFilterPopupIntersectionKindMenu() {
+            closePeriodFilterModeMenu();
+            closeFilterPopupNoteTagMenu();
+            closeFilterPopupNonexistColorMenu();
+            const menu = el('filterPopupIntersectionKindMenu');
+            const btn = el('filterPopupIntersectionKindBtn');
+            const picker = el('filterPopupIntersectionPicker');
+            if (!menu || !btn || btn.disabled || !picker) {
+                return;
+            }
+            buildFilterPopupIntersectionKindMenu();
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
+            positionFilterPopupIntersectionKindMenu();
+            menu.classList.remove('hidden');
+            btn.setAttribute('aria-expanded', 'true');
+            btn.classList.add('is-menu-open');
+        }
+
+        function closeFilterPopupIntersectionKindMenu() {
+            const menu = el('filterPopupIntersectionKindMenu');
+            const btn = el('filterPopupIntersectionKindBtn');
+            const picker = el('filterPopupIntersectionPicker');
+            if (menu) {
+                menu.classList.add('hidden');
+                if (picker && menu.parentElement === document.body) {
+                    picker.appendChild(menu);
+                }
+            }
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+                btn.classList.remove('is-menu-open');
+            }
+        }
+
+        function selectFilterPopupIntersectionKind(kind) {
+            const next = kind === 'nearintersect' ? 'nearintersect' : 'intersect';
+            if (filterIntersectionKind === next) {
+                closeFilterPopupIntersectionKindMenu();
+                return;
+            }
+            filterIntersectionKind = next;
+            saveFilterIntersectionKindSettings();
+            const label = el('filterPopupIntersectionKindBtnLabel');
+            if (label) {
+                label.textContent = getFilterIntersectionKindButtonLabel();
+            }
+            highlightFilterPopupIntersectionKindMenu();
+            closeFilterPopupIntersectionKindMenu();
+            invalidateFilterPopupRenderCache();
+            if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1'
+                && isIntersectionFilterMode(periodFilterMode)) {
+                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
+            } else {
+                rebuildFilterModeCounts();
+                updatePeriodFilterMatchCount();
+            }
+        }
+
+        function syncFilterPopupIntersectionToolsUi() {
+            const picker = el('filterPopupIntersectionPicker');
+            const btn = el('filterPopupIntersectionKindBtn');
+            const label = el('filterPopupIntersectionKindBtnLabel');
+            const show = periodFilterEnabled && isIntersectionFilterMode(periodFilterMode);
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+                picker.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+            if (btn) {
+                btn.disabled = !show;
+            }
+            if (label) {
+                label.textContent = getFilterIntersectionKindButtonLabel();
+            }
+            if (!show) {
+                closeFilterPopupIntersectionKindMenu();
+            }
+            highlightFilterPopupIntersectionKindMenu();
+        }
+
+        function initFilterPopupIntersectionKindControls() {
+            loadFilterIntersectionKindSettings();
+            buildFilterPopupIntersectionKindMenu();
+            syncFilterPopupIntersectionToolsUi();
+
+            const picker = el('filterPopupIntersectionPicker');
+            const btn = el('filterPopupIntersectionKindBtn');
+            const menu = el('filterPopupIntersectionKindMenu');
+            if (!picker || !btn || !menu || picker.dataset.bound === '1') {
+                return;
+            }
+            picker.dataset.bound = '1';
+            picker.addEventListener('mousedown', (event) => event.stopPropagation());
+            picker.addEventListener('click', (event) => event.stopPropagation());
+            btn.addEventListener('mousedown', (event) => event.stopPropagation());
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (btn.disabled) {
+                    return;
+                }
+                if (menu.classList.contains('hidden')) {
+                    openFilterPopupIntersectionKindMenu();
+                } else {
+                    closeFilterPopupIntersectionKindMenu();
+                }
+            });
+            menu.addEventListener('click', (event) => event.stopPropagation());
+            document.addEventListener('mousedown', (event) => {
+                if (menu.classList.contains('hidden')) {
+                    return;
+                }
+                const target = event.target;
+                if (picker.contains(target) || menu.contains(target)) {
+                    return;
+                }
+                closeFilterPopupIntersectionKindMenu();
+            });
+            window.addEventListener('resize', () => {
+                if (!menu.classList.contains('hidden')) {
+                    positionFilterPopupIntersectionKindMenu();
+                }
+            });
         }
 
         function applyFilterNoteTagsFromUi() {
@@ -5324,6 +5563,7 @@
         function openFilterPopupNonexistColorMenu() {
             closePeriodFilterModeMenu();
             closeFilterPopupNoteTagMenu();
+            closeFilterPopupIntersectionKindMenu();
             const menu = el('filterPopupNonexistColorMenu');
             const btn = el('filterPopupNonexistColorBtn');
             const picker = el('filterPopupNonexistColorPicker');
@@ -6393,6 +6633,11 @@
             if (isPosnfreqFilterMode(mode)) {
                 return getPosnfreqFilterOptionsForMatching();
             }
+            if (isIntersectionFilterMode(mode)) {
+                return {
+                    intersectionKind: filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect'
+                };
+            }
             return null;
         }
 
@@ -6649,6 +6894,10 @@
                 }
                 return 'Không có kỳ nào khớp posnfreq với specimen hiện tại.';
             }
+            if (isIntersectionFilterMode(normalized)) {
+                const k = filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
+                return `Không có kỳ nào khớp intersection (${k}): cặp a,b trong 5 số submit, mỗi số tổng freq ≥2 trong 10 chuỗi trước kỳ.`;
+            }
             const hint = getFilterModeTitleHint(normalized);
             const tags = getActiveNoteTagFilterValues();
             if (tags.length > 0) {
@@ -6771,6 +7020,7 @@
         function openPeriodFilterModeMenu(anchor) {
             closeFilterPopupNoteTagMenu();
             closeFilterPopupNonexistColorMenu();
+            closeFilterPopupIntersectionKindMenu();
             periodFilterMenuAnchor = anchor === 'popup' ? 'popup' : 'toolbar';
             const menu = getPeriodFilterMenu();
             const { modeBtn, picker } = getPeriodFilterPicker(periodFilterMenuAnchor);
@@ -6828,6 +7078,7 @@
             closePeriodFilterModeMenu();
             closeFilterPopupNoteTagMenu();
             closeFilterPopupNonexistColorMenu();
+            closeFilterPopupIntersectionKindMenu();
             scheduleRebuildFilterNoteTagMenuCounts();
             syncPeriodFilterToolbarUi();
             if (periodFilterEnabled) {
@@ -7572,8 +7823,10 @@
                 const target = event.target;
                 const toolbar = getPeriodFilterPicker('toolbar');
                 const popup = getPeriodFilterPicker('popup');
+                const ixPicker = el('filterPopupIntersectionPicker');
                 if ((toolbar.picker && toolbar.picker.contains(target))
                     || (popup.picker && popup.picker.contains(target))
+                    || (ixPicker && ixPicker.contains(target))
                     || menu.contains(target)) {
                     return;
                 }
@@ -7630,6 +7883,7 @@
             syncFilterPopupNonexistToolsUi();
             syncFilterPopupPosnfreqToolsUi();
             syncFilterPopupNoteTagUi();
+            syncFilterPopupIntersectionToolsUi();
 
             if (light) {
                 return;
@@ -7892,6 +8146,7 @@
 
         function closeFilterPopup() {
             hideFilterPopupNonexist005PctTooltip();
+            closeFilterPopupIntersectionKindMenu();
             const dock = el('filterPopupDock');
             if (!dock) {
                 return;
@@ -8381,6 +8636,8 @@
                 }
                 posnfreqKey = `pf:${sn}:${src}:${strict}:${sig}`;
             }
+            const ixKind = filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
+            const ixKey = isIntersectionFilterMode(periodFilterMode) ? `ix:${ixKind}` : '';
             return [
                 periodFilterMode,
                 tags,
@@ -8390,7 +8647,8 @@
                 rowLen,
                 rightPaneZoom,
                 posnfreqKey,
-                filterNonexistGreen005000 ? 'g005:1' : 'g005:0'
+                filterNonexistGreen005000 ? 'g005:1' : 'g005:0',
+                ixKey
             ].join('|');
         }
 
@@ -8537,6 +8795,7 @@
             updatePeriodFilterMatchCount();
             syncFilterPopupNonexistToolsUi();
             syncFilterPopupNoteTagUi();
+            syncFilterPopupIntersectionToolsUi();
         }
 
         function syncFilterPopupPosnfreqSubmitOverlap() {
@@ -9429,6 +9688,7 @@
             initPeriodFilterModePicker();
             initFilterPopupNonexistControls();
             initFilterPopupNoteTagControls();
+            initFilterPopupIntersectionKindControls();
             initFilterPopupPosnfreqControls();
             initFilterPopupPosnfreqOverlapPctToggle();
             initFilterPopupPositionInput();

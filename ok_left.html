@@ -490,6 +490,62 @@
             flex-shrink: 0;
         }
 
+        .mode-row {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 6px 10px;
+        }
+
+        .pick-preview-with-badges {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+            flex: 0 1 auto;
+            min-width: 0;
+        }
+
+        .pick-property-badges-inline {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            flex: 0 0 auto;
+        }
+
+        .pick-badge {
+            display: none;
+            align-items: center;
+            justify-content: center;
+            min-width: 28px;
+            padding: 2px 8px;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            font-family: system-ui, "Segoe UI", sans-serif;
+            border-radius: 999px;
+            line-height: 1.2;
+            user-select: none;
+            border-width: 1.5px;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+        }
+
+        .pick-badge.pick-badge--visible {
+            display: inline-flex;
+        }
+
+        .pick-badge--conn.pick-badge--visible {
+            border: 1.5px solid #0d9488;
+            background: linear-gradient(180deg, #ccfbf1, #99f6e4);
+            color: #042f2e;
+        }
+
+        .pick-badge--ix.pick-badge--visible {
+            border: 1.5px solid #7c3aed;
+            background: linear-gradient(180deg, #ede9fe, #ddd6fe);
+            color: #3b0764;
+        }
+
         /* Left compact sizing (match ok.py) */
         #left table {
             font-size: 13px;
@@ -1463,7 +1519,16 @@
                             <option value="quad1">1 bộ 4</option>
                         </select>
                         <button id="pickBtn">Pick</button>
-                        <span id="pickPreview" style="font-weight:normal;color:#333"></span>
+                        <span class="pick-preview-with-badges">
+                            <span id="pickPreview" style="font-weight:normal;color:#333"></span>
+                            <span id="pickPropertyBadgesRow" class="pick-property-badges-inline" role="status"
+                                aria-live="polite" aria-label="Tính chất pick" style="display:none">
+                                <span id="pickBadgeConnection" class="pick-badge pick-badge--conn"
+                                    title="Connection: một số nằm trong ≥2 cặp (theo 10 chuỗi + tập khoanh)">Cx</span>
+                                <span id="pickBadgeIntersection" class="pick-badge pick-badge--ix"
+                                    title="Intersection (intersect): cặp a,b trong tập khoanh, freq≥2, cùng chuỗi M, tách miền trên/dưới M">∩</span>
+                            </span>
+                        </span>
                     </div>
                     <div id="pairList"
                         style="margin-top:6px;font-size:13px;color:#333;white-space:normal;word-break:break-word;overflow-wrap:anywhere;display:flex;align-items:center;flex-wrap:wrap;gap:6px;max-width:100%;box-sizing:border-box">
@@ -1964,6 +2029,7 @@
             try { syncPickOrderFromSelected(); } catch (e) { /* ignore */ }
             try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { /* ignore */ }
             try { notifyParentLeftCircledNums(); } catch (e) { /* ignore */ }
+            try { syncPickPropertyBadges(); } catch (eBadges) { /* ignore */ }
         }
 
         function markSubmitCircleOverlayCleared() {
@@ -2488,7 +2554,12 @@
         // Recompute firstPair/secondPair/... and firstTriple from current selection sets
         function recomputePairsFromSelected() {
             firstPair = null; secondPair = null; thirdPair = null; fourthPair = null; fifthPair = null; firstTriple = null;
-            if (!raw) return;
+            if (!raw) {
+                try {
+                    syncPickPropertyBadges();
+                } catch (eBadges0) { /* ignore */ }
+                return;
+            }
             // effective selection: when Submit is active, use simulated picks only
             let effective = new Set();
             if (submitActive) { simulatedSelected.forEach(n => effective.add(n)); }
@@ -2514,6 +2585,9 @@
                 if (selInLine.length >= 2) pairs.push(selInLine.slice(0, 2));
             });
             firstPair = pairs[0] || null; secondPair = pairs[1] || null; thirdPair = pairs[2] || null; fourthPair = pairs[3] || null; fifthPair = pairs[4] || null;
+            try {
+                syncPickPropertyBadges();
+            } catch (eBadges) { /* ignore */ }
         }
 
         /** triple1 / quad1: chưa có chuỗi đủ N số thì không block; sau đó mỗi chuỗi block phần còn lại khi đã chọn đủ ngưỡng dòng. */
@@ -3273,6 +3347,7 @@
             try { updateFocusIndicator(); } catch (e) { }
             try { if (!submitActive) refreshLeftPickSelectionUi(); else if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { /* ignore */ }
             try { if (document.getElementById('checknoteTooltip')) refreshChecknoteTooltip(); } catch (e) { }
+            try { syncPickPropertyBadges(); } catch (eBadgesLw) { /* ignore */ }
         }
 
         function requestChecknoteDataIfNeeded() {
@@ -4032,6 +4107,198 @@
                 transientSelected.forEach((n) => effective.add(n));
             }
             return effective;
+        }
+
+        /** Tập khoanh dùng cho cặp trên 10 chuỗi — khớp recomputePairsFromSelected (không gồm transientSelected). */
+        function getEffectiveSelectionForPickBadges() {
+            const effective = new Set();
+            if (submitActive) {
+                simulatedSelected.forEach(function (n) {
+                    effective.add(n);
+                });
+            } else {
+                selected.forEach(function (n) {
+                    effective.add(n);
+                });
+                simulatedSelected.forEach(function (n) {
+                    effective.add(n);
+                });
+            }
+            return effective;
+        }
+
+        /** Cặp [a,b] theo từng dòng 10 chuỗi: hai số khoanh đầu tiên trên dòng (giống recomputePairsFromSelected). */
+        function computeChainPairsFromEffectiveSelection() {
+            const pairs = [];
+            if (!raw) {
+                return pairs;
+            }
+            const effective = getEffectiveSelectionForPickBadges();
+            if (!effective || effective.size < 2) {
+                return pairs;
+            }
+            getRawDisplayLines().forEach(function (line) {
+                const nums = getNumsFromLineObj(line);
+                const selInLine = nums.filter(function (x) {
+                    return effective.has(x);
+                });
+                if (selInLine.length >= 2) {
+                    pairs.push(selInLine.slice(0, 2));
+                }
+            });
+            return pairs;
+        }
+
+        /** Giống noteTextHasConnectionPairing (RightPane): một số nằm trong ≥2 cặp. */
+        function pickPairsSatisfyConnection(pairList) {
+            if (!pairList || pairList.length < 2) {
+                return false;
+            }
+            const numToPairIdx = new Map();
+            for (let pairIndex = 0; pairIndex < pairList.length; pairIndex++) {
+                const pr = pairList[pairIndex];
+                if (!pr || pr.length < 2) {
+                    continue;
+                }
+                const a = pr[0];
+                const b = pr[1];
+                if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                    continue;
+                }
+                for (let k = 0; k < 2; k++) {
+                    const n = k === 0 ? a : b;
+                    let set = numToPairIdx.get(n);
+                    if (!set) {
+                        set = new Set();
+                        numToPairIdx.set(n, set);
+                    }
+                    set.add(pairIndex);
+                }
+            }
+            for (const s of numToPairIdx.values()) {
+                if (s.size >= 2) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        /**
+         * Intersection (intersect): đồng bộ logic filter trên 10 chuỗi + tập khoanh (≥2 số, không cần đủ 5).
+         */
+        function pickSubmitSatisfiesIntersect() {
+            const eff = getEffectiveSelectionForPickBadges();
+            if (!eff || eff.size < 2) {
+                return false;
+            }
+            const answerNums = [];
+            eff.forEach(function (n) {
+                answerNums.push(n);
+            });
+            answerNums.sort(function (a, b) {
+                return a - b;
+            });
+            const displayLines = getRawDisplayLines();
+            const limit = displayLines.length;
+            if (limit < 1) {
+                return false;
+            }
+            const lines = [];
+            for (let di = 0; di < limit; di++) {
+                const nums = getNumsFromLineObj(displayLines[di]);
+                const label = limit - di;
+                lines.push({ label: label, nums: nums });
+            }
+            const freq = new Array(36).fill(0);
+            for (let li = 0; li < lines.length; li++) {
+                const nums = lines[li].nums;
+                for (let k = 0; k < nums.length; k++) {
+                    const n = nums[k];
+                    if (n >= 1 && n <= 35) {
+                        freq[n]++;
+                    }
+                }
+            }
+            const hasNum = function (nums, x) {
+                return nums.indexOf(x) !== -1;
+            };
+            for (let ai = 0; ai < answerNums.length; ai++) {
+                for (let bi = ai + 1; bi < answerNums.length; bi++) {
+                    const a = answerNums[ai];
+                    const b = answerNums[bi];
+                    if (a === b || freq[a] < 2 || freq[b] < 2) {
+                        continue;
+                    }
+                    const mainLabels = [];
+                    for (let li = 0; li < lines.length; li++) {
+                        const nums = lines[li].nums;
+                        if (hasNum(nums, a) && hasNum(nums, b)) {
+                            mainLabels.push(lines[li].label);
+                        }
+                    }
+                    if (mainLabels.length === 0) {
+                        continue;
+                    }
+                    for (let mi = 0; mi < mainLabels.length; mi++) {
+                        const M = mainLabels[mi];
+                        let aUp = false;
+                        let aLo = false;
+                        let bUp = false;
+                        let bLo = false;
+                        for (let li = 0; li < lines.length; li++) {
+                            const lab = lines[li].label;
+                            if (lab === M) {
+                                continue;
+                            }
+                            const nums = lines[li].nums;
+                            if (lab > M) {
+                                if (hasNum(nums, a)) {
+                                    aUp = true;
+                                }
+                                if (hasNum(nums, b)) {
+                                    bUp = true;
+                                }
+                            } else if (lab < M) {
+                                if (hasNum(nums, a)) {
+                                    aLo = true;
+                                }
+                                if (hasNum(nums, b)) {
+                                    bLo = true;
+                                }
+                            }
+                        }
+                        if ((aUp && bLo) || (bUp && aLo)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        function syncPickPropertyBadges() {
+            const row = document.getElementById('pickPropertyBadgesRow');
+            const bConn = document.getElementById('pickBadgeConnection');
+            const bIx = document.getElementById('pickBadgeIntersection');
+            if (!row || !bConn || !bIx) {
+                return;
+            }
+            bConn.classList.remove('pick-badge--visible');
+            bIx.classList.remove('pick-badge--visible');
+            if (!hasLeftPaneRecordForPairNeon()) {
+                row.style.display = 'none';
+                return;
+            }
+            const pairs = computeChainPairsFromEffectiveSelection();
+            const conn = pickPairsSatisfyConnection(pairs);
+            const ix = pickSubmitSatisfiesIntersect();
+            if (conn) {
+                bConn.classList.add('pick-badge--visible');
+            }
+            if (ix) {
+                bIx.classList.add('pick-badge--visible');
+            }
+            row.style.display = conn || ix ? 'inline-flex' : 'none';
         }
 
         function notePairNeonObserveContextFromEffectiveSize() {
@@ -7387,6 +7654,9 @@
                         }
                     } catch (e) { precomputedPickRows = []; }
                     try { if (document.getElementById('pickTooltip')) refreshPickTooltip(); } catch (e) { }
+                    try {
+                        syncPickPropertyBadges();
+                    } catch (eBadgesPick) { /* ignore */ }
                 }
 
                 pb.addEventListener('click', async function (ev) {
@@ -7787,6 +8057,7 @@
 
                 // blocked classes already handled per-number above
                 try { updateFocusIndicator(); } catch (e) { }
+                try { syncPickPropertyBadges(); } catch (ePb) { /* ignore */ }
             } catch (e) { console.error(e); }
         }
 
