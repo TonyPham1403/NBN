@@ -1262,7 +1262,17 @@
             text-align: center;
         }
 
-        #filterPopupNonexistNumSpin {
+        .filter-popup-position-input.filter-popup-intersection-freq-num {
+            width: 2ch;
+            min-width: 2ch;
+            max-width: 2ch;
+            flex: 0 0 2ch;
+            text-align: center;
+        }
+
+        #filterPopupNonexistNumSpin,
+        #filterPopupIntersectionFreqXSpin,
+        #filterPopupIntersectionFreqYSpin {
             display: flex;
             flex-direction: column;
             flex: 0 0 auto;
@@ -1277,7 +1287,9 @@
             align-self: center;
         }
 
-        #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn {
+        #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn,
+        #filterPopupIntersectionFreqXSpin .filter-popup-nonexist-num-spin-btn,
+        #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn {
             flex: 1 1 50%;
             min-height: 0;
             margin: 0;
@@ -1295,19 +1307,27 @@
             box-sizing: border-box;
         }
 
-        #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn {
+        #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
+        #filterPopupIntersectionFreqXSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
+        #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn {
             border-top: 1px solid rgba(255, 255, 255, 0.35);
         }
 
-        #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled) {
+        #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
+        #filterPopupIntersectionFreqXSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
+        #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled) {
             background: #047857 !important;
         }
 
-        #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled) {
+        #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
+        #filterPopupIntersectionFreqXSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
+        #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled) {
             background: #065f46 !important;
         }
 
-        #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn:disabled {
+        #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn:disabled,
+        #filterPopupIntersectionFreqXSpin .filter-popup-nonexist-num-spin-btn:disabled,
+        #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn:disabled {
             opacity: 0.45;
             cursor: not-allowed;
         }
@@ -1483,6 +1503,66 @@
 
         .filter-popup-note-tag-picker.hidden {
             display: none;
+        }
+
+        .filter-popup-intersection-picker .filter-popup-intersection-toolbar {
+            display: inline-flex;
+            align-items: stretch;
+            height: 100%;
+            min-height: 24px;
+            max-height: 24px;
+        }
+
+        .filter-popup-intersection-freq {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 0 6px 0 4px;
+            border-left: 1px solid #cbd5e1;
+            background: #f8fafc;
+            flex-shrink: 0;
+        }
+
+        .filter-popup-intersection-freq-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            color: #374151;
+            white-space: nowrap;
+        }
+
+        .filter-popup-intersection-freq-key {
+            color: #64748b;
+            min-width: 10px;
+            text-align: center;
+        }
+
+        .filter-popup-intersection-freq-op {
+            height: 20px;
+            min-width: 48px;
+            max-width: 56px;
+            padding: 0 2px;
+            font-size: 11px;
+            font-weight: 700;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            background: #fff;
+            color: #111827;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+
+        .filter-popup-intersection-freq-op:focus {
+            outline: none;
+            border-color: #0f766e;
+            box-shadow: 0 0 0 2px rgba(15, 118, 110, 0.2);
+        }
+
+        .filter-popup-intersection-freq-op:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
         }
 
         .filter-popup-note-tag-btn {
@@ -3750,13 +3830,64 @@
                             <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
                         </button>
                     </div>
-                    <div id="filterPopupIntersectionPicker" class="filter-popup-note-tag-picker hidden" aria-hidden="true">
-                        <button type="button" id="filterPopupIntersectionKindBtn" class="filter-popup-note-tag-btn"
-                            aria-haspopup="listbox" aria-expanded="false"
-                            title="intersect: cùng chuỗi M + một số miền trên M, một số miền dưới M. nearintersect: không cùng chuỗi; mỗi số xuất hiện trên các chuỗi tạo một dải nhãn liên tiếp; hai dải rời nhau và kề (max+1=min hoặc ngược lại)">
-                            <span id="filterPopupIntersectionKindBtnLabel">intersect</span>
-                            <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
-                        </button>
+                    <div id="filterPopupIntersectionPicker"
+                        class="filter-popup-note-tag-picker filter-popup-intersection-picker hidden" aria-hidden="true">
+                        <div class="filter-popup-intersection-toolbar">
+                            <button type="button" id="filterPopupIntersectionKindBtn" class="filter-popup-note-tag-btn"
+                                aria-haspopup="listbox" aria-expanded="false"
+                                title="intersect: cùng chuỗi M + một số miền trên M, một số miền dưới M. nearintersect: không cùng chuỗi; mỗi số xuất hiện trên các chuỗi tạo một dải nhãn liên tiếp; hai dải rời nhau và kề (max+1=min hoặc ngược lại)">
+                                <span id="filterPopupIntersectionKindBtnLabel">intersect</span>
+                                <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
+                            </button>
+                            <div class="filter-popup-intersection-freq" role="group"
+                                title="Cặp (a,b) theo thứ tự 5 số submit: freq(a) so với x theo dấu bên dưới; freq(b) so với y. Ngưỡng x,y chỉ từ 2 đến 7. Cửa sổ tối đa 10 chuỗi trước kỳ."
+                                aria-label="Tần suất intersection: x, toán tử, ngưỡng; y, toán tử, ngưỡng">
+                                <label class="filter-popup-intersection-freq-item">
+                                    <span class="filter-popup-intersection-freq-key">x</span>
+                                    <select id="filterPopupIntersectionOpX" class="filter-popup-intersection-freq-op"
+                                        aria-label="Dấu so sánh freq số a với ngưỡng x">
+                                        <option value=">=">&gt;=</option>
+                                        <option value="=">=</option>
+                                        <option value="<=">&lt;=</option>
+                                    </select>
+                                    <span id="filterPopupIntersectionFreqX"
+                                        class="filter-popup-position-input filter-popup-intersection-freq-num"
+                                        tabindex="0" role="textbox" aria-label="Ngưỡng x (2–7)"
+                                        title="Ngưỡng x 2–7; ▴▾ tăng giảm">2</span>
+                                    <div id="filterPopupIntersectionFreqXSpin" class="filter-popup-intersection-freq-spin"
+                                        role="group" aria-label="Tăng giảm ngưỡng x (2–7)">
+                                        <button type="button" id="filterPopupIntersectionFreqXInc"
+                                            class="filter-popup-nonexist-num-spin-btn" title="Tăng x (tối đa 7)"
+                                            aria-label="Tăng ngưỡng x">▴</button>
+                                        <button type="button" id="filterPopupIntersectionFreqXDec"
+                                            class="filter-popup-nonexist-num-spin-btn" title="Giảm x (tối thiểu 2)"
+                                            aria-label="Giảm ngưỡng x">▾</button>
+                                    </div>
+                                </label>
+                                <label class="filter-popup-intersection-freq-item">
+                                    <span class="filter-popup-intersection-freq-key">y</span>
+                                    <select id="filterPopupIntersectionOpY" class="filter-popup-intersection-freq-op"
+                                        aria-label="Dấu so sánh freq số b với ngưỡng y">
+                                        <option value=">=">&gt;=</option>
+                                        <option value="=">=</option>
+                                        <option value="<=">&lt;=</option>
+                                    </select>
+                                    <span id="filterPopupIntersectionFreqY"
+                                        class="filter-popup-position-input filter-popup-intersection-freq-num"
+                                        tabindex="0" role="textbox" aria-label="Ngưỡng y (2–7)"
+                                        title="Ngưỡng y 2–7; ▴▾ tăng giảm">2</span>
+                                    <div id="filterPopupIntersectionFreqYSpin" class="filter-popup-intersection-freq-spin"
+                                        role="group" aria-label="Tăng giảm ngưỡng y (2–7)">
+                                        <button type="button" id="filterPopupIntersectionFreqYInc"
+                                            class="filter-popup-nonexist-num-spin-btn" title="Tăng y (tối đa 7)"
+                                            aria-label="Tăng ngưỡng y">▴</button>
+                                        <button type="button" id="filterPopupIntersectionFreqYDec"
+                                            class="filter-popup-nonexist-num-spin-btn" title="Giảm y (tối thiểu 2)"
+                                            aria-label="Giảm ngưỡng y">▾</button>
+                                    </div>
+                                </label>
+                            </div>
+                        </div>
                         <ul id="filterPopupIntersectionKindMenu"
                             class="period-filter-mode-menu filter-popup-note-tag-menu hidden" role="listbox"
                             aria-label="Kiểu intersection"></ul>
@@ -3927,6 +4058,7 @@
         const PERIOD_FILTER_ENABLED_KEY = 'periodFilterEnabled';
         const PERIOD_FILTER_MODE_KEY = 'periodFilterMode';
         const PERIOD_FILTER_INTERSECTION_KIND_KEY = 'periodFilterIntersectionKind';
+        const PERIOD_FILTER_INTERSECTION_FREQ_XY_KEY = 'periodFilterIntersectionFreqXY';
         const FILTER_POPUP_LAYOUT_KEY = 'filterPopupLayout';
         const ANSWER_POPUP_LAYOUT_KEY = 'answerPopupLayout';
         const FILTER_NONEXIST_NUM_KEY = 'filterNonexistNum';
@@ -4042,6 +4174,21 @@
         let posnfreqSpecimenStrict = false;
         /** intersection: intersect | nearintersect — cửa sổ 10 chuỗi + 5 số submit */
         let filterIntersectionKind = 'intersect';
+        /** Ngưỡng freq trong cửa sổ chuỗi: x cho số a, y cho số b (cặp theo thứ tự 5 số submit, số trước = a). */
+        let filterIntersectionFreqX = 2;
+        let filterIntersectionFreqY = 2;
+        /** So sánh freq(số a) với x và freq(số b) với y: '>=', '=', '<=' */
+        let filterIntersectionOpX = '>=';
+        let filterIntersectionOpY = '>=';
+        let filterIntersectionFreqApplyTimer = null;
+
+        function normalizeIntersectionFreqOp(raw) {
+            const s = String(raw || '').trim();
+            if (s === '=' || s === '<=' || s === '>=') {
+                return s;
+            }
+            return '>=';
+        }
         let posnfreqHexDragPointerId = null;
         /** Nhịp 2: marker + rebuild bảng lọc (idle / timeout), gộp khi đổi specimen liên tiếp */
         let posnfreqPhase2IdleId = 0;
@@ -4832,7 +4979,11 @@
             }
             if (isIntersectionFilterMode(mode)) {
                 return {
-                    intersectionKind: filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect'
+                    intersectionKind: filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect',
+                    intersectionMinFreqA: filterIntersectionFreqX,
+                    intersectionMinFreqB: filterIntersectionFreqY,
+                    intersectionFreqOpA: normalizeIntersectionFreqOp(filterIntersectionOpX),
+                    intersectionFreqOpB: normalizeIntersectionFreqOp(filterIntersectionOpY)
                 };
             }
             const noteTags = supportsNoteTagFilter(mode) ? getActiveNoteTagFilterValues() : [];
@@ -5078,6 +5229,138 @@
             } catch (e) { /* ignore */ }
         }
 
+        function loadFilterIntersectionFreqSettings() {
+            try {
+                const raw = localStorage.getItem(PERIOD_FILTER_INTERSECTION_FREQ_XY_KEY);
+                if (!raw) {
+                    filterIntersectionFreqX = 2;
+                    filterIntersectionFreqY = 2;
+                    filterIntersectionOpX = '>=';
+                    filterIntersectionOpY = '>=';
+                    return;
+                }
+                const p = JSON.parse(raw);
+                const x = parseInt(p && p.x, 10);
+                const y = parseInt(p && p.y, 10);
+                filterIntersectionFreqX = Number.isFinite(x) ? Math.min(7, Math.max(2, x)) : 2;
+                filterIntersectionFreqY = Number.isFinite(y) ? Math.min(7, Math.max(2, y)) : 2;
+                filterIntersectionOpX = normalizeIntersectionFreqOp(p && p.opX);
+                filterIntersectionOpY = normalizeIntersectionFreqOp(p && p.opY);
+            } catch (e) {
+                filterIntersectionFreqX = 2;
+                filterIntersectionFreqY = 2;
+                filterIntersectionOpX = '>=';
+                filterIntersectionOpY = '>=';
+            }
+        }
+
+        function saveFilterIntersectionFreqSettings() {
+            try {
+                localStorage.setItem(
+                    PERIOD_FILTER_INTERSECTION_FREQ_XY_KEY,
+                    JSON.stringify({
+                        x: filterIntersectionFreqX,
+                        y: filterIntersectionFreqY,
+                        opX: normalizeIntersectionFreqOp(filterIntersectionOpX),
+                        opY: normalizeIntersectionFreqOp(filterIntersectionOpY)
+                    })
+                );
+            } catch (e) { /* ignore */ }
+        }
+
+        function scheduleApplyIntersectionFreqFromUi() {
+            clearTimeout(filterIntersectionFreqApplyTimer);
+            filterIntersectionFreqApplyTimer = setTimeout(() => {
+                filterIntersectionFreqApplyTimer = null;
+                applyIntersectionFreqFromUi();
+            }, 160);
+        }
+
+        function syncFilterPopupIntersectionFreqSpinButtons() {
+            const active = periodFilterEnabled && isIntersectionFilterMode(periodFilterMode);
+            const xinc = el('filterPopupIntersectionFreqXInc');
+            const xdec = el('filterPopupIntersectionFreqXDec');
+            const yinc = el('filterPopupIntersectionFreqYInc');
+            const ydec = el('filterPopupIntersectionFreqYDec');
+            if (xinc && xdec) {
+                xinc.disabled = !active || filterIntersectionFreqX >= 7;
+                xdec.disabled = !active || filterIntersectionFreqX <= 2;
+            }
+            if (yinc && ydec) {
+                yinc.disabled = !active || filterIntersectionFreqY >= 7;
+                ydec.disabled = !active || filterIntersectionFreqY <= 2;
+            }
+        }
+
+        function bumpFilterPopupIntersectionFreq(which, delta) {
+            if (!periodFilterEnabled || !isIntersectionFilterMode(periodFilterMode)) {
+                return false;
+            }
+            const d = Number(delta) || 0;
+            if (d === 0) {
+                return false;
+            }
+            const isX = which === 'x';
+            const v = isX ? filterIntersectionFreqX : filterIntersectionFreqY;
+            const next = Math.min(7, Math.max(2, v + d));
+            if (next === v) {
+                return false;
+            }
+            if (isX) {
+                filterIntersectionFreqX = next;
+            } else {
+                filterIntersectionFreqY = next;
+            }
+            const span = el(isX ? 'filterPopupIntersectionFreqX' : 'filterPopupIntersectionFreqY');
+            setFilterPopupPositionText(span, String(next));
+            saveFilterIntersectionFreqSettings();
+            invalidateFilterPopupRenderCache();
+            syncFilterPopupIntersectionFreqSpinButtons();
+            if (sheetManager && sheetManager.activeSheet === 'sheet1') {
+                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
+            } else {
+                rebuildFilterModeCounts();
+                updatePeriodFilterMatchCount();
+            }
+            return true;
+        }
+
+        function applyIntersectionFreqFromUi() {
+            const ix = el('filterPopupIntersectionFreqX');
+            const iy = el('filterPopupIntersectionFreqY');
+            const ox = el('filterPopupIntersectionOpX');
+            const oy = el('filterPopupIntersectionOpY');
+            if (!ix || !iy) {
+                return;
+            }
+            const vx = parseInt(getFilterPopupPositionText(ix), 10);
+            const vy = parseInt(getFilterPopupPositionText(iy), 10);
+            const nx = Number.isFinite(vx) ? Math.min(7, Math.max(2, vx)) : filterIntersectionFreqX;
+            const ny = Number.isFinite(vy) ? Math.min(7, Math.max(2, vy)) : filterIntersectionFreqY;
+            filterIntersectionFreqX = nx;
+            filterIntersectionFreqY = ny;
+            setFilterPopupPositionText(ix, String(nx));
+            setFilterPopupPositionText(iy, String(ny));
+            if (ox) {
+                filterIntersectionOpX = normalizeIntersectionFreqOp(ox.value);
+                ox.value = filterIntersectionOpX;
+            }
+            if (oy) {
+                filterIntersectionOpY = normalizeIntersectionFreqOp(oy.value);
+                oy.value = filterIntersectionOpY;
+            }
+            saveFilterIntersectionFreqSettings();
+            invalidateFilterPopupRenderCache();
+            syncFilterPopupIntersectionFreqSpinButtons();
+            if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1'
+                && isIntersectionFilterMode(periodFilterMode)) {
+                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
+            } else {
+                rebuildFilterModeCounts();
+                updatePeriodFilterMatchCount();
+            }
+        }
+
         function getFilterIntersectionKindButtonLabel() {
             return filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
         }
@@ -5212,20 +5495,44 @@
             if (label) {
                 label.textContent = getFilterIntersectionKindButtonLabel();
             }
+            const ix = el('filterPopupIntersectionFreqX');
+            const iy = el('filterPopupIntersectionFreqY');
+            const ox = el('filterPopupIntersectionOpX');
+            const oy = el('filterPopupIntersectionOpY');
+            if (ix) {
+                setFilterPopupPositionText(ix, String(filterIntersectionFreqX));
+                ix.tabIndex = show ? 0 : -1;
+            }
+            if (iy) {
+                setFilterPopupPositionText(iy, String(filterIntersectionFreqY));
+                iy.tabIndex = show ? 0 : -1;
+            }
+            if (ox) {
+                ox.value = normalizeIntersectionFreqOp(filterIntersectionOpX);
+                ox.disabled = !show;
+            }
+            if (oy) {
+                oy.value = normalizeIntersectionFreqOp(filterIntersectionOpY);
+                oy.disabled = !show;
+            }
             if (!show) {
                 closeFilterPopupIntersectionKindMenu();
             }
             highlightFilterPopupIntersectionKindMenu();
+            syncFilterPopupIntersectionFreqSpinButtons();
         }
 
         function initFilterPopupIntersectionKindControls() {
             loadFilterIntersectionKindSettings();
+            loadFilterIntersectionFreqSettings();
             buildFilterPopupIntersectionKindMenu();
             syncFilterPopupIntersectionToolsUi();
 
             const picker = el('filterPopupIntersectionPicker');
             const btn = el('filterPopupIntersectionKindBtn');
             const menu = el('filterPopupIntersectionKindMenu');
+            const ox = el('filterPopupIntersectionOpX');
+            const oy = el('filterPopupIntersectionOpY');
             if (!picker || !btn || !menu || picker.dataset.bound === '1') {
                 return;
             }
@@ -5246,6 +5553,47 @@
                 }
             });
             menu.addEventListener('click', (event) => event.stopPropagation());
+            const bindIntersectionSpin = (spinEl, incId, decId, axis) => {
+                if (!spinEl || spinEl.dataset.spinBound === '1') {
+                    return;
+                }
+                spinEl.dataset.spinBound = '1';
+                const inc = el(incId);
+                const dec = el(decId);
+                if (inc) {
+                    inc.addEventListener('mousedown', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    });
+                    inc.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (!inc.disabled) {
+                            bumpFilterPopupIntersectionFreq(axis, 1);
+                        }
+                    });
+                }
+                if (dec) {
+                    dec.addEventListener('mousedown', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    });
+                    dec.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (!dec.disabled) {
+                            bumpFilterPopupIntersectionFreq(axis, -1);
+                        }
+                    });
+                }
+            };
+            bindIntersectionSpin(el('filterPopupIntersectionFreqXSpin'), 'filterPopupIntersectionFreqXInc', 'filterPopupIntersectionFreqXDec', 'x');
+            bindIntersectionSpin(el('filterPopupIntersectionFreqYSpin'), 'filterPopupIntersectionFreqYInc', 'filterPopupIntersectionFreqYDec', 'y');
+            if (ox && oy) {
+                const onOp = () => scheduleApplyIntersectionFreqFromUi();
+                ox.addEventListener('change', onOp);
+                oy.addEventListener('change', onOp);
+            }
             document.addEventListener('mousedown', (event) => {
                 if (menu.classList.contains('hidden')) {
                     return;
@@ -6635,7 +6983,11 @@
             }
             if (isIntersectionFilterMode(mode)) {
                 return {
-                    intersectionKind: filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect'
+                    intersectionKind: filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect',
+                    intersectionMinFreqA: filterIntersectionFreqX,
+                    intersectionMinFreqB: filterIntersectionFreqY,
+                    intersectionFreqOpA: normalizeIntersectionFreqOp(filterIntersectionOpX),
+                    intersectionFreqOpB: normalizeIntersectionFreqOp(filterIntersectionOpY)
                 };
             }
             return null;
@@ -6896,7 +7248,9 @@
             }
             if (isIntersectionFilterMode(normalized)) {
                 const k = filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
-                return `Không có kỳ nào khớp intersection (${k}): cặp a,b trong 5 số submit, mỗi số tổng freq ≥2 trong 10 chuỗi trước kỳ.`;
+                const oxa = normalizeIntersectionFreqOp(filterIntersectionOpX);
+                const oya = normalizeIntersectionFreqOp(filterIntersectionOpY);
+                return `Không có kỳ nào khớp intersection (${k}): cặp a,b theo thứ tự 5 số submit với freq(a)${oxa}${filterIntersectionFreqX}, freq(b)${oya}${filterIntersectionFreqY} trong tối đa 10 chuỗi trước kỳ.`;
             }
             const hint = getFilterModeTitleHint(normalized);
             const tags = getActiveNoteTagFilterValues();
@@ -8637,7 +8991,19 @@
                 posnfreqKey = `pf:${sn}:${src}:${strict}:${sig}`;
             }
             const ixKind = filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
-            const ixKey = isIntersectionFilterMode(periodFilterMode) ? `ix:${ixKind}` : '';
+            const opTok = (op) => {
+                const o = normalizeIntersectionFreqOp(op);
+                if (o === '=') {
+                    return 'eq';
+                }
+                if (o === '<=') {
+                    return 'le';
+                }
+                return 'ge';
+            };
+            const ixKey = isIntersectionFilterMode(periodFilterMode)
+                ? `ix:${ixKind}:xy:${filterIntersectionFreqX},${filterIntersectionFreqY}:${opTok(filterIntersectionOpX)}:${opTok(filterIntersectionOpY)}`
+                : '';
             return [
                 periodFilterMode,
                 tags,

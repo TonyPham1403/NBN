@@ -1445,12 +1445,27 @@ class RightPaneSheetManager {
         }
 
         if (mode === 'intersection') {
-            const kind = (filterOptions || {}).intersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
+            const o = filterOptions || {};
+            const kind = o.intersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
+            let thX = parseInt(o.intersectionMinFreqA, 10);
+            let thY = parseInt(o.intersectionMinFreqB, 10);
+            if (!Number.isFinite(thX)) {
+                thX = 2;
+            }
+            if (!Number.isFinite(thY)) {
+                thY = 2;
+            }
+            thX = Math.min(7, Math.max(2, thX));
+            thY = Math.min(7, Math.max(2, thY));
+            const rawOpA = String(o.intersectionFreqOpA || '').trim();
+            const rawOpB = String(o.intersectionFreqOpB || '').trim();
+            const opA = rawOpA === '=' || rawOpA === '<=' || rawOpA === '>=' ? rawOpA : '>=';
+            const opB = rawOpB === '=' || rawOpB === '<=' || rawOpB === '>=' ? rawOpB : '>=';
             for (let i = 0; i < rows.length; i++) {
                 if (this.isEmptyResultRow(rows[i])) {
                     continue;
                 }
-                if (this.rowMatchesIntersectionSubmitWindow(rows, i, kind)) {
+                if (this.rowMatchesIntersectionSubmitWindow(rows, i, kind, thX, thY, opA, opB)) {
                     indices.push(i);
                 }
             }
@@ -1494,11 +1509,16 @@ class RightPaneSheetManager {
     /**
      * Cửa sổ 10 chuỗi trước kỳ `rowIndex` (cùng inferMode / posnfreq): nhãn Chuỗi 1 = sát đáp án, L = xa nhất.
      * `nearintersect`: mỗi số phải xuất hiện trên các chuỗi tạo một dải nhãn liên tiếp; hai dải rời nhau và kề (max(A)+1=min(B) hoặc ngược lại), không chỉ “có một cặp nhãn |i−j|=1”.
+     * Cặp (a,b) theo thứ tự 5 số submit: `freq[a]` so với `threshX` theo `opX` (`>=` | `=` | `<=`); `freq[b]` so với `threshY` theo `opY` (tổng lần xuất hiện trong cửa sổ tối đa 10 chuỗi).
      * @param {object[]} rows
      * @param {number} rowIndex
      * @param {'intersect' | 'nearintersect'} kind
+     * @param {number} [threshX=2]
+     * @param {number} [threshY=2]
+     * @param {string} [opX='>=']
+     * @param {string} [opY='>=']
      */
-    rowMatchesIntersectionSubmitWindow(rows, rowIndex, kind) {
+    rowMatchesIntersectionSubmitWindow(rows, rowIndex, kind, threshX = 2, threshY = 2, opX = '>=', opY = '>=') {
         const row = rows[rowIndex];
         if (!row) {
             return false;
@@ -1571,11 +1591,21 @@ class RightPaneSheetManager {
             return false;
         };
 
+        const freqMatchesOp = (freq, threshold, op) => {
+            if (op === '=') {
+                return freq === threshold;
+            }
+            if (op === '<=') {
+                return freq <= threshold;
+            }
+            return freq >= threshold;
+        };
+
         for (let ai = 0; ai < answerNums.length; ai++) {
             for (let bi = ai + 1; bi < answerNums.length; bi++) {
                 const a = answerNums[ai];
                 const b = answerNums[bi];
-                if (a === b || freq[a] < 2 || freq[b] < 2) {
+                if (a === b || !freqMatchesOp(freq[a], threshX, opX) || !freqMatchesOp(freq[b], threshY, opY)) {
                     continue;
                 }
 
