@@ -2603,7 +2603,7 @@ class RightPaneSheetManager {
                 html += '<td class="cell-col-f"></td>';
                 html += '<td class="cell-col-g"></td>';
                 const hComment = (this.comboHComments && this.comboHComments[String(rowIndex)]) || '';
-                html += `<td class="cell-col-h blank-cell combo-h-comment-cell"><input type="text" class="combo-cell-input combo-h-comment-input" data-combo-h-row="${rowIndex}" value="${this.escapeHtml(hComment)}" aria-label="H${rowIndex}" spellcheck="false" /></td>`;
+                html += `<td class="cell-col-h blank-cell combo-h-comment-cell"><input type="text" class="combo-cell-input combo-h-comment-input" data-combo-h-row="${rowIndex}" value="${this.escapeHtml(hComment)}" aria-label="H${rowIndex}" title="Enter: đặt pick trái theo chuỗi này (2–5 số 1–35, phân tách bằng dấu phẩy hoặc khoảng trắng, không trùng)" spellcheck="false" /></td>`;
             }
             html += `<td class="cell-col-i">${isHeaderRow ? 'special' : (specialRow ? this.escapeHtml(specialRow.special || '') : '')}</td>`;
             html += `<td class="cell-col-j">${isHeaderRow ? 'count' : (specialRow ? this.escapeHtml(String(specialRow.count ?? '')) : '')}</td>`;
@@ -2964,6 +2964,57 @@ class RightPaneSheetManager {
         });
     }
 
+    /**
+     * Parse nội dung ô H2+ (combo_1) thành thứ tự pick trái: 2–5 số nguyên 1..35, không trùng.
+     * Dấu phân tách: dấu phẩy, chấm phẩy, | hoặc khoảng trắng.
+     * @param {string} raw
+     * @returns {number[]|null}
+     */
+    parseComboHCommentTextAsLeftPickOrder(raw) {
+        const MIN_PICK = 2;
+        const MAX_PICK = 5;
+        const t = String(raw == null ? '' : raw).trim();
+        if (!t) {
+            return null;
+        }
+        const parts = t.split(/[\s,;|]+/).map((x) => x.trim()).filter(Boolean);
+        if (parts.length < MIN_PICK || parts.length > MAX_PICK) {
+            return null;
+        }
+        const out = [];
+        const seen = new Set();
+        for (const p of parts) {
+            const n = parseInt(p, 10);
+            if (!Number.isFinite(n) || n < 1 || n > 35) {
+                return null;
+            }
+            if (seen.has(n)) {
+                return null;
+            }
+            seen.add(n);
+            out.push(n);
+        }
+        return out;
+    }
+
+    /**
+     * Áp dụng chuỗi trong ô Hx làm pickOrder + selected trên nửa trái (iframe ok_left).
+     */
+    postComboHCommentPickToLeftIframe(nums) {
+        if (!nums || !nums.length) {
+            return;
+        }
+        const frame = document.getElementById('okFrame');
+        if (!frame || !frame.contentWindow) {
+            return;
+        }
+        try {
+            frame.contentWindow.postMessage({ type: 'syncAnswerPickSelection', nums }, '*');
+        } catch (e) {
+            /* ignore */
+        }
+    }
+
     isComboHExcelTarget(target) {
         if (!target || !target.closest) {
             return false;
@@ -3172,6 +3223,26 @@ class RightPaneSheetManager {
                     this._comboHCutPending = null;
                     this.hideComboHMarchingAnts(tableWrap);
                 }
+                return;
+            }
+
+            if (key === 'enter' && !mod) {
+                const input = event.target && event.target.closest
+                    ? event.target.closest('.combo-h-comment-input')
+                    : null;
+                if (!input) {
+                    return;
+                }
+                const row = Number(input.dataset.comboHRow);
+                if (!Number.isFinite(row) || row <= 1) {
+                    return;
+                }
+                const nums = this.parseComboHCommentTextAsLeftPickOrder(input.value);
+                if (!nums) {
+                    return;
+                }
+                event.preventDefault();
+                this.postComboHCommentPickToLeftIframe(nums);
                 return;
             }
 
