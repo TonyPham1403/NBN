@@ -1441,7 +1441,18 @@ class RightPaneSheetManager {
         }
 
         if (mode === 'connection') {
-            return this.ensureConnectionFilterIndicesCache().slice();
+            const base = this.ensureConnectionFilterIndicesCache();
+            if (noteTags.length === 0) {
+                return base.slice();
+            }
+            const out = [];
+            for (let b = 0; b < base.length; b++) {
+                const i = base[b];
+                if (this.rowMatchesNoteTagFilter(i, noteTags)) {
+                    out.push(i);
+                }
+            }
+            return out;
         }
 
         if (mode === 'intersection') {

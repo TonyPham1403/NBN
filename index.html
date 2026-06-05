@@ -1611,7 +1611,8 @@
         }
 
         /* Màu rõ ràng — #id + !important tránh bị ghi đè; .is-note-tag-pressing từ pointer (ổn định hơn :active) */
-        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled) {
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled),
+        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled) {
             background: #006400;
             color: #ffffff;
             border-left-color: #004d00;
@@ -1619,7 +1620,9 @@
         }
 
         #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-note-tag-pressing:not(.is-menu-open),
-        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled):active:not(.is-menu-open) {
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled):active:not(.is-menu-open),
+        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-note-tag-pressing:not(.is-menu-open),
+        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled):active:not(.is-menu-open) {
             background: #facc15 !important;
             color: #1c0a02 !important;
             border-left-color: #a16207 !important;
@@ -1627,31 +1630,38 @@
         }
 
         #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-note-tag-pressing:not(.is-menu-open) .filter-popup-note-tag-btn-emoji,
-        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled):active:not(.is-menu-open) .filter-popup-note-tag-btn-emoji {
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled):active:not(.is-menu-open) .filter-popup-note-tag-btn-emoji,
+        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-note-tag-pressing:not(.is-menu-open) .filter-popup-note-tag-btn-emoji,
+        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled):active:not(.is-menu-open) .filter-popup-note-tag-btn-emoji {
             transform: scale(1.12);
             opacity: 1;
             filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
         }
 
-        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open {
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open,
+        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open {
             background: #ccfbf1 !important;
             color: #134e4a !important;
             border-left-color: #0d9488 !important;
             box-shadow: inset 0 0 0 3px #0f766e !important;
         }
 
-        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open .period-filter-mode-caret {
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open .period-filter-mode-caret,
+        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open .period-filter-mode-caret {
             color: #0f766e !important;
         }
 
-        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open .filter-popup-note-tag-btn-emoji {
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open .filter-popup-note-tag-btn-emoji,
+        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open .filter-popup-note-tag-btn-emoji {
             transform: scale(1.12);
             opacity: 1;
             filter: drop-shadow(0 1px 2px rgba(15, 118, 110, 0.45));
         }
 
         #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open.is-note-tag-pressing,
-        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open:active {
+        #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open:active,
+        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open.is-note-tag-pressing,
+        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open:active {
             background: #5eead4 !important;
             color: #042f2e !important;
             box-shadow: inset 0 0 0 3px #115e59 !important;
@@ -3830,6 +3840,19 @@
                             <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
                         </button>
                     </div>
+                    <div id="filterPopupConnectionNoteTagPicker" class="filter-popup-note-tag-picker hidden"
+                        aria-hidden="true">
+                        <button type="button" id="filterPopupConnectionNoteTagBtn" class="filter-popup-note-tag-btn"
+                            disabled aria-haspopup="listbox" aria-expanded="false"
+                            title="Connection + nhãn trong note (All hoặc một nhãn 1: … 10: dạng N:{…})">
+                            <span class="filter-popup-note-tag-btn-emoji" aria-hidden="true">🔗</span>
+                            <span id="filterPopupConnectionNoteTagBtnLabel">All</span>
+                            <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
+                        </button>
+                        <ul id="filterPopupConnectionNoteTagMenu"
+                            class="period-filter-mode-menu filter-popup-note-tag-menu hidden" role="listbox"
+                            aria-label="Lọc connection theo nhãn trong note"></ul>
+                    </div>
                     <div id="filterPopupIntersectionPicker"
                         class="filter-popup-note-tag-picker filter-popup-intersection-picker hidden" aria-hidden="true">
                         <div class="filter-popup-intersection-toolbar">
@@ -4079,6 +4102,7 @@
             yellow: 'background:rgb(240,200,64)'
         };
         const FILTER_NOTE_TAGS_KEY = 'filterNoteTags';
+        const FILTER_CONNECTION_NOTE_TAGS_KEY = 'filterConnectionNoteTags';
         const FILTER_NOTE_TAG_ALL = 'all';
         const FILTER_NOTE_TAG_VALUES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
         const FILTER_POPUP_MIN_WIDTH = 228;
@@ -4131,6 +4155,7 @@
             closeFilterPopup();
             closePeriodFilterModeMenu();
             closeFilterPopupNoteTagMenu();
+            closeFilterPopupConnectionNoteTagMenu();
             closeFilterPopupIntersectionKindMenu();
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupNonexistGreen005Menu();
@@ -4203,6 +4228,11 @@
         let filterNoteTagMenuCounts = {};
         let filterNoteTagCountRebuildTimer = null;
         let filterNoteTagApplyTimer = null;
+        /** Mode connection: nhãn note 1:…10: (dạng N:{…}) — tách khỏi filterNoteTags của pair/triple. */
+        let filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
+        let filterConnectionNoteTagMenuCounts = {};
+        let filterConnectionNoteTagCountRebuildTimer = null;
+        let filterConnectionNoteTagApplyTimer = null;
         let keyboardFocusTarget = 'right-main';
 
         function rememberKeyboardFocusTarget(target) {
@@ -4826,6 +4856,94 @@
             return normalizeFilterMode(mode) === 'intersection';
         }
 
+        function isConnectionFilterMode(mode) {
+            return normalizeFilterMode(mode) === 'connection';
+        }
+
+        function supportsConnectionNoteTagFilter(mode) {
+            return isConnectionFilterMode(mode);
+        }
+
+        function getActiveConnectionNoteTagFilterValuesForMode(mode) {
+            if (!isConnectionFilterMode(mode)) {
+                return [];
+            }
+            if (!Array.isArray(filterConnectionNoteTags) || filterConnectionNoteTags.includes(FILTER_NOTE_TAG_ALL)) {
+                return [];
+            }
+            return filterConnectionNoteTags
+                .filter((tag) => FILTER_NOTE_TAG_VALUES.includes(tag))
+                .map((tag) => parseInt(tag, 10))
+                .filter((n) => Number.isFinite(n));
+        }
+
+        function getActiveConnectionNoteTagFilterValues() {
+            return getActiveConnectionNoteTagFilterValuesForMode(periodFilterMode);
+        }
+
+        function normalizeFilterConnectionNoteTags() {
+            if (!Array.isArray(filterConnectionNoteTags) || filterConnectionNoteTags.length === 0) {
+                filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
+                return;
+            }
+            if (filterConnectionNoteTags.includes(FILTER_NOTE_TAG_ALL)) {
+                filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
+                return;
+            }
+            const chosen = filterConnectionNoteTags.find((tag) => FILTER_NOTE_TAG_VALUES.includes(tag));
+            filterConnectionNoteTags = chosen ? [chosen] : [FILTER_NOTE_TAG_ALL];
+        }
+
+        function saveFilterConnectionNoteTagsSettings() {
+            try {
+                localStorage.setItem(FILTER_CONNECTION_NOTE_TAGS_KEY, JSON.stringify(filterConnectionNoteTags));
+            } catch (e) { /* ignore */ }
+        }
+
+        function loadFilterConnectionNoteTagsSettings() {
+            try {
+                const saved = localStorage.getItem(FILTER_CONNECTION_NOTE_TAGS_KEY);
+                if (!saved) {
+                    filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
+                    return;
+                }
+                const parsed = JSON.parse(saved);
+                if (!Array.isArray(parsed) || parsed.length === 0) {
+                    filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
+                    return;
+                }
+                if (parsed.includes(FILTER_NOTE_TAG_ALL)) {
+                    filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
+                    return;
+                }
+                filterConnectionNoteTags = parsed.filter((tag) => tag === FILTER_NOTE_TAG_ALL || FILTER_NOTE_TAG_VALUES.includes(String(tag)));
+                if (!filterConnectionNoteTags.length) {
+                    filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
+                }
+            } catch (e) {
+                filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
+            }
+            normalizeFilterConnectionNoteTags();
+        }
+
+        function getFilterConnectionNoteTagButtonLabel() {
+            if (!Array.isArray(filterConnectionNoteTags) || filterConnectionNoteTags.includes(FILTER_NOTE_TAG_ALL) || filterConnectionNoteTags.length === 0) {
+                return 'All';
+            }
+            return filterConnectionNoteTags
+                .filter((tag) => FILTER_NOTE_TAG_VALUES.includes(tag))
+                .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+                .map((tag) => `${tag}:`)
+                .join(', ');
+        }
+
+        function isFilterConnectionNoteTagSelected(tag) {
+            if (tag === FILTER_NOTE_TAG_ALL) {
+                return filterConnectionNoteTags.includes(FILTER_NOTE_TAG_ALL);
+            }
+            return !filterConnectionNoteTags.includes(FILTER_NOTE_TAG_ALL) && filterConnectionNoteTags.includes(tag);
+        }
+
         function getPosnfreqFilterOptionsForMatching() {
             return {
                 specimenNum: posnfreqSpecimenNum,
@@ -4985,6 +5103,13 @@
                     intersectionFreqOpA: normalizeIntersectionFreqOp(filterIntersectionOpX),
                     intersectionFreqOpB: normalizeIntersectionFreqOp(filterIntersectionOpY)
                 };
+            }
+            if (isConnectionFilterMode(mode)) {
+                const ctags = getActiveConnectionNoteTagFilterValuesForMode(mode);
+                if (ctags.length > 0) {
+                    return { noteTags: ctags };
+                }
+                return null;
             }
             const noteTags = supportsNoteTagFilter(mode) ? getActiveNoteTagFilterValues() : [];
             if (noteTags.length > 0) {
@@ -5172,6 +5297,7 @@
             closePeriodFilterModeMenu();
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupIntersectionKindMenu();
+            closeFilterPopupConnectionNoteTagMenu();
             const menu = el('filterPopupNoteTagMenu');
             const btn = el('filterPopupNoteTagBtn');
             const picker = el('filterPopupNoteTagPicker');
@@ -5205,6 +5331,290 @@
                 btn.classList.remove('is-menu-open');
                 btn.classList.remove('is-note-tag-pressing');
             }
+        }
+
+        function closeFilterPopupConnectionNoteTagMenu() {
+            const menu = el('filterPopupConnectionNoteTagMenu');
+            const btn = el('filterPopupConnectionNoteTagBtn');
+            const picker = el('filterPopupConnectionNoteTagPicker');
+            if (menu) {
+                menu.classList.add('hidden');
+                if (picker && menu.parentElement === document.body) {
+                    picker.appendChild(menu);
+                }
+            }
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+                btn.classList.remove('is-menu-open');
+                btn.classList.remove('is-note-tag-pressing');
+            }
+        }
+
+        function syncFilterPopupConnectionNoteTagUi() {
+            const picker = el('filterPopupConnectionNoteTagPicker');
+            const btn = el('filterPopupConnectionNoteTagBtn');
+            const label = el('filterPopupConnectionNoteTagBtnLabel');
+            const show = periodFilterEnabled && supportsConnectionNoteTagFilter(periodFilterMode);
+            if (!show) {
+                closeFilterPopupConnectionNoteTagMenu();
+            }
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+                picker.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+            if (btn) {
+                btn.disabled = !show;
+                btn.setAttribute(
+                    'title',
+                    show
+                        ? 'Connection + nhãn trong note: All hoặc một nhãn 1: … 10: (chuỗi note có dạng N:{…}).'
+                        : 'Nhãn note (connection)'
+                );
+            }
+            if (label) {
+                label.textContent = getFilterConnectionNoteTagButtonLabel();
+            }
+            highlightFilterPopupConnectionNoteTagMenu();
+            syncFilterPopupDropdownCounts();
+        }
+
+        function highlightFilterPopupConnectionNoteTagMenu() {
+            const menu = el('filterPopupConnectionNoteTagMenu');
+            if (!menu) {
+                return;
+            }
+            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
+                const tag = item.dataset.tag || '';
+                item.classList.toggle('selected', isFilterConnectionNoteTagSelected(tag));
+            });
+        }
+
+        function buildFilterPopupConnectionNoteTagMenu() {
+            const menu = el('filterPopupConnectionNoteTagMenu');
+            if (!menu || menu.dataset.built === '1') {
+                highlightFilterPopupConnectionNoteTagMenu();
+                return;
+            }
+            menu.dataset.built = '1';
+            menu.innerHTML = '';
+
+            const allItem = document.createElement('li');
+            allItem.className = 'period-filter-mode-item';
+            allItem.setAttribute('role', 'option');
+            allItem.dataset.tag = FILTER_NOTE_TAG_ALL;
+            const allLabel = document.createElement('span');
+            allLabel.className = 'period-filter-mode-item-label';
+            allLabel.textContent = 'All';
+            const allCount = document.createElement('span');
+            allCount.className = 'period-filter-mode-item-count';
+            allCount.textContent = '0';
+            allItem.appendChild(allLabel);
+            allItem.appendChild(allCount);
+            allItem.addEventListener('mousedown', (event) => event.preventDefault());
+            allItem.addEventListener('click', () => toggleFilterPopupConnectionNoteTag(FILTER_NOTE_TAG_ALL));
+            menu.appendChild(allItem);
+
+            for (const tag of FILTER_NOTE_TAG_VALUES) {
+                const item = document.createElement('li');
+                item.className = 'period-filter-mode-item';
+                item.setAttribute('role', 'option');
+                item.dataset.tag = tag;
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'period-filter-mode-item-label';
+                labelSpan.textContent = `${tag}:`;
+                const countSpan = document.createElement('span');
+                countSpan.className = 'period-filter-mode-item-count';
+                countSpan.textContent = '0';
+                item.appendChild(labelSpan);
+                item.appendChild(countSpan);
+                item.addEventListener('mousedown', (event) => event.preventDefault());
+                item.addEventListener('click', () => toggleFilterPopupConnectionNoteTag(tag));
+                menu.appendChild(item);
+            }
+            highlightFilterPopupConnectionNoteTagMenu();
+            updateFilterPopupConnectionNoteTagMenuItemCounts();
+        }
+
+        function positionFilterPopupConnectionNoteTagMenu() {
+            const menu = el('filterPopupConnectionNoteTagMenu');
+            const btn = el('filterPopupConnectionNoteTagBtn');
+            if (!menu || !btn) {
+                return;
+            }
+            const rect = btn.getBoundingClientRect();
+            menu.style.left = `${Math.max(8, rect.left)}px`;
+            menu.style.top = `${rect.bottom + 2}px`;
+            menu.style.minWidth = `${Math.max(rect.width, 72)}px`;
+        }
+
+        function openFilterPopupConnectionNoteTagMenu() {
+            closePeriodFilterModeMenu();
+            closeFilterPopupNoteTagMenu();
+            closeFilterPopupNonexistColorMenu();
+            closeFilterPopupIntersectionKindMenu();
+            const menu = el('filterPopupConnectionNoteTagMenu');
+            const btn = el('filterPopupConnectionNoteTagBtn');
+            const picker = el('filterPopupConnectionNoteTagPicker');
+            if (!menu || !btn || btn.disabled || !picker) {
+                return;
+            }
+            buildFilterPopupConnectionNoteTagMenu();
+            updateFilterPopupConnectionNoteTagMenuItemCounts();
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
+            positionFilterPopupConnectionNoteTagMenu();
+            menu.classList.remove('hidden');
+            scheduleRebuildFilterNoteTagMenuCounts();
+            btn.setAttribute('aria-expanded', 'true');
+            btn.classList.add('is-menu-open');
+        }
+
+        function applyFilterConnectionNoteTagsFromUi() {
+            saveFilterConnectionNoteTagsSettings();
+            syncFilterPopupConnectionNoteTagUi();
+            clearTimeout(filterConnectionNoteTagApplyTimer);
+            filterConnectionNoteTagApplyTimer = setTimeout(() => {
+                filterConnectionNoteTagApplyTimer = null;
+                if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1'
+                    && isConnectionFilterMode(periodFilterMode)) {
+                    refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
+                } else {
+                    updatePeriodFilterMatchCount();
+                }
+            }, 64);
+        }
+
+        function toggleFilterPopupConnectionNoteTag(tag) {
+            if (!supportsConnectionNoteTagFilter(periodFilterMode)) {
+                return;
+            }
+            if (tag === FILTER_NOTE_TAG_ALL) {
+                filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
+            } else if (!FILTER_NOTE_TAG_VALUES.includes(tag)) {
+                return;
+            } else if (filterConnectionNoteTags.length === 1 && filterConnectionNoteTags[0] === tag) {
+                filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
+            } else {
+                filterConnectionNoteTags = [tag];
+            }
+            normalizeFilterConnectionNoteTags();
+            applyFilterConnectionNoteTagsFromUi();
+            highlightFilterPopupConnectionNoteTagMenu();
+            scheduleRebuildFilterNoteTagMenuCounts();
+        }
+
+        function getFilterConnectionNoteTagCountForTag(tag) {
+            if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
+                return 0;
+            }
+            const mode = periodFilterMode;
+            if (!supportsConnectionNoteTagFilter(mode)) {
+                return 0;
+            }
+            if (tag === FILTER_NOTE_TAG_ALL) {
+                return getFilterParentCountForMode(mode);
+            }
+            const num = parseInt(tag, 10);
+            if (!Number.isFinite(num)) {
+                return 0;
+            }
+            return sheetManager.getFilterMatchingIndices(mode, { noteTags: [num] }).length;
+        }
+
+        function rebuildFilterConnectionNoteTagMenuCounts() {
+            filterConnectionNoteTagMenuCounts = {};
+            if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
+                return;
+            }
+            if (!isConnectionFilterMode(periodFilterMode)) {
+                return;
+            }
+            const mode = periodFilterMode;
+            filterConnectionNoteTagMenuCounts[FILTER_NOTE_TAG_ALL] = getFilterParentCountForMode(mode);
+            for (const tag of FILTER_NOTE_TAG_VALUES) {
+                filterConnectionNoteTagMenuCounts[tag] = getFilterConnectionNoteTagCountForTag(tag);
+            }
+        }
+
+        function updateFilterPopupConnectionNoteTagMenuItemCounts() {
+            const menu = el('filterPopupConnectionNoteTagMenu');
+            if (!menu) {
+                return;
+            }
+            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
+                const tag = item.dataset.tag || '';
+                const countSpan = item.querySelector('.period-filter-mode-item-count');
+                if (countSpan) {
+                    const cached = filterConnectionNoteTagMenuCounts[tag];
+                    countSpan.textContent = String(
+                        cached !== undefined ? cached : getFilterConnectionNoteTagCountForTag(tag)
+                    );
+                }
+            });
+        }
+
+        function initFilterPopupConnectionNoteTagControls() {
+            loadFilterConnectionNoteTagsSettings();
+            buildFilterPopupConnectionNoteTagMenu();
+            syncFilterPopupConnectionNoteTagUi();
+
+            const picker = el('filterPopupConnectionNoteTagPicker');
+            const btn = el('filterPopupConnectionNoteTagBtn');
+            const menu = el('filterPopupConnectionNoteTagMenu');
+            if (!picker || !btn || !menu || picker.dataset.bound === '1') {
+                return;
+            }
+            picker.dataset.bound = '1';
+
+            picker.addEventListener('mousedown', (event) => event.stopPropagation());
+            picker.addEventListener('click', (event) => event.stopPropagation());
+
+            btn.addEventListener('mousedown', (event) => event.stopPropagation());
+            btn.addEventListener('pointerdown', (event) => {
+                event.stopPropagation();
+                if (!btn.disabled) {
+                    btn.classList.add('is-note-tag-pressing');
+                }
+            });
+            btn.addEventListener('pointerup', (event) => {
+                event.stopPropagation();
+                btn.classList.remove('is-note-tag-pressing');
+            });
+            btn.addEventListener('pointercancel', () => {
+                btn.classList.remove('is-note-tag-pressing');
+            });
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (btn.disabled) {
+                    return;
+                }
+                if (menu.classList.contains('hidden')) {
+                    openFilterPopupConnectionNoteTagMenu();
+                } else {
+                    closeFilterPopupConnectionNoteTagMenu();
+                }
+            });
+
+            menu.addEventListener('click', (event) => event.stopPropagation());
+
+            document.addEventListener('mousedown', (event) => {
+                if (menu.classList.contains('hidden')) {
+                    return;
+                }
+                const target = event.target;
+                if (picker.contains(target) || menu.contains(target)) {
+                    return;
+                }
+                closeFilterPopupConnectionNoteTagMenu();
+            });
+
+            window.addEventListener('resize', () => {
+                if (!menu.classList.contains('hidden')) {
+                    positionFilterPopupConnectionNoteTagMenu();
+                }
+            });
         }
 
         function loadFilterIntersectionKindSettings() {
@@ -5423,6 +5833,7 @@
         function openFilterPopupIntersectionKindMenu() {
             closePeriodFilterModeMenu();
             closeFilterPopupNoteTagMenu();
+            closeFilterPopupConnectionNoteTagMenu();
             closeFilterPopupNonexistColorMenu();
             const menu = el('filterPopupIntersectionKindMenu');
             const btn = el('filterPopupIntersectionKindBtn');
@@ -5707,6 +6118,10 @@
                         if (b) {
                             b.classList.remove('is-note-tag-pressing');
                         }
+                        const bc = el('filterPopupConnectionNoteTagBtn');
+                        if (bc) {
+                            bc.classList.remove('is-note-tag-pressing');
+                        }
                     },
                     true
                 );
@@ -5911,6 +6326,7 @@
         function openFilterPopupNonexistColorMenu() {
             closePeriodFilterModeMenu();
             closeFilterPopupNoteTagMenu();
+            closeFilterPopupConnectionNoteTagMenu();
             closeFilterPopupIntersectionKindMenu();
             const menu = el('filterPopupNonexistColorMenu');
             const btn = el('filterPopupNonexistColorBtn');
@@ -7071,7 +7487,9 @@
             filterNoteTagCountRebuildTimer = setTimeout(() => {
                 filterNoteTagCountRebuildTimer = null;
                 rebuildFilterNoteTagMenuCounts();
+                rebuildFilterConnectionNoteTagMenuCounts();
                 updateFilterPopupNoteTagMenuItemCounts();
+                updateFilterPopupConnectionNoteTagMenuItemCounts();
             }, 150);
         }
 
@@ -7094,6 +7512,7 @@
 
         function syncFilterPopupDropdownCounts() {
             updateFilterPopupNoteTagMenuItemCounts();
+            updateFilterPopupConnectionNoteTagMenuItemCounts();
         }
 
         function commitFilterPopupNonexistNumFromUi() {
@@ -7252,6 +7671,14 @@
                 const oya = normalizeIntersectionFreqOp(filterIntersectionOpY);
                 return `Không có kỳ nào khớp intersection (${k}): cặp a,b theo thứ tự 5 số submit với freq(a)${oxa}${filterIntersectionFreqX}, freq(b)${oya}${filterIntersectionFreqY} trong tối đa 10 chuỗi trước kỳ.`;
             }
+            if (isConnectionFilterMode(normalized)) {
+                const ctags = getActiveConnectionNoteTagFilterValuesForMode(normalized);
+                if (ctags.length > 0) {
+                    const tagLabel = ctags.map((n) => `${n}:`).join(', ');
+                    return `Không có kỳ nào vừa có connection vừa có nhãn ${tagLabel} trong note (dạng N:{…}).`;
+                }
+                return 'Không có kỳ nào note có connection (xuất hiện trong ≥2 cặp {a,b}).';
+            }
             const hint = getFilterModeTitleHint(normalized);
             const tags = getActiveNoteTagFilterValues();
             if (tags.length > 0) {
@@ -7373,6 +7800,7 @@
 
         function openPeriodFilterModeMenu(anchor) {
             closeFilterPopupNoteTagMenu();
+            closeFilterPopupConnectionNoteTagMenu();
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupIntersectionKindMenu();
             periodFilterMenuAnchor = anchor === 'popup' ? 'popup' : 'toolbar';
@@ -7429,14 +7857,19 @@
             } catch (e) { }
             normalizeFilterNoteTagsForMode(periodFilterMode);
             saveFilterNoteTagsSettings();
+            normalizeFilterConnectionNoteTags();
+            saveFilterConnectionNoteTagsSettings();
             closePeriodFilterModeMenu();
             closeFilterPopupNoteTagMenu();
+            closeFilterPopupConnectionNoteTagMenu();
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupIntersectionKindMenu();
             scheduleRebuildFilterNoteTagMenuCounts();
             syncPeriodFilterToolbarUi();
             if (periodFilterEnabled) {
-                const deferHeavy = isDatebandFilterMode(periodFilterMode) || supportsNoteTagFilter(periodFilterMode);
+                const deferHeavy = isDatebandFilterMode(periodFilterMode)
+                    || supportsNoteTagFilter(periodFilterMode)
+                    || supportsConnectionNoteTagFilter(periodFilterMode);
                 refreshFilterPopup({
                     syncMain: false,
                     immediateRender: !deferHeavy,
@@ -7472,6 +7905,7 @@
                 filterModeCounts[mode] = getFilterParentCountForMode(mode);
             }
             rebuildFilterNoteTagMenuCounts();
+            rebuildFilterConnectionNoteTagMenuCounts();
             updatePeriodFilterModeMenuItemCounts();
         }
 
@@ -8178,9 +8612,11 @@
                 const toolbar = getPeriodFilterPicker('toolbar');
                 const popup = getPeriodFilterPicker('popup');
                 const ixPicker = el('filterPopupIntersectionPicker');
+                const connPicker = el('filterPopupConnectionNoteTagPicker');
                 if ((toolbar.picker && toolbar.picker.contains(target))
                     || (popup.picker && popup.picker.contains(target))
                     || (ixPicker && ixPicker.contains(target))
+                    || (connPicker && connPicker.contains(target))
                     || menu.contains(target)) {
                     return;
                 }
@@ -8237,6 +8673,7 @@
             syncFilterPopupNonexistToolsUi();
             syncFilterPopupPosnfreqToolsUi();
             syncFilterPopupNoteTagUi();
+            syncFilterPopupConnectionNoteTagUi();
             syncFilterPopupIntersectionToolsUi();
 
             if (light) {
@@ -8972,6 +9409,7 @@
             }
             const rowLen = (sheetManager.sourceRows || []).length;
             const tags = filterNoteTags.slice().sort().join(',');
+            const connTags = filterConnectionNoteTags.slice().sort().join(',');
             const styles = filterNonexistStyles.slice().sort().join(',');
             const colors = filterNonexistColors.slice().sort().join(',');
             const num = filterNonexistNum != null ? String(filterNonexistNum) : '';
@@ -9007,6 +9445,7 @@
             return [
                 periodFilterMode,
                 tags,
+                connTags,
                 num,
                 colors,
                 styles,
@@ -9161,6 +9600,7 @@
             updatePeriodFilterMatchCount();
             syncFilterPopupNonexistToolsUi();
             syncFilterPopupNoteTagUi();
+            syncFilterPopupConnectionNoteTagUi();
             syncFilterPopupIntersectionToolsUi();
         }
 
@@ -9354,6 +9794,9 @@
                 closePeriodFilterModeMenu();
                 try {
                     closeFilterPopupNoteTagMenu();
+                } catch (e) { }
+                try {
+                    closeFilterPopupConnectionNoteTagMenu();
                 } catch (e) { }
                 try {
                     closeFilterPopupNonexistColorMenu();
@@ -10054,6 +10497,7 @@
             initPeriodFilterModePicker();
             initFilterPopupNonexistControls();
             initFilterPopupNoteTagControls();
+            initFilterPopupConnectionNoteTagControls();
             initFilterPopupIntersectionKindControls();
             initFilterPopupPosnfreqControls();
             initFilterPopupPosnfreqOverlapPctToggle();
