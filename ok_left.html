@@ -33,7 +33,7 @@
             display: flex;
             justify-content: flex-start;
             align-items: stretch;
-            gap: 36px;
+            gap: 24px;
             position: relative;
             margin-top: 6px;
             height: 100%;
@@ -466,24 +466,77 @@
             background: transparent;
         }
 
-        /* Gợi ý kỳ tham khảo (sheet1) — chỉ đọc, parent đẩy nội dung qua postMessage */
-        #referenceHint {
+        /* Gợi ý kỳ tham khảo (sheet1) — panel 3-connection + nút Apply */
+        #referenceHint.reference-hint-panel {
             width: 100%;
             box-sizing: border-box;
             min-height: 4.5em;
-            max-height: 6.8em;
-            height: 5.5em;
+            max-height: 14em;
+            height: 8em;
             font-size: 12px;
             line-height: 1.35;
             color: #153015;
             background: #f2faf2;
             border: 1px solid #9ec49e;
-            resize: none;
             overflow-y: auto;
+            overflow-x: hidden;
             margin-bottom: 6px;
             font-family: system-ui, "Segoe UI", sans-serif;
             flex-shrink: 0;
             flex-grow: 0;
+            padding: 4px 6px;
+        }
+
+        .reference-hint-head {
+            font-weight: 600;
+        }
+
+        .reference-hint-head-muted {
+            margin-bottom: 2px;
+        }
+
+        .reference-hint-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin: 2px 0;
+        }
+
+        .reference-hint-line {
+            flex: 1 1 auto;
+            min-width: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .reference-hint-line.answer-triplet {
+            color: #0d5c0d;
+            font-weight: 600;
+        }
+
+        .reference-hint-apply-btn {
+            flex: 0 0 auto;
+            font: 600 10px/1.2 system-ui, "Segoe UI", sans-serif;
+            padding: 2px 7px;
+            border: 1px solid #6b9f6b;
+            border-radius: 4px;
+            background: #e8f5e8;
+            color: #153015;
+            cursor: pointer;
+        }
+
+        .reference-hint-apply-btn:hover {
+            background: #d4edd4;
+        }
+
+        .reference-hint-foot {
+            margin-top: 4px;
+            font-weight: 600;
+        }
+
+        .reference-hint-empty-note {
+            color: #5a705a;
         }
 
         .left-container > .controls {
@@ -571,10 +624,10 @@
             padding: 0;
         }
 
-        /* midwrap centers the inline-flex .container inside iframe */
+        /* midwrap: JS căn giữa .container theo full chiều ngang iframe */
         .midwrap {
             display: flex;
-            justify-content: center;
+            justify-content: flex-start;
             width: 100%;
             box-sizing: border-box;
         }
@@ -1504,9 +1557,10 @@
         <div class="container">
             <div class="left-container">
                 <div class="controls">
-                    <textarea id="referenceHint" readonly rows="4" spellcheck="false" autocomplete="off"
-                        aria-label="Dự đoán pool 10 số chính (sheet1, walk-forward)"
-                        placeholder="Dự đoán pool top-10 số chính cho kỳ đang chọn (sheet1) hiện khi bạn chọn một dòng ở bảng phải…"></textarea>
+                    <div id="referenceHint" class="reference-hint-panel" role="region"
+                        aria-label="3-connection của kỳ đang chọn (sheet1)">
+                        <div class="reference-hint-empty-note">Toàn bộ bộ 3-connection trong cửa sổ 10 chuỗi trước kỳ — hiện khi chọn dòng ở bảng phải…</div>
+                    </div>
                     <div class="mode-row">
                         <select id="mode">
                             <option value="modeq">?</option>
@@ -1524,7 +1578,7 @@
                             <span id="pickPropertyBadgesRow" class="pick-property-badges-inline" role="status"
                                 aria-live="polite" aria-label="Tính chất pick" style="display:none">
                                 <span id="pickBadgeConnection" class="pick-badge pick-badge--conn"
-                                    title="Connection: một số nằm trong ≥2 cặp (theo 10 chuỗi + tập khoanh)">Cx</span>
+                                    title="Connection: một số nằm trong ≥2 cặp (theo 10 chuỗi + tập khoanh)">C</span>
                                 <span id="pickBadgeIntersection" class="pick-badge pick-badge--ix"
                                     title="Intersection (intersect): cặp a,b trong tập khoanh, freq≥2, cùng chuỗi M, tách miền trên/dưới M">∩</span>
                             </span>
@@ -1714,6 +1768,98 @@
         const HINT_FEATURE_KEY = 'leftPaneHintEnabled';
         let hintFeatureEnabled = false;
         let referenceHintPicksSet = new Set();
+
+        function applyConn3TripletToSelection(sortedNums) {
+            const pickNums = (sortedNums || [])
+                .map(function (x) { return parseInt(x, 10); })
+                .filter(function (n) { return !isNaN(n) && n >= 1 && n <= 35; })
+                .slice(0, 3);
+            if (pickNums.length !== 3) {
+                return;
+            }
+            selectionCleared = false;
+            clearedSelectionBackup = null;
+            clearedPickOrderBackup = null;
+            autoRingPicked.clear();
+            clearPairContributionTracking();
+            pairNeonObserveNum = null;
+            currentPairIndex = -1;
+            currentTailIndex = -1;
+            selected.clear();
+            transientSelected.clear();
+            simulatedSelected.clear();
+            pickOrder = pickNums.slice();
+            pickNums.forEach(function (n) { selected.add(n); });
+            try { recomputePairsFromSelected(); } catch (eR) { /* ignore */ }
+            try { updateBlocked(); } catch (eB) { /* ignore */ }
+            if (submitActive) {
+                try { applySubmitState(); } catch (eS) { /* ignore */ }
+            } else {
+                try { assignPairNeonObserveNumFromAutoRingCircleNums(pickNums); } catch (eOb) { /* ignore */ }
+            }
+            try {
+                applySelectionAndBlockedInDOM();
+                updateFloatingCopyButtons();
+                alignTableActionsAndCenter();
+                updateFocusIndicator();
+            } catch (eD) { /* ignore */ }
+            try { refreshLeftPickSelectionUi(); } catch (eU) { /* ignore */ }
+        }
+
+        function renderReferenceHintPanel(hint) {
+            const panel = document.getElementById('referenceHint');
+            if (!panel) {
+                return;
+            }
+            panel.innerHTML = '';
+            const headerLines = hint && Array.isArray(hint.headerLines) ? hint.headerLines : [];
+            const triplets = hint && Array.isArray(hint.triplets) ? hint.triplets : [];
+            const footerLine = hint && hint.footerLine ? String(hint.footerLine) : '';
+            if (!headerLines.length && !triplets.length && !footerLine) {
+                const empty = document.createElement('div');
+                empty.className = 'reference-hint-empty-note';
+                empty.textContent = 'Toàn bộ bộ 3-connection trong cửa sổ 10 chuỗi trước kỳ — hiện khi chọn dòng ở bảng phải…';
+                panel.appendChild(empty);
+                return;
+            }
+            for (let hi = 0; hi < headerLines.length; hi++) {
+                const lineEl = document.createElement('div');
+                lineEl.className = headerLines[hi].indexOf('Đáp án:') === 0
+                    ? 'reference-hint-head-muted'
+                    : 'reference-hint-head';
+                lineEl.textContent = headerLines[hi];
+                panel.appendChild(lineEl);
+            }
+            for (let ti = 0; ti < triplets.length; ti++) {
+                const t = triplets[ti];
+                const row = document.createElement('div');
+                row.className = 'reference-hint-row';
+                const line = document.createElement('span');
+                line.className = 'reference-hint-line' + (t.inAnswer ? ' answer-triplet' : '');
+                line.textContent = t.label || '';
+                line.title = t.label || '';
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'reference-hint-apply-btn';
+                btn.textContent = 'Apply';
+                btn.title = 'Khoanh đúng 3 số của bộ này (thay toàn bộ số đang khoanh)';
+                const sorted = Array.isArray(t.sorted) ? t.sorted.slice() : [];
+                btn.addEventListener('click', function (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    applyConn3TripletToSelection(sorted);
+                });
+                row.appendChild(line);
+                row.appendChild(btn);
+                panel.appendChild(row);
+            }
+            if (footerLine) {
+                const foot = document.createElement('div');
+                foot.className = triplets.length ? 'reference-hint-foot' : 'reference-hint-empty-note';
+                foot.textContent = footerLine;
+                panel.appendChild(foot);
+            }
+        }
         let preserveSubmitOnNextProcess = false;
         let preserveSelectionOnNextProcess = false;
         let answerNums = [];
@@ -1937,44 +2083,325 @@
             }
         }
 
+        function normalizeSubmitAutoCircleMode(mode) {
+            var m = String(mode || '').trim();
+            if (m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3') {
+                return m;
+            }
+            return 'max';
+        }
+
+        function isLabelSubmitAutoCircleMode(mode) {
+            var m = normalizeSubmitAutoCircleMode(mode);
+            return m === 'conn' || m === 'ix' || m === 'conn_ix';
+        }
+
+        function getPickChainLinesForAutoring() {
+            var lines = [];
+            var displayLines = getRawDisplayLines();
+            var limit = displayLines.length;
+            for (var i = 0; i < limit; i++) {
+                lines.push({
+                    label: limit - i,
+                    nums: getNumsFromLineObj(displayLines[i])
+                });
+            }
+            return lines;
+        }
+
+        function buildChainPairsFromAnswerNums(ans) {
+            var pairs = [];
+            var effective = new Set();
+            (ans || []).forEach(function (n) {
+                if (!isNaN(n)) {
+                    effective.add(n);
+                }
+            });
+            if (effective.size < 2) {
+                return pairs;
+            }
+            getPickChainLinesForAutoring().forEach(function (line) {
+                var selInLine = line.nums.filter(function (n) { return effective.has(n); });
+                if (selInLine.length >= 2) {
+                    pairs.push(selInLine.slice(0, 2));
+                }
+            });
+            return pairs;
+        }
+
+        function getConnectionCircleNumsFromAnswer(ans) {
+            var pairs = buildChainPairsFromAnswerNums(ans);
+            if (!pairs || pairs.length < 2) {
+                return [];
+            }
+            var numToPairIdx = new Map();
+            for (var pairIndex = 0; pairIndex < pairs.length; pairIndex++) {
+                var pr = pairs[pairIndex];
+                if (!pr || pr.length < 2) {
+                    continue;
+                }
+                for (var k = 0; k < 2; k++) {
+                    var n = pr[k];
+                    if (isNaN(n)) {
+                        continue;
+                    }
+                    var set = numToPairIdx.get(n);
+                    if (!set) {
+                        set = new Set();
+                        numToPairIdx.set(n, set);
+                    }
+                    set.add(pairIndex);
+                }
+            }
+            var out = [];
+            numToPairIdx.forEach(function (set, n) {
+                if (set.size >= 2) {
+                    out.push(n);
+                }
+            });
+            out.sort(function (a, b) { return a - b; });
+            return out;
+        }
+
+        function getIntersectCircleNumsFromAnswer(ans) {
+            var answerNums = (ans || []).filter(function (n) {
+                return !isNaN(n) && n >= 1 && n <= 35;
+            }).sort(function (a, b) { return a - b; });
+            if (answerNums.length < 2) {
+                return [];
+            }
+            var lines = getPickChainLinesForAutoring();
+            if (!lines.length) {
+                return [];
+            }
+            var freq = new Array(36).fill(0);
+            for (var li = 0; li < lines.length; li++) {
+                var nums = lines[li].nums;
+                for (var k = 0; k < nums.length; k++) {
+                    var n = nums[k];
+                    if (n >= 1 && n <= 35) {
+                        freq[n]++;
+                    }
+                }
+            }
+            var hasNum = function (nums, x) { return nums.indexOf(x) !== -1; };
+            var hit = new Set();
+            for (var ai = 0; ai < answerNums.length; ai++) {
+                for (var bi = ai + 1; bi < answerNums.length; bi++) {
+                    var a = answerNums[ai];
+                    var b = answerNums[bi];
+                    if (a === b || freq[a] < 2 || freq[b] < 2) {
+                        continue;
+                    }
+                    var mainLabels = [];
+                    for (var li2 = 0; li2 < lines.length; li2++) {
+                        var nums2 = lines[li2].nums;
+                        if (hasNum(nums2, a) && hasNum(nums2, b)) {
+                            mainLabels.push(lines[li2].label);
+                        }
+                    }
+                    if (!mainLabels.length) {
+                        continue;
+                    }
+                    for (var mi = 0; mi < mainLabels.length; mi++) {
+                        var M = mainLabels[mi];
+                        var aUp = false;
+                        var aLo = false;
+                        var bUp = false;
+                        var bLo = false;
+                        for (var li3 = 0; li3 < lines.length; li3++) {
+                            var lab = lines[li3].label;
+                            if (lab === M) {
+                                continue;
+                            }
+                            var nums3 = lines[li3].nums;
+                            if (lab > M) {
+                                if (hasNum(nums3, a)) {
+                                    aUp = true;
+                                }
+                                if (hasNum(nums3, b)) {
+                                    bUp = true;
+                                }
+                            } else if (lab < M) {
+                                if (hasNum(nums3, a)) {
+                                    aLo = true;
+                                }
+                                if (hasNum(nums3, b)) {
+                                    bLo = true;
+                                }
+                            }
+                        }
+                        if ((aUp && bLo) || (bUp && aLo)) {
+                            hit.add(a);
+                            hit.add(b);
+                        }
+                    }
+                }
+            }
+            return Array.from(hit).sort(function (a, b) { return a - b; });
+        }
+
+        function tripletChainPairMatchesOnLine(lineNums, a, b, c, wantX, wantY) {
+            var triplet = new Set([a, b, c]);
+            var selInLine = (lineNums || []).filter(function (n) { return triplet.has(n); });
+            if (selInLine.length < 2) {
+                return false;
+            }
+            var p0 = selInLine[0];
+            var p1 = selInLine[1];
+            return (p0 === wantX && p1 === wantY) || (p0 === wantY && p1 === wantX);
+        }
+
+        function tripletSatisfiesConn3(lines, a, b, c, freq) {
+            if (freq[a] < 2 || freq[b] < 2 || freq[c] < 2) {
+                return false;
+            }
+            if (!lines || lines.length < 3) {
+                return false;
+            }
+            var chainsAB = [];
+            var chainsAC = [];
+            var chainsBC = [];
+            for (var li = 0; li < lines.length; li++) {
+                var label = lines[li].label;
+                var nums = lines[li].nums;
+                if (tripletChainPairMatchesOnLine(nums, a, b, c, a, b)) {
+                    chainsAB.push(label);
+                }
+                if (tripletChainPairMatchesOnLine(nums, a, b, c, a, c)) {
+                    chainsAC.push(label);
+                }
+                if (tripletChainPairMatchesOnLine(nums, a, b, c, b, c)) {
+                    chainsBC.push(label);
+                }
+            }
+            for (var ab = 0; ab < chainsAB.length; ab++) {
+                var la = chainsAB[ab];
+                for (var ac = 0; ac < chainsAC.length; ac++) {
+                    var lac = chainsAC[ac];
+                    if (lac === la) {
+                        continue;
+                    }
+                    for (var bc = 0; bc < chainsBC.length; bc++) {
+                        var lbc = chainsBC[bc];
+                        if (lbc !== la && lbc !== lac) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
+        function getConn3CircleNumsFromAnswer(ans) {
+            var answerNums = (ans || []).filter(function (n) {
+                return !isNaN(n) && n >= 1 && n <= 35;
+            });
+            var lines = getPickChainLinesForAutoring();
+            if (lines.length < 3) {
+                return [];
+            }
+            var freq = new Array(36).fill(0);
+            for (var li = 0; li < lines.length; li++) {
+                var nums = lines[li].nums;
+                for (var k = 0; k < nums.length; k++) {
+                    var n = nums[k];
+                    if (n >= 1 && n <= 35) {
+                        freq[n]++;
+                    }
+                }
+            }
+            var len = answerNums.length;
+            if (len >= 3) {
+                for (var i = 0; i < len; i++) {
+                    for (var j = i + 1; j < len; j++) {
+                        for (var k = j + 1; k < len; k++) {
+                            var a = answerNums[i];
+                            var b = answerNums[j];
+                            var c = answerNums[k];
+                            if (tripletSatisfiesConn3(lines, a, b, c, freq)) {
+                                return [a, b, c].sort(function (x, y) { return x - y; });
+                            }
+                        }
+                    }
+                }
+            }
+            var candidates = [];
+            for (var cn = 1; cn <= 35; cn++) {
+                if (freq[cn] >= 2) {
+                    candidates.push(cn);
+                }
+            }
+            var clen = candidates.length;
+            for (var ci = 0; ci < clen; ci++) {
+                for (var cj = ci + 1; cj < clen; cj++) {
+                    for (var ck = cj + 1; ck < clen; ck++) {
+                        var ca = candidates[ci];
+                        var cb = candidates[cj];
+                        var cc = candidates[ck];
+                        if (tripletSatisfiesConn3(lines, ca, cb, cc, freq)) {
+                            return [ca, cb, cc].sort(function (x, y) { return x - y; });
+                        }
+                    }
+                }
+            }
+            return [];
+        }
+
         function getSubmitAutoCircleSet() {
             const out = new Set();
             if (!submitAutoCircleEnabled || !raw || !raw.freq) {
                 return out;
             }
-            if (submitAutoCircleMode === 'custom') {
+            var mode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
+            if (mode === 'custom') {
                 const x = clampSubmitAutoCircleCustomX(submitAutoCircleCustomX);
                 out.add(x);
                 return out;
             }
-            var ansSrc = getAnswerNumsForAutoring();
-            if (!ansSrc.length) {
-                return out;
-            }
-
-            const candidates = ansSrc
-                .map(function (n) { return parseInt(n, 10); })
-                .filter(function (n) { return !isNaN(n); })
-                .map(function (n) { return { num: n, freq: parseInt(raw.freq[n], 10) || 0 }; });
-
-            if (candidates.length === 0) {
-                return out;
-            }
-
-            if (submitAutoCircleMode === 'min') {
-                candidates.forEach(function (item) {
-                    if (item.freq === 1) out.add(item.num);
+            if (mode === 'conn3') {
+                getConn3CircleNumsFromAnswer(getAnswerNumsForAutoring()).forEach(function (n) {
+                    out.add(n);
                 });
                 return out;
             }
+            if (isLabelSubmitAutoCircleMode(mode)) {
+                var ansLabel = getAnswerNumsForAutoring();
+                if (mode === 'conn' || mode === 'conn_ix') {
+                    getConnectionCircleNumsFromAnswer(ansLabel).forEach(function (n) {
+                        out.add(n);
+                    });
+                }
+                if (mode === 'ix' || mode === 'conn_ix') {
+                    getIntersectCircleNumsFromAnswer(ansLabel).forEach(function (n) {
+                        out.add(n);
+                    });
+                }
+                return out;
+            }
+            var ansSrc = getAnswerNumsForAutoring();
+            if (ansSrc.length) {
+                const candidates = ansSrc
+                    .map(function (n) { return parseInt(n, 10); })
+                    .filter(function (n) { return !isNaN(n); })
+                    .map(function (n) { return { num: n, freq: parseInt(raw.freq[n], 10) || 0 }; });
 
-            let maxFreq = -Infinity;
-            candidates.forEach(function (item) {
-                if (item.freq > maxFreq) maxFreq = item.freq;
-            });
-            candidates.forEach(function (item) {
-                if (item.freq === maxFreq) out.add(item.num);
-            });
+                if (candidates.length > 0) {
+                    if (mode === 'min') {
+                        candidates.forEach(function (item) {
+                            if (item.freq === 1) out.add(item.num);
+                        });
+                    } else {
+                        let maxFreq = -Infinity;
+                        candidates.forEach(function (item) {
+                            if (item.freq > maxFreq) maxFreq = item.freq;
+                        });
+                        candidates.forEach(function (item) {
+                            if (item.freq === maxFreq) out.add(item.num);
+                        });
+                    }
+                }
+            }
             return out;
         }
 
@@ -2512,7 +2939,8 @@
                 if (autoRingVisitedIds.has(fk)) return;
 
                 var ans = getAnswerNumsFromCurrentLine11();
-                if (submitAutoCircleMode !== 'custom' && ans.length >= 5) {
+                var ringMode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
+                if ((ringMode === 'max' || ringMode === 'min') && ans.length >= 5) {
                     syncModeFromAnswerNums(ans);
                 }
 
@@ -5697,10 +6125,10 @@
                 actions.style.marginLeft = '0';
                 actions.style.display = 'flex';
 
-                // Compute desired left coordinate so the combined group is centered in the left half
+                // Căn giữa nhóm bảng trái + chuỗi trong toàn bộ chiều ngang iframe (không chia /2).
                 var totalW = scaledLeftWidth + rightW + gapPx;
-                var leftHalf = (window.innerWidth || document.documentElement.clientWidth) / 2;
-                var marginLeftToSet = Math.max(0, Math.round((leftHalf - totalW) / 2));
+                var availW = window.innerWidth || document.documentElement.clientWidth;
+                var marginLeftToSet = Math.max(0, Math.round((availW - totalW) / 2));
                 container.style.marginLeft = marginLeftToSet + 'px';
 
                 // Since .left-container is absolutely positioned (out of flow), push the right column
@@ -8385,9 +8813,7 @@
                     if (typeof msg.submitAutoCircleEnabled === 'boolean') {
                         submitAutoCircleEnabled = msg.submitAutoCircleEnabled;
                     }
-                    if (msg.submitAutoCircleMode === 'min' || msg.submitAutoCircleMode === 'max' || msg.submitAutoCircleMode === 'custom') {
-                        submitAutoCircleMode = msg.submitAutoCircleMode;
-                    }
+                    submitAutoCircleMode = normalizeSubmitAutoCircleMode(msg.submitAutoCircleMode);
                     if (msg.submitAutoCircleCustomX !== undefined && msg.submitAutoCircleCustomX !== null && msg.submitAutoCircleCustomX !== '') {
                         submitAutoCircleCustomX = clampSubmitAutoCircleCustomX(msg.submitAutoCircleCustomX);
                     }
@@ -8395,7 +8821,15 @@
                     syncSubmitButtonAvailability();
                     const refHint = document.getElementById('referenceHint');
                     if (refHint) {
-                        refHint.value = (typeof msg.referenceHint === 'string') ? msg.referenceHint : '';
+                        renderReferenceHintPanel({
+                            headerLines: Array.isArray(msg.referenceConn3HeaderLines)
+                                ? msg.referenceConn3HeaderLines
+                                : [],
+                            triplets: Array.isArray(msg.referenceConn3Triplets)
+                                ? msg.referenceConn3Triplets
+                                : [],
+                            footerLine: msg.referenceConn3FooterLine || ''
+                        });
                     }
                     referenceHintPicksSet = new Set();
                     if (Array.isArray(msg.referenceHintPicks)) {
@@ -8555,7 +8989,7 @@
                 } else if (msg.type === 'submitAutoCircleChanged') {
                     const wasEnabled = submitAutoCircleEnabled;
                     submitAutoCircleEnabled = !!msg.enabled;
-                    submitAutoCircleMode = (msg.mode === 'min') ? 'min' : ((msg.mode === 'custom') ? 'custom' : 'max');
+                    submitAutoCircleMode = normalizeSubmitAutoCircleMode(msg.mode);
                     if (msg.customX !== undefined && msg.customX !== null && msg.customX !== '') {
                         submitAutoCircleCustomX = clampSubmitAutoCircleCustomX(msg.customX);
                     }
@@ -8585,8 +9019,11 @@
                                     ans = ansLine.split(',').map(function (x) { return parseInt(x, 10); }).filter(function (n) { return !isNaN(n); });
                                 }
                             }
-                            if (submitAutoCircleMode !== 'custom' && ans.length >= 5) {
-                                try { syncModeFromAnswerNums(ans); } catch (e) { }
+                            if (normalizeSubmitAutoCircleMode(submitAutoCircleMode) === 'max'
+                                || normalizeSubmitAutoCircleMode(submitAutoCircleMode) === 'min') {
+                                if (ans.length >= 5) {
+                                    try { syncModeFromAnswerNums(ans); } catch (e) { }
+                                }
                             }
                             applyAutoRingSelection(circleNums);
                         }
@@ -8597,7 +9034,8 @@
                         var circleNumsCfg = Array.from(getSubmitAutoCircleSet()).filter(function (n) { return !isNaN(n); });
                         if (circleNumsCfg.length > 0) {
                             var ansCfg = getAnswerNumsFromCurrentLine11();
-                            if (submitAutoCircleMode !== 'custom' && ansCfg.length >= 5) {
+                            var cfgMode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
+                            if ((cfgMode === 'max' || cfgMode === 'min') && ansCfg.length >= 5) {
                                 try { syncModeFromAnswerNums(ansCfg); } catch (e) { }
                             }
                             applyAutoRingSelection(circleNumsCfg);

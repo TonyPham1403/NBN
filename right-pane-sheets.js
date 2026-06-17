@@ -430,6 +430,11 @@ class RightPaneSheetManager {
         this._connectionFilterIndicesCache = null;
         this._connectionFilterIndicesCacheRowLen = 0;
         this._connectionFilterNoteCacheRef = null;
+        /** Cache filter mode conn3 / 3-connection. */
+        this._conn3FilterIndicesCache = null;
+        this._conn3FilterIndicesCacheRowLen = 0;
+        this._conn3WindowExistIndicesCache = null;
+        this._conn3WindowExistIndicesCacheRowLen = 0;
         this.frequencyMap = {};
         this.colorPalette = [
             'rgb(255, 192, 0)',    // Gold
@@ -539,6 +544,10 @@ class RightPaneSheetManager {
         this._connectionFilterIndicesCache = null;
         this._connectionFilterIndicesCacheRowLen = 0;
         this._connectionFilterNoteCacheRef = null;
+        this._conn3FilterIndicesCache = null;
+        this._conn3FilterIndicesCacheRowLen = 0;
+        this._conn3WindowExistIndicesCache = null;
+        this._conn3WindowExistIndicesCacheRowLen = 0;
         this._mainFiveHintStrategyCache = null;
     }
 
@@ -1279,6 +1288,27 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Tập số "mẫu" của một kỳ cho lọc header2 popup: posnfreq refSig nếu có, không thì 5 số chính result.
+     * @param {number} rowIndex
+     * @param {object|null} [refSignature]
+     * @returns {number[]}
+     */
+    getFilterRowMauNumbers(rowIndex, refSignature = null) {
+        const rows = this.getSourceSheetRows();
+        if (!Array.isArray(rows) || rowIndex < 0 || rowIndex >= rows.length) {
+            return [];
+        }
+        if (refSignature && typeof this.findAllPosnfreqMatchingNumbers === 'function') {
+            return this.findAllPosnfreqMatchingNumbers(rows, rowIndex, refSignature);
+        }
+        const row = rows[rowIndex];
+        if (!row) {
+            return [];
+        }
+        return this.parseMainNums(row.result || row.Result || '');
+    }
+
+    /**
      * Row indices on sheet1 whose inferred mode matches the filter mode.
      */
     rowHasCyanDateBand(rows, rowIndex) {
@@ -1438,6 +1468,10 @@ class RightPaneSheetManager {
                 indices.push(i);
             }
             return indices;
+        }
+
+        if (mode === 'conn3') {
+            return this.ensureConn3FilterIndicesCache().slice();
         }
 
         if (mode === 'connection') {
@@ -1730,6 +1764,735 @@ class RightPaneSheetManager {
             }
         }
         return false;
+    }
+
+    /**
+     * 10 chuỗi trước kỳ `rowIndex` (Chuỗi 1 = sát kỳ đang xét).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @returns {{ label: number, nums: number[] }[]}
+     */
+    buildPickChainLinesBeforeRow(rows, rowIndex) {
+        const windowStart = Math.max(0, rowIndex - 10);
+        const limit = Math.min(rowIndex - windowStart, 10);
+        /** @type {{ label: number, nums: number[] }[]} */
+        const lines = [];
+        for (let offset = 0; offset < limit; offset++) {
+            const lineRow = rows[windowStart + offset] || {};
+            const nums = this.parseMainNums(lineRow.result || lineRow.Result || '');
+            const label = limit - offset;
+            lines.push({ label, nums });
+        }
+        return lines;
+    }
+
+    /**
+     * Cặp [a,b] theo từng chuỗi: hai số pick đầu tiên trên dòng (giống computeChainPairsFromEffectiveSelection).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {number[]} pickNums
+     * @returns {number[][]}
+     */
+    buildChainPairsFromPickSet(rows, rowIndex, pickNums) {
+        const effective = new Set(Array.isArray(pickNums) ? pickNums : []);
+        if (effective.size < 2) {
+            return [];
+        }
+        const lines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        const pairs = [];
+        for (let li = 0; li < lines.length; li++) {
+            const selInLine = lines[li].nums.filter((n) => effective.has(n));
+            if (selInLine.length >= 2) {
+                pairs.push(selInLine.slice(0, 2));
+            }
+        }
+        return pairs;
+    }
+
+    /**
+     * Cặp chuỗi của bộ 3 trên một dòng: hai số đầu tiên (theo thứ tự trên dòng) trong {a,b,c}.
+     * @param {number[]} lineNums
+     * @param {number} a
+     * @param {number} b
+     * @param {number} c
+     * @param {number} wantX
+     * @param {number} wantY
+     * @returns {boolean}
+     */
+    tripletChainPairMatchesOnLine(lineNums, a, b, c, wantX, wantY) {
+        const triplet = new Set([a, b, c]);
+        const selInLine = (Array.isArray(lineNums) ? lineNums : []).filter((n) => triplet.has(n));
+        if (selInLine.length < 2) {
+            return false;
+        }
+        const p0 = selInLine[0];
+        const p1 = selInLine[1];
+        return (p0 === wantX && p1 === wantY) || (p0 === wantY && p1 === wantX);
+    }
+
+    /**
+     * Bộ 3 (a,b,c): mỗi cặp là cặp chuỗi trên 3 chuỗi khác nhau, freq từng số ≥ 2.
+     * @param {{ label: number, nums: number[] }[]} lines
+     * @param {number[]} freq
+     * @param {number} a
+     * @param {number} b
+     * @param {number} c
+     * @returns {boolean}
+     */
+    tripletSatisfiesConn3OnLines(lines, freq, a, b, c) {
+        if (freq[a] < 2 || freq[b] < 2 || freq[c] < 2) {
+            return false;
+        }
+        if (!lines || lines.length < 3) {
+            return false;
+        }
+        /** @type {number[]} */
+        const chainsAB = [];
+        /** @type {number[]} */
+        const chainsAC = [];
+        /** @type {number[]} */
+        const chainsBC = [];
+        for (let li = 0; li < lines.length; li++) {
+            const { label, nums } = lines[li];
+            if (this.tripletChainPairMatchesOnLine(nums, a, b, c, a, b)) {
+                chainsAB.push(label);
+            }
+            if (this.tripletChainPairMatchesOnLine(nums, a, b, c, a, c)) {
+                chainsAC.push(label);
+            }
+            if (this.tripletChainPairMatchesOnLine(nums, a, b, c, b, c)) {
+                chainsBC.push(label);
+            }
+        }
+        for (let ab = 0; ab < chainsAB.length; ab++) {
+            const la = chainsAB[ab];
+            for (let ac = 0; ac < chainsAC.length; ac++) {
+                const lac = chainsAC[ac];
+                if (lac === la) {
+                    continue;
+                }
+                for (let bc = 0; bc < chainsBC.length; bc++) {
+                    const lbc = chainsBC[bc];
+                    if (lbc !== la && lbc !== lac) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Cửa sổ 10 chuỗi trước kỳ: có tồn tại bộ 3-connection (không cần nằm trong đáp án kỳ).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @returns {boolean}
+     */
+    rowWindowHasAnyConn3(rows, rowIndex) {
+        const lines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        if (lines.length < 3) {
+            return false;
+        }
+        const freq = new Array(36).fill(0);
+        for (let li = 0; li < lines.length; li++) {
+            const nums = lines[li].nums;
+            for (let k = 0; k < nums.length; k++) {
+                const n = nums[k];
+                if (n >= 1 && n <= 35) {
+                    freq[n]++;
+                }
+            }
+        }
+        /** @type {number[]} */
+        const candidates = [];
+        for (let n = 1; n <= 35; n++) {
+            if (freq[n] >= 2) {
+                candidates.push(n);
+            }
+        }
+        const len = candidates.length;
+        if (len < 3) {
+            return false;
+        }
+        for (let i = 0; i < len; i++) {
+            for (let j = i + 1; j < len; j++) {
+                for (let k = j + 1; k < len; k++) {
+                    const a = candidates[i];
+                    const b = candidates[j];
+                    const c = candidates[k];
+                    if (this.tripletSatisfiesConn3OnLines(lines, freq, a, b, c)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 3-connection: bộ 3 số trong kết quả — mỗi cặp là cặp chuỗi (2 số đầu trên dòng)
+     * trên một chuỗi riêng (3 chuỗi khác nhau), freq từng số ≥ 2.
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @returns {boolean}
+     */
+    rowMatchesConn3Filter(rows, rowIndex) {
+        const row = rows[rowIndex];
+        if (!row || this.isEmptyResultRow(row)) {
+            return false;
+        }
+        const pickNums = this.parseMainNums(row.result || row.Result || '');
+        if (pickNums.length < 3) {
+            return false;
+        }
+        const lines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        if (lines.length < 3) {
+            return false;
+        }
+        const freq = new Array(36).fill(0);
+        for (let li = 0; li < lines.length; li++) {
+            const nums = lines[li].nums;
+            for (let k = 0; k < nums.length; k++) {
+                const n = nums[k];
+                if (n >= 1 && n <= 35) {
+                    freq[n]++;
+                }
+            }
+        }
+        const len = pickNums.length;
+        for (let i = 0; i < len; i++) {
+            for (let j = i + 1; j < len; j++) {
+                for (let k = j + 1; k < len; k++) {
+                    const a = pickNums[i];
+                    const b = pickNums[j];
+                    const c = pickNums[k];
+                    if (this.tripletSatisfiesConn3OnLines(lines, freq, a, b, c)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Một bộ gán 3 chuỗi cho cặp AB / AC / BC của bộ {a,b,c}.
+     * @param {{ label: number, nums: number[] }[]} lines
+     * @param {number} a
+     * @param {number} b
+     * @param {number} c
+     * @returns {{ ab: number, ac: number, bc: number } | null}
+     */
+    getConn3TripletChainLabels(lines, a, b, c) {
+        if (!lines || lines.length < 3) {
+            return null;
+        }
+        /** @type {number[]} */
+        const chainsAB = [];
+        /** @type {number[]} */
+        const chainsAC = [];
+        /** @type {number[]} */
+        const chainsBC = [];
+        for (let li = 0; li < lines.length; li++) {
+            const { label, nums } = lines[li];
+            if (this.tripletChainPairMatchesOnLine(nums, a, b, c, a, b)) {
+                chainsAB.push(label);
+            }
+            if (this.tripletChainPairMatchesOnLine(nums, a, b, c, a, c)) {
+                chainsAC.push(label);
+            }
+            if (this.tripletChainPairMatchesOnLine(nums, a, b, c, b, c)) {
+                chainsBC.push(label);
+            }
+        }
+        for (let ab = 0; ab < chainsAB.length; ab++) {
+            const la = chainsAB[ab];
+            for (let ac = 0; ac < chainsAC.length; ac++) {
+                const lac = chainsAC[ac];
+                if (lac === la) {
+                    continue;
+                }
+                for (let bc = 0; bc < chainsBC.length; bc++) {
+                    const lbc = chainsBC[bc];
+                    if (lbc !== la && lbc !== lac) {
+                        return { ab: la, ac: lac, bc: lbc };
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Mọi bộ 3-connection trong cửa sổ 10 chuỗi trước kỳ (freq mỗi số ≥2).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @returns {{ a: number, b: number, c: number, sorted: number[], chains: { ab: number, ac: number, bc: number } | null, inAnswer: boolean }[]}
+     */
+    enumerateConn3TripletsForRow(rows, rowIndex) {
+        const chainLines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        if (chainLines.length < 3) {
+            return [];
+        }
+        const freq = new Array(36).fill(0);
+        for (let li = 0; li < chainLines.length; li++) {
+            const nums = chainLines[li].nums;
+            for (let k = 0; k < nums.length; k++) {
+                const n = nums[k];
+                if (n >= 1 && n <= 35) {
+                    freq[n]++;
+                }
+            }
+        }
+        /** @type {number[]} */
+        const candidates = [];
+        for (let n = 1; n <= 35; n++) {
+            if (freq[n] >= 2) {
+                candidates.push(n);
+            }
+        }
+        const row = rows[rowIndex];
+        const pickNums = row && !this.isEmptyResultRow(row)
+            ? this.parseMainNums(row.result || row.Result || '')
+            : [];
+        const pickSet = new Set(pickNums);
+        const len = candidates.length;
+        const seen = new Set();
+        /** @type {{ a: number, b: number, c: number, sorted: number[], chains: { ab: number, ac: number, bc: number } | null, inAnswer: boolean }[]} */
+        const out = [];
+        for (let i = 0; i < len; i++) {
+            for (let j = i + 1; j < len; j++) {
+                for (let k = j + 1; k < len; k++) {
+                    const a = candidates[i];
+                    const b = candidates[j];
+                    const c = candidates[k];
+                    if (!this.tripletSatisfiesConn3OnLines(chainLines, freq, a, b, c)) {
+                        continue;
+                    }
+                    const sorted = [a, b, c].sort((x, y) => x - y);
+                    const key = sorted.join(',');
+                    if (seen.has(key)) {
+                        continue;
+                    }
+                    seen.add(key);
+                    out.push({
+                        a,
+                        b,
+                        c,
+                        sorted,
+                        chains: this.getConn3TripletChainLabels(chainLines, a, b, c),
+                        inAnswer: pickSet.has(a) && pickSet.has(b) && pickSet.has(c)
+                    });
+                }
+            }
+        }
+        out.sort((x, y) => {
+            if (x.inAnswer !== y.inAnswer) {
+                return x.inAnswer ? -1 : 1;
+            }
+            for (let t = 0; t < 3; t++) {
+                if (x.sorted[t] !== y.sorted[t]) {
+                    return x.sorted[t] - y.sorted[t];
+                }
+            }
+            return 0;
+        });
+        return out;
+    }
+
+    /**
+     * Textarea iframe trái: liệt kê toàn bộ 3-connection của kỳ đang focus.
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @returns {{ lines: string[], picks: number[], headerLines: string[], triplets: object[], footerLine: string }}
+     */
+    formatConn3ReferenceHint(rows, rowIndex) {
+        const row = rows[rowIndex];
+        const chainLines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        const pickNums = row && !this.isEmptyResultRow(row)
+            ? this.parseMainNums(row.result || row.Result || '')
+            : [];
+        const triplets = this.enumerateConn3TripletsForRow(rows, rowIndex);
+        const periodId = row ? String(row.id || row.ID || '').trim() : '';
+        /** @type {string[]} */
+        const lines = [];
+        /** @type {string[]} */
+        const headerLines = [];
+        const idLabel = periodId ? `kỳ ${periodId}` : `dòng ${rowIndex + 1}`;
+        const head1 = `3-connection — ${idLabel} (${chainLines.length} chuỗi trước kỳ)`;
+        lines.push(head1);
+        headerLines.push(head1);
+        if (pickNums.length) {
+            const ansLine = `Đáp án: ${pickNums.join(', ')}`;
+            lines.push(ansLine);
+            headerLines.push(ansLine);
+        }
+        lines.push('');
+        if (!triplets.length) {
+            const emptyMsg = 'Không có bộ 3-connection (freq mỗi số ≥2, 3 cặp trên 3 chuỗi khác nhau).';
+            lines.push(emptyMsg);
+            return { lines, picks: [], headerLines, triplets: [], footerLine: emptyMsg };
+        }
+        /** @type {Set<number>} */
+        const picksSet = new Set();
+        /** @type {{ sorted: number[], inAnswer: boolean, label: string, chains: object | null }[]} */
+        const tripletRows = [];
+        for (let ti = 0; ti < triplets.length; ti++) {
+            const t = triplets[ti];
+            const nums = t.sorted.join(', ');
+            let chainStr = '';
+            if (t.chains) {
+                chainStr = ` — AB:C${t.chains.ab} AC:C${t.chains.ac} BC:C${t.chains.bc}`;
+            }
+            const tag = t.inAnswer ? ' ★ đáp án' : '';
+            const label = `${ti + 1}. {${nums}}${chainStr}${tag}`;
+            lines.push(label);
+            tripletRows.push({
+                sorted: t.sorted.slice(),
+                inAnswer: t.inAnswer,
+                label,
+                chains: t.chains
+            });
+            for (let pi = 0; pi < t.sorted.length; pi++) {
+                picksSet.add(t.sorted[pi]);
+            }
+        }
+        const answerCount = triplets.filter((t) => t.inAnswer).length;
+        const footerLine = `Tổng: ${triplets.length} bộ${answerCount ? ` (${answerCount} nằm trong đáp án)` : ''}.`;
+        lines.push('');
+        lines.push(footerLine);
+        const picks = [...picksSet].sort((a, b) => a - b);
+        return { lines, picks, headerLines, triplets: tripletRows, footerLine };
+    }
+
+    /**
+     * Cached row indices for conn3 (3-connection) filter mode.
+     * @returns {number[]}
+     */
+    ensureConn3FilterIndicesCache() {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        if (this._conn3FilterIndicesCache && this._conn3FilterIndicesCacheRowLen === n) {
+            return this._conn3FilterIndicesCache;
+        }
+        const indices = [];
+        for (let i = 0; i < n; i++) {
+            if (this.rowMatchesConn3Filter(rows, i)) {
+                indices.push(i);
+            }
+        }
+        this._conn3FilterIndicesCache = indices;
+        this._conn3FilterIndicesCacheRowLen = n;
+        return this._conn3FilterIndicesCache;
+    }
+
+    /**
+     * Mọi chỉ số dòng có cửa sổ 10 chuỗi trước kỳ chứa ít nhất một bộ 3-connection.
+     * @returns {number[]}
+     */
+    ensureConn3WindowExistIndicesCache() {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        if (this._conn3WindowExistIndicesCache && this._conn3WindowExistIndicesCacheRowLen === n) {
+            return this._conn3WindowExistIndicesCache;
+        }
+        const indices = [];
+        for (let i = 0; i < n; i++) {
+            if (!this.isEmptyResultRow(rows[i]) && this.rowWindowHasAnyConn3(rows, i)) {
+                indices.push(i);
+            }
+        }
+        this._conn3WindowExistIndicesCache = indices;
+        this._conn3WindowExistIndicesCacheRowLen = n;
+        return this._conn3WindowExistIndicesCache;
+    }
+
+    pairListSatisfiesConnection(pairList) {
+        if (!pairList || pairList.length < 2) {
+            return false;
+        }
+        /** @type {Map<number, Set<number>>} */
+        const numToPairIdx = new Map();
+        for (let pairIndex = 0; pairIndex < pairList.length; pairIndex++) {
+            const pr = pairList[pairIndex];
+            if (!pr || pr.length < 2) {
+                continue;
+            }
+            const a = pr[0];
+            const b = pr[1];
+            if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                continue;
+            }
+            for (let k = 0; k < 2; k++) {
+                const n = k === 0 ? a : b;
+                let set = numToPairIdx.get(n);
+                if (!set) {
+                    set = new Set();
+                    numToPairIdx.set(n, set);
+                }
+                set.add(pairIndex);
+            }
+        }
+        for (const s of numToPairIdx.values()) {
+            if (s.size >= 2) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Intersection (intersect) trên tập pick + 10 chuỗi trước kỳ — khớp pickSubmitSatisfiesIntersect.
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {number[]} pickNums
+     * @returns {boolean}
+     */
+    rowPickSetSatisfiesIntersect(rows, rowIndex, pickNums) {
+        const answerNums = (Array.isArray(pickNums) ? pickNums : [])
+            .filter((n) => Number.isFinite(n) && n >= 1 && n <= 35)
+            .sort((a, b) => a - b);
+        if (answerNums.length < 2) {
+            return false;
+        }
+        const lines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        if (!lines.length) {
+            return false;
+        }
+        const freq = new Array(36).fill(0);
+        for (let li = 0; li < lines.length; li++) {
+            const nums = lines[li].nums;
+            for (let k = 0; k < nums.length; k++) {
+                const n = nums[k];
+                if (n >= 1 && n <= 35) {
+                    freq[n]++;
+                }
+            }
+        }
+        const hasNum = (nums, x) => nums.indexOf(x) !== -1;
+        for (let ai = 0; ai < answerNums.length; ai++) {
+            for (let bi = ai + 1; bi < answerNums.length; bi++) {
+                const a = answerNums[ai];
+                const b = answerNums[bi];
+                if (a === b || freq[a] < 2 || freq[b] < 2) {
+                    continue;
+                }
+                const mainLabels = [];
+                for (let li = 0; li < lines.length; li++) {
+                    const nums = lines[li].nums;
+                    if (hasNum(nums, a) && hasNum(nums, b)) {
+                        mainLabels.push(lines[li].label);
+                    }
+                }
+                if (mainLabels.length === 0) {
+                    continue;
+                }
+                for (let mi = 0; mi < mainLabels.length; mi++) {
+                    const M = mainLabels[mi];
+                    let aUp = false;
+                    let aLo = false;
+                    let bUp = false;
+                    let bLo = false;
+                    for (let li = 0; li < lines.length; li++) {
+                        const lab = lines[li].label;
+                        if (lab === M) {
+                            continue;
+                        }
+                        const nums = lines[li].nums;
+                        if (lab > M) {
+                            if (hasNum(nums, a)) {
+                                aUp = true;
+                            }
+                            if (hasNum(nums, b)) {
+                                bUp = true;
+                            }
+                        } else if (lab < M) {
+                            if (hasNum(nums, a)) {
+                                aLo = true;
+                            }
+                            if (hasNum(nums, b)) {
+                                bLo = true;
+                            }
+                        }
+                    }
+                    if ((aUp && bLo) || (bUp && aLo)) {
+                        return true;
+                    }
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Nhãn C / ∩ sau chuỗi pick của kỳ (HTML gọn).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {object} row
+     * @returns {string}
+     */
+    getRowPickPropertyLabelHtml(rows, rowIndex, row) {
+        const flags = this.getRowPickPropertyFlags(rows, rowIndex, row);
+        if (!flags.conn && !flags.ix) {
+            return '';
+        }
+        let html = '<span class="row-pick-badges">';
+        if (flags.conn) {
+            html += '<span class="row-pick-badge row-pick-badge--conn" title="Connection">C</span>';
+        }
+        if (flags.ix) {
+            html += '<span class="row-pick-badge row-pick-badge--ix" title="Intersection">∩</span>';
+        }
+        html += '</span>';
+        return html;
+    }
+
+    /**
+     * Nhãn pick của kỳ: Connection (C) và/hoặc Intersection (∩).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {object} row
+     * @returns {{ conn: boolean, ix: boolean }}
+     */
+    getRowPickPropertyFlags(rows, rowIndex, row) {
+        if (!row || this.isEmptyResultRow(row)) {
+            return { conn: false, ix: false };
+        }
+        const pickNums = this.parseMainNums(row.result || row.Result || '');
+        if (pickNums.length < 2) {
+            return { conn: false, ix: false };
+        }
+        const pairs = this.buildChainPairsFromPickSet(rows, rowIndex, pickNums);
+        return {
+            conn: this.pairListSatisfiesConnection(pairs),
+            ix: this.rowPickSetSatisfiesIntersect(rows, rowIndex, pickNums)
+        };
+    }
+
+    /**
+     * Số trong đáp án tham gia Connection (≥2 cặp trên 10 chuỗi).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {number[]} pickNums
+     * @returns {number[]}
+     */
+    getConnectionCircleNumsFromPickSet(rows, rowIndex, pickNums) {
+        const pairs = this.buildChainPairsFromPickSet(rows, rowIndex, pickNums);
+        if (!pairs || pairs.length < 2) {
+            return [];
+        }
+        /** @type {Map<number, Set<number>>} */
+        const numToPairIdx = new Map();
+        for (let pairIndex = 0; pairIndex < pairs.length; pairIndex++) {
+            const pr = pairs[pairIndex];
+            if (!pr || pr.length < 2) {
+                continue;
+            }
+            for (let k = 0; k < 2; k++) {
+                const n = pr[k];
+                if (!Number.isFinite(n)) {
+                    continue;
+                }
+                let set = numToPairIdx.get(n);
+                if (!set) {
+                    set = new Set();
+                    numToPairIdx.set(n, set);
+                }
+                set.add(pairIndex);
+            }
+        }
+        const out = [];
+        for (const [n, s] of numToPairIdx.entries()) {
+            if (s.size >= 2) {
+                out.push(n);
+            }
+        }
+        return out.sort((a, b) => a - b);
+    }
+
+    /**
+     * Số trong đáp án thuộc ít nhất một cặp Intersection hợp lệ.
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {number[]} pickNums
+     * @returns {number[]}
+     */
+    getIntersectCircleNumsFromPickSet(rows, rowIndex, pickNums) {
+        const answerNums = (Array.isArray(pickNums) ? pickNums : [])
+            .filter((n) => Number.isFinite(n) && n >= 1 && n <= 35)
+            .sort((a, b) => a - b);
+        if (answerNums.length < 2) {
+            return [];
+        }
+        const lines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        if (!lines.length) {
+            return [];
+        }
+        const freq = new Array(36).fill(0);
+        for (let li = 0; li < lines.length; li++) {
+            const nums = lines[li].nums;
+            for (let k = 0; k < nums.length; k++) {
+                const n = nums[k];
+                if (n >= 1 && n <= 35) {
+                    freq[n]++;
+                }
+            }
+        }
+        const hasNum = (nums, x) => nums.indexOf(x) !== -1;
+        const hit = new Set();
+        for (let ai = 0; ai < answerNums.length; ai++) {
+            for (let bi = ai + 1; bi < answerNums.length; bi++) {
+                const a = answerNums[ai];
+                const b = answerNums[bi];
+                if (a === b || freq[a] < 2 || freq[b] < 2) {
+                    continue;
+                }
+                const mainLabels = [];
+                for (let li = 0; li < lines.length; li++) {
+                    const nums = lines[li].nums;
+                    if (hasNum(nums, a) && hasNum(nums, b)) {
+                        mainLabels.push(lines[li].label);
+                    }
+                }
+                if (mainLabels.length === 0) {
+                    continue;
+                }
+                for (let mi = 0; mi < mainLabels.length; mi++) {
+                    const M = mainLabels[mi];
+                    let aUp = false;
+                    let aLo = false;
+                    let bUp = false;
+                    let bLo = false;
+                    for (let li = 0; li < lines.length; li++) {
+                        const lab = lines[li].label;
+                        if (lab === M) {
+                            continue;
+                        }
+                        const nums = lines[li].nums;
+                        if (lab > M) {
+                            if (hasNum(nums, a)) {
+                                aUp = true;
+                            }
+                            if (hasNum(nums, b)) {
+                                bUp = true;
+                            }
+                        } else if (lab < M) {
+                            if (hasNum(nums, a)) {
+                                aLo = true;
+                            }
+                            if (hasNum(nums, b)) {
+                                bLo = true;
+                            }
+                        }
+                    }
+                    if ((aUp && bLo) || (bUp && aLo)) {
+                        hit.add(a);
+                        hit.add(b);
+                    }
+                }
+            }
+        }
+        return Array.from(hit).sort((a, b) => a - b);
     }
 
     /**
@@ -2222,14 +2985,15 @@ class RightPaneSheetManager {
             this.bindSourceSheetKeyboardNavigation(tableWrap);
         }
 
-        let html = '<table class="sheet-data-table"><thead><tr><th>date</th><th>id</th><th>result</th><th>note</th><th>nonexist</th></tr></thead><tbody>';
+        let html = '<table class="sheet-data-table"><thead><tr><th>date</th><th>id</th><th class="cell-pick-label-h">label</th><th>result</th><th>note</th><th>nonexist</th></tr></thead><tbody>';
 
         const displayRows = rows || [];
         const rowIndices = Array.isArray(options.indices)
             ? options.indices.filter(i => i >= 0 && i < displayRows.length)
             : displayRows.map((_, i) => i);
-        const prevRecallFoldStats = this.computePrevPeriodRecallFoldStats(displayRows, rowIndices);
-        const prevRecallFoldPctLabel = this.formatPrevPeriodRecallFoldPct(prevRecallFoldStats);
+        const prevRecallFoldStatsByChain = this.computePrevPeriodRecallFoldStatsByChain(displayRows, rowIndices);
+        const prevRecallFoldPctLabel = this.formatPrevPeriodRecallFoldPctByChain(prevRecallFoldStatsByChain);
+        const prevRecallFoldPctAttr = this.encodePrevPeriodRecallFoldTooltipAttr(prevRecallFoldPctLabel);
 
         for (const i of rowIndices) {
             const row = displayRows[i];
@@ -2253,12 +3017,14 @@ class RightPaneSheetManager {
             const prevRecallFold = !isEmptyResultRow && this.recallsAtLeastOneFromImmediatePrevPeriod(displayRows, i);
             const resultCellClass = 'cell-result' + (prevRecallFold ? ' has-prev-period-recall' : '');
             const prevRecallFoldHit = prevRecallFold
-                ? `<span class="prev-period-recall-fold" data-pct="${this.escapeHtml(prevRecallFoldPctLabel)}"></span>`
+                ? `<span class="prev-period-recall-fold" data-pct="${prevRecallFoldPctAttr}"></span>`
                 : '';
+            const pickLabelHtml = isEmptyResultRow ? '' : this.getRowPickPropertyLabelHtml(displayRows, i, row);
 
             html += `<tr data-idx="${i}" class="data-row${activeClass}" data-has-result="${!!result}" data-empty="${isEmptyResultRow ? '1' : '0'}">
                 <td class="cell-date"${dateBg}>${date}</td>
                 <td class="cell-id"${idStyle}>${id}</td>
+                <td class="cell-pick-label">${pickLabelHtml}</td>
                 <td class="${resultCellClass}">${prevRecallFoldHit}${resultHtml}</td>
                 <td class="cell-note"${noteStyle}>${noteHtml}</td>
                 <td class="cell-nonexist">${nonexistHtml}</td>
@@ -5193,19 +5959,18 @@ class RightPaneSheetManager {
         if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
             return null;
         }
-        const r = this.predictMainFiveHonest(rows, idx);
-        if (r.error) {
-            return { error: r.error };
-        }
-        const cap = Math.min(
-            Math.max(1, Number(this.constructor.MAIN_FIVE_HINT_POOL_SIZE) || 10),
-            35
-        );
-        return { text: r.lines.join('\n'), picks: Array.isArray(r.picks) ? r.picks.slice(0, cap) : [] };
+        const r = this.formatConn3ReferenceHint(rows, idx);
+        return {
+            text: r.lines.join('\n'),
+            picks: Array.isArray(r.picks) ? r.picks : [],
+            conn3HeaderLines: r.headerLines || [],
+            conn3Triplets: Array.isArray(r.triplets) ? r.triplets : [],
+            conn3FooterLine: r.footerLine || ''
+        };
     }
 
     /**
-     * Text #referenceHint (iframe trái): dự đoán pool top-N số chính cho kỳ đang focus sheet1.
+     * Text #referenceHint (iframe trái): toàn bộ 3-connection của kỳ đang focus sheet1.
      */
     getNoteReferenceHintForRowIndex(rowIndex) {
         const m = this.getNoteReferenceHintMeta(rowIndex);
@@ -5664,35 +6429,22 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Có thể so sánh gọi lại với kỳ liền trước (cả hai có đủ 5 số chính).
+     * Kỳ tại rowIndex có ≥1 số chính trùng kỳ cách đúng `offset` dòng (chuỗi offset trong cửa sổ 10).
+     * offset 1 = chuỗi liền trên (kỳ rowIndex - 1).
      */
-    isEligibleForPrevPeriodRecallComparison(rows, rowIndex) {
+    recallsAtLeastOneFromPrevPeriodAtOffset(rows, rowIndex, offset) {
         const list = rows || [];
         const idx = Number(rowIndex);
-        if (!Number.isFinite(idx) || idx < 1 || idx >= list.length) {
+        const off = Number(offset);
+        if (!Number.isFinite(idx) || !Number.isFinite(off) || off < 1 || off > 10) {
+            return false;
+        }
+        const prevIdx = idx - off;
+        if (prevIdx < 0 || prevIdx >= list.length) {
             return false;
         }
         const curRow = list[idx];
-        const prevRow = list[idx - 1];
-        if (this.isEmptyResultRow(curRow) || this.isEmptyResultRow(prevRow)) {
-            return false;
-        }
-        const cur = this.parseMainNums(curRow.result || curRow.Result);
-        const prev = this.parseMainNums(prevRow.result || prevRow.Result);
-        return cur.length === 5 && prev.length === 5;
-    }
-
-    /**
-     * Kỳ tại rowIndex có ≥1 số chính (5 số trước |) trùng kỳ liền trước (cùng thứ tự data.json).
-     */
-    recallsAtLeastOneFromImmediatePrevPeriod(rows, rowIndex) {
-        const list = rows || [];
-        const idx = Number(rowIndex);
-        if (!Number.isFinite(idx) || idx < 1 || idx >= list.length) {
-            return false;
-        }
-        const curRow = list[idx];
-        const prevRow = list[idx - 1];
+        const prevRow = list[prevIdx];
         if (this.isEmptyResultRow(curRow) || this.isEmptyResultRow(prevRow)) {
             return false;
         }
@@ -5711,9 +6463,48 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Kỳ tại rowIndex có ≥1 số chính (5 số trước |) trùng kỳ liền trước (cùng thứ tự data.json).
+     */
+    recallsAtLeastOneFromImmediatePrevPeriod(rows, rowIndex) {
+        return this.recallsAtLeastOneFromPrevPeriodAtOffset(rows, rowIndex, 1);
+    }
+
+    /**
+     * Có thể so sánh gọi lại với kỳ cách đúng `offset` dòng (cả hai có đủ 5 số chính).
+     */
+    isEligibleForPrevPeriodRecallComparisonAtOffset(rows, rowIndex, offset) {
+        const list = rows || [];
+        const idx = Number(rowIndex);
+        const off = Number(offset);
+        if (!Number.isFinite(idx) || !Number.isFinite(off) || off < 1 || off > 10) {
+            return false;
+        }
+        const prevIdx = idx - off;
+        if (prevIdx < 0 || prevIdx >= list.length) {
+            return false;
+        }
+        const curRow = list[idx];
+        const prevRow = list[prevIdx];
+        if (this.isEmptyResultRow(curRow) || this.isEmptyResultRow(prevRow)) {
+            return false;
+        }
+        const cur = this.parseMainNums(curRow.result || curRow.Result);
+        const prev = this.parseMainNums(prevRow.result || prevRow.Result);
+        return cur.length === 5 && prev.length === 5;
+    }
+
+    /**
+     * Có thể so sánh gọi lại với kỳ liền trước (cả hai có đủ 5 số chính).
+     */
+    isEligibleForPrevPeriodRecallComparison(rows, rowIndex) {
+        return this.isEligibleForPrevPeriodRecallComparisonAtOffset(rows, rowIndex, 1);
+    }
+
+    /**
      * % kỳ có corner fold trong mẫu rowIndices (bảng đầy đủ hoặc tập lọc Ctrl popup).
      */
-    computePrevPeriodRecallFoldStats(rows, rowIndices) {
+    computePrevPeriodRecallFoldStats(rows, rowIndices, chainOffset = 1) {
+        const off = Math.max(1, Math.min(10, Number(chainOffset) || 1));
         const list = rows || [];
         const indices = Array.isArray(rowIndices)
             ? rowIndices.filter(i => i >= 0 && i < list.length)
@@ -5722,19 +6513,32 @@ class RightPaneSheetManager {
         let withRecall = 0;
         for (let k = 0; k < indices.length; k++) {
             const i = indices[k];
-            if (!this.isEligibleForPrevPeriodRecallComparison(list, i)) {
+            if (!this.isEligibleForPrevPeriodRecallComparisonAtOffset(list, i, off)) {
                 continue;
             }
             eligible++;
-            if (this.recallsAtLeastOneFromImmediatePrevPeriod(list, i)) {
+            if (this.recallsAtLeastOneFromPrevPeriodAtOffset(list, i, off)) {
                 withRecall++;
             }
         }
         return {
+            chain: off,
             eligible,
             withRecall,
             pct: eligible > 0 ? (withRecall / eligible) * 100 : null
         };
+    }
+
+    /**
+     * % corner fold theo từng chuỗi 1…10 trong cửa sổ trượt (so với mẫu rowIndices).
+     * @returns {{ chain: number, eligible: number, withRecall: number, pct: number | null }[]}
+     */
+    computePrevPeriodRecallFoldStatsByChain(rows, rowIndices) {
+        const out = [];
+        for (let chain = 1; chain <= 10; chain++) {
+            out.push(this.computePrevPeriodRecallFoldStats(rows, rowIndices, chain));
+        }
+        return out;
     }
 
     formatPrevPeriodRecallFoldPct(stats) {
@@ -5745,6 +6549,21 @@ class RightPaneSheetManager {
         return rounded.toFixed(1) + '%';
     }
 
+    formatPrevPeriodRecallFoldPctByChain(statsByChain) {
+        const lines = [];
+        for (let chain = 1; chain <= 10; chain++) {
+            const stats = statsByChain && statsByChain[chain - 1]
+                ? statsByChain[chain - 1]
+                : null;
+            lines.push(`${chain}: ${this.formatPrevPeriodRecallFoldPct(stats)}`);
+        }
+        return lines.join('\n');
+    }
+
+    encodePrevPeriodRecallFoldTooltipAttr(text) {
+        return this.escapeHtml(String(text || '')).replace(/\n/g, '&#10;');
+    }
+
     /**
      * Cập nhật tooltip % trên góc fold (sau lọc popup khi tái dùng HTML cache).
      */
@@ -5752,8 +6571,9 @@ class RightPaneSheetManager {
         if (!tableWrap) {
             return null;
         }
-        const stats = this.computePrevPeriodRecallFoldStats(rows, rowIndices);
-        const pctLabel = this.formatPrevPeriodRecallFoldPct(stats);
+        const statsByChain = this.computePrevPeriodRecallFoldStatsByChain(rows, rowIndices);
+        const pctLabel = this.formatPrevPeriodRecallFoldPctByChain(statsByChain);
+        const pctAttr = this.encodePrevPeriodRecallFoldTooltipAttr(pctLabel);
         tableWrap.querySelectorAll('td.cell-result.has-prev-period-recall').forEach(function (cell) {
             let hit = cell.querySelector('.prev-period-recall-fold');
             if (!hit) {
@@ -5761,10 +6581,10 @@ class RightPaneSheetManager {
                 hit.className = 'prev-period-recall-fold';
                 cell.insertBefore(hit, cell.firstChild);
             }
-            hit.setAttribute('data-pct', pctLabel);
+            hit.setAttribute('data-pct', pctAttr);
             hit.removeAttribute('title');
         });
-        return stats;
+        return statsByChain;
     }
 
     /**
@@ -6440,7 +7260,7 @@ class RightPaneSheetManager {
             }
         }
 
-        if (this.activeSheet === 'sheet1' && !isEmptyRow) {
+        if (this.activeSheet === 'sheet1') {
             try {
                 this.syncSpecialTrackingTimelineFromSheet1Row(idx);
             } catch (eStSync) {
@@ -7246,7 +8066,7 @@ class RightPaneSheetManager {
 
     /**
      * Sheet1 → specialtracking một chiều: record id đang focus là X thì timeline tua tới
-     * mốc đã xử lý đến kỳ có id (X−1) — số bước = số lần có special trên các dòng từ đầu đến dòng đó.
+     * mốc đã xử lý đến kỳ có id X — số bước = số lần có special trên các dòng từ đầu đến dòng đó.
      * Scrub timeline / transport ST không gọi ngược lại sheet1.
      */
     syncSpecialTrackingTimelineFromSheet1Row(focusRowIndex) {
@@ -7275,7 +8095,7 @@ class RightPaneSheetManager {
             return;
         }
 
-        const targetId = idNum - 1;
+        const targetId = idNum;
         let targetRowIdx = -1;
         if (targetId >= 1) {
             for (let i = 0; i < rows.length; i++) {
@@ -8178,18 +8998,14 @@ class RightPaneSheetManager {
                 });
             }
             const predictNeonActive = predictNeonOn && predictList.length > 0;
+            root.classList.toggle('special-tracking-root--predict-on', predictNeonOn);
             root.classList.toggle('special-tracking-root--predict-neon-on', predictNeonActive);
-            if (!predictNeonActive) {
-                lastPredictNeonSyncKey = '';
-                root.style.removeProperty('--st-predict-neon-delay');
-            } else {
-                const syncKey = `${frameIndex}:${predictList.join(',')}:${actualNext == null ? '-' : String(actualNext)}`;
-                if (syncKey !== lastPredictNeonSyncKey) {
-                    lastPredictNeonSyncKey = syncKey;
-                    const periodSec = 2 * 0.72;
-                    const phase = (performance.now() / 1000) % periodSec;
-                    root.style.setProperty('--st-predict-neon-delay', `${-phase}s`);
-                }
+            const syncKey = `${frameIndex}:${predictList.join(',')}:${fr.justDrawn}:${actualNext == null ? '-' : String(actualNext)}`;
+            if (syncKey !== lastPredictNeonSyncKey) {
+                lastPredictNeonSyncKey = syncKey;
+                const periodSec = 2 * 0.72;
+                const phase = (performance.now() / 1000) % periodSec;
+                root.style.setProperty('--st-predict-neon-delay', `${-phase}s`);
             }
 
             for (let n = 1; n <= 12; n++) {
@@ -8211,9 +9027,11 @@ class RightPaneSheetManager {
                     fillEl.style.width = `${fr.wPctByNum[n]}%`;
                 }
                 const pr = predictRankByNum.get(n);
+                const actualAnswer = !predictNeonOn && n === fr.justDrawn;
                 const predictHit = Boolean(pr) && actualNext != null && n === actualNext;
                 el.classList.toggle('special-tracking-rank-bar--just', n === fr.justDrawn);
                 el.classList.toggle('special-tracking-rank-bar--focus', focusNum != null && n === focusNum);
+                el.classList.toggle('special-tracking-rank-bar--actual-answer', actualAnswer);
                 el.classList.toggle('special-tracking-rank-bar--predict', Boolean(pr));
                 el.classList.toggle('special-tracking-rank-bar--predict-hit', predictHit);
                 el.classList.toggle('special-tracking-rank-bar--predict-1', pr === 1);
@@ -8224,10 +9042,12 @@ class RightPaneSheetManager {
                     prioEl.setAttribute('aria-hidden', pr ? 'false' : 'true');
                 }
                 let aria = `Số ${n}, click để tô sáng`;
-                if (pr) {
+                if (actualAnswer) {
+                    aria = `Số ${n}, đáp án kỳ hiện tại (id), click để tô sáng`;
+                } else if (pr) {
                     aria = predictHit
-                        ? `Số ${n}, ứng viên dự đoán hạng ${pr}, trùng đáp án kỳ tiếp theo`
-                        : `Số ${n}, ứng viên dự đoán hạng ${pr}, click để tô sáng`;
+                        ? `Số ${n}, ứng viên dự đoán hạng ${pr}, trùng đáp án kỳ tiếp theo (id+1)`
+                        : `Số ${n}, ứng viên dự đoán hạng ${pr} cho kỳ tiếp theo (id+1), click để tô sáng`;
                 }
                 el.setAttribute('aria-label', aria);
             }
