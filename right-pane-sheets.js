@@ -368,41 +368,17 @@ function specialTrackingPredictTxtTemporalTop3(series, frames, N) {
     return [pairs[0][0], pairs[1][0], pairs[2][0]];
 }
 
-/** sessionStorage + sheet.specialTrackingUi: khôi phục timeline / predict khi quay lại sheet */
-const SPECIAL_TRACKING_UI_STORAGE_KEY = 'rp-special-tracking-ui-v1';
+/** sessionStorage + sheet.trackingUi: khôi phục timeline / predict khi quay lại sheet */
+const TRACKING_UI_STORAGE_KEY = 'rp-tracking-ui-v1';
+const LEGACY_TRACKING_UI_STORAGE_KEY = 'rp-special-tracking-ui-v1';
+const TRACKING_LABEL_MODE_KEY = 'rp-tracking-label-mode-v1';
+const TRACKING_SHEET_ID = 'tracking';
+const TRACKING_KIND = 'tracking';
 
 /** Chuột phải ô nonexist: nhảy tới kỳ có id = id hàng hiện tại + delta (vd 00014 → 00024 khi delta=10). */
 const NONEXIST_CONTEXTMENU_ID_DELTA = 10;
 
 class RightPaneSheetManager {
-    /** Pool gợi ý Hint: số ô tối đa khoanh (top theo margin Dirichlet). */
-    static MAIN_FIVE_HINT_POOL_SIZE = 10;
-    /** Số dòng sheet liền trước dòng focus dùng cho cửa sổ (tối đa) — cùng ý multiset với bảng 1 trái khi đủ 10 dòng. */
-    static MAIN_FIVE_HINT_SLIDE_LEN = 10;
-    /**
-     * Trọng số điểm margin Dirichlet trên tần suất cửa sổ (0..1); phần còn lại là tích lũy toàn bộ kỳ trước dòng.
-     */
-    static MAIN_FIVE_HINT_SLIDE_WEIGHT = 0.45;
-    /**
-     * Alpha Dirichlet chỉ dùng cho hint — lớn hơn → ít bám sát raw count, giảm “chỉ số hot”.
-     */
-    static MAIN_FIVE_HINT_DIRICHLET_ALPHA = 1.65;
-    /**
-     * Độ rộng dải xếp hạng khi chọn pool: band = min(35, max(poolN, ceil(poolN * mult))).
-     * Pool lấy theo bước thứ hạng trong band (không lấy liền N ô đầu).
-     */
-    static MAIN_FIVE_HINT_DIVERSITY_BAND_MULT = 3;
-    /**
-     * true: lần đầu cần hint, chạy benchmark walk-forward trên toàn sheet1 và chọn thuật overlap TB cao nhất.
-     */
-    static MAIN_FIVE_HINT_AUTO_SELECT_STRATEGY = true;
-    /** Số kỳ hợp lệ gần nhất (trong validIdx) dùng cho margin recent + triple. */
-    static MAIN_FIVE_HINT_RECENT_VALID_K = 20;
-    /**
-     * predict.txt §13: số lần lấy mẫu pool có trọng số (seed deterministic từ ctx) — giữ nhỏ để benchmark không đơ.
-     */
-    static MAIN_FIVE_HINT_MC_POOL_SAMPLES = 40;
-
     constructor() {
         this.sheets = {};
         this.activeSheet = 'sheet1';
@@ -426,6 +402,12 @@ class RightPaneSheetManager {
         this._comboHMarchingRange = null;
         this._comboHCutPending = null;
         this.scrollPositions = {};
+        this._syncingTrackingFromSheet1 = false;
+        this._syncingSheet1FromTracking = false;
+        /** Submit ON ở nửa màn trái (iframe ok_left) — ảnh hưởng basic tracking. */
+        this.leftSubmitActive = false;
+        /** Autoring ON (toolbar) — ảnh hưởng basic tracking. */
+        this.leftAutoringEnabled = false;
         /** Cache filter mode connection (invalid khi refreshDerivedState). */
         this._connectionFilterIndicesCache = null;
         this._connectionFilterIndicesCacheRowLen = 0;
@@ -466,6 +448,16 @@ class RightPaneSheetManager {
                     ? data.comboHComments
                     : {};
                 this.scrollPositions = data.scrollPositions || {};
+                if (this.sheets.specialtracking && !this.sheets[TRACKING_SHEET_ID]) {
+                    this.sheets[TRACKING_SHEET_ID] = {
+                        ...this.sheets.specialtracking,
+                        kind: TRACKING_KIND
+                    };
+                    delete this.sheets.specialtracking;
+                }
+                if (this.activeSheet === 'specialtracking') {
+                    this.activeSheet = TRACKING_SHEET_ID;
+                }
             } catch (e) {
                 this.sheets = { sheet1: { data: [], notes: {} } };
             }
@@ -492,24 +484,38 @@ class RightPaneSheetManager {
      */
     rebuildSheetsFromSource() {
         const comboSheets = this.buildComboSheetsFromRows(this.sourceRows || []);
-        const stMeta = this.buildSpecialTrackingSeriesMeta(this.sourceRows || []);
-        const stFrames = this.buildSpecialTrackingFrames(stMeta.series);
+        const specialMeta = this.buildSpecialTrackingSeriesMeta(this.sourceRows || []);
+        const basicMeta = this.buildBasicTrackingSeriesMeta(this.sourceRows || []);
+        const prevTracking = this.sheets[TRACKING_SHEET_ID] || this.sheets.specialtracking;
+        const viewMode = prevTracking ? this.getTrackingViewMode(prevTracking) : 'basic';
+        const trackingFrames = this.buildTrackingFramesForMode(viewMode, specialMeta, basicMeta);
         this.sheets = {
             sheet1: {
                 kind: 'source',
                 data: this.sourceRows || []
             },
             ...comboSheets,
-            specialtracking: {
-                kind: 'specialtracking',
+            [TRACKING_SHEET_ID]: {
+                kind: TRACKING_KIND,
                 data: [],
-                series: stMeta.series,
-                seriesSourceRowIndices: stMeta.sourceRowIndices,
-                frames: stFrames
+                trackingViewMode: viewMode,
+                trackingLabelMode: prevTracking && prevTracking.trackingLabelMode
+                    ? RightPaneSheetManager.normalizeTrackingLabelMode(prevTracking.trackingLabelMode)
+                    : RightPaneSheetManager.readTrackingLabelModeFromStorage(),
+                specialSeries: specialMeta.series,
+                specialDrawSteps: specialMeta.drawSteps,
+                specialSourceRowIndices: specialMeta.sourceRowIndices,
+                basicDraws: basicMeta.draws,
+                basicDrawSteps: basicMeta.drawSteps,
+                basicSourceRowIndices: basicMeta.sourceRowIndices,
+                series: trackingFrames.series,
+                seriesSourceRowIndices: trackingFrames.sourceRowIndices,
+                frames: trackingFrames.frames
             }
         };
         try {
-            sessionStorage.removeItem(SPECIAL_TRACKING_UI_STORAGE_KEY);
+            sessionStorage.removeItem(TRACKING_UI_STORAGE_KEY);
+            sessionStorage.removeItem(LEGACY_TRACKING_UI_STORAGE_KEY);
         } catch (e) {
             /* ignore */
         }
@@ -548,7 +554,6 @@ class RightPaneSheetManager {
         this._conn3FilterIndicesCacheRowLen = 0;
         this._conn3WindowExistIndicesCache = null;
         this._conn3WindowExistIndicesCacheRowLen = 0;
-        this._mainFiveHintStrategyCache = null;
     }
 
     /** Rows used for sheet1 / nonexist filter (independent of active combo tab). */
@@ -1052,7 +1057,15 @@ class RightPaneSheetManager {
      */
     renderTable(tableWrap) {
         if (tableWrap) {
-            tableWrap.classList.remove('table-wrap--specialtracking');
+            tableWrap.classList.remove('table-wrap--tracking');
+        }
+        if (tableWrap && typeof tableWrap.__trackingCleanup === 'function') {
+            try {
+                tableWrap.__trackingCleanup();
+            } catch (eSt) {
+                /* ignore */
+            }
+            tableWrap.__trackingCleanup = null;
         }
         if (tableWrap && typeof tableWrap.__specialTrackingCleanup === 'function') {
             try {
@@ -1069,11 +1082,11 @@ class RightPaneSheetManager {
             return;
         }
 
-        if (sheet.kind === 'specialtracking') {
-            this.ensureSpecialTrackingFrames(sheet);
-            tableWrap.classList.add('table-wrap--specialtracking');
-            tableWrap.innerHTML = this.renderSpecialTrackingShell(sheet);
-            this.wireSpecialTrackingUi(tableWrap, sheet);
+        if (sheet.kind === TRACKING_KIND) {
+            this.ensureTrackingFrames(sheet);
+            tableWrap.classList.add('table-wrap--tracking');
+            tableWrap.innerHTML = this.renderTrackingShell(sheet);
+            this.wireTrackingUi(tableWrap, sheet);
             return;
         }
 
@@ -1767,6 +1780,34 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Freq 1–35 trong cửa sổ trượt 10 chuỗi trước kỳ `rowIndex` (không gồm kỳ đó).
+     * Cùng logic với buildPickChainLinesBeforeRow / inferMode.
+     * @returns {Record<number, number>}
+     */
+    computeMainNumsWindow10Freq(rows, rowIndex) {
+        const freq = {};
+        for (let i = 1; i <= 35; i++) {
+            freq[i] = 0;
+        }
+        if (!Array.isArray(rows) || typeof rowIndex !== 'number' || rowIndex < 0) {
+            return freq;
+        }
+        const windowStart = Math.max(0, rowIndex - 10);
+        const limit = Math.min(rowIndex - windowStart, 10);
+        for (let offset = 0; offset < limit; offset++) {
+            const lineRow = rows[windowStart + offset] || {};
+            const nums = this.parseMainNums(lineRow.result || lineRow.Result || '');
+            for (let k = 0; k < nums.length; k++) {
+                const n = nums[k];
+                if (n >= 1 && n <= 35) {
+                    freq[n] = (freq[n] || 0) + 1;
+                }
+            }
+        }
+        return freq;
+    }
+
+    /**
      * 10 chuỗi trước kỳ `rowIndex` (Chuỗi 1 = sát kỳ đang xét).
      * @param {object[]} rows
      * @param {number} rowIndex
@@ -2104,7 +2145,7 @@ class RightPaneSheetManager {
      * Textarea iframe trái: liệt kê toàn bộ 3-connection của kỳ đang focus.
      * @param {object[]} rows
      * @param {number} rowIndex
-     * @returns {{ lines: string[], picks: number[], headerLines: string[], triplets: object[], footerLine: string }}
+     * @returns {{ lines: string[], headerLines: string[], triplets: object[], footerLine: string }}
      */
     formatConn3ReferenceHint(rows, rowIndex) {
         const row = rows[rowIndex];
@@ -2131,10 +2172,8 @@ class RightPaneSheetManager {
         if (!triplets.length) {
             const emptyMsg = 'Không có bộ 3-connection (freq mỗi số ≥2, 3 cặp trên 3 chuỗi khác nhau).';
             lines.push(emptyMsg);
-            return { lines, picks: [], headerLines, triplets: [], footerLine: emptyMsg };
+            return { lines, headerLines, triplets: [], footerLine: emptyMsg };
         }
-        /** @type {Set<number>} */
-        const picksSet = new Set();
         /** @type {{ sorted: number[], inAnswer: boolean, label: string, chains: object | null }[]} */
         const tripletRows = [];
         for (let ti = 0; ti < triplets.length; ti++) {
@@ -2153,16 +2192,12 @@ class RightPaneSheetManager {
                 label,
                 chains: t.chains
             });
-            for (let pi = 0; pi < t.sorted.length; pi++) {
-                picksSet.add(t.sorted[pi]);
-            }
         }
         const answerCount = triplets.filter((t) => t.inAnswer).length;
         const footerLine = `Tổng: ${triplets.length} bộ${answerCount ? ` (${answerCount} nằm trong đáp án)` : ''}.`;
         lines.push('');
         lines.push(footerLine);
-        const picks = [...picksSet].sort((a, b) => a - b);
-        return { lines, picks, headerLines, triplets: tripletRows, footerLine };
+        return { lines, headerLines, triplets: tripletRows, footerLine };
     }
 
     /**
@@ -4549,1409 +4584,8 @@ class RightPaneSheetManager {
 
 
     /**
-     * Chỉ số dòng < endExclusive có đủ 5 số chính (walk-forward; không gồm kỳ đang dự đoán).
-     */
-    collectValidMainDrawIndicesBefore(rows, endExclusive) {
-        const out = [];
-        const rowsArr = rows || [];
-        const n = Math.min(endExclusive | 0, rowsArr.length);
-        for (let j = 0; j < n; j++) {
-            const m = this.parseMainNums((rowsArr[j] && (rowsArr[j].result || rowsArr[j].Result)) || '');
-            if (m.length === 5) {
-                out.push(j);
-            }
-        }
-        return out;
-    }
-
-    mainFiveValidNum(n) {
-        const u = Number(n);
-        return Number.isFinite(u) && u >= 1 && u <= 35;
-    }
-
-    mainFiveMarginalLog(countArr, n, alpha) {
-        const a = Number(alpha) > 0 ? alpha : 0.35;
-        let tot = 0;
-        for (let i = 1; i <= 35; i++) {
-            tot += countArr[i] || 0;
-        }
-        const c = countArr[n] || 0;
-        return Math.log((c + a) / (tot + 35 * a));
-    }
-
-    /**
-     * Đếm multiset main (5 số) trên tail kỳ hợp lệ cuối của validIdx (walk-forward).
-     */
-    mainFiveHintCountMainOnValidTail(validIdx, rowsArr, tailLen) {
-        const c = new Array(36).fill(0);
-        const L = validIdx.length;
-        const t = Math.max(1, Math.min(L, tailLen | 0));
-        const start = Math.max(0, L - t);
-        for (let i = start; i < L; i++) {
-            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
-            for (let u = 0; u < m.length; u++) {
-                const x = m[u];
-                if (this.mainFiveValidNum(x)) {
-                    c[x]++;
-                }
-            }
-        }
-        return c;
-    }
-
-    /**
-     * gapDraws[n] = số kỳ hợp lệ kể từ lần cuối n xuất hiện đến kỳ hợp lệ cuối; avgGap[n] = TB khoảng cách (theo chỉ số kỳ hợp lệ) giữa các lần xuất hiện.
-     */
-    mainFiveHintGapStatsOnValid(validIdx, rowsArr) {
-        const L = validIdx.length;
-        const lastAt = new Array(36).fill(-1);
-        const gapSum = new Array(36).fill(0);
-        const gapCnt = new Array(36).fill(0);
-        for (let i = 0; i < L; i++) {
-            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
-            for (let u = 0; u < m.length; u++) {
-                const x = m[u];
-                if (!this.mainFiveValidNum(x)) {
-                    continue;
-                }
-                if (lastAt[x] >= 0) {
-                    gapSum[x] += i - lastAt[x];
-                    gapCnt[x]++;
-                }
-                lastAt[x] = i;
-            }
-        }
-        const gapDraws = new Array(36).fill(0);
-        const avgGap = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            gapDraws[n] = lastAt[n] >= 0 ? L - 1 - lastAt[n] : L;
-            avgGap[n] = gapCnt[n] > 0 ? gapSum[n] / gapCnt[n] : L;
-        }
-        return { gapDraws, avgGap };
-    }
-
-    /**
-     * Mỗi cạnh (a,b) trong cùng một kỳ (tail hợp lệ): +1 vào bậc hai đỉnh (đại lượng co-occurrence đơn giản).
-     */
-    mainFiveHintPairDegreeOnValidTail(validIdx, rowsArr, tailLen) {
-        const deg = new Array(36).fill(0);
-        const L = validIdx.length;
-        const t = Math.max(1, Math.min(L, tailLen | 0));
-        const start = Math.max(0, L - t);
-        for (let i = start; i < L; i++) {
-            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
-            const nums = [];
-            for (let u = 0; u < m.length; u++) {
-                if (this.mainFiveValidNum(m[u])) {
-                    nums.push(m[u]);
-                }
-            }
-            for (let a = 0; a < nums.length; a++) {
-                for (let b = a + 1; b < nums.length; b++) {
-                    deg[nums[a]]++;
-                    deg[nums[b]]++;
-                }
-            }
-        }
-        return deg;
-    }
-
-    /** Chuẩn hóa z-score trên 35 số (chỉ số 1..35). */
-    mainFiveHintZScore36(vals36) {
-        let s = 0;
-        let s2 = 0;
-        const c = 35;
-        for (let n = 1; n <= 35; n++) {
-            const v = vals36[n] || 0;
-            s += v;
-            s2 += v * v;
-        }
-        const mean = s / c;
-        const vrc = s2 / c - mean * mean;
-        const std = Math.sqrt(Math.max(vrc, 1e-12));
-        const out = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            out[n] = ((vals36[n] || 0) - mean) / std;
-        }
-        return out;
-    }
-
-    /**
-     * Giống mainFiveHintGapStatsOnValid nhưng thêm max khoảng cách giữa hai lần xuất hiện liên tiếp (theo chỉ số kỳ hợp lệ).
-     */
-    mainFiveHintGapStatsWithMaxOnValid(validIdx, rowsArr) {
-        const L = validIdx.length;
-        const lastAt = new Array(36).fill(-1);
-        const maxBetween = new Array(36).fill(0);
-        const gapSum = new Array(36).fill(0);
-        const gapCnt = new Array(36).fill(0);
-        for (let i = 0; i < L; i++) {
-            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
-            for (let u = 0; u < m.length; u++) {
-                const x = m[u];
-                if (!this.mainFiveValidNum(x)) {
-                    continue;
-                }
-                if (lastAt[x] >= 0) {
-                    const g = i - lastAt[x];
-                    gapSum[x] += g;
-                    gapCnt[x]++;
-                    if (g > maxBetween[x]) {
-                        maxBetween[x] = g;
-                    }
-                }
-                lastAt[x] = i;
-            }
-        }
-        const gapDraws = new Array(36).fill(0);
-        const avgGap = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            gapDraws[n] = lastAt[n] >= 0 ? L - 1 - lastAt[n] : L;
-            avgGap[n] = gapCnt[n] > 0 ? gapSum[n] / gapCnt[n] : L;
-        }
-        return { gapDraws, avgGap, maxBetween };
-    }
-
-    /** Ma trận đồng xuất hiện cặp (đối xứng) trên tail kỳ hợp lệ. */
-    mainFiveHintPairMatrixTail(validIdx, rowsArr, tailLen) {
-        const P = [];
-        for (let i = 0; i < 36; i++) {
-            P[i] = new Array(36).fill(0);
-        }
-        const L = validIdx.length;
-        const t = Math.max(1, Math.min(L, tailLen | 0));
-        const start = Math.max(0, L - t);
-        for (let i = start; i < L; i++) {
-            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
-            const nums = [];
-            for (let u = 0; u < m.length; u++) {
-                if (this.mainFiveValidNum(m[u])) {
-                    nums.push(m[u]);
-                }
-            }
-            for (let a = 0; a < nums.length; a++) {
-                for (let b = a + 1; b < nums.length; b++) {
-                    const u = nums[a];
-                    const v = nums[b];
-                    P[u][v]++;
-                    P[v][u]++;
-                }
-            }
-        }
-        return P;
-    }
-
-    /** Hub = tổng trọng số cạnh; tam giác = tổng min(P_na,P_nb) (proxy triple / cụm). */
-    mainFiveHintPairHubTriangle36(P) {
-        const hub = new Array(36).fill(0);
-        const tri = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            let h = 0;
-            let tr = 0;
-            for (let a = 1; a <= 35; a++) {
-                if (a === n) {
-                    continue;
-                }
-                const pan = P[n][a] || 0;
-                h += pan;
-                for (let b = a + 1; b <= 35; b++) {
-                    if (b === n) {
-                        continue;
-                    }
-                    tr += Math.min(pan, P[n][b] || 0);
-                }
-            }
-            hub[n] = h;
-            tri[n] = tr;
-        }
-        return { hub, tri };
-    }
-
-    /** Phương sai tần suất xuất hiện qua các đoạn tail (proxy volatility §5). */
-    mainFiveHintSegVolatility36(validIdx, rowsArr, tailDraws, nSeg) {
-        const L = validIdx.length;
-        const T = Math.max(nSeg, Math.min(L, tailDraws | 0));
-        const start = L - T;
-        const segLen = Math.max(1, Math.floor(T / Math.max(2, nSeg | 0)));
-        const nS = Math.max(2, nSeg | 0);
-        const segC = [];
-        for (let s = 0; s < nS; s++) {
-            segC.push(new Array(36).fill(0));
-        }
-        for (let j = 0; j < T; j++) {
-            const i = start + j;
-            const si = Math.min(nS - 1, Math.floor(j / segLen));
-            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
-            for (let u = 0; u < m.length; u++) {
-                const x = m[u];
-                if (this.mainFiveValidNum(x)) {
-                    segC[si][x]++;
-                }
-            }
-        }
-        const vol = new Array(36).fill(0);
-        const stab = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            let s = 0;
-            for (let t = 0; t < nS; t++) {
-                s += segC[t][n];
-            }
-            const mean = s / nS;
-            let v = 0;
-            for (let t = 0; t < nS; t++) {
-                const d = segC[t][n] - mean;
-                v += d * d;
-            }
-            v /= nS;
-            vol[n] = v;
-            stab[n] = 1 / (1 + 4 * v);
-        }
-        return { vol, stab };
-    }
-
-    /**
-     * Khi n xuất hiện trong tail: độ lệch cấu trúc kỳ (|lẻ−2.5| + |thấp(1–17)−2.5|) / 2 — cao hơn = kỳ lệch (§6 proxy).
-     * Trả về điểm âm TB (ưu tiên số hay nằm trong kỳ “cân” hơn).
-     */
-    mainFiveHintHitStructuralSkew36(validIdx, rowsArr, tailLen) {
-        const sumSk = new Array(36).fill(0);
-        const hitCnt = new Array(36).fill(0);
-        const sumSpread = new Array(36).fill(0);
-        const L = validIdx.length;
-        const t = Math.max(1, Math.min(L, tailLen | 0));
-        const start = Math.max(0, L - t);
-        for (let i = start; i < L; i++) {
-            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
-            const nums = [];
-            for (let u = 0; u < m.length; u++) {
-                if (this.mainFiveValidNum(m[u])) {
-                    nums.push(m[u]);
-                }
-            }
-            if (nums.length < 5) {
-                continue;
-            }
-            let odd = 0;
-            let low = 0;
-            for (let k = 0; k < nums.length; k++) {
-                if (nums[k] % 2 === 1) {
-                    odd++;
-                }
-                if (nums[k] <= 17) {
-                    low++;
-                }
-            }
-            const sk = (Math.abs(odd - 2.5) + Math.abs(low - 2.5)) * 0.5;
-            const sm = nums.slice().sort((a, b) => a - b);
-            const spread = (sm[sm.length - 1] - sm[0]) / 34;
-            for (let k = 0; k < nums.length; k++) {
-                const n = nums[k];
-                sumSk[n] += sk;
-                sumSpread[n] += spread;
-                hitCnt[n]++;
-            }
-        }
-        const balHit = new Array(36).fill(0);
-        const spreadHit = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            const c = hitCnt[n] || 0;
-            if (c > 0) {
-                balHit[n] = -(sumSk[n] / c);
-                spreadHit[n] = sumSpread[n] / c;
-            }
-        }
-        return { balHit, spreadHit };
-    }
-
-    /** PRNG deterministic (§13 Monte Carlo có thể lặp lại theo seed). */
-    mainFiveHintMulberry32(seed) {
-        let a = seed >>> 0;
-        return () => {
-            a += 0x6d2b79f5;
-            let t = a;
-            t = Math.imul(t ^ (t >>> 15), t | 1);
-            t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-        };
-    }
-
-    mainFiveHintMcPoolTallyFromComposite(ctx, poolN, sampleCount) {
-        const { ptxtComposite, countArr, windowCountArr } = ctx;
-        const M = Math.min(35, Math.max(1, poolN | 0));
-        const samples = Math.max(8, Math.min(200, sampleCount | 0));
-        let seed = (ctx.forecastIdx | 0) * 2654435761;
-        for (let n = 1; n <= 35; n++) {
-            seed = (Math.imul(seed + (countArr[n] | 0), n + 31)) >>> 0;
-        }
-        const rnd = this.mainFiveHintMulberry32(seed);
-        const tally = new Array(36).fill(0);
-        for (let s = 0; s < samples; s++) {
-            const avail = [];
-            for (let n = 1; n <= 35; n++) {
-                avail.push(n);
-            }
-            for (let pick = 0; pick < M; pick++) {
-                let sumw = 0;
-                const w = [];
-                for (let i = 0; i < avail.length; i++) {
-                    const n = avail[i];
-                    const sc = Math.max(1e-6, Math.exp(0.85 * (ptxtComposite[n] || 0)));
-                    w.push(sc);
-                    sumw += sc;
-                }
-                let r = rnd() * sumw;
-                let chosen = 0;
-                for (let i = 0; i < avail.length; i++) {
-                    r -= w[i];
-                    if (r <= 0) {
-                        chosen = i;
-                        break;
-                    }
-                }
-                const n = avail[chosen];
-                tally[n]++;
-                avail[chosen] = avail[avail.length - 1];
-                avail.pop();
-            }
-        }
-        const score36 = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            score36[n] = tally[n] + 0.001 * (ptxtComposite[n] || 0);
-        }
-        return this.mainFiveHintSortCandidatesFromScore36(score36, countArr, windowCountArr).slice(0, M);
-    }
-
-    /**
-     * Pool §11: ổn định / momentum / overdue / hub theo tỉ lệ 3:3:2:2 (scale theo poolN).
-     */
-    mainFiveHintPicksStratified3322Top(ctx, poolN) {
-        const {
-            ptxtStab,
-            ptxtMom,
-            ptxtOverdueRatio,
-            ptxtPairHub,
-            ptxtComposite,
-            countArr,
-            windowCountArr
-        } = ctx;
-        const M = Math.min(35, Math.max(1, poolN | 0));
-        const sortBy = (arr) => this.mainFiveHintSortCandidatesFromScore36(arr, countArr, windowCountArr);
-        const nSt = Math.max(1, Math.round((3 * M) / 10));
-        const nMo = Math.max(1, Math.round((3 * M) / 10));
-        const nOv = Math.max(1, Math.round((2 * M) / 10));
-        const nHb = Math.max(1, M - nSt - nMo - nOv);
-        const lists = [
-            sortBy(ptxtStab),
-            sortBy(ptxtMom),
-            sortBy(ptxtOverdueRatio),
-            sortBy(ptxtPairHub)
-        ];
-        const quotas = [nSt, nMo, nOv, nHb];
-        const ptr = [0, 0, 0, 0];
-        const used = new Set();
-        const out = [];
-        const takeFrom = (lane, need) => {
-            const lst = lists[lane];
-            let got = 0;
-            while (got < need && ptr[lane] < lst.length) {
-                const n = lst[ptr[lane]++];
-                if (!used.has(n)) {
-                    used.add(n);
-                    out.push(n);
-                    got++;
-                }
-            }
-            return got;
-        };
-        for (let lane = 0; lane < 4; lane++) {
-            takeFrom(lane, quotas[lane]);
-        }
-        if (out.length < M) {
-            const fill = sortBy(ptxtComposite);
-            for (let i = 0; i < fill.length && out.length < M; i++) {
-                if (!used.has(fill[i])) {
-                    used.add(fill[i]);
-                    out.push(fill[i]);
-                }
-            }
-        }
-        return out.slice(0, M);
-    }
-
-    /**
-     * Bảng 1 (copy ý hai cột): số lần : các số — chỉ các số được dự đoán (picks),
-     * số lần = tần suất xuất hiện trong các kỳ học (countArr).
-     */
-    mainFiveFormatPredictedFrequencyTableLines(picks, countArr) {
-        const byCount = new Map();
-        for (let i = 0; i < picks.length; i++) {
-            const n = picks[i];
-            const c = countArr[n] || 0;
-            if (!byCount.has(c)) {
-                byCount.set(c, []);
-            }
-            byCount.get(c).push(n);
-        }
-        const counts = Array.from(byCount.keys()).sort((a, b) => b - a);
-        const out = [];
-        for (let j = 0; j < counts.length; j++) {
-            const c = counts[j];
-            const nums = byCount.get(c).slice().sort((a, b) => a - b);
-            out.push(`${c}: ${nums.join(', ')}`);
-        }
-        return out;
-    }
-
-    /**
-     * Chọn pool hint từ danh sách 1..35 đã sắp theo điểm (cao → thấp): trải đều theo thứ hạng
-     * trong dải top-band — tránh toàn bộ pool là N số freq cao nhất liền nhau.
-     * @param {number[]} sortedCandidates
-     * @param {number} poolN
-     * @param {number} bandMult
-     * @returns {number[]}
-     */
-    mainFiveHintPickSpacedPool(sortedCandidates, poolN, bandMult) {
-        const M = Math.min(35, Math.max(1, poolN | 0));
-        const mult = Number(bandMult) > 0 ? bandMult : 3;
-        const bandSize = Math.min(
-            35,
-            Math.max(M, Math.ceil(M * mult))
-        );
-        const band = sortedCandidates.slice(0, bandSize);
-        const last = band.length - 1;
-        if (M === 1 || last <= 0) {
-            return band.slice(0, M);
-        }
-        const picks = [];
-        const used = new Set();
-        for (let k = 0; k < M; k++) {
-            let idx = Math.floor((k * last) / (M - 1));
-            idx = Math.max(0, Math.min(last, idx));
-            let guard = 0;
-            while (used.has(band[idx]) && guard <= last + 1) {
-                idx = (idx + 1) % band.length;
-                guard++;
-            }
-            const n = band[idx];
-            used.add(n);
-            picks.push(n);
-        }
-        const rankByNum = new Map();
-        for (let i = 0; i < sortedCandidates.length; i++) {
-            rankByNum.set(sortedCandidates[i], i);
-        }
-        picks.sort((a, b) => (rankByNum.get(a) - rankByNum.get(b)));
-        return picks;
-    }
-
-    /** Thứ tự ưu tiên khi benchmark hòa điểm (cái đứng trước được giữ). */
-    static MAIN_FIVE_HINT_STRATEGY_IDS = [
-        'blend_spaced',
-        'equal_spaced',
-        'full_spaced',
-        'window_spaced',
-        'blend_top',
-        'equal_top',
-        'full_top',
-        'window_top',
-        'cold_spaced',
-        'sumlog_spaced',
-        'sumlog_top',
-        'maxlog_spaced',
-        'maxlog_top',
-        'minlog_spaced',
-        'minlog_top',
-        'recent_spaced',
-        'recent_top',
-        'triple_spaced',
-        'triple_top',
-        'union_half_fill_top',
-        'boost_spaced',
-        'boost_top',
-        'ptxt_roll20_spaced',
-        'ptxt_roll20_top',
-        'ptxt_composite_spaced',
-        'ptxt_composite_top',
-        'ptxt_gap_spaced',
-        'ptxt_gap_top',
-        'ptxt_deg_spaced',
-        'ptxt_deg_top',
-        'ptxt_strat10_top',
-        'ptxt_accel_spaced',
-        'ptxt_accel_top',
-        'ptxt_overdue_spaced',
-        'ptxt_overdue_top',
-        'ptxt_maxgap_anom_spaced',
-        'ptxt_maxgap_anom_top',
-        'ptxt_pairhub_spaced',
-        'ptxt_pairhub_top',
-        'ptxt_tri_cohesion_spaced',
-        'ptxt_tri_cohesion_top',
-        'ptxt_volatile_spaced',
-        'ptxt_volatile_top',
-        'ptxt_stable_spaced',
-        'ptxt_stable_top',
-        'ptxt_balhit_spaced',
-        'ptxt_balhit_top',
-        'ptxt_spreadhit_spaced',
-        'ptxt_spreadhit_top',
-        'ptxt_dyn_composite_spaced',
-        'ptxt_dyn_composite_top',
-        'ptxt_bayes7030_spaced',
-        'ptxt_bayes7030_top',
-        'ptxt_diverse_spaced',
-        'ptxt_diverse_top',
-        'ptxt_multisig_spaced',
-        'ptxt_multisig_top',
-        'ptxt_strat3322_top',
-        'ptxt_mc_pool_top',
-        'ptxt_cls_stable_top',
-        'ptxt_cls_momentum_top',
-        'ptxt_cls_overdue_top',
-        'ptxt_cls_hub_top',
-        'ptxt_cls_tri_top'
-    ];
-
-    /**
-     * @param {number[]} score36 chỉ số 1..35 dùng được
-     * @returns {number[]} 1..35 sắp cao → thấp
-     */
-    mainFiveHintSortCandidatesFromScore36(score36, countArr, windowCountArr) {
-        const candidates = [];
-        for (let n = 1; n <= 35; n++) {
-            candidates.push(n);
-        }
-        candidates.sort((a, b) => {
-            const ds = score36[b] - score36[a];
-            if (Math.abs(ds) > 1e-12) {
-                return ds > 0 ? 1 : -1;
-            }
-            const dc = (countArr[b] || 0) - (countArr[a] || 0);
-            if (dc !== 0) {
-                return dc > 0 ? 1 : -1;
-            }
-            const dwc = (windowCountArr[b] || 0) - (windowCountArr[a] || 0);
-            if (dwc !== 0) {
-                return dwc > 0 ? 1 : -1;
-            }
-            return a - b;
-        });
-        return candidates;
-    }
-
-    /**
-     * Tính count tích lũy / cửa sổ + log margin (walk-forward, không dùng dòng idx).
-     * @returns {object | null}
-     */
-    mainFiveHintBuildScoresAtIndex(rowsArr, idx) {
-        const validIdx = this.collectValidMainDrawIndicesBefore(rowsArr, idx);
-        if (!validIdx.length) {
-            return null;
-        }
-        const alphaRaw = Number(this.constructor.MAIN_FIVE_HINT_DIRICHLET_ALPHA);
-        const alpha = Number.isFinite(alphaRaw) && alphaRaw > 0 ? alphaRaw : 1.65;
-        const L = validIdx.length;
-        const slideLen = Math.min(
-            10,
-            Math.max(1, Number(this.constructor.MAIN_FIVE_HINT_SLIDE_LEN) || 10)
-        );
-        let slideW = Number(this.constructor.MAIN_FIVE_HINT_SLIDE_WEIGHT);
-        if (!Number.isFinite(slideW)) {
-            slideW = 0.45;
-        }
-        slideW = Math.max(0, Math.min(1, slideW));
-        const countArr = new Array(36).fill(0);
-        for (let i = 0; i < L; i++) {
-            const m = this.parseMainNums((rowsArr[validIdx[i]] && (rowsArr[validIdx[i]].result || rowsArr[validIdx[i]].Result)) || '');
-            for (let t = 0; t < m.length; t++) {
-                const x = m[t];
-                if (this.mainFiveValidNum(x)) {
-                    countArr[x]++;
-                }
-            }
-        }
-        const table1WinEnd = idx - 1;
-        const table1WinStart = Math.max(0, idx - slideLen);
-        const windowCountArr = new Array(36).fill(0);
-        let sheetWinRowCount = 0;
-        for (let ri = table1WinStart; ri <= table1WinEnd; ri++) {
-            const m = this.parseMainNums((rowsArr[ri] && (rowsArr[ri].result || rowsArr[ri].Result)) || '');
-            for (let t = 0; t < m.length; t++) {
-                const x = m[t];
-                if (this.mainFiveValidNum(x)) {
-                    windowCountArr[x]++;
-                }
-            }
-            sheetWinRowCount++;
-        }
-        const fullLog = new Array(36).fill(0);
-        const winLog = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            fullLog[n] = this.mainFiveMarginalLog(countArr, n, alpha);
-            winLog[n] = this.mainFiveMarginalLog(windowCountArr, n, alpha);
-        }
-        const recentK = Math.min(
-            L,
-            Math.max(1, Number(this.constructor.MAIN_FIVE_HINT_RECENT_VALID_K) || 20)
-        );
-        const recentStart = Math.max(0, L - recentK);
-        const recentCountArr = new Array(36).fill(0);
-        for (let ri = recentStart; ri < L; ri++) {
-            const m = this.parseMainNums((rowsArr[validIdx[ri]] && (rowsArr[validIdx[ri]].result || rowsArr[validIdx[ri]].Result)) || '');
-            for (let t = 0; t < m.length; t++) {
-                const x = m[t];
-                if (this.mainFiveValidNum(x)) {
-                    recentCountArr[x]++;
-                }
-            }
-        }
-        const recentLog = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            recentLog[n] = this.mainFiveMarginalLog(recentCountArr, n, alpha);
-        }
-        const cnt20 = this.mainFiveHintCountMainOnValidTail(validIdx, rowsArr, 20);
-        const cnt50 = this.mainFiveHintCountMainOnValidTail(validIdx, rowsArr, 50);
-        const cnt100 = this.mainFiveHintCountMainOnValidTail(validIdx, rowsArr, 100);
-        const ptxtRoll20Log = new Array(36).fill(0);
-        const ptxtRoll50Log = new Array(36).fill(0);
-        const ptxtRoll100Log = new Array(36).fill(0);
-        const ptxtMom = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            ptxtRoll20Log[n] = this.mainFiveMarginalLog(cnt20, n, alpha);
-            ptxtRoll50Log[n] = this.mainFiveMarginalLog(cnt50, n, alpha);
-            ptxtRoll100Log[n] = this.mainFiveMarginalLog(cnt100, n, alpha);
-            ptxtMom[n] = ptxtRoll20Log[n] - ptxtRoll100Log[n];
-        }
-        const { gapDraws, avgGap, maxBetween } = this.mainFiveHintGapStatsWithMaxOnValid(validIdx, rowsArr);
-        const ptxtGapRaw = new Array(36).fill(0);
-        const ptxtOverdueRatio = new Array(36).fill(0);
-        const ptxtMaxgapAnom = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            const ag = avgGap[n] || 1;
-            const gd = gapDraws[n] || 0;
-            ptxtGapRaw[n] = Math.log(1 + gd / (ag + 0.35));
-            ptxtOverdueRatio[n] = gd / (ag + 0.25);
-            const mx = Math.max(maxBetween[n] || 0, 1);
-            ptxtMaxgapAnom[n] = Math.log(1 + gd / (mx + 0.2));
-        }
-        const ptxtPairDeg = this.mainFiveHintPairDegreeOnValidTail(validIdx, rowsArr, 50);
-        const P50 = this.mainFiveHintPairMatrixTail(validIdx, rowsArr, 50);
-        const { hub: ptxtPairHub, tri: ptxtTriCohesion } = this.mainFiveHintPairHubTriangle36(P50);
-        const { vol: ptxtVol, stab: ptxtStab } = this.mainFiveHintSegVolatility36(validIdx, rowsArr, 120, 6);
-        const { balHit: ptxtBalHit, spreadHit: ptxtSpreadHit } = this.mainFiveHintHitStructuralSkew36(validIdx, rowsArr, 50);
-        const ptxtAccel = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            const v1 = ptxtRoll20Log[n] - ptxtRoll50Log[n];
-            const v2 = ptxtRoll50Log[n] - ptxtRoll100Log[n];
-            ptxtAccel[n] = v1 - v2;
-        }
-        const zR20 = this.mainFiveHintZScore36(ptxtRoll20Log);
-        const zR50 = this.mainFiveHintZScore36(ptxtRoll50Log);
-        const zMom = this.mainFiveHintZScore36(ptxtMom);
-        const zGap = this.mainFiveHintZScore36(ptxtGapRaw);
-        const zDeg = this.mainFiveHintZScore36(ptxtPairDeg);
-        const zFull = this.mainFiveHintZScore36(fullLog);
-        const zOver = this.mainFiveHintZScore36(ptxtOverdueRatio);
-        const zMaxg = this.mainFiveHintZScore36(ptxtMaxgapAnom);
-        const zHub = this.mainFiveHintZScore36(ptxtPairHub);
-        const zTri = this.mainFiveHintZScore36(ptxtTriCohesion);
-        const zVol = this.mainFiveHintZScore36(ptxtVol);
-        const zStab = this.mainFiveHintZScore36(ptxtStab);
-        const zBal = this.mainFiveHintZScore36(ptxtBalHit);
-        const zSpr = this.mainFiveHintZScore36(ptxtSpreadHit);
-        const zAcc = this.mainFiveHintZScore36(ptxtAccel);
-        const ptxtComposite = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            ptxtComposite[n] = 0.32 * zR20[n]
-                + 0.18 * zR50[n]
-                + 0.16 * zMom[n]
-                + 0.12 * zGap[n]
-                + 0.17 * zDeg[n]
-                + 0.05 * zFull[n];
-        }
-        const dynT = Math.min(1, L / 480);
-        const ptxtCompositeDyn = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            ptxtCompositeDyn[n] = (0.34 + 0.11 * dynT) * zR20[n]
-                + (0.19 - 0.05 * dynT) * zR50[n]
-                + 0.14 * zMom[n]
-                + 0.11 * zGap[n]
-                + (0.16 - 0.03 * dynT) * zDeg[n]
-                + 0.05 * zFull[n]
-                + 0.04 * zAcc[n]
-                + 0.03 * zHub[n];
-        }
-        const ptxtDiverseMix = new Array(36).fill(0);
-        const ptxtBayes7030 = new Array(36).fill(0);
-        const ptxtMultiSig = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            ptxtDiverseMix[n] = ptxtComposite[n] - 0.12 * zDeg[n];
-            ptxtBayes7030[n] = 0.7 * fullLog[n] + 0.3 * winLog[n];
-            ptxtMultiSig[n] = 0.28 * zOver[n] + 0.28 * zGap[n] + 0.22 * zHub[n] + 0.22 * zAcc[n];
-        }
-        return {
-            forecastIdx: idx,
-            validIdx,
-            countArr,
-            windowCountArr,
-            recentCountArr,
-            fullLog,
-            winLog,
-            recentLog,
-            ptxtRoll20Log,
-            ptxtRoll50Log,
-            ptxtRoll100Log,
-            ptxtMom,
-            ptxtGapRaw,
-            ptxtOverdueRatio,
-            ptxtMaxgapAnom,
-            ptxtPairDeg,
-            ptxtPairHub,
-            ptxtTriCohesion,
-            ptxtVol,
-            ptxtStab,
-            ptxtBalHit,
-            ptxtSpreadHit,
-            ptxtAccel,
-            ptxtComposite,
-            ptxtCompositeDyn,
-            ptxtDiverseMix,
-            ptxtBayes7030,
-            ptxtMultiSig,
-            sheetWinRowCount,
-            table1WinStart,
-            table1WinEnd,
-            slideLen,
-            slideW,
-            alpha,
-            L,
-            recentK
-        };
-    }
-
-    /**
-     * @param {string} strategyId một trong MAIN_FIVE_HINT_STRATEGY_IDS
-     * @param {object} ctx kết quả mainFiveHintBuildScoresAtIndex
-     * @returns {number[]}
-     */
-    mainFiveHintPicksForStrategy(strategyId, ctx, poolN, bandMult) {
-        const {
-            fullLog,
-            winLog,
-            slideW,
-            countArr,
-            windowCountArr,
-            recentLog,
-            ptxtRoll20Log,
-            ptxtComposite,
-            ptxtCompositeDyn,
-            ptxtGapRaw,
-            ptxtPairDeg,
-            ptxtOverdueRatio,
-            ptxtMaxgapAnom,
-            ptxtPairHub,
-            ptxtTriCohesion,
-            ptxtVol,
-            ptxtStab,
-            ptxtBalHit,
-            ptxtSpreadHit,
-            ptxtAccel,
-            ptxtDiverseMix,
-            ptxtBayes7030,
-            ptxtMultiSig
-        } = ctx;
-        const blend = (n) => (1 - slideW) * fullLog[n] + slideW * winLog[n];
-        if (strategyId === 'union_half_fill_top') {
-            return this.mainFiveHintPicksUnionHalfFillTop(ctx, poolN, blend);
-        }
-        if (strategyId === 'ptxt_strat10_top') {
-            return this.mainFiveHintPicksStratifiedPtxtTop(ctx, poolN);
-        }
-        if (strategyId === 'ptxt_strat3322_top') {
-            return this.mainFiveHintPicksStratified3322Top(ctx, poolN);
-        }
-        if (strategyId === 'ptxt_mc_pool_top') {
-            const Ctor = this.constructor;
-            const ns = Number(Ctor.MAIN_FIVE_HINT_MC_POOL_SAMPLES) || 40;
-            return this.mainFiveHintMcPoolTallyFromComposite(ctx, poolN, ns);
-        }
-        const score36 = new Array(36).fill(0);
-        const equal = (n) => 0.5 * fullLog[n] + 0.5 * winLog[n];
-        switch (strategyId) {
-            case 'blend_spaced':
-            case 'blend_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = blend(n);
-                }
-                break;
-            case 'equal_spaced':
-            case 'equal_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = equal(n);
-                }
-                break;
-            case 'full_spaced':
-            case 'full_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = fullLog[n];
-                }
-                break;
-            case 'window_spaced':
-            case 'window_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = winLog[n];
-                }
-                break;
-            case 'cold_spaced':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = -fullLog[n];
-                }
-                break;
-            case 'sumlog_spaced':
-            case 'sumlog_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = fullLog[n] + winLog[n];
-                }
-                break;
-            case 'maxlog_spaced':
-            case 'maxlog_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = Math.max(fullLog[n], winLog[n]);
-                }
-                break;
-            case 'minlog_spaced':
-            case 'minlog_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = Math.min(fullLog[n], winLog[n]);
-                }
-                break;
-            case 'recent_spaced':
-            case 'recent_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = recentLog[n];
-                }
-                break;
-            case 'triple_spaced':
-            case 'triple_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = (fullLog[n] + winLog[n] + recentLog[n]) / 3;
-                }
-                break;
-            case 'ptxt_roll20_spaced':
-            case 'ptxt_roll20_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtRoll20Log[n];
-                }
-                break;
-            case 'ptxt_composite_spaced':
-            case 'ptxt_composite_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtComposite[n];
-                }
-                break;
-            case 'ptxt_gap_spaced':
-            case 'ptxt_gap_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtGapRaw[n];
-                }
-                break;
-            case 'ptxt_deg_spaced':
-            case 'ptxt_deg_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtPairDeg[n];
-                }
-                break;
-            case 'ptxt_accel_spaced':
-            case 'ptxt_accel_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtAccel[n];
-                }
-                break;
-            case 'ptxt_overdue_spaced':
-            case 'ptxt_overdue_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtOverdueRatio[n];
-                }
-                break;
-            case 'ptxt_maxgap_anom_spaced':
-            case 'ptxt_maxgap_anom_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtMaxgapAnom[n];
-                }
-                break;
-            case 'ptxt_pairhub_spaced':
-            case 'ptxt_pairhub_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtPairHub[n];
-                }
-                break;
-            case 'ptxt_tri_cohesion_spaced':
-            case 'ptxt_tri_cohesion_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtTriCohesion[n];
-                }
-                break;
-            case 'ptxt_volatile_spaced':
-            case 'ptxt_volatile_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtVol[n];
-                }
-                break;
-            case 'ptxt_stable_spaced':
-            case 'ptxt_stable_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtStab[n];
-                }
-                break;
-            case 'ptxt_balhit_spaced':
-            case 'ptxt_balhit_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtBalHit[n];
-                }
-                break;
-            case 'ptxt_spreadhit_spaced':
-            case 'ptxt_spreadhit_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtSpreadHit[n];
-                }
-                break;
-            case 'ptxt_dyn_composite_spaced':
-            case 'ptxt_dyn_composite_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtCompositeDyn[n];
-                }
-                break;
-            case 'ptxt_bayes7030_spaced':
-            case 'ptxt_bayes7030_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtBayes7030[n];
-                }
-                break;
-            case 'ptxt_diverse_spaced':
-            case 'ptxt_diverse_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtDiverseMix[n];
-                }
-                break;
-            case 'ptxt_multisig_spaced':
-            case 'ptxt_multisig_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtMultiSig[n];
-                }
-                break;
-            case 'ptxt_cls_stable_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtStab[n];
-                }
-                break;
-            case 'ptxt_cls_momentum_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtAccel[n];
-                }
-                break;
-            case 'ptxt_cls_overdue_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtOverdueRatio[n];
-                }
-                break;
-            case 'ptxt_cls_hub_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtPairHub[n];
-                }
-                break;
-            case 'ptxt_cls_tri_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = ptxtTriCohesion[n];
-                }
-                break;
-            case 'boost_spaced':
-            case 'boost_top':
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = blend(n)
-                        + 0.12 * Math.min(12, countArr[n] || 0)
-                        + 0.08 * Math.min(8, windowCountArr[n] || 0);
-                }
-                break;
-            default:
-                for (let n = 1; n <= 35; n++) {
-                    score36[n] = blend(n);
-                }
-        }
-        const sorted = this.mainFiveHintSortCandidatesFromScore36(score36, countArr, windowCountArr);
-        const spaced = strategyId.endsWith('_spaced');
-        if (spaced) {
-            return this.mainFiveHintPickSpacedPool(sorted, poolN, bandMult);
-        }
-        return sorted.slice(0, poolN);
-    }
-
-    /**
-     * Lấy ceil(poolN/2) số đầu theo full, ceil(poolN/2) theo window (trùng thì bỏ qua), rồi fill theo blend tới đủ poolN.
-     * @param {function(number): number} blend
-     */
-    mainFiveHintPicksUnionHalfFillTop(ctx, poolN, blend) {
-        const { fullLog, winLog, countArr, windowCountArr } = ctx;
-        const M = Math.min(35, Math.max(1, poolN | 0));
-        const half = Math.min(17, Math.ceil(M / 2));
-        const scoreF = new Array(36).fill(0);
-        const scoreW = new Array(36).fill(0);
-        const scoreB = new Array(36).fill(0);
-        for (let n = 1; n <= 35; n++) {
-            scoreF[n] = fullLog[n];
-            scoreW[n] = winLog[n];
-            scoreB[n] = blend(n);
-        }
-        const sortedF = this.mainFiveHintSortCandidatesFromScore36(scoreF, countArr, windowCountArr);
-        const sortedW = this.mainFiveHintSortCandidatesFromScore36(scoreW, countArr, windowCountArr);
-        const sortedB = this.mainFiveHintSortCandidatesFromScore36(scoreB, countArr, windowCountArr);
-        const out = [];
-        for (let i = 0; i < sortedF.length && out.length < half; i++) {
-            const n = sortedF[i];
-            if (!out.includes(n)) {
-                out.push(n);
-            }
-        }
-        let winAdded = 0;
-        for (let i = 0; i < sortedW.length && winAdded < half && out.length < M; i++) {
-            const n = sortedW[i];
-            if (!out.includes(n)) {
-                out.push(n);
-                winAdded++;
-            }
-        }
-        for (let i = 0; i < sortedB.length && out.length < M; i++) {
-            const n = sortedB[i];
-            if (!out.includes(n)) {
-                out.push(n);
-            }
-        }
-        return out.slice(0, M);
-    }
-
-    /**
-     * Ghép pool theo tỉ lệ 4:3:2:1 (composite : roll20 : gap : pair-degree), lặp chu kỳ 10 slot — top liền, walk-forward.
-     */
-    mainFiveHintPicksStratifiedPtxtTop(ctx, poolN) {
-        const { ptxtComposite, ptxtRoll20Log, ptxtGapRaw, ptxtPairDeg, countArr, windowCountArr } = ctx;
-        const M = Math.min(35, Math.max(1, poolN | 0));
-        const sortBy = (arr) => this.mainFiveHintSortCandidatesFromScore36(arr, countArr, windowCountArr);
-        const lists = [
-            sortBy(ptxtComposite),
-            sortBy(ptxtRoll20Log),
-            sortBy(ptxtGapRaw),
-            sortBy(ptxtPairDeg)
-        ];
-        const laneMap = [0, 0, 0, 0, 1, 1, 1, 2, 2, 3];
-        const ptr = [0, 0, 0, 0];
-        const used = new Set();
-        const out = [];
-        const tryPushFrom = (lane) => {
-            const lst = lists[lane];
-            while (ptr[lane] < lst.length && used.has(lst[ptr[lane]])) {
-                ptr[lane]++;
-            }
-            if (ptr[lane] < lst.length) {
-                const n = lst[ptr[lane]++];
-                used.add(n);
-                out.push(n);
-                return true;
-            }
-            return false;
-        };
-        for (let si = 0; si < M; si++) {
-            const primary = laneMap[si % 10];
-            if (tryPushFrom(primary)) {
-                continue;
-            }
-            let filled = false;
-            for (let r = 0; r < 4 && !filled; r++) {
-                filled = tryPushFrom((primary + 1 + r) % 4);
-            }
-            if (!filled) {
-                break;
-            }
-        }
-        if (out.length < M) {
-            const rest = sortBy(ptxtComposite);
-            for (let i = 0; i < rest.length && out.length < M; i++) {
-                if (!used.has(rest[i])) {
-                    used.add(rest[i]);
-                    out.push(rest[i]);
-                }
-            }
-        }
-        return out;
-    }
-
-    /**
-     * Walk-forward: với mỗi dòng có đủ 5 số thật, pool dự đoán chỉ từ quá khứ; điểm = số trùng trong pool / 5.
-     * @returns {{ winner: string, means: Record<string, number>, evalRows: number }}
-     */
-    runMainFiveHintStrategyBenchmark(rowsArr) {
-        const Ctor = this.constructor;
-        const poolN = Math.min(Math.max(1, Number(Ctor.MAIN_FIVE_HINT_POOL_SIZE) || 10), 35);
-        const bandMult = Number(Ctor.MAIN_FIVE_HINT_DIVERSITY_BAND_MULT) || 3;
-        const ids = Ctor.MAIN_FIVE_HINT_STRATEGY_IDS || ['blend_spaced'];
-        const sums = {};
-        const counts = {};
-        for (let ii = 0; ii < ids.length; ii++) {
-            sums[ids[ii]] = 0;
-            counts[ids[ii]] = 0;
-        }
-        let evalRows = 0;
-        const list = rowsArr || [];
-        for (let idx = 0; idx < list.length; idx++) {
-            const truth = this.parseMainNums((list[idx] && (list[idx].result || list[idx].Result)) || '');
-            if (truth.length !== 5) {
-                continue;
-            }
-            const ctx = this.mainFiveHintBuildScoresAtIndex(list, idx);
-            if (!ctx) {
-                continue;
-            }
-            evalRows++;
-            const truthSet = new Set(truth);
-            for (let si = 0; si < ids.length; si++) {
-                const sid = ids[si];
-                const picks = this.mainFiveHintPicksForStrategy(sid, ctx, poolN, bandMult);
-                let ov = 0;
-                for (let pi = 0; pi < picks.length; pi++) {
-                    if (truthSet.has(picks[pi])) {
-                        ov++;
-                    }
-                }
-                sums[sid] += ov;
-                counts[sid]++;
-            }
-        }
-        const means = {};
-        let winner = ids[0];
-        let bestMean = -1;
-        for (let oi = 0; oi < ids.length; oi++) {
-            const sid = ids[oi];
-            const c = counts[sid] || 0;
-            const mean = c > 0 ? sums[sid] / c : 0;
-            means[sid] = mean;
-            if (mean > bestMean + 1e-12) {
-                bestMean = mean;
-                winner = sid;
-            }
-        }
-        if (evalRows < 1) {
-            winner = 'blend_spaced';
-        }
-        return { winner, means, evalRows };
-    }
-
-    /** Một dòng giải thích chiến lược đang áp (tránh nhầm λ/cửa sổ với full_* / window_*). */
-    mainFiveHintStrategyOneLinerVn(id) {
-        switch (id) {
-            case 'full_top':
-                return 'Giải thích: chỉ xếp hạng theo tích lũy + Dirichlet (α) — lấy đúng 10 số cao nhất liền nhau. Trọng số λ ở dòng “cửa sổ” không tham gia xếp hạng picks của chiến lược này.';
-            case 'full_spaced':
-                return 'Giải thích: chỉ tích lũy + Dirichlet; pool spaced trong top-band. λ không tham gia xếp hạng.';
-            case 'window_top':
-                return 'Giải thích: chỉ multiset cửa sổ 10 dòng + Dirichlet — top 10 liền. λ không tham gia xếp hạng.';
-            case 'window_spaced':
-                return 'Giải thích: chỉ cửa sổ + Dirichlet; pool spaced. λ không tham gia xếp hạng.';
-            case 'blend_top':
-                return 'Giải thích: điểm = (1−λ)·margin(tích lũy) + λ·margin(cửa sổ); lấy top 10 liền.';
-            case 'blend_spaced':
-                return 'Giải thích: điểm = (1−λ)·margin(tích lũy) + λ·margin(cửa sổ); pool spaced trong top-band.';
-            case 'equal_top':
-                return 'Giải thích: điểm = 50% tích lũy + 50% cửa sổ; top 10 liền.';
-            case 'equal_spaced':
-                return 'Giải thích: điểm = 50% tích lũy + 50% cửa sổ; pool spaced.';
-            case 'cold_spaced':
-                return 'Giải thích: ưu tiên số có margin tích lũy thấp (ít “hot”), pool spaced.';
-            case 'sumlog_spaced':
-            case 'sumlog_top':
-                return 'Giải thích: điểm = margin(tích lũy) + margin(cửa sổ dòng sheet).';
-            case 'maxlog_spaced':
-            case 'maxlog_top':
-                return 'Giải thích: điểm = max(margin tích lũy, margin cửa sổ) — mạnh ở một trong hai.';
-            case 'minlog_spaced':
-            case 'minlog_top':
-                return 'Giải thích: điểm = min(hai margin) — ưu tiên số không quá yếu ở cả hai nguồn.';
-            case 'recent_spaced':
-            case 'recent_top':
-                return 'Giải thích: chỉ margin trên K kỳ hợp lệ gần nhất (MAIN_FIVE_HINT_RECENT_VALID_K).';
-            case 'triple_spaced':
-            case 'triple_top':
-                return 'Giải thích: trung bình margin tích lũy + cửa sổ + K kỳ hợp lệ gần nhất.';
-            case 'union_half_fill_top':
-                return 'Giải thích: nửa pool theo tích lũy, nửa theo cửa sổ (trừ trùng), phần còn lại fill theo blend.';
-            case 'boost_spaced':
-            case 'boost_top':
-                return 'Giải thích: blend + nhẹ hệ số theo count tích lũy / cửa sổ (ưu số vừa hot vừa lộ diện nhiều).';
-            case 'ptxt_roll20_spaced':
-            case 'ptxt_roll20_top':
-                return 'Giải thích (predict.txt): margin Dirichlet trên 20 kỳ hợp lệ gần nhất — rolling ngắn.';
-            case 'ptxt_composite_spaced':
-            case 'ptxt_composite_top':
-                return 'Giải thích (predict.txt): điểm tổng hợp z (roll20/50, momentum 20−100, gap, bậc cặp 50 kỳ, nhẹ full margin).';
-            case 'ptxt_gap_spaced':
-            case 'ptxt_gap_top':
-                return 'Giải thích (predict.txt): tín hiệu “gap” — log(1 + khoảng cách kể từ lần cuối / TB khoảng cách).';
-            case 'ptxt_deg_spaced':
-            case 'ptxt_deg_top':
-                return 'Giải thích (predict.txt): bậc đồ thị đơn giản — mỗi cặp trong cùng kỳ (tail 50) cộng 1 cho hai đỉnh.';
-            case 'ptxt_strat10_top':
-                return 'Giải thích (predict.txt): pool ghép stratified top — chu kỳ 10 slot theo tỉ lệ composite:roll20:gap:deg = 4:3:2:1.';
-            case 'ptxt_accel_spaced':
-            case 'ptxt_accel_top':
-                return 'Giải thích (predict.txt §1/§4): acceleration — (margin20−50) − (margin50−100), proxy tốc độ thay đổi rolling.';
-            case 'ptxt_overdue_spaced':
-            case 'ptxt_overdue_top':
-                return 'Giải thích (predict.txt §2): overdue_ratio ≈ gap hiện tại / TB gap (anomaly, không hứa “sắp ra”).';
-            case 'ptxt_maxgap_anom_spaced':
-            case 'ptxt_maxgap_anom_top':
-                return 'Giải thích (predict.txt §2): gap hiện tại so với max gap lịch sử giữa các lần xuất hiện — tín hiệu bất thường.';
-            case 'ptxt_pairhub_spaced':
-            case 'ptxt_pairhub_top':
-            case 'ptxt_cls_hub_top':
-                return 'Giải thích (predict.txt §3): “hub” — tổng trọng số cạnh đồng xuất hiện (ma trận cặp tail 50).';
-            case 'ptxt_tri_cohesion_spaced':
-            case 'ptxt_tri_cohesion_top':
-            case 'ptxt_cls_tri_top':
-                return 'Giải thích (predict.txt §3): tam giác/cụm — Σ min(edge(n,a), edge(n,b)) trên các cặp a,b.';
-            case 'ptxt_volatile_spaced':
-            case 'ptxt_volatile_top':
-                return 'Giải thích (predict.txt §5): volatility — phương sai tần suất qua các đoạn tail (số burst / im lặng thay đổi).';
-            case 'ptxt_stable_spaced':
-            case 'ptxt_stable_top':
-            case 'ptxt_cls_stable_top':
-                return 'Giải thích (predict.txt §5): stability = 1/(1+4·var) trên các đoạn tail — ưu tiên ổn định.';
-            case 'ptxt_balhit_spaced':
-            case 'ptxt_balhit_top':
-                return 'Giải thích (predict.txt §6): khi số xuất hiện trong tail, kỳ đó thường lệch lẻ/cao-thấp ít hay nhiều (âm TB skew → “cân” hơn).';
-            case 'ptxt_spreadhit_spaced':
-            case 'ptxt_spreadhit_top':
-                return 'Giải thích (predict.txt §6): spread kỳ (max−min)/34 trung bình trên các kỳ số đó có mặt — cấu trúc rộng/hẹp.';
-            case 'ptxt_dyn_composite_spaced':
-            case 'ptxt_dyn_composite_top':
-                return 'Giải thích (predict.txt §9): composite z có trọng số phụ thuộc độ dài L (nhấn rolling gần khi L lớn).';
-            case 'ptxt_bayes7030_spaced':
-            case 'ptxt_bayes7030_top':
-                return 'Giải thích (predict.txt §8): tin cậy mềm — 0.7 margin tích lũy + 0.3 margin cửa sổ (smoothing, không cập nhật từng kỳ riêng).';
-            case 'ptxt_diverse_spaced':
-            case 'ptxt_diverse_top':
-                return 'Giải thích (predict.txt §7): composite z trừ nhẹ bậc cặp (tránh pool quá tập trung “hub” cùng kiểu).';
-            case 'ptxt_multisig_spaced':
-            case 'ptxt_multisig_top':
-                return 'Giải thích (predict.txt §9): tổng có trọng số các z overdue, gap, hub, acceleration.';
-            case 'ptxt_strat3322_top':
-                return 'Giải thích (predict.txt §11): pool 3+3+2+2 — stable / momentum / overdue / hub (scale theo poolN), fill composite.';
-            case 'ptxt_mc_pool_top':
-                return 'Giải thích (predict.txt §13): Monte Carlo — nhiều lần lấy mẫu 10 số không lặp theo softmax(composite z), seed deterministic; chọn theo tần suất xuất hiện trong mẫu.';
-            case 'ptxt_cls_momentum_top':
-                return 'Giải thích (predict.txt §12): lớp “Momentum Rising” — xếp theo acceleration (proxy).';
-            case 'ptxt_cls_overdue_top':
-                return 'Giải thích (predict.txt §12): lớp “Overdue Candidate” — xếp theo overdue_ratio.';
-            default:
-                return '';
-        }
-    }
-
-    /**
-     * Chạy benchmark một lần trên tham chiếu mảng dòng (thường sheet1), cache theo rowsRef.
-     */
-    ensureMainFiveHintStrategyFromBenchmark(rowsArr) {
-        const Ctor = this.constructor;
-        if (!Ctor.MAIN_FIVE_HINT_AUTO_SELECT_STRATEGY) {
-            this._mainFiveHintStrategyCache = {
-                rowsRef: rowsArr,
-                winner: 'blend_spaced',
-                means: {},
-                evalRows: 0,
-                autoOff: true
-            };
-            return;
-        }
-        if (this._mainFiveHintStrategyCache && this._mainFiveHintStrategyCache.rowsRef === rowsArr) {
-            return;
-        }
-        const bench = this.runMainFiveHintStrategyBenchmark(rowsArr);
-        this._mainFiveHintStrategyCache = {
-            rowsRef: rowsArr,
-            winner: bench.winner,
-            means: bench.means,
-            evalRows: bench.evalRows
-        };
-    }
-
-    /**
-     * Pool top-N số chính: margin Dirichlet (tích lũy + cửa sổ) — tự chọn chiến lược pool
-     * (spaced vs top, blend vs full vs window…) theo overlap TB walk-forward trên toàn sheet khi bật AUTO.
-     * @returns {{ picks: number[], lines: string[] } | { error: string }}
-     */
-    predictMainFiveHonest(rows, rowIndex) {
-        const rowsArr = rows || [];
-        const idx = Number(rowIndex);
-        if (!Number.isFinite(idx) || idx < 0) {
-            return { error: 'Chỉ số dòng không hợp lệ.' };
-        }
-        const built = this.mainFiveHintBuildScoresAtIndex(rowsArr, idx);
-        if (!built) {
-            return { error: 'Chưa có kỳ nào trước dòng này có đủ 5 số chính (trước dấu |) để dự đoán.' };
-        }
-        this.ensureMainFiveHintStrategyFromBenchmark(rowsArr);
-        const cache = this._mainFiveHintStrategyCache || { winner: 'blend_spaced', means: {}, evalRows: 0 };
-        const strategyId = cache.winner || 'blend_spaced';
-        const poolN = Math.min(
-            Math.max(1, Number(this.constructor.MAIN_FIVE_HINT_POOL_SIZE) || 10),
-            35
-        );
-        const bandMult = Number(this.constructor.MAIN_FIVE_HINT_DIVERSITY_BAND_MULT) || 3;
-        const picks = this.mainFiveHintPicksForStrategy(strategyId, built, poolN, bandMult);
-        const { validIdx, countArr, windowCountArr, sheetWinRowCount, table1WinStart, table1WinEnd, slideLen, slideW, alpha, recentK } = built;
-        const lines = [];
-        lines.push(`Dự đoán pool ${poolN} số chính (kỳ đang chọn, chỉ số dòng ${idx}; không dùng result/note dòng này):`);
-        lines.push(`Chiến lược: ${strategyId}${cache.autoOff ? ' (AUTO tắt, cố định blend_spaced)' : ''}`);
-        const oneLiner = this.mainFiveHintStrategyOneLinerVn(strategyId);
-        if (oneLiner) {
-            lines.push(oneLiner);
-        }
-        if (!cache.autoOff && cache.evalRows > 0) {
-            const wm = cache.means && typeof cache.means[strategyId] === 'number' ? cache.means[strategyId] : 0;
-            lines.push(
-                `Benchmark sheet1: overlap TB ${wm.toFixed(3)} / 5 (${cache.evalRows} kỳ walk-forward).`
-            );
-            const parts = [];
-            const ids = this.constructor.MAIN_FIVE_HINT_STRATEGY_IDS || [];
-            for (let zi = 0; zi < ids.length; zi++) {
-                const id = ids[zi];
-                if (cache.means && typeof cache.means[id] === 'number') {
-                    parts.push(`${id}:${cache.means[id].toFixed(3)}`);
-                }
-            }
-            if (parts.length) {
-                lines.push(`Điểm TB các thuật: ${parts.join(' | ')}`);
-            }
-        }
-        lines.push(`Picks: ${picks.join(', ')}`);
-        lines.push('');
-        lines.push(
-            `Tham số nền (α, cửa sổ ${sheetWinRowCount} dòng ${table1WinStart}–${table1WinEnd}, λ=${slideW.toFixed(2)}, recent=${recentK} kỳ hợp lệ): blend/equal/boost/full/window/…; ptxt_* theo predict.txt (rolling, gap+maxgap, đồ thị cặp/tam giác, volatility/ổn định, cấu trúc kỳ, composite động, Bayes 70/30, đa tín hiệu, strat 4:3:2:1 & 3:3:2:2, MC pool MAIN_FIVE_HINT_MC_POOL_SAMPLES).`
-        );
-        lines.push('');
-        lines.push(`Bảng 1 (tích lũy) — các số được dự đoán (số lần trong ${validIdx.length} kỳ học : các số):`);
-        lines.push(...this.mainFiveFormatPredictedFrequencyTableLines(picks, countArr));
-        lines.push('');
-        lines.push(
-            `Bảng 1 (cửa sổ ${sheetWinRowCount} dòng) — cùng multiset với bảng 1 trái cho cửa sổ này (số lần : các số):`
-        );
-        lines.push(...this.mainFiveFormatPredictedFrequencyTableLines(picks, windowCountArr));
-        lines.push('');
-        lines.push(
-            `Mô hình: multiset + Dirichlet margin (α=${alpha}); pool _top / spaced trong top-${Math.min(35, Math.max(poolN, Math.ceil(poolN * bandMult)))}. Tắt AUTO: MAIN_FIVE_HINT_AUTO_SELECT_STRATEGY = false.`
-        );
-        return { picks, lines };
-    }
-
-    /**
-     * Gợi ý tham chiếu (textarea + picks để khoanh trong iframe trái).
-     * @returns {{ text: string, picks: number[] } | { error: string } | null}
+     * Gợi ý tham chiếu 3-connection (panel iframe trái).
+     * @returns {{ text: string, conn3HeaderLines: string[], conn3Triplets: object[], conn3FooterLine: string } | { error: string } | null}
      */
     getNoteReferenceHintMeta(rowIndex) {
         const rows = this.getSourceSheetRows();
@@ -5962,25 +4596,10 @@ class RightPaneSheetManager {
         const r = this.formatConn3ReferenceHint(rows, idx);
         return {
             text: r.lines.join('\n'),
-            picks: Array.isArray(r.picks) ? r.picks : [],
             conn3HeaderLines: r.headerLines || [],
             conn3Triplets: Array.isArray(r.triplets) ? r.triplets : [],
             conn3FooterLine: r.footerLine || ''
         };
-    }
-
-    /**
-     * Text #referenceHint (iframe trái): toàn bộ 3-connection của kỳ đang focus sheet1.
-     */
-    getNoteReferenceHintForRowIndex(rowIndex) {
-        const m = this.getNoteReferenceHintMeta(rowIndex);
-        if (!m) {
-            return '';
-        }
-        if (m.error) {
-            return m.error;
-        }
-        return m.text || '';
     }
 
     /**
@@ -7243,7 +5862,7 @@ class RightPaneSheetManager {
             }
         }
 
-        if (this.activeSheet === 'sheet1') {
+        if (this.activeSheet === 'sheet1' || options.asSheet1) {
             const focusRow = this.dataRows[idx] || rowAtClick;
             const nextFocusId = String(focusRow.id || focusRow.ID || clickedRowId || '').trim();
             const hadG1 = this.comboG1Enabled;
@@ -7256,11 +5875,13 @@ class RightPaneSheetManager {
                 this.comboG1Enabled = false;
             }
             if (comboStateChanged) {
-                window.dispatchEvent(new CustomEvent('comboControlsChanged', { detail: { sheet: this.activeSheet } }));
+                window.dispatchEvent(new CustomEvent('comboControlsChanged', {
+                    detail: { sheet: options.asSheet1 ? 'sheet1' : this.activeSheet }
+                }));
             }
         }
 
-        if (this.activeSheet === 'sheet1') {
+        if (!options.fromTrackingSync) {
             try {
                 this.syncSpecialTrackingTimelineFromSheet1Row(idx);
             } catch (eStSync) {
@@ -7287,11 +5908,12 @@ class RightPaneSheetManager {
             detail: {
                 selectedLines: this.selectedLines,
                 selectedNums: this.parseNums(this.selectedLines.length > 0 ? (this.selectedLines[this.selectedLines.length - 1].result || '') : ''),
-                sheetName: this.activeSheet,
+                sheetName: options.asSheet1 ? 'sheet1' : this.activeSheet,
                 clickedRowId,
                 focusRowIndex: idx,
                 focusNonexistHighlights,
                 fromFilterNav: !!options.fromFilterNav,
+                fromTrackingSync: !!options.fromTrackingSync,
                 light: !!options.light,
                 contextPrefixCount
             }
@@ -7324,7 +5946,7 @@ class RightPaneSheetManager {
         if (sheetName === 'sheet1') {
             return false; // Cannot delete default sheet1
         }
-        if (sheetName === 'specialtracking') {
+        if (sheetName === TRACKING_SHEET_ID) {
             return false;
         }
         if (!this.sheets[sheetName]) {
@@ -7368,12 +5990,12 @@ class RightPaneSheetManager {
 
         const sheetNames = [
             'sheet1',
+            TRACKING_SHEET_ID,
             'combo_1',
             'combo_2',
             'combo_3',
             'combo_4',
-            'combo_5',
-            'specialtracking'
+            'combo_5'
         ];
         for (const name of sheetNames) {
             if (!this.sheets[name]) {
@@ -7384,8 +6006,10 @@ class RightPaneSheetManager {
             if (name === this.activeSheet) {
                 tab.classList.add('active');
             }
-            tab.textContent = name === 'specialtracking' ? 'specialtracking' : name;
-            tab.title = name === 'specialtracking' ? 'Theo dõi tần suất 12 số đặc biệt theo timeline' : name;
+            tab.textContent = name === TRACKING_SHEET_ID ? 'tracking' : name;
+            tab.title = name === TRACKING_SHEET_ID
+                ? 'Theo dõi tần suất số theo timeline (special 1–12 / basic 1–35)'
+                : name;
             tab.addEventListener('click', () => {
                 const tableWrap = document.getElementById('tableWrap');
                 if (tableWrap) {
@@ -7398,7 +6022,7 @@ class RightPaneSheetManager {
             // Right-click context menu
             tab.addEventListener('contextmenu', (e) => {
                 e.preventDefault();
-                if (name !== 'sheet1' && name !== 'specialtracking') {
+                if (name !== 'sheet1' && name !== TRACKING_SHEET_ID) {
                     const confirmed = confirm(`Xóa sheet "${name}"?`);
                     if (confirmed) {
                         this.deleteSheet(name);
@@ -8023,37 +6647,37 @@ class RightPaneSheetManager {
 
     /**
      * Chuỗi các số đặc biệt 1–12 theo thứ tự thời gian (cột result, phần sau |).
-     * `sourceRowIndices[k]` = chỉ số dòng sheet1 (0-based) tạo ra `series[k]`.
+     * Timeline gồm mọi hàng sheet1 (kể cả id/result rỗng); `drawSteps[ri]` = số đặc biệt hoặc null.
+     * `sourceRowIndices[k]` = k (một frame / một hàng nguồn).
      */
     buildSpecialTrackingSeriesMeta(rows) {
         const series = [];
+        const drawSteps = [];
         const sourceRowIndices = [];
         const list = rows || [];
         for (let ri = 0; ri < list.length; ri++) {
+            sourceRowIndices.push(ri);
             const row = list[ri];
+            let step = null;
             const raw = row.result || row.Result || '';
             const part = this.parseSpecialPart(raw);
-            if (!part) {
-                continue;
-            }
-            const tokens = String(part)
-                .split(/[\s,;]+/)
-                .map((t) => t.trim())
-                .filter(Boolean);
-            let n = null;
-            for (const t of tokens) {
-                const v = parseInt(t, 10);
-                if (Number.isFinite(v) && v >= 1 && v <= 12) {
-                    n = v;
-                    break;
+            if (part) {
+                const tokens = String(part)
+                    .split(/[\s,;]+/)
+                    .map((t) => t.trim())
+                    .filter(Boolean);
+                for (const t of tokens) {
+                    const v = parseInt(t, 10);
+                    if (Number.isFinite(v) && v >= 1 && v <= 12) {
+                        step = v;
+                        series.push(v);
+                        break;
+                    }
                 }
             }
-            if (n != null) {
-                series.push(n);
-                sourceRowIndices.push(ri);
-            }
+            drawSteps.push(step);
         }
-        return { series, sourceRowIndices };
+        return { series, drawSteps, sourceRowIndices };
     }
 
     /**
@@ -8065,13 +6689,123 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Sheet1 → specialtracking một chiều: record id đang focus là X thì timeline tua tới
-     * mốc đã xử lý đến kỳ có id X — số bước = số lần có special trên các dòng từ đầu đến dòng đó.
-     * Scrub timeline / transport ST không gọi ngược lại sheet1.
+     * Sheet1 ↔ tracking: map frame timeline → chỉ số hàng nguồn sheet1.
      */
-    syncSpecialTrackingTimelineFromSheet1Row(focusRowIndex) {
-        const st = this.sheets && this.sheets.specialtracking;
-        if (!st || st.kind !== 'specialtracking') {
+    getTrackingSourceRowIndexForFrame(sheet, frameIndex) {
+        if (!sheet || typeof frameIndex !== 'number' || frameIndex < 0) {
+            return -1;
+        }
+        this.ensureTrackingFrames(sheet);
+        const viewMode = this.getTrackingViewMode(sheet);
+        const srcIx = viewMode === 'basic'
+            ? (sheet.basicSourceRowIndices || [])
+            : (sheet.specialSourceRowIndices || []);
+        if (frameIndex >= srcIx.length) {
+            return -1;
+        }
+        return srcIx[frameIndex];
+    }
+
+    /**
+     * Map chỉ số hàng sheet1 → frame timeline (mode hiện tại).
+     * Ưu tiên khớp chính xác; không có thì lùi về kỳ gần nhất trước đó.
+     */
+    getTrackingFrameIndexForSourceRow(sheet, sourceRowIndex) {
+        if (!sheet || typeof sourceRowIndex !== 'number' || sourceRowIndex < 0) {
+            return -1;
+        }
+        this.ensureTrackingFrames(sheet);
+        const viewMode = this.getTrackingViewMode(sheet);
+        const srcIx = viewMode === 'basic'
+            ? (sheet.basicSourceRowIndices || [])
+            : (sheet.specialSourceRowIndices || []);
+        if (!srcIx.length) {
+            return -1;
+        }
+        for (let f = 0; f < srcIx.length; f++) {
+            if (srcIx[f] === sourceRowIndex) {
+                return f;
+            }
+        }
+        let count = 0;
+        for (let s = 0; s < srcIx.length; s++) {
+            if (srcIx[s] <= sourceRowIndex) {
+                count++;
+            }
+        }
+        return Math.max(0, count - 1);
+    }
+
+    /** Id kỳ sheet1 tại frame timeline (dùng cho nhãn timeline). */
+    getTrackingPeriodIdForFrame(sheet, frameIndex) {
+        const rows = this.sourceRows || [];
+        const rowIdx = this.getTrackingSourceRowIndexForFrame(sheet, frameIndex);
+        if (rowIdx < 0 || rowIdx >= rows.length) {
+            return '';
+        }
+        const row = rows[rowIdx];
+        const raw = String(row.id != null ? row.id : row.ID || '').trim();
+        const parsed = this.parseRowId(raw);
+        return parsed !== null ? String(parsed) : raw;
+    }
+
+    /**
+     * Focus một hàng sheet1 (window, combo, rowClicked) dù đang xem sheet nào.
+     */
+    focusSourceSheetRow(idx, options = {}) {
+        const rows = this.getSourceSheetRows();
+        if (typeof idx !== 'number' || idx < 0 || idx >= rows.length) {
+            return;
+        }
+        const row = rows[idx];
+        const isEmpty = this.isEmptyResultRow(row);
+        const savedDataRows = this.dataRows;
+        this.dataRows = rows;
+        try {
+            this.onRowClick(idx, isEmpty, null, {
+                skipSave: true,
+                asSheet1: true,
+                ...options
+            });
+        } finally {
+            this.dataRows = savedDataRows;
+        }
+    }
+
+    /**
+     * Tracking → sheet1: timeline tới frame X thì focus kỳ id tương ứng.
+     */
+    syncSheet1FromTrackingFrame(frameIndex) {
+        if (this._syncingSheet1FromTracking || this._syncingTrackingFromSheet1) {
+            return;
+        }
+        const st = this.sheets && this.sheets[TRACKING_SHEET_ID];
+        if (!st || st.kind !== TRACKING_KIND) {
+            return;
+        }
+        const rowIdx = this.getTrackingSourceRowIndexForFrame(st, frameIndex);
+        if (rowIdx < 0) {
+            return;
+        }
+        this._syncingTrackingFromSheet1 = true;
+        try {
+            this.focusSourceSheetRow(rowIdx, {
+                fromTrackingSync: true,
+                light: true,
+                skipCenter: this.activeSheet !== 'sheet1'
+            });
+        } finally {
+            this._syncingTrackingFromSheet1 = false;
+        }
+    }
+
+    /**
+     * Sheet1 → tracking một chiều: record id đang focus là X thì timeline tua tới
+     * mốc đã xử lý đến kỳ có id X.
+     */
+    syncTrackingTimelineFromSheet1Row(focusRowIndex) {
+        const st = this.sheets && this.sheets[TRACKING_SHEET_ID];
+        if (!st || st.kind !== TRACKING_KIND) {
             return;
         }
         const rows = this.sourceRows || [];
@@ -8079,79 +6813,57 @@ class RightPaneSheetManager {
         if (!row) {
             return;
         }
-        const idNum = parseInt(String(row.id != null ? row.id : row.ID || '').trim(), 10);
-        if (!Number.isFinite(idNum)) {
-            return;
-        }
-        this.ensureSpecialTrackingFrames(st);
-        const series = st.series || [];
-        const srcIx = st.seriesSourceRowIndices || [];
+        this.ensureTrackingFrames(st);
+        const viewMode = this.getTrackingViewMode(st);
         const frames = st.frames || [];
         const total = frames.length;
-        if (total < 1 || !series.length) {
-            return;
-        }
-        if (srcIx.length !== series.length) {
+        if (total < 1) {
             return;
         }
 
-        const targetId = idNum;
-        let targetRowIdx = -1;
-        if (targetId >= 1) {
-            for (let i = 0; i < rows.length; i++) {
-                const rid = parseInt(String(rows[i].id != null ? rows[i].id : rows[i].ID || '').trim(), 10);
-                if (Number.isFinite(rid) && rid === targetId) {
-                    targetRowIdx = i;
-                    break;
-                }
-            }
-            if (targetRowIdx < 0) {
-                for (let i = rows.length - 1; i >= 0; i--) {
-                    const rid = parseInt(String(rows[i].id != null ? rows[i].id : rows[i].ID || '').trim(), 10);
-                    if (Number.isFinite(rid) && rid <= targetId) {
-                        targetRowIdx = i;
-                        break;
-                    }
-                }
-            }
-        }
-
-        let frameIdx = 0;
-        if (targetRowIdx >= 0) {
-            let count = 0;
-            for (let s = 0; s < srcIx.length; s++) {
-                if (srcIx[s] <= targetRowIdx) {
-                    count++;
-                }
-            }
-            frameIdx = Math.max(0, count - 1);
+        let frameIdx = this.getTrackingFrameIndexForSourceRow(st, focusRowIndex);
+        if (frameIdx < 0) {
+            frameIdx = 0;
         }
         frameIdx = Math.max(0, Math.min(total - 1, frameIdx));
 
         const tailRow = rows.length ? rows[rows.length - 1] : {};
         const tailId = String(tailRow.id ?? tailRow.ID ?? '');
-        const uiSig = `${total}|${series.length}|${rows.length}|${tailId}`;
-        const prev = st.specialTrackingUi && typeof st.specialTrackingUi === 'object' ? st.specialTrackingUi : {};
+        const uiSig = `${viewMode}|${total}|${rows.length}|${rows.length}|${tailId}`;
+        const prev = st.trackingUi && typeof st.trackingUi === 'object' ? st.trackingUi : {};
         const speed = Number.isFinite(prev.speed) ? Math.min(3, Math.max(0.5, prev.speed)) : 1;
         const snap = {
             sig: uiSig,
             frameIndex: frameIdx,
+            focusSourceRowIndex: focusRowIndex,
             playing: false,
             speed,
             predictNeonOn: !!prev.predictNeonOn,
-            focusNum: prev.focusNum != null ? prev.focusNum : null
+            viewMode,
+            labelMode: RightPaneSheetManager.normalizeTrackingLabelMode(
+                st.trackingLabelMode || prev.labelMode
+            )
         };
-        st.specialTrackingUi = snap;
+        st.trackingUi = snap;
         try {
-            sessionStorage.setItem(SPECIAL_TRACKING_UI_STORAGE_KEY, JSON.stringify(snap));
+            sessionStorage.setItem(TRACKING_UI_STORAGE_KEY, JSON.stringify(snap));
         } catch (e) {
             /* ignore */
         }
 
         const tw = document.getElementById('tableWrap');
-        if (tw && tw.classList.contains('table-wrap--specialtracking') && typeof tw.__specialTrackingSeekFrame === 'function') {
-            tw.__specialTrackingSeekFrame(frameIdx);
+        if (tw && tw.classList.contains('table-wrap--tracking') && typeof tw.__trackingSeekFrame === 'function') {
+            this._syncingSheet1FromTracking = true;
+            try {
+                tw.__trackingSeekFrame(frameIdx, { skipSheet1Sync: true });
+            } finally {
+                this._syncingSheet1FromTracking = false;
+            }
         }
+    }
+
+    syncSpecialTrackingTimelineFromSheet1Row(focusRowIndex) {
+        this.syncTrackingTimelineFromSheet1Row(focusRowIndex);
     }
 
     /**
@@ -8177,22 +6889,30 @@ class RightPaneSheetManager {
      * Mỗi bước: tích lũy count + thứ tự giảm dần theo count.
      * Hòa điểm: ai đạt mốc count hiện tại *trước* (bước nhỏ hơn) đứng trên; ai đến sau đứng dưới.
      */
-    buildSpecialTrackingFrames(series) {
+    buildSpecialTrackingFrames(drawSteps) {
         const counts = {};
         for (let i = 1; i <= 12; i++) {
             counts[i] = 0;
         }
         const frames = [];
-        const list = series || [];
-        for (let f = 0; f < list.length; f++) {
-            const just = list[f];
-            counts[just] += 1;
+        const list = [];
+        const steps = drawSteps || [];
+        let drawIndex = -1;
+        for (let f = 0; f < steps.length; f++) {
+            const just = steps[f];
+            const holdFrame = just == null;
+            if (!holdFrame) {
+                drawIndex += 1;
+                list.push(just);
+                counts[just] += 1;
+            }
+            const endDrawIdx = drawIndex;
             const sorted = Object.keys(counts)
                 .map((k) => {
                     const n = Number(k);
                     const v = counts[n];
-                    const t = v > 0
-                        ? RightPaneSheetManager.specialTrackingStepOfVthHit(list, n, v, f)
+                    const t = v > 0 && endDrawIdx >= 0
+                        ? RightPaneSheetManager.specialTrackingStepOfVthHit(list, n, v, endDrawIdx)
                         : -1;
                     return { n, v, t };
                 })
@@ -8210,7 +6930,10 @@ class RightPaneSheetManager {
             }
             frames.push({
                 step: f + 1,
+                drawIndex: endDrawIdx,
+                holdFrame,
                 justDrawn: just,
+                justDrawnNums: just != null ? [just] : [],
                 byNum: { ...counts },
                 sorted,
                 maxV,
@@ -8221,11 +6944,368 @@ class RightPaneSheetManager {
         return frames;
     }
 
-    /** Hue 0…1 cho gradient hạng: hạng 1 (slot 0) = 2/12 (vàng), còn lại (slot+1)/12 */
-    static specialTrackingRankHueT(slot) {
+    /** Frame sau khi đã xử lý `drawCount` lần quay hợp lệ (bỏ qua hàng id/result rỗng). */
+    static getTrackingFrameIndexAfterDraws(frames, drawCount) {
+        if (!frames || !frames.length || drawCount < 1) {
+            return -1;
+        }
+        const target = drawCount - 1;
+        for (let f = frames.length - 1; f >= 0; f--) {
+            const di = frames[f].drawIndex;
+            if (di != null && di >= 0 && di === target) {
+                return f;
+            }
+        }
+        for (let f = frames.length - 1; f >= 0; f--) {
+            const di = frames[f].drawIndex;
+            if (di != null && di >= 0 && di < target) {
+                return f;
+            }
+        }
+        return 0;
+    }
+
+    static normalizeTrackingViewMode(mode) {
+        return mode === 'special' ? 'special' : 'basic';
+    }
+
+    static normalizeTrackingLabelMode(mode) {
+        return mode === 'out' ? 'out' : 'in';
+    }
+
+    static readTrackingLabelModeFromStorage() {
+        try {
+            const raw = sessionStorage.getItem(TRACKING_LABEL_MODE_KEY);
+            return RightPaneSheetManager.normalizeTrackingLabelMode(raw);
+        } catch (e) {
+            return 'in';
+        }
+    }
+
+    static writeTrackingLabelModeToStorage(mode) {
+        try {
+            sessionStorage.setItem(
+                TRACKING_LABEL_MODE_KEY,
+                RightPaneSheetManager.normalizeTrackingLabelMode(mode)
+            );
+        } catch (e) {
+            /* ignore */
+        }
+    }
+
+    getTrackingViewMode(sheet) {
+        return RightPaneSheetManager.normalizeTrackingViewMode(sheet && sheet.trackingViewMode);
+    }
+
+    getTrackingSlotCount(viewMode) {
+        return viewMode === 'basic' ? 35 : 12;
+    }
+
+    /**
+     * Mỗi hàng sheet1 = một bước timeline; `drawSteps[ri]` = 5 số chính hoặc null nếu không hợp lệ.
+     */
+    buildBasicTrackingSeriesMeta(rows) {
+        const draws = [];
+        const drawSteps = [];
+        const sourceRowIndices = [];
+        const list = rows || [];
+        for (let ri = 0; ri < list.length; ri++) {
+            sourceRowIndices.push(ri);
+            const row = list[ri];
+            let step = null;
+            if (!this.isEmptyResultRow(row)) {
+                const main = this.parseMainNums(row.result || row.Result || '');
+                if (main.length === 5) {
+                    step = main.slice();
+                    draws.push(main.slice());
+                }
+            }
+            drawSteps.push(step);
+        }
+        return { draws, drawSteps, sourceRowIndices };
+    }
+
+    /**
+     * Nhóm frequency trùng nhau (≥2 số), xếp theo slot trên stack.
+     * @returns {{ freq: number, minSlot: number, maxSlot: number, nums: number[] }[]}
+     */
+    static buildBasicTrackingFreqTieGroups(byNum, slotByNum, numMax = 35) {
+        /** @type {Map<number, { n: number, slot: number }[]>} */
+        const groups = new Map();
+        for (let n = 1; n <= numMax; n++) {
+            const freq = (byNum && byNum[n]) || 0;
+            if (!groups.has(freq)) {
+                groups.set(freq, []);
+            }
+            groups.get(freq).push({
+                n,
+                slot: (slotByNum && slotByNum[n]) ?? numMax
+            });
+        }
+        const out = [];
+        groups.forEach((members, freq) => {
+            if (members.length < 2) {
+                return;
+            }
+            members.sort((a, b) => a.slot - b.slot || a.n - b.n);
+            out.push({
+                freq,
+                minSlot: members[0].slot,
+                maxSlot: members[members.length - 1].slot,
+                nums: members.map((m) => m.n)
+            });
+        });
+        out.sort((a, b) => a.minSlot - b.minSlot || a.freq - b.freq);
+        return out;
+    }
+
+    /** Dấu { trong cột frequency (basic), nhóm ≥2 số cùng giá trị. */
+    static syncBasicTrackingFreqBraces(layer, groups, slotCount) {
+        if (!layer) {
+            return;
+        }
+        const sig = !groups.length
+            ? ''
+            : groups.map((g) => `${g.freq}:${g.minSlot}-${g.maxSlot}:${g.nums.join(',')}`).join('|');
+        if (layer.dataset.stBraceSig === sig) {
+            return;
+        }
+        layer.dataset.stBraceSig = sig;
+        layer.replaceChildren();
+        if (!groups.length || !slotCount) {
+            return;
+        }
+        const frag = document.createDocumentFragment();
+        for (const g of groups) {
+            const el = document.createElement('div');
+            el.className = 'special-tracking-freq-brace';
+            el.setAttribute('data-freq', String(g.freq));
+            el.title = `Frequency ${g.freq}: ${g.nums.join(', ')}`;
+            const topPct = (g.minSlot / slotCount) * 100;
+            const heightPct = ((g.maxSlot - g.minSlot + 1) / slotCount) * 100;
+            el.style.top = `${topPct}%`;
+            el.style.height = `${heightPct}%`;
+            el.innerHTML = '<svg viewBox="0 0 8 100" preserveAspectRatio="none" aria-hidden="true">'
+                + '<path d="M 0,0 C 5,1 7,22 7,50 C 7,78 5,99 0,100" fill="none" '
+                + 'stroke="currentColor" stroke-width="1.75" vector-effect="non-scaling-stroke" '
+                + 'stroke-linecap="round" stroke-linejoin="round"/>'
+                + '</svg>';
+            frag.appendChild(el);
+        }
+        layer.appendChild(frag);
+    }
+
+    setLeftSubmitActive(on) {
+        this.leftSubmitActive = !!on;
+    }
+
+    setLeftAutoringEnabled(on) {
+        this.leftAutoringEnabled = !!on;
+    }
+
+    /**
+     * Basic tracking: layout hiển thị theo freq tích lũy đã “commit”.
+     * Khi submit trái OFF, 5 số kỳ hiện tại chưa được cộng vào tích lũy.
+     */
+    static computeBasicTrackingDisplayLayout(draws, fr, submitOn) {
+        const list = draws || [];
+        const drawEndIndex = (fr && fr.drawIndex != null && fr.drawIndex >= 0) ? fr.drawIndex : -1;
+        const counts = {};
+        for (let i = 1; i <= 35; i++) {
+            counts[i] = (fr.byNum && fr.byNum[i]) || 0;
+        }
+        const justDrawnNums = Array.isArray(fr.justDrawnNums) ? fr.justDrawnNums : [];
+        if (!submitOn) {
+            for (let u = 0; u < justDrawnNums.length; u++) {
+                const n = justDrawnNums[u];
+                if (n >= 1 && n <= 35) {
+                    counts[n] = Math.max(0, (counts[n] || 0) - 1);
+                }
+            }
+        }
+        const bottomSlot = 34;
+        const ranked = [];
+        for (let n = 1; n <= 35; n++) {
+            const v = counts[n] || 0;
+            const t = v > 0 && drawEndIndex >= 0
+                ? RightPaneSheetManager.basicTrackingStepOfVthHit(list, n, v, drawEndIndex)
+                : -1;
+            ranked.push({ n, v, t });
+        }
+        ranked.sort((a, b) => (b.v - a.v) || (a.t - b.t) || (a.n - b.n));
+        const maxV = Math.max(1, ranked.length && ranked[0].v ? ranked[0].v : 1);
+        const slotByNum = new Array(36).fill(bottomSlot);
+        for (let s = 0; s < ranked.length; s++) {
+            slotByNum[ranked[s].n] = s;
+        }
+        const wPctByNum = new Array(36).fill(0);
+        for (let n = 1; n <= 35; n++) {
+            wPctByNum[n] = (counts[n] / maxV) * 100;
+        }
+        return { counts, slotByNum, wPctByNum };
+    }
+
+    /**
+     * Bước s trong chuỗi draws mà số n vừa đạt đúng lần xuất hiện thứ v (v≥1).
+     */
+    static basicTrackingStepOfVthHit(draws, n, v, endInclusive) {
+        if (v <= 0) {
+            return -1;
+        }
+        let seen = 0;
+        for (let s = 0; s <= endInclusive; s++) {
+            const d = draws[s];
+            if (!Array.isArray(d)) {
+                continue;
+            }
+            if (d.includes(n)) {
+                seen++;
+                if (seen === v) {
+                    return s;
+                }
+            }
+        }
+        return endInclusive;
+    }
+
+    buildBasicTrackingFrames(drawSteps) {
+        const counts = {};
+        for (let i = 1; i <= 35; i++) {
+            counts[i] = 0;
+        }
+        const frames = [];
+        const list = [];
+        const steps = drawSteps || [];
+        const bottomSlot = 34;
+        let drawIndex = -1;
+        for (let f = 0; f < steps.length; f++) {
+            const step = steps[f];
+            const justDrawnNums = Array.isArray(step) ? step.slice() : [];
+            const holdFrame = justDrawnNums.length === 0;
+            if (!holdFrame) {
+                drawIndex += 1;
+                list.push(justDrawnNums);
+                for (let u = 0; u < justDrawnNums.length; u++) {
+                    const n = justDrawnNums[u];
+                    if (n >= 1 && n <= 35) {
+                        counts[n] += 1;
+                    }
+                }
+            }
+            const endDrawIdx = drawIndex;
+            const sorted = Object.keys(counts)
+                .map((k) => {
+                    const n = Number(k);
+                    const v = counts[n];
+                    const t = v > 0 && endDrawIdx >= 0
+                        ? RightPaneSheetManager.basicTrackingStepOfVthHit(list, n, v, endDrawIdx)
+                        : -1;
+                    return { n, v, t };
+                })
+                .sort((a, b) => (b.v - a.v) || (a.t - b.t) || (a.n - b.n))
+                .map(({ n, v }) => ({ n, v }));
+            const maxV = Math.max(1, sorted.length ? sorted[0].v : 1);
+            const slotByNum = new Array(36).fill(bottomSlot);
+            for (let s = 0; s < sorted.length; s++) {
+                slotByNum[sorted[s].n] = s;
+            }
+            const wPctByNum = new Array(36).fill(0);
+            for (let n = 1; n <= 35; n++) {
+                wPctByNum[n] = (counts[n] / maxV) * 100;
+            }
+            frames.push({
+                step: f + 1,
+                drawIndex: endDrawIdx,
+                holdFrame,
+                justDrawn: justDrawnNums[0] ?? null,
+                justDrawnNums,
+                byNum: { ...counts },
+                sorted,
+                maxV,
+                slotByNum,
+                wPctByNum
+            });
+        }
+        return frames;
+    }
+
+    buildTrackingFramesForMode(viewMode, specialMeta, basicMeta) {
+        const mode = RightPaneSheetManager.normalizeTrackingViewMode(viewMode);
+        if (mode === 'basic') {
+            const drawSteps = (basicMeta && basicMeta.drawSteps) || [];
+            return {
+                series: (basicMeta && basicMeta.draws) || [],
+                sourceRowIndices: (basicMeta && basicMeta.sourceRowIndices) || [],
+                frames: this.buildBasicTrackingFrames(drawSteps)
+            };
+        }
+        const drawSteps = (specialMeta && specialMeta.drawSteps) || [];
+        return {
+            series: (specialMeta && specialMeta.series) || [],
+            sourceRowIndices: (specialMeta && specialMeta.sourceRowIndices) || [],
+            frames: this.buildSpecialTrackingFrames(drawSteps)
+        };
+    }
+
+    ensureTrackingMetaCaches(sheet) {
+        if (!sheet || sheet.kind !== TRACKING_KIND) {
+            return;
+        }
+        const rows = this.sourceRows || [];
+        if (!Array.isArray(sheet.specialSeries) || !Array.isArray(sheet.specialSourceRowIndices) || !Array.isArray(sheet.specialDrawSteps)) {
+            const sm = this.buildSpecialTrackingSeriesMeta(rows);
+            sheet.specialSeries = sm.series;
+            sheet.specialDrawSteps = sm.drawSteps;
+            sheet.specialSourceRowIndices = sm.sourceRowIndices;
+        }
+        if (!Array.isArray(sheet.basicDraws) || !Array.isArray(sheet.basicSourceRowIndices) || !Array.isArray(sheet.basicDrawSteps)) {
+            const bm = this.buildBasicTrackingSeriesMeta(rows);
+            sheet.basicDraws = bm.draws;
+            sheet.basicDrawSteps = bm.drawSteps;
+            sheet.basicSourceRowIndices = bm.sourceRowIndices;
+        }
+    }
+
+    ensureTrackingFrames(sheet) {
+        if (!sheet || sheet.kind !== TRACKING_KIND) {
+            return;
+        }
+        this.ensureTrackingMetaCaches(sheet);
+        const viewMode = this.getTrackingViewMode(sheet);
+        const fr0 = sheet.frames && sheet.frames[0];
+        const framesOk = !!(sheet.frames && sheet.frames.length && fr0 && Array.isArray(fr0.slotByNum) && Array.isArray(fr0.wPctByNum));
+        const expectedLen = (this.sourceRows || []).length;
+        const idxList = viewMode === 'basic'
+            ? (sheet.basicSourceRowIndices || [])
+            : (sheet.specialSourceRowIndices || []);
+        const idxOk = Array.isArray(idxList) && idxList.length === expectedLen;
+        const modeOk = sheet._trackingFramesMode === viewMode;
+        if (framesOk && idxOk && modeOk && sheet.frames.length === expectedLen) {
+            sheet.series = viewMode === 'basic' ? (sheet.basicDraws || []) : (sheet.specialSeries || []);
+            sheet.seriesSourceRowIndices = idxList.slice();
+            return;
+        }
+        const built = this.buildTrackingFramesForMode(viewMode, {
+            series: sheet.specialSeries,
+            drawSteps: sheet.specialDrawSteps,
+            sourceRowIndices: sheet.specialSourceRowIndices
+        }, {
+            draws: sheet.basicDraws,
+            drawSteps: sheet.basicDrawSteps,
+            sourceRowIndices: sheet.basicSourceRowIndices
+        });
+        sheet.series = built.series;
+        sheet.seriesSourceRowIndices = built.sourceRowIndices;
+        sheet.frames = built.frames;
+        sheet._trackingFramesMode = viewMode;
+    }
+
+    /** Hue 0…1 cho gradient hạng: hạng 1 (slot 0) = vàng nhạt, còn lại phân bổ đều. */
+    static specialTrackingRankHueT(slot, slotMax = 11) {
         const s = Number(slot);
-        const t = Number.isFinite(s) ? Math.max(0, Math.min(11, Math.floor(s))) : 0;
-        return t === 0 ? 2 / 12 : Math.min(1, (t + 1) / 12);
+        const maxS = Math.max(1, Number(slotMax) | 0);
+        const t = Number.isFinite(s) ? Math.max(0, Math.min(maxS, Math.floor(s))) : 0;
+        return t === 0 ? 2 / (maxS + 1) : Math.min(1, (t + 1) / (maxS + 1));
     }
 
     /**
@@ -8292,7 +7372,10 @@ class RightPaneSheetManager {
         if (!N || !frames || frames.length < 1) {
             return [];
         }
-        const lastIdx = Math.min(frames.length, N) - 1;
+        const lastIdx = RightPaneSheetManager.getTrackingFrameIndexAfterDraws(frames, N);
+        if (lastIdx < 0) {
+            return [];
+        }
         const last = frames[lastIdx];
         if (!last || !last.slotByNum || !last.byNum) {
             return [];
@@ -8654,60 +7737,62 @@ class RightPaneSheetManager {
     }
 
     ensureSpecialTrackingFrames(sheet) {
-        if (!sheet || sheet.kind !== 'specialtracking') {
-            return;
-        }
-        const fr0 = sheet.frames && sheet.frames[0];
-        const framesOk = !!(sheet.frames && sheet.frames.length && fr0 && Array.isArray(fr0.slotByNum) && Array.isArray(fr0.wPctByNum));
-        const srs = sheet.series || [];
-        const idxOk = Array.isArray(sheet.seriesSourceRowIndices)
-            && sheet.seriesSourceRowIndices.length === srs.length;
-        if (framesOk && idxOk) {
-            return;
-        }
-        const meta = this.buildSpecialTrackingSeriesMeta(this.sourceRows || []);
-        sheet.series = meta.series;
-        sheet.seriesSourceRowIndices = meta.sourceRowIndices;
-        sheet.frames = this.buildSpecialTrackingFrames(meta.series);
+        this.ensureTrackingFrames(sheet);
     }
 
-    renderSpecialTrackingShell(sheet) {
-        this.ensureSpecialTrackingFrames(sheet);
+    renderTrackingShell(sheet) {
+        this.ensureTrackingFrames(sheet);
+        const viewMode = this.getTrackingViewMode(sheet);
+        const isBasic = viewMode === 'basic';
+        const slotCount = this.getTrackingSlotCount(viewMode);
+        const numMax = slotCount;
         const frames = sheet.frames || [];
         if (!frames.length) {
+            const emptyMsg = isBasic
+                ? 'Chưa có kỳ nào có đủ 5 số chính (trước dấu |) trong cột result.'
+                : 'Chưa có kỳ nào có số đặc biệt 1–12 sau dấu | trong cột result. Tải sheet1 dạng <code>…|7</code>.';
             return (
-                '<div class="special-tracking-root">'
-                + '<div class="special-tracking-empty">Chưa có kỳ nào có số đặc biệt 1–12 sau dấu | trong cột result. '
-                + 'Tải sheet1 dạng <code>…|7</code>.</div>'
+                `<div class="special-tracking-root${isBasic ? ' special-tracking-root--basic' : ''}" data-st-view-mode="${viewMode}">`
+                + `<div class="special-tracking-empty">${emptyMsg}</div>`
                 + '</div>'
             );
         }
         const total = frames.length;
         const fr0 = frames[0];
         let rankBarsHtml = '';
-        for (let n = 1; n <= 12; n++) {
+        for (let n = 1; n <= numMax; n++) {
             const slot = fr0.slotByNum[n] ?? 0;
-            const hueT = RightPaneSheetManager.specialTrackingRankHueT(slot);
-            rankBarsHtml += `<div class="special-tracking-rank-bar" data-st-bar="${n}" data-special-num="${n}" style="--st-slot:${slot};--st-hue-t:${hueT}" role="button" tabindex="0" aria-label="Số ${n}, click để tô sáng">`
+            const hueT = RightPaneSheetManager.specialTrackingRankHueT(slot, slotCount - 1);
+            rankBarsHtml += `<div class="special-tracking-rank-bar" data-st-bar="${n}" data-special-num="${n}" style="--st-slot:${slot};--st-slot-count:${slotCount};--st-hue-t:${hueT}" role="button" tabindex="0" aria-label="Số ${n}, click để tô sáng">`
                 + '<div class="special-tracking-rank-bar-main">'
                 + '<div class="special-tracking-rank-track">'
-                + '<span class="special-tracking-rank-fill" data-fill>'
+                + '<span class="special-tracking-rank-fill" data-fill></span>'
                 + `<span class="special-tracking-rank-num" data-st-num>${n}</span>`
-                + '</span>'
                 + '</div>'
                 + '</div>'
                 + '<div class="special-tracking-rank-meta">'
                 + '<span class="special-tracking-rank-count" data-count>0</span>'
-                + '<span class="special-tracking-rank-prio" data-st-predict-rank aria-hidden="true"></span>'
+                + (isBasic ? '' : '<span class="special-tracking-rank-prio" data-st-predict-rank aria-hidden="true"></span>')
                 + '</div>'
                 + '</div>';
         }
+        const predictMetaHtml = isBasic
+            ? ''
+            : (
+                '<div class="special-tracking-meta-right special-tracking-meta-predict">'
+                + '<button type="button" class="special-tracking-predict-toggle" data-st-predict-toggle '
+                + 'aria-pressed="false" title="Bật/tắt neon dự đoán #1–#3 theo từng vị trí timeline" aria-label="Predict">Predict</button>'
+                + '<div class="special-tracking-rank-stats" data-st-rank-stats aria-label="Tỷ lệ trúng theo hạng dự đoán toàn lịch sử"></div>'
+                + '</div>'
+            );
+        const viewLabel = isBasic ? 'basic' : 'special';
         return (
-            '<div class="special-tracking-root" data-st-root>'
+            `<div class="special-tracking-root${isBasic ? ' special-tracking-root--basic' : ''}" data-st-root data-st-view-mode="${viewMode}" style="--st-slot-count:${slotCount}">`
             + '<div class="special-tracking-stage">'
             + '<div class="special-tracking-rank-wrap">'
             + '<div class="special-tracking-rank-shell">'
             + `<div class="special-tracking-rank-stack" data-st-rank-stack>${rankBarsHtml}</div>`
+            + (isBasic ? '<div class="special-tracking-freq-brace-layer" data-st-freq-braces aria-hidden="true"></div>' : '')
             + '</div>'
             + '</div>'
             + '</div>'
@@ -8725,11 +7810,7 @@ class RightPaneSheetManager {
             + '<div class="special-tracking-timeline-meta-row">'
             + '<div class="special-tracking-meta-spacer" aria-hidden="true"></div>'
             + `<p class="special-tracking-step-label" data-st-step><strong>1</strong> / ${total}</p>`
-            + '<div class="special-tracking-meta-right">'
-            + '<button type="button" class="special-tracking-predict-toggle" data-st-predict-toggle '
-            + 'aria-pressed="false" title="Bật/tắt neon dự đoán #1–#3 theo từng vị trí timeline" aria-label="Predict">Predict</button>'
-            + '<div class="special-tracking-rank-stats" data-st-rank-stats aria-label="Tỷ lệ trúng theo hạng dự đoán toàn lịch sử"></div>'
-            + '</div>'
+            + predictMetaHtml
             + '</div>'
             + '</div>'
             + '</div>'
@@ -8744,10 +7825,15 @@ class RightPaneSheetManager {
             + '<button type="button" class="special-tracking-icon-btn special-tracking-icon-btn--glyph" data-st-last title="Cuối" aria-label="Đến cuối"><span aria-hidden="true">\u23ed\uFE0E</span></button>'
             + '<div class="special-tracking-speed-slider-wrap">'
             + '<span class="special-tracking-speed-hint">Tốc độ</span>'
+            + '<div class="special-tracking-speed-slider-inner">'
             + '<input type="range" class="special-tracking-speed-slider" data-st-speed-slider '
             + 'min="0.5" max="3" step="0.5" value="1" aria-valuemin="0.5" aria-valuemax="3" aria-valuenow="1" aria-label="Tốc độ phát" />'
             + '<span class="special-tracking-speed-readout" data-st-speed-val>1×</span>'
-            + '</div>'
+            + '</div></div>'
+            + `<button type="button" class="special-tracking-label-toggle" data-st-label-toggle aria-pressed="false" `
+            + `title="Vị trí nhãn số trên thanh: in (trong bar) / out (sát biên)" aria-label="Nhãn bar: in">in</button>`
+            + `<button type="button" class="special-tracking-view-toggle" data-st-view-toggle aria-pressed="true" `
+            + `title="Chế độ hiển thị: ${viewLabel} (bấm để đổi)" aria-label="Chế độ ${viewLabel}">${viewLabel}</button>`
             + '</div>'
             + '</div>'
             + `<input type="hidden" data-st-total value="${total}" />`
@@ -8755,12 +7841,20 @@ class RightPaneSheetManager {
         );
     }
 
-    wireSpecialTrackingUi(tableWrap, sheet) {
-        this.ensureSpecialTrackingFrames(sheet);
+    renderSpecialTrackingShell(sheet) {
+        return this.renderTrackingShell(sheet);
+    }
+
+    wireTrackingUi(tableWrap, sheet) {
+        this.ensureTrackingFrames(sheet);
+        const viewMode = this.getTrackingViewMode(sheet);
+        const isBasic = viewMode === 'basic';
+        const slotCount = this.getTrackingSlotCount(viewMode);
+        const numMax = slotCount;
         const frames = sheet.frames || [];
         const root = tableWrap.querySelector('[data-st-root]');
         if (!root || !frames.length) {
-            tableWrap.__specialTrackingCleanup = null;
+            tableWrap.__trackingCleanup = null;
             return;
         }
 
@@ -8769,24 +7863,29 @@ class RightPaneSheetManager {
         const srcRows = this.sourceRows || [];
         const tailRow = srcRows.length ? srcRows[srcRows.length - 1] : {};
         const tailId = String(tailRow.id ?? tailRow.ID ?? '');
-        const uiSig = `${total}|${series.length}|${srcRows.length}|${tailId}`;
+        const uiSig = `${viewMode}|${total}|${srcRows.length}|${srcRows.length}|${tailId}`;
 
         const readSavedStUi = () => {
-            let u = sheet.specialTrackingUi;
+            let u = sheet.trackingUi || sheet.specialTrackingUi;
             if (u && u.sig === uiSig) {
                 return u;
             }
-            try {
-                const raw = sessionStorage.getItem(SPECIAL_TRACKING_UI_STORAGE_KEY);
-                if (!raw) {
-                    return null;
+            for (const key of [TRACKING_UI_STORAGE_KEY, LEGACY_TRACKING_UI_STORAGE_KEY]) {
+                try {
+                    const raw = sessionStorage.getItem(key);
+                    if (!raw) {
+                        continue;
+                    }
+                    const o = JSON.parse(raw);
+                    if (o && o.sig === uiSig) {
+                        return o;
+                    }
+                } catch (e) {
+                    /* ignore */
                 }
-                const o = JSON.parse(raw);
-                if (o && o.sig === uiSig) {
-                    return o;
-                }
-            } catch (e) {
-                /* ignore */
+            }
+            if (u && typeof u.focusSourceRowIndex === 'number') {
+                return u;
             }
             return null;
         };
@@ -8799,21 +7898,62 @@ class RightPaneSheetManager {
             return Math.max(0, Math.min(total - 1, Math.floor(n)));
         };
 
-        let frameIndex = savedSt ? clampStIdx(savedSt.frameIndex) : 0;
+        const resolveFrameFromSourceRow = (sourceRowIndex) => {
+            const anchored = this.getTrackingFrameIndexForSourceRow(sheet, sourceRowIndex);
+            return anchored >= 0 ? clampStIdx(anchored) : 0;
+        };
+
+        let frameIndex = 0;
+        const liveSourceRow = typeof this.comboFocusRowIndex === 'number' && this.comboFocusRowIndex >= 0
+            ? this.comboFocusRowIndex
+            : (this.activeWindowRange && typeof this.activeWindowRange.target === 'number'
+                ? this.activeWindowRange.target
+                : -1);
+        if (typeof sheet._trackingFocusSourceRowIndex === 'number' && sheet._trackingFocusSourceRowIndex >= 0) {
+            frameIndex = resolveFrameFromSourceRow(sheet._trackingFocusSourceRowIndex);
+            delete sheet._trackingFocusSourceRowIndex;
+        } else if (liveSourceRow >= 0) {
+            frameIndex = resolveFrameFromSourceRow(liveSourceRow);
+        } else if (savedSt) {
+            if (savedSt.sig === uiSig && savedSt.frameIndex != null) {
+                frameIndex = clampStIdx(savedSt.frameIndex);
+            } else if (typeof savedSt.focusSourceRowIndex === 'number') {
+                frameIndex = resolveFrameFromSourceRow(savedSt.focusSourceRowIndex);
+            }
+        }
         let playing = savedSt ? !!savedSt.playing : false;
+        let scrubDrag = false;
         let speed = 1;
         if (savedSt && Number.isFinite(savedSt.speed)) {
             speed = Math.min(3, Math.max(0.5, savedSt.speed));
         }
         let focusNum = null;
-        if (savedSt && savedSt.focusNum != null) {
-            const fn = Number(savedSt.focusNum);
-            if (Number.isFinite(fn) && fn >= 1 && fn <= 12) {
-                focusNum = fn;
+        let predictNeonOn = !isBasic && savedSt ? !!savedSt.predictNeonOn : false;
+        let labelMode = RightPaneSheetManager.normalizeTrackingLabelMode(
+            sheet.trackingLabelMode || RightPaneSheetManager.readTrackingLabelModeFromStorage()
+        );
+        sheet.trackingLabelMode = labelMode;
+
+        const persistLabelMode = () => {
+            sheet.trackingLabelMode = labelMode;
+            RightPaneSheetManager.writeTrackingLabelModeToStorage(labelMode);
+        };
+
+        const syncLabelModeUi = () => {
+            root.classList.toggle('special-tracking-root--label-in', labelMode === 'in');
+            root.classList.toggle('special-tracking-root--label-out', labelMode === 'out');
+            root.dataset.stLabelMode = labelMode;
+            const labelToggle = root.querySelector('[data-st-label-toggle]');
+            if (labelToggle) {
+                labelToggle.textContent = labelMode;
+                labelToggle.setAttribute('aria-pressed', labelMode === 'out' ? 'true' : 'false');
+                labelToggle.setAttribute('aria-label', `Nhãn bar: ${labelMode}`);
+                labelToggle.title = labelMode === 'out'
+                    ? 'Nhãn số sát biên bar (bấm để in)'
+                    : 'Nhãn số trong bar (bấm để out)';
             }
-        }
-        let predictNeonOn = savedSt ? !!savedSt.predictNeonOn : false;
-        let lastPredictNeonSyncKey = '';
+        };
+        syncLabelModeUi();
 
         const progPct = new Float32Array(total);
         for (let i = 0; i < total; i++) {
@@ -8823,18 +7963,21 @@ class RightPaneSheetManager {
         let timer = null;
         const BASE_MS = 420;
 
-        const persistSpecialTrackingUi = () => {
+        const persistTrackingUi = () => {
             try {
                 const snap = {
                     sig: uiSig,
                     frameIndex,
+                    focusSourceRowIndex: this.getTrackingSourceRowIndexForFrame(sheet, frameIndex),
                     playing,
                     speed,
                     predictNeonOn,
-                    focusNum
+                    viewMode,
+                    labelMode
                 };
-                sheet.specialTrackingUi = snap;
-                sessionStorage.setItem(SPECIAL_TRACKING_UI_STORAGE_KEY, JSON.stringify(snap));
+                sheet.trackingUi = snap;
+                persistLabelMode();
+                sessionStorage.setItem(TRACKING_UI_STORAGE_KEY, JSON.stringify(snap));
             } catch (e) {
                 /* ignore quota / private mode */
             }
@@ -8852,6 +7995,7 @@ class RightPaneSheetManager {
             btnPlay.classList.toggle('is-playing', playing);
             btnPlay.setAttribute('aria-label', playing ? 'Tạm dừng' : 'Phát');
             btnPlay.setAttribute('title', playing ? 'Tạm dừng' : 'Phát');
+            syncMotionClass();
         };
         const stepEl = root.querySelector('[data-st-step]');
         const predictToggle = root.querySelector('[data-st-predict-toggle]');
@@ -8878,7 +8022,7 @@ class RightPaneSheetManager {
                 + `Backtest: ${st.total} bước.`
             );
         };
-        if (statsRankEl && series.length === total && frames.length === total) {
+        if (statsRankEl && !isBasic && series.length === total && frames.length === total && !Array.isArray(series[0])) {
             const st = RightPaneSheetManager.computeSpecialTrackingPredictRankStats(series, frames);
             statsRankEl.textContent = formatRankStats(st);
             statsRankEl.title = rankStatsTitle(st);
@@ -8888,6 +8032,9 @@ class RightPaneSheetManager {
         }
 
         const onPredictToggle = () => {
+            if (isBasic) {
+                return;
+            }
             predictNeonOn = !predictNeonOn;
             if (predictToggle) {
                 predictToggle.classList.toggle('is-on', predictNeonOn);
@@ -8922,12 +8069,21 @@ class RightPaneSheetManager {
         };
         /** @type {Record<number, HTMLElement>} */
         const barByNum = {};
+        /** @type {Record<number, { fill: HTMLElement|null, num: HTMLElement|null, count: HTMLElement|null, prio: HTMLElement|null }>} */
+        const barPartsByNum = {};
         root.querySelectorAll('[data-st-bar]').forEach((el) => {
             const n = parseInt(el.getAttribute('data-st-bar'), 10);
             if (Number.isFinite(n)) {
                 barByNum[n] = el;
+                barPartsByNum[n] = {
+                    fill: el.querySelector('[data-fill]'),
+                    num: el.querySelector('[data-st-num]'),
+                    count: el.querySelector('[data-count]'),
+                    prio: el.querySelector('[data-st-predict-rank]')
+                };
             }
         });
+        const freqBraceLayer = isBasic ? root.querySelector('[data-st-freq-braces]') : null;
 
         let tlRectCache = null;
         const refreshTlRect = () => {
@@ -8937,6 +8093,60 @@ class RightPaneSheetManager {
         };
 
         let paintRaf = 0;
+        let sheet1SyncTimer = 0;
+        let sheet1SyncRaf = 0;
+        let pendingSheet1SyncFrame = -1;
+        const clearSheet1SyncTimer = () => {
+            if (sheet1SyncTimer) {
+                clearTimeout(sheet1SyncTimer);
+                sheet1SyncTimer = 0;
+            }
+            if (sheet1SyncRaf) {
+                cancelAnimationFrame(sheet1SyncRaf);
+                sheet1SyncRaf = 0;
+            }
+        };
+        /** Paint tracking trước, sync iframe sheet1 frame sau — tránh giật khi Submit ON. */
+        const syncSheet1FromTrackingNow = (idx) => {
+            clearSheet1SyncTimer();
+            pendingSheet1SyncFrame = idx;
+            if (sheet1SyncRaf) {
+                return;
+            }
+            sheet1SyncRaf = requestAnimationFrame(() => {
+                sheet1SyncRaf = 0;
+                const fi = pendingSheet1SyncFrame;
+                pendingSheet1SyncFrame = -1;
+                if (fi >= 0 && !this._syncingSheet1FromTracking) {
+                    this.syncSheet1FromTrackingFrame(fi);
+                }
+            });
+        };
+        const scheduleSheet1Sync = (idx, immediate = false) => {
+            pendingSheet1SyncFrame = idx;
+            if (scrubDrag && !immediate) {
+                return;
+            }
+            if (immediate || !playing) {
+                syncSheet1FromTrackingNow(idx);
+                return;
+            }
+            if (sheet1SyncTimer) {
+                return;
+            }
+            const deferMs = this.leftSubmitActive ? 160 : 120;
+            sheet1SyncTimer = setTimeout(() => {
+                sheet1SyncTimer = 0;
+                const fi = pendingSheet1SyncFrame;
+                if (fi >= 0) {
+                    syncSheet1FromTrackingNow(fi);
+                }
+            }, deferMs);
+        };
+
+        let basicPaintCacheKey = '';
+        /** @type {{ basicDisplay: object|null, basicWindow10Freq: Record<number, number>|null, freqTieGroups: object[] }|null} */
+        let basicPaintCache = null;
         const clearTimer = () => {
             if (timer) {
                 clearTimeout(timer);
@@ -8959,13 +8169,22 @@ class RightPaneSheetManager {
             timer = setTimeout(() => {
                 timer = null;
                 frameIndex += 1;
+                focusNum = null;
                 paint();
+                if (!this._syncingSheet1FromTracking) {
+                    scheduleSheet1Sync(frameIndex);
+                }
                 scheduleNext();
             }, ms);
         };
 
         const setScrubbing = (on) => {
             root.classList.toggle('special-tracking-root--scrubbing', on);
+            root.classList.toggle('special-tracking-root--playing', !!playing && !on);
+        };
+
+        const syncMotionClass = () => {
+            root.classList.toggle('special-tracking-root--playing', !!playing && !scrubDrag);
         };
 
         const paint = () => {
@@ -8974,21 +8193,25 @@ class RightPaneSheetManager {
                 return;
             }
             const p = progPct[frameIndex];
-            const canRetroPredict = series.length === total && frames.length === total;
+            const canRetroPredict = !isBasic
+                && series.length === total
+                && frames.length === total
+                && !Array.isArray(series[0]);
             let predictList = [];
             if (predictNeonOn && canRetroPredict) {
-                const prefixLen = frameIndex + 1;
-                if (prefixLen >= 3) {
+                const drawPrefix = (fr.drawIndex != null && fr.drawIndex >= 0) ? fr.drawIndex + 1 : 0;
+                if (drawPrefix >= 3) {
                     predictList = RightPaneSheetManager.computeSpecialTrackingPredictCandidates(
                         series,
                         frames,
-                        prefixLen
+                        drawPrefix
                     );
                 }
             }
             let actualNext = null;
-            if (frameIndex + 1 < series.length) {
-                actualNext = series[frameIndex + 1];
+            const drawIdx = fr.drawIndex != null ? fr.drawIndex : -1;
+            if (!isBasic && drawIdx >= 0 && drawIdx + 1 < series.length) {
+                actualNext = series[drawIdx + 1];
             }
             /** @type {Map<number, number>} số → thứ hạng dự đoán 1..3 */
             const predictRankByNum = new Map();
@@ -9000,37 +8223,123 @@ class RightPaneSheetManager {
             const predictNeonActive = predictNeonOn && predictList.length > 0;
             root.classList.toggle('special-tracking-root--predict-on', predictNeonOn);
             root.classList.toggle('special-tracking-root--predict-neon-on', predictNeonActive);
-            const syncKey = `${frameIndex}:${predictList.join(',')}:${fr.justDrawn}:${actualNext == null ? '-' : String(actualNext)}`;
-            if (syncKey !== lastPredictNeonSyncKey) {
-                lastPredictNeonSyncKey = syncKey;
-                const periodSec = 2 * 0.72;
-                const phase = (performance.now() / 1000) % periodSec;
-                root.style.setProperty('--st-predict-neon-delay', `${-phase}s`);
+
+            const justNums = Array.isArray(fr.justDrawnNums)
+                ? fr.justDrawnNums
+                : (fr.justDrawn != null ? [fr.justDrawn] : []);
+            const justSet = new Set(justNums);
+            const leftSubmitOn = !!this.leftSubmitActive;
+            const basicDraws = isBasic ? (sheet.basicDraws || []) : [];
+            let basicDisplay = null;
+            let basicWindow10Freq = null;
+            let freqTieGroups = [];
+            if (isBasic) {
+                const cacheKey = `${frameIndex}|${leftSubmitOn ? 1 : 0}`;
+                if (basicPaintCacheKey !== cacheKey || !basicPaintCache) {
+                    basicDisplay = RightPaneSheetManager.computeBasicTrackingDisplayLayout(
+                        basicDraws,
+                        fr,
+                        leftSubmitOn
+                    );
+                    const srcRow = this.getTrackingSourceRowIndexForFrame(sheet, frameIndex);
+                    basicWindow10Freq = this.computeMainNumsWindow10Freq(
+                        this.sourceRows || [],
+                        srcRow
+                    );
+                    freqTieGroups = RightPaneSheetManager.buildBasicTrackingFreqTieGroups(
+                        basicDisplay.counts,
+                        basicDisplay.slotByNum,
+                        numMax
+                    );
+                    basicPaintCacheKey = cacheKey;
+                    basicPaintCache = { basicDisplay, basicWindow10Freq, freqTieGroups };
+                } else {
+                    basicDisplay = basicPaintCache.basicDisplay;
+                    basicWindow10Freq = basicPaintCache.basicWindow10Freq;
+                    freqTieGroups = basicPaintCache.freqTieGroups;
+                }
             }
 
-            for (let n = 1; n <= 12; n++) {
+            for (let n = 1; n <= numMax; n++) {
                 const el = barByNum[n];
-                if (!el) {
+                const parts = barPartsByNum[n];
+                if (!el || !parts) {
                     continue;
                 }
-                const slot = fr.slotByNum[n] ?? 0;
+                const slot = isBasic && basicDisplay
+                    ? (basicDisplay.slotByNum[n] ?? 0)
+                    : (fr.slotByNum[n] ?? 0);
                 el.style.setProperty('--st-slot', String(slot));
-                const hueT = RightPaneSheetManager.specialTrackingRankHueT(slot);
+                el.style.setProperty('--st-slot-count', String(slotCount));
+                const hueT = RightPaneSheetManager.specialTrackingRankHueT(slot, slotCount - 1);
                 el.style.setProperty('--st-hue-t', String(hueT));
-                const fillEl = el.querySelector('[data-fill]');
-                const countEl = el.querySelector('[data-count]');
-                const prioEl = el.querySelector('[data-st-predict-rank]');
-                if (countEl) {
-                    countEl.textContent = String(fr.byNum[n] || 0);
-                }
+                const fillEl = parts.fill;
+                const numEl = parts.num;
+                const countEl = parts.count;
+                const prioEl = parts.prio;
+                const wPct = isBasic && basicDisplay
+                    ? (basicDisplay.wPctByNum[n] || 0)
+                    : (fr.wPctByNum[n] || 0);
                 if (fillEl) {
-                    fillEl.style.width = `${fr.wPctByNum[n]}%`;
+                    fillEl.style.width = `${wPct}%`;
+                }
+                if (numEl) {
+                    if (labelMode === 'out') {
+                        numEl.style.left = '';
+                        numEl.style.right = '0';
+                        numEl.style.transform = 'translateY(-50%)';
+                    } else {
+                        const insetPx = isBasic ? 4 : 8;
+                        numEl.style.right = 'auto';
+                        numEl.style.left = `max(2px, calc(${wPct}% - ${insetPx}px))`;
+                        numEl.style.transform = 'translate(-100%, -50%)';
+                    }
+                }
+                if (countEl) {
+                    const cumFreq = isBasic && basicDisplay
+                        ? (basicDisplay.counts[n] || 0)
+                        : (fr.byNum[n] || 0);
+                    const freqText = String(cumFreq);
+                    if (countEl.textContent !== freqText) {
+                        countEl.textContent = freqText;
+                    }
+                }
+                const win10Freq = isBasic && basicWindow10Freq ? (basicWindow10Freq[n] || 0) : null;
+                const isJust = justSet.has(n);
+                const autoringNonexistLabel = isBasic
+                    && this.leftAutoringEnabled
+                    && win10Freq === 0
+                    && isJust;
+                el.classList.toggle(
+                    'special-tracking-rank-bar--win10-freq-zero',
+                    isBasic && win10Freq === 0
+                );
+                el.classList.toggle(
+                    'special-tracking-rank-bar--win10-freq-one',
+                    isBasic && win10Freq === 1
+                );
+                if (isBasic) {
+                    el.dataset.stWin10Freq = win10Freq != null ? String(win10Freq) : '';
+                } else {
+                    delete el.dataset.stWin10Freq;
                 }
                 const pr = predictRankByNum.get(n);
-                const actualAnswer = !predictNeonOn && n === fr.justDrawn;
+                const actualAnswer = isBasic
+                    ? (leftSubmitOn && isJust)
+                    : (!predictNeonOn && n === fr.justDrawn);
                 const predictHit = Boolean(pr) && actualNext != null && n === actualNext;
-                el.classList.toggle('special-tracking-rank-bar--just', n === fr.justDrawn);
-                el.classList.toggle('special-tracking-rank-bar--focus', focusNum != null && n === focusNum);
+                el.classList.toggle(
+                    'special-tracking-rank-bar--just',
+                    !isBasic && isJust && !actualAnswer && !autoringNonexistLabel
+                );
+                const showClickFocus = focusNum != null && n === focusNum
+                    && !actualAnswer
+                    && !(predictNeonActive && Boolean(pr));
+                el.classList.toggle(
+                    'special-tracking-rank-bar--focus',
+                    showClickFocus || autoringNonexistLabel
+                );
+                el.classList.toggle('special-tracking-rank-bar--autoring-nonexist', autoringNonexistLabel);
                 el.classList.toggle('special-tracking-rank-bar--actual-answer', actualAnswer);
                 el.classList.toggle('special-tracking-rank-bar--predict', Boolean(pr));
                 el.classList.toggle('special-tracking-rank-bar--predict-hit', predictHit);
@@ -9042,17 +8351,32 @@ class RightPaneSheetManager {
                     prioEl.setAttribute('aria-hidden', pr ? 'false' : 'true');
                 }
                 let aria = `Số ${n}, click để tô sáng`;
-                if (actualAnswer) {
-                    aria = `Số ${n}, đáp án kỳ hiện tại (id), click để tô sáng`;
+                if (autoringNonexistLabel) {
+                    aria = `Số ${n}, nonexist (win10=0) trong đáp án kỳ hiện tại — autoring tracking`;
+                } else if (actualAnswer) {
+                    aria = isBasic
+                        ? `Số ${n}, trong đáp án 5 số chính kỳ hiện tại (id), click để tô sáng`
+                        : `Số ${n}, đáp án kỳ hiện tại (id), click để tô sáng`;
                 } else if (pr) {
                     aria = predictHit
                         ? `Số ${n}, ứng viên dự đoán hạng ${pr}, trùng đáp án kỳ tiếp theo (id+1)`
                         : `Số ${n}, ứng viên dự đoán hạng ${pr} cho kỳ tiếp theo (id+1), click để tô sáng`;
                 }
-                el.setAttribute('aria-label', aria);
+                if (el.getAttribute('aria-label') !== aria) {
+                    el.setAttribute('aria-label', aria);
+                }
+            }
+            if (freqBraceLayer && isBasic) {
+                RightPaneSheetManager.syncBasicTrackingFreqBraces(
+                    freqBraceLayer,
+                    freqTieGroups,
+                    slotCount
+                );
             }
             if (stepEl) {
-                stepEl.innerHTML = `<strong>${fr.step}</strong> / ${total}`;
+                const periodId = this.getTrackingPeriodIdForFrame(sheet, frameIndex);
+                const stepLabel = periodId || String(fr.step);
+                stepEl.innerHTML = `<strong>${stepLabel}</strong> / ${total}`;
             }
             if (tlFill) {
                 tlFill.style.width = `${p}%`;
@@ -9076,27 +8400,43 @@ class RightPaneSheetManager {
         };
 
         const setFrame = (idx) => {
-            frameIndex = Math.max(0, Math.min(total - 1, idx));
+            const next = Math.max(0, Math.min(total - 1, idx));
+            if (next !== frameIndex) {
+                focusNum = null;
+            }
+            frameIndex = next;
             paint();
             scheduleNext();
+            if (!this._syncingSheet1FromTracking) {
+                scheduleSheet1Sync(frameIndex, true);
+            }
         };
 
-        const setFrameRaf = (idx) => {
-            frameIndex = Math.max(0, Math.min(total - 1, idx));
+        const setFrameRaf = (idx, opts = {}) => {
+            const next = Math.max(0, Math.min(total - 1, idx));
+            if (next !== frameIndex) {
+                focusNum = null;
+            }
+            frameIndex = next;
             schedulePaint();
             scheduleNext();
+            if (!opts.skipSheet1Sync && !this._syncingSheet1FromTracking) {
+                scheduleSheet1Sync(frameIndex);
+            }
         };
 
-        tableWrap.__specialTrackingSeekFrame = (idx) => {
-            setFrameRaf(clampStIdx(idx));
-            persistSpecialTrackingUi();
+        tableWrap.__trackingSeekFrame = (idx, opts = {}) => {
+            setFrameRaf(clampStIdx(idx), opts || {});
+            persistTrackingUi();
         };
+        tableWrap.__specialTrackingSeekFrame = tableWrap.__trackingSeekFrame;
 
         const togglePlay = () => {
             if (frameIndex >= total - 1) {
                 frameIndex = 0;
             }
             playing = !playing;
+            syncMotionClass();
             if (btnPlay) {
                 syncPlayBtnUi();
             }
@@ -9114,7 +8454,6 @@ class RightPaneSheetManager {
             setFrameRaf(idx);
         };
 
-        let scrubDrag = false;
         const onScrubMove = (ev) => {
             if (!scrubDrag) {
                 return;
@@ -9125,12 +8464,16 @@ class RightPaneSheetManager {
         const onScrubUp = () => {
             scrubDrag = false;
             setScrubbing(false);
+            syncMotionClass();
             tlRectCache = null;
             window.removeEventListener('mousemove', onScrubMove, true);
             window.removeEventListener('mouseup', onScrubUp, true);
             window.removeEventListener('touchmove', onScrubTouchMove, true);
             window.removeEventListener('touchend', onScrubTouchEnd, true);
             window.removeEventListener('touchcancel', onScrubTouchEnd, true);
+            if (!this._syncingSheet1FromTracking) {
+                syncSheet1FromTrackingNow(frameIndex);
+            }
         };
 
         const onScrubTouchMove = (ev) => {
@@ -9148,6 +8491,7 @@ class RightPaneSheetManager {
             const cx = ev.clientX != null ? ev.clientX : (ev.touches && ev.touches[0] ? ev.touches[0].clientX : 0);
             scrubDrag = true;
             setScrubbing(true);
+            syncMotionClass();
             refreshTlRect();
             window.addEventListener('mousemove', onScrubMove, true);
             window.addEventListener('mouseup', onScrubUp, true);
@@ -9231,8 +8575,35 @@ class RightPaneSheetManager {
             });
         });
 
-        const onSpecialTrackingArrowNav = (ev) => {
-            if (!tableWrap.classList.contains('table-wrap--specialtracking')) {
+        const viewToggle = root.querySelector('[data-st-view-toggle]');
+        const labelToggle = root.querySelector('[data-st-label-toggle]');
+        const onLabelToggle = () => {
+            labelMode = labelMode === 'out' ? 'in' : 'out';
+            syncLabelModeUi();
+            persistLabelMode();
+            paint();
+            persistTrackingUi();
+        };
+        if (labelToggle) {
+            labelToggle.addEventListener('click', onLabelToggle);
+        }
+        if (viewToggle) {
+            viewToggle.addEventListener('click', () => {
+                playing = false;
+                clearTimer();
+                const anchorRow = this.getTrackingSourceRowIndexForFrame(sheet, frameIndex);
+                const nextMode = isBasic ? 'special' : 'basic';
+                sheet.trackingViewMode = nextMode;
+                sheet._trackingFramesMode = null;
+                if (anchorRow >= 0) {
+                    sheet._trackingFocusSourceRowIndex = anchorRow;
+                }
+                this.renderTable(tableWrap);
+            });
+        }
+
+        const onTrackingArrowNav = (ev) => {
+            if (!tableWrap.classList.contains('table-wrap--tracking')) {
                 return;
             }
             if (ev.key !== 'ArrowLeft' && ev.key !== 'ArrowRight') {
@@ -9252,26 +8623,47 @@ class RightPaneSheetManager {
                 setFrame(frameIndex + 1);
             }
         };
-        window.addEventListener('keydown', onSpecialTrackingArrowNav, true);
+        window.addEventListener('keydown', onTrackingArrowNav, true);
+
+        const onLeftSubmitStateChanged = () => {
+            paint();
+        };
+        const onLeftAutoringStateChanged = () => {
+            paint();
+        };
+        window.addEventListener('leftSubmitStateChanged', onLeftSubmitStateChanged);
+        window.addEventListener('leftAutoringStateChanged', onLeftAutoringStateChanged);
 
         paint();
+        syncMotionClass();
         if (btnPlay) {
             syncPlayBtnUi();
         }
         if (playing) {
             scheduleNext();
         }
+        if (!this._syncingSheet1FromTracking) {
+            const syncRow = this.getTrackingSourceRowIndexForFrame(sheet, frameIndex);
+            const skipSync = liveSourceRow >= 0 && syncRow === liveSourceRow;
+            if (!skipSync) {
+                this.syncSheet1FromTrackingFrame(frameIndex);
+            }
+        }
 
-        tableWrap.__specialTrackingCleanup = () => {
+        const cleanupTrackingUi = () => {
             try {
+                delete tableWrap.__trackingSeekFrame;
                 delete tableWrap.__specialTrackingSeekFrame;
+                delete tableWrap.__trackingRepaint;
             } catch (eDelSeek) {
                 /* ignore */
             }
-            persistSpecialTrackingUi();
+            persistTrackingUi();
             clearTimer();
+            clearSheet1SyncTimer();
             scrubDrag = false;
             setScrubbing(false);
+            syncMotionClass();
             tlRectCache = null;
             if (paintRaf) {
                 cancelAnimationFrame(paintRaf);
@@ -9289,8 +8681,25 @@ class RightPaneSheetManager {
             if (predictToggle) {
                 predictToggle.removeEventListener('click', onPredictToggle);
             }
-            window.removeEventListener('keydown', onSpecialTrackingArrowNav, true);
+            if (viewToggle) {
+                viewToggle.replaceWith(viewToggle.cloneNode(true));
+            }
+            if (labelToggle) {
+                labelToggle.removeEventListener('click', onLabelToggle);
+            }
+            window.removeEventListener('keydown', onTrackingArrowNav, true);
+            window.removeEventListener('leftSubmitStateChanged', onLeftSubmitStateChanged);
+            window.removeEventListener('leftAutoringStateChanged', onLeftAutoringStateChanged);
         };
+        tableWrap.__trackingCleanup = cleanupTrackingUi;
+        tableWrap.__specialTrackingCleanup = cleanupTrackingUi;
+        tableWrap.__trackingRepaint = () => {
+            paint();
+        };
+    }
+
+    wireSpecialTrackingUi(tableWrap, sheet) {
+        this.wireTrackingUi(tableWrap, sheet);
     }
 
     /**
@@ -9298,9 +8707,9 @@ class RightPaneSheetManager {
      */
     save() {
         let sheetsForSave = this.sheets;
-        const st = this.sheets && this.sheets.specialtracking;
-        if (st && st.kind === 'specialtracking' && (st.frames || st.series)) {
-            sheetsForSave = { ...this.sheets, specialtracking: { kind: 'specialtracking', data: [] } };
+        const st = this.sheets && this.sheets[TRACKING_SHEET_ID];
+        if (st && st.kind === TRACKING_KIND && (st.frames || st.series)) {
+            sheetsForSave = { ...this.sheets, [TRACKING_SHEET_ID]: { kind: TRACKING_KIND, data: [] } };
         }
         const data = {
             sheets: sheetsForSave,

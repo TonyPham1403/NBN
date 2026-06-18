@@ -288,8 +288,8 @@
             background: #d4d4d4;
         }
 
-        /* Sheet specialtracking: nền sáng, full vùng #tableWrap (dưới toolbar, trên tabs), nội dung co trong khung */
-        #tableWrap.table-wrap--specialtracking {
+        /* Sheet tracking: nền sáng, full vùng #tableWrap (dưới toolbar, trên tabs), nội dung co trong khung */
+        #tableWrap.table-wrap--tracking {
             display: flex;
             flex-direction: column;
             flex: 1 1 auto;
@@ -300,7 +300,7 @@
             scroll-padding-bottom: 0;
         }
 
-        #tableWrap.table-wrap--specialtracking .special-tracking-root {
+        #tableWrap.table-wrap--tracking .special-tracking-root {
             flex: 1 1 auto;
             min-height: 0;
             min-width: 0;
@@ -352,7 +352,7 @@
             overflow: hidden;
         }
 
-        #tableWrap.table-wrap--specialtracking .special-tracking-stage {
+        #tableWrap.table-wrap--tracking .special-tracking-stage {
             padding: 0;
         }
 
@@ -389,8 +389,8 @@
             position: absolute;
             left: 0;
             right: 0;
-            top: calc(100% * var(--st-slot, 0) / 12);
-            height: calc(100% / 12);
+            top: calc(100% * var(--st-slot, 0) / var(--st-slot-count, 12));
+            height: calc(100% / var(--st-slot-count, 12));
             z-index: calc(20 - var(--st-slot, 0));
             box-sizing: border-box;
             padding: 0;
@@ -409,8 +409,21 @@
             transition-duration: 0s, 0.15s, 0.15s;
         }
 
+        .special-tracking-root--playing .special-tracking-rank-bar {
+            transition-duration: 0s, 0.15s, 0.15s;
+        }
+
         .special-tracking-rank-bar:hover {
             background: rgba(255, 255, 255, 0.42);
+        }
+
+        .special-tracking-rank-bar:focus {
+            outline: none;
+        }
+
+        .special-tracking-rank-bar:focus-visible:not(.special-tracking-rank-bar--focus) {
+            outline: 2px solid rgba(35, 100, 215, 0.75);
+            outline-offset: -2px;
         }
 
         .special-tracking-rank-bar--just {
@@ -433,7 +446,7 @@
             z-index: 80;
             pointer-events: none;
             box-sizing: border-box;
-            box-shadow: inset 0 0 0 4px #0a0a0a;
+            box-shadow: inset 0 0 0 3px #0a0a0a;
         }
 
         .special-tracking-rank-bar--focus:hover {
@@ -456,32 +469,18 @@
 
         /* Dự đoán id+1 (#1–#3, chưa trúng): viền xanh dương — chỉ khi bật Predict */
         .special-tracking-root--predict-neon-on .special-tracking-rank-bar--predict:not(.special-tracking-rank-bar--predict-hit)::before {
-            animation: st-predict-neon-pulse 0.72s ease-in-out infinite alternate;
-            animation-delay: var(--st-predict-neon-delay, 0s);
             box-shadow:
                 inset 0 0 0 3px rgba(35, 100, 215, 0.95),
-                inset 0 0 20px rgba(25, 75, 185, 0.45),
-                inset 0 0 40px rgba(45, 125, 235, 0.22);
-        }
-
-        @keyframes st-predict-neon-pulse {
-            from {
-                opacity: 0.55;
-            }
-
-            to {
-                opacity: 1;
-            }
+                inset 0 0 16px rgba(25, 75, 185, 0.38),
+                inset 0 0 28px rgba(45, 125, 235, 0.18);
         }
 
         /* Dự đoán id+1 trúng đáp án: viền cyan */
         .special-tracking-root--predict-neon-on .special-tracking-rank-bar--predict.special-tracking-rank-bar--predict-hit::before {
-            animation: st-predict-neon-pulse 0.72s ease-in-out infinite alternate;
-            animation-delay: var(--st-predict-neon-delay, 0s);
             box-shadow:
                 inset 0 0 0 3px rgba(0, 190, 210, 0.95),
-                inset 0 0 20px rgba(0, 160, 185, 0.48),
-                inset 0 0 40px rgba(0, 210, 230, 0.26);
+                inset 0 0 16px rgba(0, 160, 185, 0.4),
+                inset 0 0 28px rgba(0, 210, 230, 0.2);
         }
 
         /* Đáp án kỳ hiện tại (id): viền xanh lá — chỉ khi Predict tắt */
@@ -496,12 +495,7 @@
             z-index: 6;
             pointer-events: none;
             box-sizing: border-box;
-            animation: st-predict-neon-pulse 0.72s ease-in-out infinite alternate;
-            animation-delay: var(--st-predict-neon-delay, 0s);
-            box-shadow:
-                inset 0 0 0 3px rgba(0, 125, 68, 0.95),
-                inset 0 0 20px rgba(0, 95, 52, 0.48),
-                inset 0 0 40px rgba(0, 150, 82, 0.26);
+            box-shadow: inset 0 0 0 3px rgba(0, 125, 68, 0.95);
         }
 
         .special-tracking-rank-bar-main {
@@ -510,6 +504,7 @@
             padding: 0;
             display: flex;
             align-items: stretch;
+            position: relative;
         }
 
         .special-tracking-rank-track {
@@ -543,16 +538,19 @@
             transition-duration: 0s;
         }
 
+        .special-tracking-root--playing .special-tracking-rank-fill {
+            transition-duration: 0s;
+        }
+
         /* Vừa quay: giữ gradient theo hạng, chỉ sáng nhẹ — không dùng hồng (#fb7185 / #f76370) */
         .special-tracking-rank-bar--just .special-tracking-rank-fill {
             filter: saturate(1.12) brightness(1.06);
         }
 
-        .special-tracking-rank-fill .special-tracking-rank-num {
+        .special-tracking-rank-fill .special-tracking-rank-num,
+        .special-tracking-rank-track>.special-tracking-rank-num {
             position: absolute;
-            right: clamp(5px, 1.4vw, 12px);
             top: 50%;
-            transform: translateY(-50%);
             z-index: 2;
             font-weight: 900;
             font-size: clamp(14px, 2vh, 20px);
@@ -575,6 +573,16 @@
             font-variant-numeric: tabular-nums;
             pointer-events: none;
             user-select: none;
+        }
+
+        .special-tracking-root--label-in .special-tracking-rank-track>.special-tracking-rank-num {
+            right: auto;
+        }
+
+        .special-tracking-root--label-out .special-tracking-rank-track>.special-tracking-rank-num {
+            right: 0;
+            left: auto;
+            transform: translateY(-50%);
         }
 
         .special-tracking-rank-meta {
@@ -649,7 +657,9 @@
         }
 
         .special-tracking-root--scrubbing .special-tracking-timeline-fill,
-        .special-tracking-root--scrubbing .special-tracking-timeline-thumb {
+        .special-tracking-root--scrubbing .special-tracking-timeline-thumb,
+        .special-tracking-root--playing .special-tracking-timeline-fill,
+        .special-tracking-root--playing .special-tracking-timeline-thumb {
             transition: none !important;
         }
 
@@ -889,6 +899,19 @@
             margin-left: auto;
         }
 
+        .special-tracking-speed-slider-inner {
+            display: flex;
+            flex: 1 1 0;
+            min-width: 0;
+            align-items: center;
+            gap: 2px;
+        }
+
+        .special-tracking-speed-slider-inner .special-tracking-speed-slider {
+            flex: 1 1 0;
+            min-width: 80px;
+        }
+
         .special-tracking-speed-hint {
             font-size: clamp(11px, 1.25vh, 12px);
             color: #aaa;
@@ -897,12 +920,14 @@
 
         .special-tracking-speed-readout {
             flex: 0 0 auto;
-            min-width: 2.5rem;
+            min-width: 0;
+            padding-left: 1px;
             font-size: clamp(11px, 1.3vh, 13px);
             font-weight: 800;
             font-variant-numeric: tabular-nums;
             color: #f1f1f1;
-            text-align: right;
+            text-align: left;
+            white-space: nowrap;
         }
 
         .special-tracking-speed-slider {
@@ -916,6 +941,254 @@
 
         .special-tracking-speed-slider::-webkit-slider-thumb {
             cursor: pointer;
+        }
+
+        .special-tracking-view-toggle {
+            flex: 0 0 auto;
+            min-width: 4.5rem;
+            font-size: clamp(11px, 1.25vh, 12px);
+            font-weight: 800;
+            text-transform: lowercase;
+            letter-spacing: 0.02em;
+            padding: 4px 10px;
+            border-radius: 6px;
+            border: 1px solid #64748b;
+            background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+            color: #334155;
+            cursor: pointer;
+            line-height: 1.2;
+        }
+
+        .special-tracking-view-toggle:hover {
+            border-color: #475569;
+            background: #f8fafc;
+        }
+
+        .special-tracking-view-toggle[aria-pressed="true"] {
+            background: #facc15;
+            color: #111;
+            border-color: #ca8a04;
+        }
+
+        .special-tracking-label-toggle {
+            flex: 0 0 auto;
+            min-width: 2.6rem;
+            font-size: clamp(11px, 1.25vh, 12px);
+            font-weight: 800;
+            text-transform: lowercase;
+            letter-spacing: 0.02em;
+            padding: 4px 10px;
+            border-radius: 6px;
+            border: 1px solid #64748b;
+            background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+            color: #334155;
+            cursor: pointer;
+            line-height: 1.2;
+        }
+
+        .special-tracking-label-toggle:hover {
+            border-color: #475569;
+            background: #f8fafc;
+        }
+
+        .special-tracking-label-toggle[aria-pressed="true"] {
+            background: #93c5fd;
+            color: #0f172a;
+            border-color: #3b82f6;
+        }
+
+        .special-tracking-root--basic {
+            --st-basic-meta-w: clamp(40px, 8vw, 52px);
+            --st-basic-freq-digit-w: 1.1rem;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-num {
+            font-size: clamp(10px, 1.35vh, 13px);
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-count {
+            font-size: clamp(9px, 1.15vh, 11px);
+            min-width: var(--st-basic-freq-digit-w);
+            position: relative;
+            z-index: 4;
+        }
+
+        /* Basic: cửa sổ trượt 10 (trước kỳ hiện tại) — win10=0 đỏ; win10=1 gạch chân (nhãn + cột freq tích lũy) */
+        .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero .special-tracking-rank-num,
+        .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero .special-tracking-rank-count {
+            color: #ff0000 !important;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero .special-tracking-rank-num {
+            -webkit-text-stroke: 0 !important;
+            paint-order: normal;
+            text-shadow: none !important;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-one .special-tracking-rank-num {
+            text-decoration: underline solid 1.5px #000000 !important;
+            text-decoration-color: #000000 !important;
+            -webkit-text-decoration-color: #000000 !important;
+            text-underline-offset: 2px;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-one .special-tracking-rank-count {
+            border-bottom: 1.5px solid #000000;
+        }
+
+        /* Basic + autoring (tracking): viền đen giống click quan sát bar — dùng class --focus */
+        .special-tracking-root--basic .special-tracking-rank-bar--autoring-nonexist {
+            z-index: 50 !important;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-meta {
+            flex: 0 0 var(--st-basic-meta-w);
+            min-width: 0;
+            padding: 0 2px 0 2px;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-stack {
+            min-height: 0;
+        }
+
+        /* Basic: dấu } bọc cột frequency (≥2 số cùng giá trị), số freq giữ nguyên vị trí */
+        .special-tracking-root--basic .special-tracking-freq-brace-layer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: var(--st-basic-meta-w);
+            z-index: 3;
+            pointer-events: none;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .special-tracking-root--basic .special-tracking-freq-brace {
+            position: absolute;
+            left: 0;
+            right: 2px;
+            width: auto;
+            color: #111;
+            box-sizing: border-box;
+            padding: 0;
+            transition: top 0.45s cubic-bezier(0.22, 1, 0.36, 1),
+                height 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .special-tracking-root--scrubbing .special-tracking-freq-brace {
+            transition-duration: 0s;
+        }
+
+        .special-tracking-root--playing .special-tracking-freq-brace {
+            transition-duration: 0s;
+        }
+
+        .special-tracking-root--basic .special-tracking-freq-brace svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* Basic: viền xanh 5 số đáp án — bọc cả bar + cột freq tích lũy (viền 3px, không glow) */
+        .special-tracking-root--basic .special-tracking-rank-bar--actual-answer {
+            z-index: 45 !important;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-bar--actual-answer::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            z-index: 6;
+            pointer-events: none;
+            box-sizing: border-box;
+            box-shadow: inset 0 0 0 3px rgba(0, 125, 68, 0.95);
+        }
+
+        /* Basic: thanh điều hướng gọn hơn — nhường chiều cao cho 35 bar */
+        .special-tracking-root--basic .special-tracking-controls {
+            gap: 2px;
+            padding: 2px 6px 4px;
+        }
+
+        .special-tracking-root--basic .special-tracking-controls-row--timeline {
+            padding-bottom: 3px;
+            margin-bottom: 0;
+        }
+
+        .special-tracking-root--basic .special-tracking-timeline {
+            height: clamp(14px, 1.8vh, 20px);
+        }
+
+        .special-tracking-root--basic .special-tracking-timeline-thumb {
+            width: clamp(8px, 1.4vh, 11px);
+            height: clamp(8px, 1.4vh, 11px);
+        }
+
+        .special-tracking-root--basic .special-tracking-timeline-meta-row {
+            margin-top: 1px;
+            column-gap: 4px;
+        }
+
+        .special-tracking-root--basic .special-tracking-timeline-meta-row .special-tracking-step-label {
+            font-size: clamp(9px, 1.05vh, 10px);
+        }
+
+        .special-tracking-root--basic .special-tracking-controls-row--transport {
+            gap: 5px;
+            padding: 4px 6px;
+            border-radius: 8px;
+        }
+
+        .special-tracking-root--basic .special-tracking-icon-btn {
+            width: 30px;
+            height: 30px;
+        }
+
+        .special-tracking-root--basic .special-tracking-icon-btn--play {
+            width: 34px;
+            height: 34px;
+        }
+
+        .special-tracking-root--basic .special-tracking-icon-btn--glyph span {
+            font-size: 0.95rem;
+        }
+
+        .special-tracking-root--basic .special-tracking-svg-play,
+        .special-tracking-root--basic .special-tracking-svg-pause {
+            width: 22px;
+            height: 22px;
+        }
+
+        .special-tracking-root--basic .special-tracking-speed-slider-wrap {
+            flex: 1 1 140px;
+            min-width: 100px;
+            max-width: 320px;
+            gap: 5px;
+        }
+
+        .special-tracking-root--basic .special-tracking-speed-hint,
+        .special-tracking-root--basic .special-tracking-speed-readout {
+            font-size: clamp(9px, 1.05vh, 11px);
+        }
+
+        .special-tracking-root--basic .special-tracking-speed-slider {
+            height: 14px;
+        }
+
+        .special-tracking-root--basic .special-tracking-speed-slider-inner {
+            gap: 1px;
+        }
+
+        .special-tracking-root--basic .special-tracking-view-toggle,
+        .special-tracking-root--basic .special-tracking-label-toggle {
+            min-width: 3.2rem;
+            padding: 2px 8px;
+            font-size: clamp(9px, 1.05vh, 11px);
+        }
+
+        .special-tracking-root--basic .special-tracking-view-toggle {
+            min-width: 3.8rem;
         }
 
         .special-tracking-timeline-wrap {
@@ -1114,6 +1387,24 @@
 
         .sheet-tools-mode-wrap.enabled {
             background: #006400;
+        }
+
+        .sheet-tools-mode-wrap.enabled #submitRingModeSelect,
+        .sheet-tools-mode-wrap.enabled #submitRingModeSelect:disabled {
+            opacity: 0 !important;
+            background: transparent !important;
+        }
+
+        .submit-ring-controls.submit-ring-controls--tracking .sheet-tools-mode-wrap.enabled {
+            background: #006400 !important;
+        }
+
+        .submit-ring-controls.submit-ring-controls--tracking .sheet-tools-mode-wrap.enabled .sheet-tools-mode-value {
+            color: #ffffff !important;
+        }
+
+        .submit-ring-controls.submit-ring-controls--tracking .sheet-tools-mode-wrap.enabled::after {
+            color: #ffffff !important;
         }
 
         .sheet-tools-mode-wrap::after {
@@ -1366,6 +1657,15 @@
         .submit-ring-controls.freq-mode-disabled #submitRingCustomXWrap {
             opacity: 0.42;
             pointer-events: none;
+        }
+
+        .submit-ring-controls.submit-ring-controls--tracking .submit-ring-label-wrap {
+            display: none !important;
+        }
+
+        .submit-ring-controls.submit-ring-controls--tracking.freq-mode-disabled .sheet-tools-mode-wrap {
+            opacity: 1;
+            pointer-events: auto;
         }
 
         /* Ô số nonexist: giữ đúng layout cũ (3ch, trong suốt). Cột ▴▾ là flex item kế tiếp, không bọc thêm wrapper. */
@@ -4088,6 +4388,7 @@
                                     <option value="min">min</option>
                                     <option value="custom">x</option>
                                     <option value="conn3">3-connection</option>
+                                    <option value="nonexist">nonexist</option>
                                 </select>
                             </div>
                             <div id="submitRingCustomXWrap" class="submit-ring-x-adjoin hidden"
@@ -4456,8 +4757,8 @@
         const SUBMIT_RING_ENABLED_KEY = 'submitRingEnabled';
         const SUBMIT_RING_MODE_KEY = 'submitRingMode';
         const SUBMIT_RING_CUSTOM_X_KEY = 'submitRingCustomX';
-        const SUBMIT_RING_VALID_MODES = ['max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3'];
-        const SUBMIT_RING_FREQ_MODES = ['max', 'min', 'custom', 'conn3'];
+        const SUBMIT_RING_VALID_MODES = ['max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'nonexist'];
+        const SUBMIT_RING_FREQ_MODES = ['max', 'min', 'custom', 'conn3', 'nonexist'];
         const SUBMIT_RING_LABEL_CONN_KEY = 'submitRingLabelConn';
         const SUBMIT_RING_LABEL_IX_KEY = 'submitRingLabelIx';
         const PERIOD_FILTER_ENABLED_KEY = 'periodFilterEnabled';
@@ -4531,23 +4832,20 @@
         /** Tăng dần khi click filter / answer dock để popup nào click sau nổi trên. */
         let floatingPopupDockZCounter = 0;
 
-        function isSpecialTrackingActive() {
-            return !!(sheetManager && sheetManager.activeSheet === 'specialtracking');
+        /** Filter / answer popup dùng dữ liệu sheet1; cho phép trên sheet tracking lẫn sheet1. */
+        function isPeriodFilterContextSheet() {
+            if (!sheetManager) {
+                return false;
+            }
+            const sheet = sheetManager.activeSheet;
+            return sheet === 'sheet1' || sheet === 'tracking';
         }
 
-        /** Đóng filter / answer popup khi vào sheet specialtracking; dùng kèm guard không mở lại trên sheet này. */
-        function closePopupsBlockedOnSpecialTracking() {
-            closeFilterPopup();
-            closePeriodFilterModeMenu();
-            closeFilterPopupNoteTagMenu();
-            closeFilterPopupConnectionNoteTagMenu();
-            closeFilterPopupIntersectionKindMenu();
-            closeFilterPopupNonexistColorMenu();
-            closeFilterPopupNonexistGreen005Menu();
-            if (answerPopup && typeof answerPopup.isOpen === 'function' && answerPopup.isOpen()
-                && typeof answerPopup.close === 'function') {
-                answerPopup.close();
+        function getFilterSourceSheetRows() {
+            if (!sheetManager || typeof sheetManager.getSourceSheetRows !== 'function') {
+                return [];
             }
+            return sheetManager.getSourceSheetRows();
         }
 
         let selectedNums = new Set(); // numbers from the 'primary' selected row
@@ -4986,7 +5284,14 @@
             return SUBMIT_RING_FREQ_MODES.includes(m) ? m : 'max';
         }
 
+        function isTrackingAutoringContext() {
+            return !!(sheetManager && sheetManager.activeSheet === 'tracking');
+        }
+
         function getEffectiveSubmitRingMode() {
+            if (isTrackingAutoringContext()) {
+                return 'nonexist';
+            }
             if (submitRingLabelConn && submitRingLabelIx) {
                 return 'conn_ix';
             }
@@ -5051,7 +5356,19 @@
             if (m === 'conn3') {
                 return '3-connection';
             }
+            if (m === 'nonexist') {
+                return 'nonexist';
+            }
             return m.toUpperCase();
+        }
+
+        function notifyLeftAutoringStateToTracking() {
+            if (sheetManager && typeof sheetManager.setLeftAutoringEnabled === 'function') {
+                sheetManager.setLeftAutoringEnabled(!!submitRingEnabled);
+            }
+            window.dispatchEvent(new CustomEvent('leftAutoringStateChanged', {
+                detail: { enabled: !!submitRingEnabled }
+            }));
         }
 
         function clampRingCustomX(v) {
@@ -5076,13 +5393,16 @@
                 return;
             }
             syncSubmitRingModeFromUi();
-            const mode = normalizeSubmitRingMode(submitRingMode);
+            const trackingOnly = isTrackingAutoringContext();
+            const mode = trackingOnly ? 'max' : normalizeSubmitRingMode(submitRingMode);
             frame.contentWindow.postMessage({
                 type: 'submitAutoCircleChanged',
-                enabled: !!submitRingEnabled,
+                enabled: trackingOnly ? false : !!submitRingEnabled,
                 mode,
-                customX: clampRingCustomX(submitRingCustomX)
+                customX: clampRingCustomX(submitRingCustomX),
+                preserveManualPicks: trackingOnly
             }, '*');
+            notifyLeftAutoringStateToTracking();
         }
 
         function persistSubmitRingSettings() {
@@ -5111,10 +5431,11 @@
             submitRingFreqMode = normalizeSubmitRingFreqMode(submitRingFreqMode);
             submitRingCustomX = clampRingCustomX(submitRingCustomX);
             syncSubmitRingModeFromUi();
+            const trackingAutoring = isTrackingAutoringContext();
             const labelActive = submitRingLabelConn || submitRingLabelIx;
-            const effectiveMode = submitRingMode;
-            const dropdownMode = submitRingFreqMode;
-            const xControlsDisabled = !submitRingEnabled || labelActive || dropdownMode !== 'custom';
+            const effectiveMode = trackingAutoring ? 'nonexist' : submitRingMode;
+            const dropdownMode = trackingAutoring ? 'nonexist' : submitRingFreqMode;
+            const xControlsDisabled = !submitRingEnabled || labelActive || dropdownMode !== 'custom' || trackingAutoring;
             const modeLabel = getSubmitRingModeDisplayLabel(effectiveMode);
             const dropdownLabel = getSubmitRingModeDisplayLabel(dropdownMode);
             if (toggleBtn) {
@@ -5127,28 +5448,37 @@
                 );
             }
             if (controls) {
-                controls.classList.toggle('freq-mode-disabled', labelActive);
+                controls.classList.toggle('freq-mode-disabled', labelActive || trackingAutoring);
+                controls.classList.toggle('submit-ring-controls--tracking', trackingAutoring);
             }
             if (modeSelect) {
                 modeSelect.value = dropdownMode;
-                modeSelect.disabled = !submitRingEnabled || labelActive;
-                modeSelect.setAttribute('title', labelActive
-                    ? `Dropdown (${dropdownLabel}) — tắt khi dùng C/∩`
-                    : `Chế độ khoanh: ${dropdownLabel}`);
+                modeSelect.disabled = !submitRingEnabled || labelActive || trackingAutoring;
+                modeSelect.setAttribute('title', trackingAutoring
+                    ? 'Sheet tracking: autoring chỉ trên bar (không khoanh trái)'
+                    : (labelActive
+                        ? `Dropdown (${dropdownLabel}) — tắt khi dùng C/∩`
+                        : `Chế độ khoanh: ${dropdownLabel}`));
             }
             if (modeValue) {
-                modeValue.textContent = labelActive ? modeLabel : dropdownLabel;
+                modeValue.textContent = trackingAutoring ? 'nonexist' : (labelActive ? modeLabel : dropdownLabel);
                 modeValue.style.textTransform = (dropdownMode === 'custom' || dropdownMode === 'conn3') ? 'none' : 'uppercase';
             }
             if (modeWrap) {
                 modeWrap.classList.toggle('disabled', !submitRingEnabled);
-                modeWrap.classList.toggle('enabled', modeHighlighted && !labelActive);
-                modeWrap.setAttribute('title', labelActive
-                    ? `Đang dùng nhãn ${modeLabel}`
-                    : `Chế độ khoanh: ${dropdownLabel}`);
+                modeWrap.classList.toggle(
+                    'enabled',
+                    (modeHighlighted && !labelActive)
+                    || (trackingAutoring && submitRingEnabled)
+                );
+                modeWrap.setAttribute('title', trackingAutoring
+                    ? 'Sheet tracking: autoring nonexist trên bar tracking'
+                    : (labelActive
+                        ? `Đang dùng nhãn ${modeLabel}`
+                        : `Chế độ khoanh: ${dropdownLabel}`));
             }
             if (customWrap) {
-                customWrap.classList.toggle('hidden', dropdownMode !== 'custom' || labelActive);
+                customWrap.classList.toggle('hidden', dropdownMode !== 'custom' || labelActive || trackingAutoring);
             }
             if (customInput) {
                 customInput.value = String(submitRingCustomX);
@@ -5161,14 +5491,14 @@
                 customInc.disabled = xControlsDisabled;
             }
             if (labelWrap) {
-                labelWrap.classList.toggle('disabled', !submitRingEnabled);
+                labelWrap.classList.toggle('disabled', !submitRingEnabled || trackingAutoring);
             }
             if (labelConnBtn) {
-                labelConnBtn.disabled = !submitRingEnabled;
+                labelConnBtn.disabled = !submitRingEnabled || trackingAutoring;
                 labelConnBtn.setAttribute('aria-pressed', submitRingLabelConn ? 'true' : 'false');
             }
             if (labelIxBtn) {
-                labelIxBtn.disabled = !submitRingEnabled;
+                labelIxBtn.disabled = !submitRingEnabled || trackingAutoring;
                 labelIxBtn.setAttribute('aria-pressed', submitRingLabelIx ? 'true' : 'false');
             }
         }
@@ -5548,7 +5878,7 @@
             if (!sheetManager) {
                 return NaN;
             }
-            const row = (sheetManager.dataRows || [])[rowIndex];
+            const row = getFilterSourceSheetRows()[rowIndex];
             if (!row) {
                 return NaN;
             }
@@ -6043,7 +6373,7 @@
             clearTimeout(filterConnectionNoteTagApplyTimer);
             filterConnectionNoteTagApplyTimer = setTimeout(() => {
                 filterConnectionNoteTagApplyTimer = null;
-                if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1'
+                if (periodFilterEnabled && isPeriodFilterContextSheet()
                     && isConnectionFilterMode(periodFilterMode)) {
                     refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
                 } else {
@@ -6072,7 +6402,7 @@
         }
 
         function getFilterConnectionNoteTagCountForTag(tag) {
-            if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
+            if (!isPeriodFilterContextSheet()) {
                 return 0;
             }
             const mode = periodFilterMode;
@@ -6091,7 +6421,7 @@
 
         function rebuildFilterConnectionNoteTagMenuCounts() {
             filterConnectionNoteTagMenuCounts = {};
-            if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
+            if (!isPeriodFilterContextSheet()) {
                 return;
             }
             if (!isConnectionFilterMode(periodFilterMode)) {
@@ -6293,7 +6623,7 @@
             saveFilterIntersectionFreqSettings();
             invalidateFilterPopupRenderCache();
             syncFilterPopupIntersectionFreqSpinButtons();
-            if (sheetManager && sheetManager.activeSheet === 'sheet1') {
+            if (isPeriodFilterContextSheet()) {
                 refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
             } else {
                 rebuildFilterModeCounts();
@@ -6329,7 +6659,7 @@
             saveFilterIntersectionFreqSettings();
             invalidateFilterPopupRenderCache();
             syncFilterPopupIntersectionFreqSpinButtons();
-            if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1'
+            if (periodFilterEnabled && isPeriodFilterContextSheet()
                 && isIntersectionFilterMode(periodFilterMode)) {
                 refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
             } else {
@@ -6449,7 +6779,7 @@
             highlightFilterPopupIntersectionKindMenu();
             closeFilterPopupIntersectionKindMenu();
             invalidateFilterPopupRenderCache();
-            if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1'
+            if (periodFilterEnabled && isPeriodFilterContextSheet()
                 && isIntersectionFilterMode(periodFilterMode)) {
                 refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
             } else {
@@ -6595,7 +6925,7 @@
             clearTimeout(filterNoteTagApplyTimer);
             filterNoteTagApplyTimer = setTimeout(() => {
                 filterNoteTagApplyTimer = null;
-                if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1') {
+                if (periodFilterEnabled && isPeriodFilterContextSheet()) {
                     if (isNonexistFilterMode(periodFilterMode)) {
                         return;
                     }
@@ -7067,7 +7397,7 @@
         }
 
         function isNonexist005000ObservationUiActive() {
-            return !!(periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1'
+            return !!(periodFilterEnabled && isPeriodFilterContextSheet()
                 && isNonexistFilterMode(periodFilterMode)
                 && filterNonexistGreen005000
                 && filterNonexistNum != null
@@ -7443,7 +7773,7 @@
             if (!sheetManager || typeof idx !== 'number' || idx < 0) {
                 return '—';
             }
-            const row = (sheetManager.dataRows || [])[idx];
+            const row = getFilterSourceSheetRows()[idx];
             if (!row) {
                 return '—';
             }
@@ -7597,7 +7927,7 @@
                     const popupHidden = !dock || dock.classList.contains('hidden');
                     if (popupHidden) {
                         invalidateFilterPopupRenderCache();
-                        if (sheetManager && sheetManager.activeSheet === 'sheet1') {
+                        if (isPeriodFilterContextSheet()) {
                             filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
                             filterPopupIndicesCached = applyFilterHeader2ToIndices(filterPopupIndices).slice();
                         } else {
@@ -8432,7 +8762,7 @@
 
         /** Total kỳ khớp mode khi note tag = All (không áp lọc phụ 1:…10:). */
         function getFilterParentCountForMode(mode) {
-            if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
+            if (!isPeriodFilterContextSheet()) {
                 return 0;
             }
             const normalized = normalizeFilterMode(mode);
@@ -8448,7 +8778,7 @@
         }
 
         function getFilterNoteTagCountForTag(tag) {
-            if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
+            if (!isPeriodFilterContextSheet()) {
                 return 0;
             }
             const mode = periodFilterMode;
@@ -8467,7 +8797,7 @@
 
         function rebuildFilterNoteTagMenuCounts() {
             filterNoteTagMenuCounts = {};
-            if (!sheetManager || sheetManager.activeSheet !== 'sheet1' || !supportsNoteTagFilter(periodFilterMode)) {
+            if (!sheetManager || !isPeriodFilterContextSheet() || !supportsNoteTagFilter(periodFilterMode)) {
                 return;
             }
             const mode = periodFilterMode;
@@ -8875,9 +9205,10 @@
             periodFilterMode = normalizeFilterMode(mode);
             if (isPosnfreqFilterMode(prevMode) && !isPosnfreqFilterMode(periodFilterMode)) {
                 clearPosnfreqMarkersInIframe();
+                setFilterPopupPosnfreqGreenOnly(false, { skipReconcile: true, skipCounts: true });
             }
             if (isConn3FilterMode(prevMode) && !isConn3FilterMode(periodFilterMode)) {
-                filterPopupConn3WindowOnly = false;
+                setFilterPopupConn3WindowOnly(false, { skipReconcile: true, skipCounts: true });
             }
             try {
                 localStorage.setItem(PERIOD_FILTER_MODE_KEY, periodFilterMode);
@@ -8938,7 +9269,7 @@
 
         /** Nonexist UI tweaks only need one mode count, not a full menu recount. */
         function rebuildNonexistFilterModeCountOnly() {
-            if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
+            if (!isPeriodFilterContextSheet()) {
                 return;
             }
             filterModeCounts.nonexist = getFilterParentCountForMode('nonexist');
@@ -9002,7 +9333,7 @@
         function getFilterPopupAnswerConn3Indices() {
             const base = filterPopupIndices.length
                 ? filterPopupIndices.slice()
-                : (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1'
+                : (periodFilterEnabled && isPeriodFilterContextSheet()
                     ? getFilterMatchingIndicesForMode(periodFilterMode)
                     : []);
             return applyFilterHeader2ToIndices(base);
@@ -9043,7 +9374,7 @@
         }
 
         function getFilterPopupDisplayedRowCountForMatchUi() {
-            if (!periodFilterEnabled || !sheetManager || sheetManager.activeSheet !== 'sheet1') {
+            if (!periodFilterEnabled || !isPeriodFilterContextSheet()) {
                 return 0;
             }
             if (filterPopupPosnfreqGreenOnly && isPosnfreqFilterMode(periodFilterMode)) {
@@ -9068,7 +9399,7 @@
             if (filterPopupIndices.length > 0) {
                 return filterPopupIndices.slice();
             }
-            if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1') {
+            if (periodFilterEnabled && isPeriodFilterContextSheet()) {
                 return getFilterMatchingIndicesForMode(periodFilterMode);
             }
             return [];
@@ -9290,7 +9621,7 @@
             const normalized = normalizeFilterMode(mode);
             const label = getFilterModeTitleHint(normalized);
             const filteredTotal = getFilterPopupListTotal(total);
-            const parentTotal = periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1'
+            const parentTotal = periodFilterEnabled && isPeriodFilterContextSheet()
                 ? getFilterParentCountForMode(normalized)
                 : 0;
             const listPos = getFilterPopupListPosition();
@@ -9355,7 +9686,7 @@
                 const foldIndices = filterPopupIndices.length
                     ? filterPopupIndices
                     : getFilterMatchingIndicesForMode(normalized);
-                const foldStats = sheetManager.computePrevPeriodRecallFoldStats(sheetManager.dataRows, foldIndices);
+                const foldStats = sheetManager.computePrevPeriodRecallFoldStats(getFilterSourceSheetRows(), foldIndices);
                 const foldPct = sheetManager.formatPrevPeriodRecallFoldPct(foldStats);
                 if (foldStats.eligible > 0) {
                     title += ` · corner fold ${foldPct} trong mẫu lọc`;
@@ -9673,7 +10004,7 @@
         function setPeriodFilterMatchCountDisplay(mode, isPreview) {
             const normalized = normalizeFilterMode(mode);
             let filteredTotal = 0;
-            if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1') {
+            if (periodFilterEnabled && isPeriodFilterContextSheet()) {
                 filteredTotal = getFilterPopupDisplayedRowCountForMatchUi();
             }
 
@@ -9687,7 +10018,7 @@
 
         function updateFilterPopupMatchCount() {
             let filteredTotal = 0;
-            if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1') {
+            if (periodFilterEnabled && isPeriodFilterContextSheet()) {
                 filteredTotal = getFilterPopupDisplayedRowCountForMatchUi();
             }
             syncFilterPopupMatchCountUi(periodFilterMode, false, filteredTotal);
@@ -10059,9 +10390,6 @@
         }
 
         function openFilterPopup() {
-            if (isSpecialTrackingActive()) {
-                return;
-            }
             const dock = el('filterPopupDock');
             if (!dock) {
                 return;
@@ -10086,9 +10414,6 @@
         }
 
         function setPeriodFilterEnabled(enabled, options = {}) {
-            if (enabled && isSpecialTrackingActive()) {
-                return;
-            }
             periodFilterEnabled = !!enabled;
 
             if (options.persist !== false) {
@@ -10190,22 +10515,34 @@
             if (options.previewOnly) {
                 return previewMainTableNavToRowIndex(idx);
             }
-            const rows = sheetManager.dataRows || [];
+            const rows = getFilterSourceSheetRows();
             const row = rows[idx];
             if (!row) {
                 return;
             }
             const isEmpty = sheetManager.isEmptyResultRow(row);
+            const ctxSheet = sheetManager.activeSheet;
+            const useSheet1Focus = ctxSheet === 'sheet1' || ctxSheet === 'tracking';
             sheetManager.onRowClick(idx, isEmpty, null, {
                 skipSave: true,
                 fromFilterNav: true,
-                light: options.full !== true
+                light: options.full !== true,
+                asSheet1: useSheet1Focus,
+                skipCenter: ctxSheet !== 'sheet1'
             });
         }
 
         function previewMainTableNavToRowIndex(idx) {
             if (!sheetManager || typeof idx !== 'number' || idx < 0) {
                 return false;
+            }
+            if (sheetManager.activeSheet === 'tracking') {
+                try {
+                    sheetManager.syncSpecialTrackingTimelineFromSheet1Row(idx);
+                } catch (eTrackPreview) {
+                    /* ignore */
+                }
+                return true;
             }
             const tableWrap = el('tableWrap');
             if (!tableWrap) {
@@ -10339,12 +10676,47 @@
             rightPaneNavCoalesce.mode = null;
             rightPaneNavCoalesce.needsCommit = false;
             if (!needsCommit || !mode) {
+                flushTrackingSetLinesCoalesce();
                 return false;
             }
             if (mode === 'filter') {
-                return commitFilterPopupNav();
+                const ok = commitFilterPopupNav();
+                flushTrackingSetLinesCoalesce();
+                return ok;
             }
-            return commitMainTableNav();
+            const ok = commitMainTableNav();
+            flushTrackingSetLinesCoalesce();
+            return ok;
+        }
+
+        let trackingSetLinesRaf = 0;
+        let trackingSetLinesPayload = null;
+
+        function flushTrackingSetLinesCoalesce() {
+            if (trackingSetLinesRaf) {
+                cancelAnimationFrame(trackingSetLinesRaf);
+                trackingSetLinesRaf = 0;
+            }
+            const payload = trackingSetLinesPayload;
+            trackingSetLinesPayload = null;
+            if (!payload) {
+                return;
+            }
+            const frame = el('okFrame');
+            if (frame && frame.contentWindow) {
+                frame.contentWindow.postMessage(payload, '*');
+            }
+        }
+
+        function scheduleTrackingSetLinesPost(payload) {
+            trackingSetLinesPayload = payload;
+            if (trackingSetLinesRaf) {
+                return;
+            }
+            trackingSetLinesRaf = requestAnimationFrame(() => {
+                trackingSetLinesRaf = 0;
+                flushTrackingSetLinesCoalesce();
+            });
         }
 
         function previewMainTableNavStep(step) {
@@ -10543,7 +10915,7 @@
         }
 
         function getFilterPopupRenderCacheKey() {
-            if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
+            if (!isPeriodFilterContextSheet()) {
                 return '';
             }
             const rowLen = (sheetManager.sourceRows || []).length;
@@ -10691,7 +11063,7 @@
             const indices = displayIdx.length
                 ? displayIdx
                 : [...wrap.querySelectorAll('tbody tr[data-idx]')].map(tr => Number(tr.dataset.idx));
-            sheetManager.applyPrevPeriodRecallFoldTooltips(wrap, sheetManager.dataRows, indices);
+            sheetManager.applyPrevPeriodRecallFoldTooltips(wrap, getFilterSourceSheetRows(), indices);
         }
 
         function applyFilterPopupFastOpen(wrap, options = {}) {
@@ -10782,7 +11154,7 @@
                 const wasGreenOnly = filterPopupPosnfreqGreenOnly;
                 filterPopupPosnfreqGreenOnly = false;
                 const w = el('filterTableWrap');
-                if (w && wasGreenOnly) {
+                if (w) {
                     w.classList.remove('filter-popup-posnfreq-green-only');
                 }
                 applyFilterPopupNonexist005000RowBorders(wrap);
@@ -10870,7 +11242,7 @@
                 const wasGreenOnly = filterPopupConn3WindowOnly;
                 filterPopupConn3WindowOnly = false;
                 const w = el('filterTableWrap');
-                if (w && wasGreenOnly) {
+                if (w) {
                     w.classList.remove('filter-popup-posnfreq-green-only');
                 }
                 if (pctEl) {
@@ -10941,7 +11313,7 @@
             const displayIndices = getFilterPopupTableIndices();
 
             wrap.style.setProperty('--right-table-zoom', String(rightPaneZoom));
-            sheetManager.renderSourceSheet(wrap, sheetManager.dataRows, {
+            sheetManager.renderSourceSheet(wrap, getFilterSourceSheetRows(), {
                 indices: displayIndices,
                 bindKeyboard: false,
                 applyWindowSelection: false,
@@ -10966,7 +11338,7 @@
                 return;
             }
 
-            if (sheetManager.activeSheet !== 'sheet1') {
+            if (!isPeriodFilterContextSheet()) {
                 filterPopupIndices = [];
                 filterPopupActiveIdx = -1;
                 filterPopupPosnfreqGreenOnly = false;
@@ -11020,7 +11392,7 @@
         }
 
         function prebuildFilterPopupCache() {
-            if (!periodFilterEnabled || !sheetManager || sheetManager.activeSheet !== 'sheet1') {
+            if (!periodFilterEnabled || !isPeriodFilterContextSheet()) {
                 return;
             }
             const wrap = el('filterTableWrap');
@@ -11042,22 +11414,6 @@
 
             if (!periodFilterEnabled) {
                 closeFilterPopup();
-                syncPeriodFilterNavModeToIframe();
-                return;
-            }
-
-            if (isSpecialTrackingActive()) {
-                closeFilterPopup();
-                closePeriodFilterModeMenu();
-                try {
-                    closeFilterPopupNoteTagMenu();
-                } catch (e) { }
-                try {
-                    closeFilterPopupConnectionNoteTagMenu();
-                } catch (e) { }
-                try {
-                    closeFilterPopupNonexistColorMenu();
-                } catch (e) { }
                 syncPeriodFilterNavModeToIframe();
                 return;
             }
@@ -11709,7 +12065,7 @@
                     return;
                 }
                 const ap = ensureAnswerPopup();
-                if (sheetManager.activeSheet !== 'sheet1') {
+                if (!isPeriodFilterContextSheet()) {
                     if (!ap.isOpen()) {
                         return;
                     }
@@ -11961,9 +12317,8 @@
 
             // Listen for sheet changes
             window.addEventListener('sheetChanged', (e) => {
-                if (e && e.detail && e.detail.sheet === 'specialtracking') {
-                    closePopupsBlockedOnSpecialTracking();
-                }
+                syncSubmitRingToolbarUi();
+                sendSubmitRingConfigToIframe();
                 const finishSheetChanged = () => {
                     renderTable();
                     renderSheetTabs();
@@ -11976,9 +12331,9 @@
                 } else {
                     finishSheetChanged();
                 }
-                if (periodFilterEnabled && sheetManager && sheetManager.activeSheet === 'sheet1') {
+                if (periodFilterEnabled && isPeriodFilterContextSheet()) {
                     requestAnimationFrame(() => {
-                        if (sheetManager && sheetManager.activeSheet === 'sheet1') {
+                        if (isPeriodFilterContextSheet()) {
                             refreshFilterPopup({ syncMain: false, immediateRender: true });
                         }
                     });
@@ -12034,13 +12389,15 @@
                 flushRightPaneNavCoalesce();
                 const detail = e.detail || {};
                 const fromFilterNav = !!detail.fromFilterNav;
+                const fromTrackingSync = !!detail.fromTrackingSync;
                 if (!fromFilterNav) {
                     rememberKeyboardFocusTarget('main');
                 }
                 if (periodFilterEnabled && !fromFilterNav && typeof detail.focusRowIndex === 'number') {
                     syncFilterPopupFocusFromMainRow(detail.focusRowIndex);
                 }
-                if (typeof detail.focusRowIndex === 'number' && detail.sheetName === 'sheet1') {
+                if (typeof detail.focusRowIndex === 'number'
+                    && (detail.sheetName === 'sheet1' || sheetManager?.activeSheet === 'tracking')) {
                     ensureAnswerPopup().onFocusRowChanged(detail.focusRowIndex);
                 }
                 selectedLines = detail.selectedLines || [];
@@ -12054,25 +12411,18 @@
 
                 // Send selected lines to iframe for updating submit state
                 const frame = el('okFrame');
-                let referenceHint = '';
-                let referenceHintPicks = [];
                 let referenceConn3HeaderLines = [];
                 let referenceConn3Triplets = [];
                 let referenceConn3FooterLine = '';
                 if (
-                    detail.sheetName === 'sheet1'
+                    (detail.sheetName === 'sheet1' || sheetManager?.activeSheet === 'tracking')
                     && sheetManager
                     && typeof detail.focusRowIndex === 'number'
                 ) {
                     try {
                         if (typeof sheetManager.getNoteReferenceHintMeta === 'function') {
                             const meta = sheetManager.getNoteReferenceHintMeta(detail.focusRowIndex);
-                            if (meta && meta.error) {
-                                referenceHint = meta.error;
-                                referenceHintPicks = [];
-                            } else if (meta && meta.text != null) {
-                                referenceHint = meta.text;
-                                referenceHintPicks = Array.isArray(meta.picks) ? meta.picks : [];
+                            if (meta && !meta.error && meta.text != null) {
                                 referenceConn3HeaderLines = Array.isArray(meta.conn3HeaderLines)
                                     ? meta.conn3HeaderLines
                                     : [];
@@ -12081,12 +12431,11 @@
                                     : [];
                                 referenceConn3FooterLine = meta.conn3FooterLine || '';
                             }
-                        } else if (typeof sheetManager.getNoteReferenceHintForRowIndex === 'function') {
-                            referenceHint = sheetManager.getNoteReferenceHintForRowIndex(detail.focusRowIndex);
                         }
                     } catch (errRef) {
-                        referenceHint = '';
-                        referenceHintPicks = [];
+                        referenceConn3HeaderLines = [];
+                        referenceConn3Triplets = [];
+                        referenceConn3FooterLine = '';
                     }
                 }
                 if (frame && frame.contentWindow && selectedLines.length > 0) {
@@ -12103,30 +12452,35 @@
                         return line;
                     });
                     const isFocusEmpty = selectedLines.length > 0 && !(String(selectedLines[selectedLines.length - 1].result || '').trim());
-                    frame.contentWindow.postMessage({
+                    const setLinesPayload = {
                         type: 'setLines',
                         lines: lines,
                         contextPrefixCount: detail.contextPrefixCount || 0,
                         disableSubmit: isFocusEmpty,
                         submitActive: iframeSubmitActive,
-                        preserveSelection: fromFilterNav,
+                        preserveSelection: fromFilterNav || fromTrackingSync,
                         focusRowId: String(detail.clickedRowId || '').trim(),
                         focusRowIndex: detail.focusRowIndex,
                         focusNonexistHighlights: detail.focusNonexistHighlights || {},
-                        submitAutoCircleEnabled: submitRingEnabled,
+                        submitAutoCircleEnabled: isTrackingAutoringContext() ? false : submitRingEnabled,
                         submitAutoCircleMode: getEffectiveSubmitRingMode(),
                         submitAutoCircleCustomX: clampRingCustomX(submitRingCustomX),
-                        referenceHint: referenceHint || '',
-                        referenceHintPicks: referenceHintPicks,
                         referenceConn3HeaderLines: referenceConn3HeaderLines,
                         referenceConn3Triplets: referenceConn3Triplets,
                         referenceConn3FooterLine: referenceConn3FooterLine
-                    }, '*');
+                    };
+                    if (fromTrackingSync) {
+                        scheduleTrackingSetLinesPost(setLinesPayload);
+                    } else {
+                        frame.contentWindow.postMessage(setLinesPayload, '*');
+                    }
                 }
                 if (sheetManager && sheetManager.activeSheet === 'combo_1') {
                     scheduleComboH1ReplaceFromLeftCircled();
                 }
-                if (periodFilterEnabled && isPosnfreqFilterMode(periodFilterMode) && detail.sheetName === 'sheet1' && typeof detail.focusRowIndex === 'number') {
+                if (periodFilterEnabled && isPosnfreqFilterMode(periodFilterMode)
+                    && (detail.sheetName === 'sheet1' || sheetManager?.activeSheet === 'tracking')
+                    && typeof detail.focusRowIndex === 'number') {
                     onPosnfreqMainFocusRowChanged(detail.focusRowIndex);
                 }
             });
@@ -12164,7 +12518,7 @@
                     if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
                         return;
                     }
-                    if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
+                    if (!isPeriodFilterContextSheet()) {
                         return;
                     }
                     const ap = ensureAnswerPopup();
@@ -12246,6 +12600,12 @@
                 if (msg.type === 'submitStateChanged') {
                     const prevSubmitActive = iframeSubmitActive;
                     iframeSubmitActive = !!msg.submitActive;
+                    if (sheetManager && typeof sheetManager.setLeftSubmitActive === 'function') {
+                        sheetManager.setLeftSubmitActive(!!msg.submitActive);
+                    }
+                    window.dispatchEvent(new CustomEvent('leftSubmitStateChanged', {
+                        detail: { active: !!msg.submitActive }
+                    }));
                     syncSubmitRingToolbarUi();
                     if (msg.submitActive && !prevSubmitActive && answerPopup
                         && typeof answerPopup.prepareForSubmitOnFromParent === 'function') {
