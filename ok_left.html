@@ -570,6 +570,21 @@
             color: #5a705a;
         }
 
+        .reference-hint-pick-hint {
+            font-weight: 700;
+            font-size: 13px;
+            line-height: 1.35;
+            color: #0a4a0a;
+            padding: 0 0 4px;
+            margin: 0 0 4px;
+            border-bottom: 1px dashed #7cad7c;
+            min-height: 1.1em;
+        }
+
+        .reference-hint-pick-hint[hidden] {
+            display: none !important;
+        }
+
         .left-container > .controls {
             flex-shrink: 0;
         }
@@ -628,6 +643,12 @@
             border: 1.5px solid #7c3aed;
             background: linear-gradient(180deg, #ede9fe, #ddd6fe);
             color: #3b0764;
+        }
+
+        .pick-badge--conn3.pick-badge--visible {
+            border: 1.5px solid #2563eb;
+            background: linear-gradient(180deg, #dbeafe, #bfdbfe);
+            color: #1e3a8a;
         }
 
         /* Left compact sizing (match ok.py) */
@@ -701,19 +722,21 @@
             min-width: 0;
             margin-left: 0;
             --chuoi-pair-tracked-frame: rgba(0, 150, 55, 0.9);
-            /* Viền ô index cặp kề: đậm hơn neon ô submit (--neon-color), tách khỏi glow sáng */
-            --chuoi-pair-trk-adj-freq-frame: rgb(0, 104, 42);
+            /* Viền ô index cặp kề: tím rất đậm — luôn đậm hơn nền vành */
+            --chuoi-pair-trk-adj-freq-frame: rgb(49, 10, 98);
             /* Viền kép chân index: viền ngoài mỏng hơn viền trong; chéo theo gap + viền ngoài */
             --chuoi-adj-dbl-border-outer: 1px;
             --chuoi-adj-dbl-border-inner: 1.5px;
             --chuoi-adj-dbl-line: 1.2px;
             --chuoi-adj-dbl-gap: 4px;
             --chuoi-adj-diag-l: calc((var(--chuoi-adj-dbl-gap) + var(--chuoi-adj-dbl-border-outer)) * 1.41421356);
+            --chuoi-adj-ring-fill: rgba(158, 132, 238, 0.96);
+            --chuoi-adj-inner-fill: #ffffff;
         }
 
         @supports (color: color-mix(in srgb, red, blue)) {
             #right {
-                --chuoi-pair-trk-adj-freq-frame: color-mix(in srgb, var(--neon-color) 32%, rgb(0, 70, 28) 68%);
+                --chuoi-pair-trk-adj-freq-frame: color-mix(in srgb, var(--neon-color) 6%, rgb(49, 10, 98) 94%);
             }
         }
 
@@ -768,21 +791,20 @@
         }
 
         /*
-         * Viền kép + chéo: viền = màu viền main chuỗi; khe giữa hai viền = nền xanh mint cùng tông;
-         * bốn đoạn chéo nối góc viền ngoài ↔ góc viền trong (::before), độ dài theo gap+border.
+         * Viền kép + chéo: nền lavender ở vành (padding-box), trắng ở vùng chữ (content-box);
+         * ::before chỉ vẽ viền trong — không che số index.
          */
         #right tr.chuoi-pattern-row .cell.index.chuoi-pair-trk-adj-freq {
             position: relative;
             z-index: 2;
             box-sizing: border-box;
-            color: #111111;
+            padding: var(--chuoi-adj-dbl-gap);
             border: var(--chuoi-adj-dbl-border-outer) solid var(--chuoi-pair-trk-adj-freq-frame);
-            background: linear-gradient(165deg,
-                    rgba(232, 248, 238, 0.96) 0%,
-                    rgba(210, 236, 220, 0.94) 45%,
-                    rgba(190, 226, 205, 0.92) 100%);
+            background:
+                linear-gradient(var(--chuoi-adj-inner-fill), var(--chuoi-adj-inner-fill)) content-box,
+                var(--chuoi-adj-ring-fill) padding-box;
+            background-clip: content-box, padding-box;
             border-radius: 1px;
-            text-shadow: 0 1px 0 rgba(255, 255, 255, 0.82);
             box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
         }
 
@@ -794,7 +816,17 @@
             box-sizing: border-box;
             pointer-events: none;
             z-index: 0;
-            background: rgba(255, 255, 255, 0.22);
+            background: transparent;
+        }
+
+        #right tr.chuoi-pattern-row .cell.index.chuoi-pair-trk-adj-freq.note-highlight {
+            color: #0097a7;
+            font-weight: bold;
+        }
+
+        #right tr.chuoi-pattern-row .cell.index.chuoi-pair-trk-adj-freq.nonexist-intersect {
+            color: #e6b800;
+            font-weight: bold;
         }
 
         #right tr.chuoi-pattern-row .cell.index.chuoi-pair-trk-adj-freq .chuoi-adj-line {
@@ -1586,6 +1618,8 @@
                                 aria-live="polite" aria-label="Tính chất pick" style="display:none">
                                 <span id="pickBadgeConnection" class="pick-badge pick-badge--conn"
                                     title="Connection: một số nằm trong ≥2 cặp (theo 10 chuỗi + tập khoanh)">C</span>
+                                <span id="pickBadgeConn3" class="pick-badge pick-badge--conn3"
+                                    title="3-connection: bộ 3 số trong đáp án, 3 cặp trên 3 chuỗi khác nhau, freq mỗi số ≥2">3C</span>
                                 <span id="pickBadgeIntersection" class="pick-badge pick-badge--ix"
                                     title="Intersection (intersect): cặp a,b trong tập khoanh, freq≥2, cùng chuỗi M, tách miền trên/dưới M">∩</span>
                             </span>
@@ -1809,6 +1843,59 @@
             try { refreshLeftPickSelectionUi(); } catch (eU) { /* ignore */ }
         }
 
+        let referenceConn3TripletsCache = [];
+        let referenceConn3PanelActive = false;
+
+        function computeConn3PickHintNumbers(effective, triplets) {
+            if (!effective || effective.size === 0 || effective.size >= 3 || !triplets || !triplets.length) {
+                return [];
+            }
+            const hints = new Set();
+            for (let ti = 0; ti < triplets.length; ti++) {
+                const sorted = triplets[ti].sorted;
+                if (!Array.isArray(sorted) || sorted.length < 3) {
+                    continue;
+                }
+                let allInTriplet = true;
+                effective.forEach(function (n) {
+                    if (sorted.indexOf(n) === -1) {
+                        allInTriplet = false;
+                    }
+                });
+                if (!allInTriplet) {
+                    continue;
+                }
+                for (let k = 0; k < sorted.length; k++) {
+                    if (!effective.has(sorted[k])) {
+                        hints.add(sorted[k]);
+                    }
+                }
+            }
+            return Array.from(hints).sort(function (a, b) { return a - b; });
+        }
+
+        function syncReferenceConn3PickHintRow() {
+            const row = document.getElementById('referenceConn3PickHintRow');
+            if (!row || !referenceConn3PanelActive) {
+                return;
+            }
+            let effective;
+            try {
+                effective = getEffectiveSelectionForPickBadges();
+            } catch (e0) {
+                effective = new Set();
+            }
+            const nums = computeConn3PickHintNumbers(effective, referenceConn3TripletsCache);
+            if (!nums.length) {
+                row.textContent = '';
+                row.hidden = true;
+                return;
+            }
+            row.textContent = nums.join(', ');
+            row.title = 'Gợi ý số hoàn thành bộ 3-connection với số đang khoanh';
+            row.hidden = false;
+        }
+
         function renderReferenceHintPanel(hint) {
             const panel = document.getElementById('referenceHint');
             if (!panel) {
@@ -1818,13 +1905,23 @@
             const headerLines = hint && Array.isArray(hint.headerLines) ? hint.headerLines : [];
             const triplets = hint && Array.isArray(hint.triplets) ? hint.triplets : [];
             const footerLine = hint && hint.footerLine ? String(hint.footerLine) : '';
+            referenceConn3TripletsCache = triplets.slice();
             if (!headerLines.length && !triplets.length && !footerLine) {
+                referenceConn3PanelActive = false;
                 const empty = document.createElement('div');
                 empty.className = 'reference-hint-empty-note';
                 empty.textContent = 'Toàn bộ bộ 3-connection trong cửa sổ 10 chuỗi trước kỳ — hiện khi chọn dòng ở bảng phải…';
                 panel.appendChild(empty);
                 return;
             }
+            referenceConn3PanelActive = true;
+            const pickHintRow = document.createElement('div');
+            pickHintRow.id = 'referenceConn3PickHintRow';
+            pickHintRow.className = 'reference-hint-pick-hint';
+            pickHintRow.setAttribute('role', 'status');
+            pickHintRow.setAttribute('aria-live', 'polite');
+            pickHintRow.hidden = true;
+            panel.appendChild(pickHintRow);
             for (let hi = 0; hi < headerLines.length; hi++) {
                 const lineEl = document.createElement('div');
                 lineEl.className = headerLines[hi].indexOf('Đáp án:') === 0
@@ -1862,6 +1959,7 @@
                 foot.textContent = footerLine;
                 panel.appendChild(foot);
             }
+            syncReferenceConn3PickHintRow();
         }
         let preserveSubmitOnNextProcess = false;
         let preserveSelectionOnNextProcess = false;
@@ -1969,7 +2067,10 @@
                     // Only restore to a history entry whose number is still present in selection/simulated/transient
                     if (selected.has(e.number) || simulatedSelected.has(e.number) || transientSelected.has(e.number)) {
                         lastClickedRegion = e.region || 'left';
-                        syncLeftKeyboardRegion(e.region || 'left');
+                        if (lastClickedRegion === 'pairAction') {
+                            lastClickedRegion = 'pairList';
+                        }
+                        syncLeftKeyboardRegion(lastClickedRegion);
                         lastClickedNumber = e.number;
                         currentPhaseNumber = e.number;
                         currentPhaseRow = (typeof e.row === 'number') ? e.row : null;
@@ -2002,6 +2103,8 @@
 
         /** Mỗi cặp (a,b): tập số mà lần bật pair đó *mới thêm* vào selection (không gồm số đã khoanh trước đó). Toggle tắt pair chỉ gỡ các số trong tập này. */
         let pairContributionByPairKey = new Map();
+        /** Cặp đã bật từ strip tail — chuyển tail khác gỡ tail cũ; không đụng cặp từ strip pair. */
+        let tailAppliedPairKeys = new Set();
 
         function pairContributionKey(a, b) {
             const x = Math.min(a, b);
@@ -2009,8 +2112,25 @@
             return x + ',' + y;
         }
 
+        function resolveTailIndexForApply(a, b, opts) {
+            opts = opts || {};
+            if (typeof opts.tailIndex === 'number' && opts.tailIndex >= 0) {
+                return opts.tailIndex;
+            }
+            if (currentTails && currentTails.length) {
+                for (let i = 0; i < currentTails.length; i++) {
+                    const t = currentTails[i];
+                    if (t && t.a === a && t.b === b) {
+                        return i;
+                    }
+                }
+            }
+            return -1;
+        }
+
         function clearPairContributionTracking() {
             try { pairContributionByPairKey.clear(); } catch (e) { }
+            try { tailAppliedPairKeys.clear(); } catch (e) { }
         }
 
         function removePairContributionForToggleOff(a, b) {
@@ -2027,6 +2147,7 @@
                 });
             }
             pairContributionByPairKey.delete(key);
+            try { tailAppliedPairKeys.delete(key); } catch (e) { }
         }
 
         // Helper: detect pair-mode and extract pair count (e.g., 'pair3' -> 3)
@@ -2088,7 +2209,7 @@
 
         function normalizeSubmitAutoCircleMode(mode) {
             var m = String(mode || '').trim();
-            if (m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'nonexist') {
+            if (m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist') {
                 return m;
             }
             return 'max';
@@ -2351,6 +2472,28 @@
             return [];
         }
 
+        function getTailCircleNumsFromAnswer(ans) {
+            var answerSet = new Set((ans || []).filter(function (n) {
+                return !isNaN(n) && n >= 1 && n <= 35;
+            }));
+            if (answerSet.size < 2) {
+                return [];
+            }
+            var tails = computeTails() || [];
+            for (var i = 0; i < tails.length; i++) {
+                var t = tails[i];
+                if (!t) {
+                    continue;
+                }
+                var a = t.a;
+                var b = t.b;
+                if (answerSet.has(a) && answerSet.has(b)) {
+                    return a < b ? [a, b] : [b, a];
+                }
+            }
+            return [];
+        }
+
         function getSubmitAutoCircleSet() {
             const out = new Set();
             if (!submitAutoCircleEnabled || !raw || !raw.freq) {
@@ -2364,6 +2507,12 @@
             }
             if (mode === 'conn3') {
                 getConn3CircleNumsFromAnswer(getAnswerNumsForAutoring()).forEach(function (n) {
+                    out.add(n);
+                });
+                return out;
+            }
+            if (mode === 'tail') {
+                getTailCircleNumsFromAnswer(getAnswerNumsForAutoring()).forEach(function (n) {
                     out.add(n);
                 });
                 return out;
@@ -2470,6 +2619,7 @@
             try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { /* ignore */ }
             try { notifyParentLeftCircledNums(); } catch (e) { /* ignore */ }
             try { syncPickPropertyBadges(); } catch (eBadges) { /* ignore */ }
+            try { syncReferenceConn3PickHintRow(); } catch (eHint) { /* ignore */ }
         }
 
         function isSubmitAutoringOverlayNum(val) {
@@ -2753,61 +2903,29 @@
             return leftKeyboardRegion === 'pairList' || leftKeyboardRegion === 'tailList';
         }
 
-        function getLeftTable1MaxFreqFirstNumber() {
-            if (!raw || !raw.freq) return null;
-            var maxFreq = -Infinity;
-            for (var i = 1; i <= 35; i++) {
-                var f = parseInt(raw.freq[i], 10) || 0;
-                if (f > maxFreq) maxFreq = f;
+        function bootstrapLeftPairFocus() {
+            if (!raw || submitActive) {
+                return false;
             }
-            if (!isFinite(maxFreq)) return null;
-            var nums = [];
-            for (var i = 1; i <= 35; i++) {
-                if ((parseInt(raw.freq[i], 10) || 0) === maxFreq) nums.push(i);
+            try { updatePairList(); } catch (e) { }
+            if (!currentPairs || !currentPairs.length) {
+                return false;
             }
-            if (!nums.length) return null;
-            nums.sort(function (a, b) { return a - b; });
-            return nums[0];
-        }
-
-        function bootstrapLeftTable1Focus() {
-            var n = getLeftTable1MaxFreqFirstNumber();
-            if (n == null || isNaN(n)) return false;
-            try { if (isBlocked(n)) return false; } catch (e) { return false; }
-
-            lastClickedRegion = 'left';
-            syncLeftKeyboardRegion('left');
-            lastClickedNumber = n;
-            currentPhaseNumber = n;
-            currentPhaseRow = null;
-
-            if (!selected.has(n)) {
-                if (!submitActive && selected.size >= MAX_PICK_NUMBERS) return false;
-                selected.add(n);
+            const p = currentPairs[0];
+            if (!p || !Number.isFinite(p[0]) || !Number.isFinite(p[1])) {
+                return false;
             }
-            if (!submitActive) {
-                if (!pickOrder) pickOrder = [];
-                if (pickOrder.indexOf(n) === -1) {
-                    if (pickOrder.length >= MAX_PICK_NUMBERS) pickOrder.shift();
-                    pickOrder.push(n);
-                }
-            }
-            try { recomputePairsFromSelected(); } catch (e) { }
-            try { updateBlocked(); } catch (e) { }
-
-            try { pushPhaseHistory('left', n, null); } catch (e) { }
             try {
-                if (submitActive) {
-                    applySubmitState();
-                } else {
-                    applySelectionAndBlockedInDOM(n);
-                    updateRenderLightweight();
-                }
-            } catch (e) {
-                try { applySelectionAndBlockedInDOM(n); } catch (ee) { }
+                lastClickedRegion = 'pairList';
+                syncLeftKeyboardRegion('pairList');
+                lastClickedNumber = p[1];
+                currentPhaseNumber = p[1];
+                currentPhaseRow = null;
+                pushPhaseHistory('pairList', p[1], null);
+            } catch (e) { }
+            if (!applyPairByIndex(0, {})) {
+                return false;
             }
-            try { updateFocusIndicator(); } catch (e) { }
-            try { refreshPairTailSelectionState(); } catch (e) { }
             try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
             try {
                 if (window.parent && window.parent !== window) {
@@ -4117,6 +4235,35 @@
         }
 
         /**
+         * Trước khi áp dụng cặp (a,b) từ **strip tail**: gỡ đóng góp của mọi tail *khác* đã track.
+         * — Click chuyển giữa các tail: thay thế, không chồng thêm (giống strip pair).
+         * — Không gỡ cặt từ strip pair (tail và pair độc lập).
+         */
+        function removeOtherTailContributionsBeforeApply(a, b) {
+            if (submitActive) {
+                return;
+            }
+            if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                return;
+            }
+            const selfKey = pairContributionKey(a, b);
+            const keys = Array.from(tailAppliedPairKeys);
+            for (let ki = 0; ki < keys.length; ki++) {
+                const key = keys[ki];
+                if (!key || key === selfKey) {
+                    continue;
+                }
+                const parts = String(key).split(',');
+                const pa = parseInt(parts[0], 10);
+                const pb = parseInt(parts[1], 10);
+                if (!Number.isFinite(pa) || !Number.isFinite(pb)) {
+                    continue;
+                }
+                removePairContributionForToggleOff(pa, pb);
+            }
+        }
+
+        /**
          * Sau Submit OFF map pair rỗng: selection có thể vẫn là {x,y} khớp một cặp trong danh sách
          * nhưng không còn track contribution — applyPair(a,b) mới chỉ tryAdd nên chân cũ không bị gỡ.
          * Khi selected đúng 2 số và trùng một cặp khác (a,b), gỡ mọi đầu của cặp đó không thuộc cặp đang áp.
@@ -4180,7 +4327,17 @@
                 clearedPairNeonObserveNumBackup = null;
                 clearedPairNeonObserveContextBeyondLonePairBackup = null;
             }
-            if (!opts.fromTailList) {
+            if (opts.fromTailList) {
+                const tailIdxEarly = resolveTailIndexForApply(a, b, opts);
+                if (tailIdxEarly >= 0) {
+                    currentTailIndex = tailIdxEarly;
+                }
+            }
+            if (opts.fromTailList) {
+                try {
+                    removeOtherTailContributionsBeforeApply(a, b);
+                } catch (eRemTail) { /* ignore */ }
+            } else {
                 try {
                     removeOtherPairContributionsBeforeApply(a, b);
                 } catch (eRem) { /* ignore */ }
@@ -4254,6 +4411,9 @@
             tryAdd(a);
             tryAdd(b);
             pairContributionByPairKey.set(key, contrib);
+            if (opts.fromTailList) {
+                tailAppliedPairKeys.add(key);
+            }
 
             if (!submitActive && raw && raw.freq && pairNeonObserveNum != null) {
                 try {
@@ -4267,14 +4427,28 @@
             }
             currentPhaseNumber = b;
             currentPhaseRow = null;
-            try { pushPhaseHistory('pairAction', b, null); } catch (e) { }
-            currentPairIndex = -1;
-            if (currentPairs && currentPairs.length) {
-                for (let i = 0; i < currentPairs.length; i++) {
-                    const p = currentPairs[i];
-                    if (p && p[0] === a && p[1] === b) {
-                        currentPairIndex = i;
-                        break;
+            if (opts.fromTailList) {
+                lastClickedRegion = 'tailList';
+                syncLeftKeyboardRegion('tailList');
+            } else {
+                lastClickedRegion = 'pairList';
+                syncLeftKeyboardRegion('pairList');
+            }
+            try { pushPhaseHistory(lastClickedRegion, b, null); } catch (e) { }
+            if (opts.fromTailList) {
+                const tailIdx = resolveTailIndexForApply(a, b, opts);
+                if (tailIdx >= 0) {
+                    currentTailIndex = tailIdx;
+                }
+            } else {
+                currentPairIndex = -1;
+                if (currentPairs && currentPairs.length) {
+                    for (let i = 0; i < currentPairs.length; i++) {
+                        const p = currentPairs[i];
+                        if (p && p[0] === a && p[1] === b) {
+                            currentPairIndex = i;
+                            break;
+                        }
                     }
                 }
             }
@@ -4395,16 +4569,34 @@
         }
 
         function applyTailByIndex(idx, opts) {
-            if (!currentTails || idx < 0 || idx >= currentTails.length) return;
+            opts = opts || {};
+            if (!currentTails || idx < 0 || idx >= currentTails.length) {
+                return false;
+            }
             const t = currentTails[idx];
-            if (!t) return;
-            if (!applyPair(t.a, t.b, Object.assign({}, opts || {}, { fromTailList: true }))) {
-                return;
+            if (!t) {
+                return false;
+            }
+            if (!applyPair(t.a, t.b, Object.assign({}, opts, { fromTailList: true, tailIndex: idx }))) {
+                return false;
             }
             currentTailIndex = idx;
-            if (!(opts && opts.skipFocus)) {
-                setTimeout(() => { const btn = document.querySelector('.tail-btn[data-tail-idx="' + idx + '"]'); if (btn) btn.focus(); }, 40);
+            if (!opts.skipFocus) {
+                setTimeout(() => {
+                    const btn = document.querySelector('.tail-btn[data-tail-idx="' + idx + '"]')
+                        || document.querySelector('#tailList .pair-btn[data-tail-idx="' + idx + '"]');
+                    if (btn) {
+                        btn.focus();
+                    }
+                    try {
+                        requestAnimationFrame(() => {
+                            updateFocusIndicator();
+                            requestAnimationFrame(() => { updateFocusIndicator(); });
+                        });
+                    } catch (e) { }
+                }, 40);
             }
+            return true;
         }
 
         /**
@@ -4455,11 +4647,14 @@
             if (selected.has(a) && selected.has(b)) {
                 removePairContributionForToggleOff(a, b);
                 currentTailIndex = -1;
-            } else if (!applyPair(a, b, { fromTailList: true })) {
+            } else if (!applyTailByIndex(idx, {})) {
                 return false;
-            } else {
-                currentTailIndex = idx;
             }
+            try {
+                lastClickedRegion = 'tailList';
+                syncLeftKeyboardRegion('tailList');
+                updateFocusIndicator();
+            } catch (eFocus) { }
             try {
                 target.focus();
             } catch (e2) { }
@@ -4679,29 +4874,73 @@
             return false;
         }
 
+        /** 3-connection: có bộ 3 số trong tập khoanh thỏa 3 cặp trên 3 chuỗi khác nhau (freq ≥2). */
+        function pickSubmitSatisfiesConn3() {
+            const eff = getEffectiveSelectionForPickBadges();
+            if (!eff || eff.size < 3) {
+                return false;
+            }
+            const answerNums = [];
+            eff.forEach(function (n) {
+                answerNums.push(n);
+            });
+            const lines = getPickChainLinesForAutoring();
+            if (lines.length < 3) {
+                return false;
+            }
+            const freq = new Array(36).fill(0);
+            for (let li = 0; li < lines.length; li++) {
+                const nums = lines[li].nums;
+                for (let k = 0; k < nums.length; k++) {
+                    const n = nums[k];
+                    if (n >= 1 && n <= 35) {
+                        freq[n]++;
+                    }
+                }
+            }
+            const len = answerNums.length;
+            for (let i = 0; i < len; i++) {
+                for (let j = i + 1; j < len; j++) {
+                    for (let k = j + 1; k < len; k++) {
+                        if (tripletSatisfiesConn3(lines, answerNums[i], answerNums[j], answerNums[k], freq)) {
+                            return true;
+                        }
+                    }
+                }
+            }
+            return false;
+        }
+
         function syncPickPropertyBadges() {
             const row = document.getElementById('pickPropertyBadgesRow');
             const bConn = document.getElementById('pickBadgeConnection');
+            const bConn3 = document.getElementById('pickBadgeConn3');
             const bIx = document.getElementById('pickBadgeIntersection');
-            if (!row || !bConn || !bIx) {
+            if (!row || !bConn || !bConn3 || !bIx) {
                 return;
             }
             bConn.classList.remove('pick-badge--visible');
+            bConn3.classList.remove('pick-badge--visible');
             bIx.classList.remove('pick-badge--visible');
             if (!hasLeftPaneRecordForPairNeon()) {
                 row.style.display = 'none';
                 return;
             }
             const pairs = computeChainPairsFromEffectiveSelection();
-            const conn = pickPairsSatisfyConnection(pairs);
-            const ix = pickSubmitSatisfiesIntersect();
-            if (conn) {
-                bConn.classList.add('pick-badge--visible');
+            const conn3 = pickSubmitSatisfiesConn3();
+            const conn = !conn3 && pickPairsSatisfyConnection(pairs);
+            const ix = !conn3 && pickSubmitSatisfiesIntersect();
+            if (conn3) {
+                bConn3.classList.add('pick-badge--visible');
+            } else {
+                if (conn) {
+                    bConn.classList.add('pick-badge--visible');
+                }
+                if (ix) {
+                    bIx.classList.add('pick-badge--visible');
+                }
             }
-            if (ix) {
-                bIx.classList.add('pick-badge--visible');
-            }
-            row.style.display = conn || ix ? 'inline-flex' : 'none';
+            row.style.display = conn3 || conn || ix ? 'inline-flex' : 'none';
         }
 
         function notePairNeonObserveContextFromEffectiveSize() {
@@ -5243,6 +5482,11 @@
                     } else {
                         applyPairByIndex(idx);
                     }
+                    try {
+                        lastClickedRegion = 'pairList';
+                        syncLeftKeyboardRegion('pairList');
+                        updateFocusIndicator();
+                    } catch (eFocus) { }
                 });
             });
             updatePairButtonsSelection(effective);
@@ -5563,9 +5807,14 @@
                             if (selected.has(a) && selected.has(b)) {
                                 removePairContributionForToggleOff(a, b);
                                 currentTailIndex = -1;
-                            } else if (applyPair(a, b, { fromTailList: true })) {
-                                currentTailIndex = idx;
+                            } else {
+                                applyTailByIndex(idx, {});
                             }
+                            try {
+                                lastClickedRegion = 'tailList';
+                                syncLeftKeyboardRegion('tailList');
+                                updateFocusIndicator();
+                            } catch (eFocus) { }
                         });
                     });
 
@@ -5909,13 +6158,9 @@
                 // If submit is active and the row contains >=2 answer numbers, elevate the base color
                 let effectiveRefExp = refExp;
                 if (submitActive && rowHasTwoOrMoreAnswers) {
-                    // promote by one level to make the base color stronger; cap at 4
-                    effectiveRefExp = Math.min(4, Math.max(effectiveRefExp, 0) + 1);
+                    effectiveRefExp = Math.min(CHUOI_REF_COUNT_MAX, Math.max(effectiveRefExp, 0) + 1);
                 }
-                if (effectiveRefExp === 1) labelStyle = 'background-color:#EBFFEB;color:black;font-weight:bold;';
-                else if (effectiveRefExp === 2) labelStyle = 'background-color:#C8FFC8;color:black;font-weight:bold;';
-                else if (effectiveRefExp === 3) labelStyle = 'background-color:#78E678;color:black;font-weight:bold;';
-                else if (effectiveRefExp >= 4) labelStyle = 'background-color:#00B400;color:black;font-weight:bold;';
+                labelStyle = getChuoiRefCountLabelStyle(effectiveRefExp);
                 let chuoiTdClass = clickedChuoi.has(i) ? 'chuoi-toggled-td' : '';
                 // detect neon
                 // A chuỗi should go neon immediately when it contains at least 2 submit numbers.
@@ -5973,6 +6218,13 @@
         }
 
         // Create/update floating copy buttons in the right-half fixed container
+        function clearFloatingCopyBtnSelection() {
+            document.querySelectorAll('.copyBtnFloating.is-selected').forEach(function (el) {
+                el.classList.remove('is-selected');
+                el.setAttribute('aria-pressed', 'false');
+            });
+        }
+
         function bindFloatingCopySelectionDismiss() {
             if (document.documentElement.dataset.floatingCopySelectDismiss === '1') {
                 return;
@@ -5983,15 +6235,19 @@
                 if (t && typeof t.closest === 'function' && t.closest('.copyBtnFloating')) {
                     return;
                 }
-                document.querySelectorAll('.copyBtnFloating.is-selected').forEach(function (el) {
-                    el.classList.remove('is-selected');
-                    el.setAttribute('aria-pressed', 'false');
-                });
+                // Giữ style nhấn 📑 trong lúc bảng checknote còn mở (kể cả khi chọn số chuỗi)
+                if (checknoteTooltipPinned && document.getElementById('checknoteTooltip')) {
+                    return;
+                }
+                clearFloatingCopyBtnSelection();
             }, true);
         }
 
         function updateFloatingCopyButtons() {
             bindFloatingCopySelectionDismiss();
+            var pinnedRow = (checknoteTooltipPinned && document.getElementById('checknoteTooltip'))
+                ? window.__checknote_tooltip_row
+                : null;
             var container = document.getElementById('floatingCopyContainer');
             if (!container) {
                 container = document.createElement('div');
@@ -6025,6 +6281,10 @@
                 btn.setAttribute('aria-label', 'Chuỗi dòng ' + (i + 1));
                 btn.setAttribute('title', 'Chuỗi dòng (📑)');
                 btn.setAttribute('aria-pressed', 'false');
+                if (pinnedRow === i) {
+                    btn.classList.add('is-selected');
+                    btn.setAttribute('aria-pressed', 'true');
+                }
                 // compute top in viewport coordinates (container.top == 0)
                 var top = rect.top + rect.height / 2 - btnH / 2;
                 top = Math.max(4, Math.min(window.innerHeight - btnH - 4, top));
@@ -6587,6 +6847,7 @@
                 checknoteTooltipDocListener = null;
             }
             if (force) checknoteTooltipPinned = false;
+            clearFloatingCopyBtnSelection();
         }
 
         function repositionChecknoteTooltip(anchorEl) {
@@ -7621,7 +7882,7 @@
                 if (submitActive) return;
 
                 if (needsLeftTable1Bootstrap()) {
-                    bootstrapLeftTable1Focus();
+                    bootstrapLeftPairFocus();
                     return;
                 }
 
@@ -8127,6 +8388,24 @@
 
         // Basic constants
         const MAX_NUM = 35;
+        /** Màu nhãn chuỗi theo số lần tham chiếu — đồng bộ 10 bậc với cột id sheet1. */
+        const CHUOI_REF_COUNT_BG_HEX = [
+            '#EBFFEB', '#C8FFC8', '#78E678', '#00B400',
+            '#00A000', '#008C00', '#007300', '#005A00', '#004100', '#002800'
+        ];
+        const CHUOI_REF_COUNT_MAX = CHUOI_REF_COUNT_BG_HEX.length;
+
+        function getChuoiRefCountBgHex(refLevel) {
+            var n = parseInt(refLevel, 10);
+            if (!n || n <= 0) return '';
+            return CHUOI_REF_COUNT_BG_HEX[Math.min(n, CHUOI_REF_COUNT_MAX) - 1] || '';
+        }
+
+        function getChuoiRefCountLabelStyle(refLevel) {
+            var bg = getChuoiRefCountBgHex(refLevel);
+            if (!bg) return '';
+            return 'background-color:' + bg + ';color:black;font-weight:bold;';
+        }
 
         // Helper: compute highlight refs coming from 11th line (same logic as in renderTable2)
         function computeHighlightRefs11(displayLines) {
@@ -8359,13 +8638,11 @@
                         var refExp = highlightRefs[i] || 0;
                         var effectiveRefExp = refExp;
                         if (submitActive && rowAnswerCount >= 2) {
-                            effectiveRefExp = Math.min(4, Math.max(effectiveRefExp, 0) + 1);
+                            effectiveRefExp = Math.min(CHUOI_REF_COUNT_MAX, Math.max(effectiveRefExp, 0) + 1);
                         }
 
-                        if (effectiveRefExp === 1) labelTd.style.setProperty('background-color', '#EBFFEB');
-                        else if (effectiveRefExp === 2) labelTd.style.setProperty('background-color', '#C8FFC8');
-                        else if (effectiveRefExp === 3) labelTd.style.setProperty('background-color', '#78E678');
-                        else if (effectiveRefExp >= 4) labelTd.style.setProperty('background-color', '#00B400');
+                        var refBg = getChuoiRefCountBgHex(effectiveRefExp);
+                        if (refBg) labelTd.style.setProperty('background-color', refBg);
                         else labelTd.style.removeProperty('background-color');
 
                         labelTd.style.setProperty('color', '#000000');
@@ -8464,6 +8741,9 @@
             }
 
             let region = lastClickedRegion || 'left';
+            if (region === 'pairAction') {
+                region = 'pairList';
+            }
             let top = 0, left = 0;
             try {
                 const indH = ind.offsetHeight || 18;
@@ -8480,6 +8760,35 @@
                     const r = tr.getBoundingClientRect();
                     top = window.scrollY + r.top + (r.height - indH) / 2;
                     left = r.left - (indW + 10);
+                } else if (region === 'pairList' || region === 'tailList') {
+                    const listId = region === 'tailList' ? 'tailList' : 'pairList';
+                    const listEl = document.getElementById(listId);
+                    if (!listEl) { ind.style.opacity = 0; return; }
+                    let btn = null;
+                    if (region === 'pairList' && currentPairIndex >= 0) {
+                        btn = listEl.querySelector('.pair-btn[data-idx="' + currentPairIndex + '"]');
+                    } else if (region === 'tailList' && currentTailIndex >= 0) {
+                        btn = listEl.querySelector('.tail-btn[data-tail-idx="' + currentTailIndex + '"]')
+                            || listEl.querySelector('.pair-btn[data-tail-idx="' + currentTailIndex + '"]');
+                    }
+                    if (!btn) {
+                        try {
+                            const activeBtn = document.activeElement && document.activeElement.closest
+                                ? document.activeElement.closest('#' + listId + ' .pair-btn, #' + listId + ' .tail-btn')
+                                : null;
+                            if (activeBtn && listEl.contains(activeBtn)) {
+                                btn = activeBtn;
+                            }
+                        } catch (eActive) { /* ignore */ }
+                    }
+                    if (!btn) {
+                        btn = listEl.querySelector('.pair-btn, .tail-btn');
+                    }
+                    if (!btn) { ind.style.opacity = 0; return; }
+                    const rList = listEl.getBoundingClientRect();
+                    const rPair = btn.getBoundingClientRect();
+                    top = window.scrollY + rPair.top + (rPair.height - indH) / 2;
+                    left = rList.left - (indW + 10);
                 } else {
                     let groups = {};
                     for (let i = 1; i <= 35; i++) { let f = raw.freq[i]; if (!groups[f]) groups[f] = []; groups[f].push(i); }
@@ -8800,9 +9109,11 @@
                         ? msg.focusNonexistHighlights
                         : {};
                     const newFk = normalizeAutoRingFocusKey(focusRowId);
-                    const focusIdChanged = lastAutoRingFocusKey !== newFk;
+                    // Chỉ coi là đổi focus khi cả hai id đều có giá trị và khác nhau (tránh xóa khoanh khi parent thiếu id)
+                    const focusIdChanged = !!(newFk && lastAutoRingFocusKey && newFk !== lastAutoRingFocusKey);
+                    var restoredFromMemory = false;
 
-                    if (lastAutoRingFocusKey && lastAutoRingFocusKey !== newFk) {
+                    if (focusIdChanged) {
                         try { selectionMemoryByFocusId.set(lastAutoRingFocusKey, snapshotSelectionState()); } catch (e) { }
                     }
 
@@ -8826,10 +9137,16 @@
                             preSubmitSelected = null;
                             preSubmitOrder = null;
                         }
+                        if (newFk && selectionMemoryByFocusId.has(newFk)) {
+                            try {
+                                restoreSelectionStateSnapshot(selectionMemoryByFocusId.get(newFk));
+                                restoredFromMemory = true;
+                            } catch (eRestore) { /* ignore */ }
+                        }
                     }
 
                     preserveSubmitOnNextProcess = !!wasSubmitActive;
-                    preserveSelectionOnNextProcess = !!msg.preserveSelection || !focusIdChanged;
+                    preserveSelectionOnNextProcess = !!msg.preserveSelection || !focusIdChanged || restoredFromMemory;
                     try {
                         process();
                     } catch (e) { console.error(e); }
@@ -8864,7 +9181,7 @@
                             try { postSubmitStateChangedToParent(); } catch (e) { }
                         }
                     }
-                    lastAutoRingFocusKey = newFk;
+                    lastAutoRingFocusKey = newFk || lastAutoRingFocusKey;
                     if (submitAutoCircleEnabled) {
                         var focusIdForRing = focusRowId;
                         var runAutoRing = function () {
@@ -8940,10 +9257,22 @@
                     return;
                 } else if (msg.type === 'submitAutoCircleChanged') {
                     const wasEnabled = submitAutoCircleEnabled;
+                    const contextSync = !!msg.contextSync;
+                    const preserveManualPicks = !!msg.preserveManualPicks || contextSync;
                     submitAutoCircleEnabled = !!msg.enabled;
                     submitAutoCircleMode = normalizeSubmitAutoCircleMode(msg.mode);
                     if (msg.customX !== undefined && msg.customX !== null && msg.customX !== '') {
                         submitAutoCircleCustomX = clampSubmitAutoCircleCustomX(msg.customX);
+                    }
+
+                    if (preserveManualPicks) {
+                        try { applySubmitState(); } catch (e) { }
+                        try { applySelectionAndBlockedInDOM(); } catch (e) { }
+                        try { refreshPairTailSelectionState(); } catch (e) { }
+                        try { updateFocusIndicator(); } catch (e) { }
+                        try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
+                        try { notifyParentLeftCircledNums(); } catch (e) { }
+                        return;
                     }
 
                     if (submitAutoCircleEnabled && !wasEnabled && raw) {
@@ -8997,54 +9326,24 @@
                         applyAutoringDomAfterSelection();
                     } else if (!submitAutoCircleEnabled && wasEnabled) {
                         try { autoRingPicked.clear(); } catch (e) { }
-                        try { autoRingVisitedIds.clear(); } catch (e) { }
                         try { markSubmitCircleOverlayCleared(); } catch (eOv) { /* ignore */ }
                         try { syncSubmitPreviewBodyClasses(); } catch (eBody) { /* ignore */ }
-
-                        if (!msg.preserveManualPicks) {
-                            try { selectionMemoryByFocusId.clear(); } catch (e) { }
-                            lastAutoRingFocusKey = '';
-
-                            // Clear all selections
-                            selected.clear();
-                            clearPairContributionTracking();
-                            transientSelected.clear();
-                            simulatedSelected.clear();
-                            pickOrder = [];
-                            pairNeonObserveNum = null;
-                            currentPairIndex = -1;
-                            currentTailIndex = -1;
-                            selectionCleared = false;
-
-                            try {
-                                if (!submitActive && modeSynced && userModeBeforeSubmit !== null) {
-                                    var modeElRestore = document.getElementById('mode');
-                                    if (modeElRestore) {
-                                        modeElRestore.value = userModeBeforeSubmit;
-                                        modeElRestore.classList.remove('synced-mode');
-                                        modeElRestore.disabled = false;
-                                    }
-                                    userModeBeforeSubmit = null;
-                                    modeSynced = false;
+                        try {
+                            if (!submitActive && modeSynced && userModeBeforeSubmit !== null) {
+                                var modeElRestore = document.getElementById('mode');
+                                if (modeElRestore) {
+                                    modeElRestore.value = userModeBeforeSubmit;
+                                    modeElRestore.classList.remove('synced-mode');
+                                    modeElRestore.disabled = false;
                                 }
-                            } catch (e) { }
-
-                            // Update UI
-                            try { recomputePairsFromSelected(); } catch (e) { }
-                            try { updateBlocked(); } catch (e) { }
-                            try { updatePairList(); } catch (e) { }
-                            try { refreshPairTailSelectionState(); } catch (e) { }
-                            try { applySelectionAndBlockedInDOM(); } catch (e) { }
-                            try { alignTableActionsAndCenter(); } catch (e) { }
-                            try { updateFloatingCopyButtons(); } catch (e) { }
-                            try { updateFocusIndicator(); } catch (e) { }
-                            try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
-                        } else {
-                            try { applySelectionAndBlockedInDOM(); } catch (e) { }
-                            try { refreshPairTailSelectionState(); } catch (e) { }
-                            try { updateFocusIndicator(); } catch (e) { }
-                            try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
-                        }
+                                userModeBeforeSubmit = null;
+                                modeSynced = false;
+                            }
+                        } catch (e) { }
+                        try { applySelectionAndBlockedInDOM(); } catch (e) { }
+                        try { refreshPairTailSelectionState(); } catch (e) { }
+                        try { updateFocusIndicator(); } catch (e) { }
+                        try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
                         try { notifyParentLeftCircledNums(); } catch (e) { }
                     }
                     try { applySubmitState(); } catch (e) { }

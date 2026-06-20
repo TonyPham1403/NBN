@@ -597,6 +597,10 @@
             box-sizing: border-box;
         }
 
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-meta {
+            flex: 0 0 var(--st-freq-meta-w, clamp(68px, 15vw, 92px));
+        }
+
         .special-tracking-rank-count {
             flex: 0 0 auto;
             display: flex;
@@ -612,6 +616,8 @@
             pointer-events: none;
             user-select: none;
             background: transparent;
+            position: relative;
+            z-index: 4;
         }
 
         /* #1 #2 #3: cạnh phải ô tần suất, sát mép phải thanh */
@@ -1000,6 +1006,15 @@
         .special-tracking-root--basic {
             --st-basic-meta-w: clamp(40px, 8vw, 52px);
             --st-basic-freq-digit-w: 1.1rem;
+            --st-freq-brace-w: var(--st-basic-meta-w);
+            --st-freq-brace-right: 0;
+        }
+
+        /* Special: bụng sát mép phải, full cột meta (giống basic — không chồng lên bar) */
+        .special-tracking-root:not(.special-tracking-root--basic) {
+            --st-freq-meta-w: clamp(68px, 15vw, 92px);
+            --st-freq-brace-w: var(--st-freq-meta-w);
+            --st-freq-brace-right: 0;
         }
 
         .special-tracking-root--basic .special-tracking-rank-num {
@@ -1051,20 +1066,20 @@
             min-height: 0;
         }
 
-        /* Basic: dấu } bọc cột frequency (≥2 số cùng giá trị), số freq giữ nguyên vị trí */
-        .special-tracking-root--basic .special-tracking-freq-brace-layer {
+        /* Tracking basic + special: dấu } bọc cột frequency (≥2 số cùng giá trị) */
+        .special-tracking-freq-brace-layer {
             position: absolute;
             top: 0;
-            right: 0;
+            right: var(--st-freq-brace-right, 0);
             bottom: 0;
-            width: var(--st-basic-meta-w);
+            width: var(--st-freq-brace-w, clamp(28px, 5vw, 38px));
             z-index: 3;
             pointer-events: none;
             overflow: hidden;
             box-sizing: border-box;
         }
 
-        .special-tracking-root--basic .special-tracking-freq-brace {
+        .special-tracking-freq-brace {
             position: absolute;
             left: 0;
             right: 2px;
@@ -1076,6 +1091,27 @@
                 height 0.45s cubic-bezier(0.22, 1, 0.36, 1);
         }
 
+        .special-tracking-freq-brace-count {
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            z-index: 2;
+            transform: translate(-35%, -50%);
+            font-size: clamp(9px, 1.2vh, 12px);
+            font-weight: 900;
+            font-variant-numeric: tabular-nums;
+            line-height: 1;
+            color: #111;
+            pointer-events: none;
+            user-select: none;
+            text-shadow: 0 0 3px rgba(255, 255, 255, 0.85);
+        }
+
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-freq-brace-count {
+            font-size: clamp(13px, 2.35vh, 20px);
+            transform: translate(-32%, -50%);
+        }
+
         .special-tracking-root--scrubbing .special-tracking-freq-brace {
             transition-duration: 0s;
         }
@@ -1084,7 +1120,7 @@
             transition-duration: 0s;
         }
 
-        .special-tracking-root--basic .special-tracking-freq-brace svg {
+        .special-tracking-freq-brace svg {
             display: block;
             width: 100%;
             height: 100%;
@@ -1687,7 +1723,9 @@
 
         #filterPopupNonexistNumSpin,
         #filterPopupIntersectionFreqXSpin,
-        #filterPopupIntersectionFreqYSpin {
+        #filterPopupIntersectionFreqYSpin,
+        #filterPopupDatebandFreqXSpin,
+        #filterPopupDatebandFreqYSpin {
             display: flex;
             flex-direction: column;
             flex: 0 0 auto;
@@ -1704,7 +1742,9 @@
 
         #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupIntersectionFreqXSpin .filter-popup-nonexist-num-spin-btn,
-        #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn {
+        #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn,
+        #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn,
+        #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn {
             flex: 1 1 50%;
             min-height: 0;
             margin: 0;
@@ -1724,25 +1764,33 @@
 
         #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupIntersectionFreqXSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
-        #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn {
+        #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
+        #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
+        #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn {
             border-top: 1px solid rgba(255, 255, 255, 0.35);
         }
 
         #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupIntersectionFreqXSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
-        #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled) {
+        #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
+        #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
+        #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled) {
             background: #047857 !important;
         }
 
         #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupIntersectionFreqXSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
-        #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled) {
+        #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
+        #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
+        #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled) {
             background: #065f46 !important;
         }
 
         #filterPopupNonexistNumSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupIntersectionFreqXSpin .filter-popup-nonexist-num-spin-btn:disabled,
-        #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn:disabled {
+        #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn:disabled,
+        #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn:disabled,
+        #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn:disabled {
             opacity: 0.45;
             cursor: not-allowed;
         }
@@ -1923,6 +1971,17 @@
         }
 
         .filter-popup-note-tag-picker.hidden {
+            display: none;
+        }
+
+        .filter-popup-dateband-freq {
+            position: relative;
+            height: 100%;
+            flex: 0 0 auto;
+            overflow: visible;
+        }
+
+        .filter-popup-dateband-freq.hidden {
             display: none;
         }
 
@@ -3069,17 +3128,28 @@
             border-top: 4px solid #64748b !important;
         }
 
-        #filterTableWrap td.window-selected,
-        #filterTableWrap td.window-edge-top,
-        #filterTableWrap td.window-edge-bottom,
-        #filterTableWrap td.window-edge-left,
-        #filterTableWrap td.window-edge-right,
-        #filterTableWrap td.window-divider-left,
-        #filterTableWrap td.window-divider-right,
-        #filterTableWrap td.window-focus {
+        #filterTableWrap:not(.filter-popup-all-mode) td.window-selected,
+        #filterTableWrap:not(.filter-popup-all-mode) td.window-edge-top,
+        #filterTableWrap:not(.filter-popup-all-mode) td.window-edge-bottom,
+        #filterTableWrap:not(.filter-popup-all-mode) td.window-edge-left,
+        #filterTableWrap:not(.filter-popup-all-mode) td.window-edge-right,
+        #filterTableWrap:not(.filter-popup-all-mode) td.window-divider-left,
+        #filterTableWrap:not(.filter-popup-all-mode) td.window-divider-right,
+        #filterTableWrap:not(.filter-popup-all-mode) td.window-focus {
             border-color: #e0e0e0 !important;
             border-width: 1px !important;
             box-shadow: none !important;
+        }
+
+        /* ALL: viền đen cửa sổ 10 kỳ — giống #tableWrap (không dùng viền xanh focus hàng) */
+        #filterTableWrap.filter-popup-all-mode tr.filter-popup-row-focus td {
+            box-shadow: none;
+        }
+
+        /* ALL: paint chỉ hàng trong viewport — giảm lag scroll/resize popup */
+        #filterTableWrap.filter-popup-all-mode tbody tr.data-row {
+            content-visibility: auto;
+            contain-intrinsic-size: auto 26px;
         }
 
         #filterTableWrap .win-label-inline {
@@ -3213,6 +3283,12 @@
             border-color: #7c3aed;
             background: #ede9fe;
             color: #3b0764;
+        }
+
+        .row-pick-badge--conn3 {
+            border-color: #2563eb;
+            background: #dbeafe;
+            color: #1e3a8a;
         }
 
         .combo-sheet-wrap {
@@ -3534,6 +3610,50 @@
             padding-right: 28px;
         }
 
+        /* Chuột phải ô id: viền cyan quanh ô note + result của các kỳ tham chiếu id đó (theo cửa sổ trượt 10) */
+        #tableWrap .sheet-data-table td.cell-note.id-ref-contextmenu-highlight,
+        #tableWrap .sheet-data-table td.cell-result.id-ref-contextmenu-highlight,
+        #filterTableWrap .sheet-data-table td.cell-note.id-ref-contextmenu-highlight,
+        #filterTableWrap .sheet-data-table td.cell-result.id-ref-contextmenu-highlight {
+            position: relative;
+            z-index: 2;
+        }
+
+        #tableWrap .sheet-data-table td.cell-note.id-ref-contextmenu-highlight::after,
+        #tableWrap .sheet-data-table td.cell-result.id-ref-contextmenu-highlight::after,
+        #filterTableWrap .sheet-data-table td.cell-note.id-ref-contextmenu-highlight::after,
+        #filterTableWrap .sheet-data-table td.cell-result.id-ref-contextmenu-highlight::after {
+            content: '';
+            position: absolute;
+            inset: 2px;
+            border: 3px solid #00b0f0;
+            pointer-events: none;
+            z-index: 3;
+            box-sizing: border-box;
+        }
+
+        /* Focus hàng: viền đỏ các kỳ trong cửa sổ 10 mà note của id focus tham chiếu tới */
+        #tableWrap .sheet-data-table td.cell-note.id-focus-note-ref-highlight,
+        #tableWrap .sheet-data-table td.cell-result.id-focus-note-ref-highlight,
+        #filterTableWrap .sheet-data-table td.cell-note.id-focus-note-ref-highlight,
+        #filterTableWrap .sheet-data-table td.cell-result.id-focus-note-ref-highlight {
+            position: relative;
+            z-index: 2;
+        }
+
+        #tableWrap .sheet-data-table td.cell-note.id-focus-note-ref-highlight::after,
+        #tableWrap .sheet-data-table td.cell-result.id-focus-note-ref-highlight::after,
+        #filterTableWrap .sheet-data-table td.cell-note.id-focus-note-ref-highlight::after,
+        #filterTableWrap .sheet-data-table td.cell-result.id-focus-note-ref-highlight::after {
+            content: '';
+            position: absolute;
+            inset: 2px;
+            border: 3px solid #dc2626;
+            pointer-events: none;
+            z-index: 3;
+            box-sizing: border-box;
+        }
+
         /* Answer popup + Submit OFF: frost overlay (layout unchanged; note may wrap) */
         .sheet-data-table tr.answer-popup-focus-masked td.cell-result>*,
         .sheet-data-table tr.answer-popup-focus-masked td.cell-note>* {
@@ -3646,49 +3766,84 @@
             flex-direction: column;
         }
 
-        #tableWrap {
+        #tableWrap,
+        #filterTableWrap,
+        #answerTableWrap {
             flex: 1;
             min-width: 0;
             min-height: 0;
             width: 100%;
             overflow: auto;
             margin-top: 0;
-            /* WebKit: margin track (inset đo bằng JS); chỉ width trên ::-webkit-scrollbar dọc */
             --rt-thumb-track-inset-top: 24px;
             --rt-thumb-track-inset-bottom: 24px;
-            /* Ensure the final table row can scroll above the tabs/zoom bar */
-            padding-bottom: 80px;
-            /* help programmatic scrollIntoView honor bottom offset */
-            scroll-padding-bottom: 72px;
             scrollbar-gutter: stable;
-            /* auto: để WebKit dùng width từ ::-webkit-scrollbar; Firefox dùng thanh mặc định (đủ rộng) thay vì thin */
             scrollbar-width: auto;
             scrollbar-color: var(--rt-scrollbar-thumb) var(--rt-scrollbar-track);
         }
 
-        #tableWrap::-webkit-scrollbar {
+        #tableWrap {
+            /* Ensure the final table row can scroll above the tabs/zoom bar */
+            padding-bottom: 80px;
+            /* help programmatic scrollIntoView honor bottom offset */
+            scroll-padding-bottom: 72px;
+        }
+
+        #filterTableWrap {
+            overflow-x: hidden;
+            overflow-y: auto;
+            padding-bottom: 48px;
+            scroll-padding-top: 32px;
+            scroll-padding-bottom: 40px;
+        }
+
+        #answerTableWrap {
+            position: relative;
+            padding-bottom: calc(8px * var(--ap-scale, 1));
+            font-size: 1em;
+            scroll-padding-top: 28px;
+            scroll-padding-bottom: 32px;
+        }
+
+        .answer-table-viewport-wrap {
+            flex: 1;
+            min-height: 0;
+            min-width: 0;
+        }
+
+        #tableWrap::-webkit-scrollbar,
+        #filterTableWrap::-webkit-scrollbar,
+        #answerTableWrap::-webkit-scrollbar {
             width: var(--rt-scrollbar-w, 18px);
         }
 
-        #tableWrap::-webkit-scrollbar-track {
+        #tableWrap::-webkit-scrollbar-track,
+        #filterTableWrap::-webkit-scrollbar-track,
+        #answerTableWrap::-webkit-scrollbar-track {
             background: var(--rt-scrollbar-track);
             margin-top: var(--rt-thumb-track-inset-top);
             margin-bottom: var(--rt-thumb-track-inset-bottom);
         }
 
-        #tableWrap::-webkit-scrollbar-thumb {
+        #tableWrap::-webkit-scrollbar-thumb,
+        #filterTableWrap::-webkit-scrollbar-thumb,
+        #answerTableWrap::-webkit-scrollbar-thumb {
             background: var(--rt-scrollbar-thumb);
             border-radius: 3px;
             border: 1px solid rgba(0, 0, 0, 0.12);
             min-height: var(--rt-scrollbar-thumb-min, 96px);
         }
 
-        #tableWrap::-webkit-scrollbar-thumb:hover {
+        #tableWrap::-webkit-scrollbar-thumb:hover,
+        #filterTableWrap::-webkit-scrollbar-thumb:hover,
+        #answerTableWrap::-webkit-scrollbar-thumb:hover {
             background: var(--rt-scrollbar-thumb-hover);
         }
 
         /* Ẩn nút mũi tên gốc WebKit để xếp: [go-top][▲][thumb][▼][go-bottom] trong cùng cột */
-        #tableWrap::-webkit-scrollbar-button {
+        #tableWrap::-webkit-scrollbar-button,
+        #filterTableWrap::-webkit-scrollbar-button,
+        #answerTableWrap::-webkit-scrollbar-button {
             display: none;
             height: 0;
             width: 0;
@@ -3809,19 +3964,6 @@
 
         .right-table-edge-jump-btn--top:active:not(:disabled) {
             background: linear-gradient(0deg, #e8e8e8, #d8d8d8);
-        }
-
-        #filterTableWrap {
-            flex: 1;
-            min-height: 0;
-            min-width: 0;
-            overflow-x: hidden;
-            overflow-y: auto;
-            margin-top: 0;
-            padding-bottom: 48px;
-            scroll-padding-top: 32px;
-            scroll-padding-bottom: 40px;
-            scrollbar-gutter: stable;
         }
 
         /* Answer popup (E) — shell giống Ctrl filter popup */
@@ -4047,21 +4189,6 @@
 
         .answer-quickpaste-manual-cancel:hover {
             background: #f1f5f9;
-        }
-
-        #answerTableWrap {
-            position: relative;
-            flex: 1;
-            min-height: 0;
-            min-width: 0;
-            width: 100%;
-            overflow: auto;
-            margin-top: 0;
-            padding-bottom: calc(8px * var(--ap-scale, 1));
-            font-size: 1em;
-            scroll-padding-top: 28px;
-            scroll-padding-bottom: 32px;
-            scrollbar-gutter: auto;
         }
 
         #answerTableWrap table,
@@ -4379,15 +4506,16 @@
                             aria-label="Toggle auto circle submit numbers"></button>
                         <div id="submitRingControls" class="submit-ring-controls">
                             <div id="submitRingModeWrap" class="sheet-tools-mode-wrap"
-                                title="Chọn kiểu khoanh: max, min, x, 3-connection">
+                                title="Chọn kiểu khoanh: max, min, x, 3-connection, tail">
                                 <span id="submitRingModeValue" class="sheet-tools-mode-value">MAX</span>
                                 <select id="submitRingModeSelect"
-                                    title="max / min / x (1–35) / 3-connection — tắt khi bật C hoặc ∩"
+                                    title="max / min / x (1–35) / 3-connection / tail — tắt khi bật C hoặc ∩"
                                     aria-label="Submit auto circle mode">
                                     <option value="max">max</option>
                                     <option value="min">min</option>
                                     <option value="custom">x</option>
                                     <option value="conn3">3-connection</option>
+                                    <option value="tail">tail</option>
                                     <option value="nonexist">nonexist</option>
                                 </select>
                             </div>
@@ -4406,7 +4534,7 @@
                                 </div>
                             </div>
                             <div id="submitRingLabelWrap" class="submit-ring-label-wrap"
-                                title="Nhãn pick: C (connection), ∩ (intersection) — loại trừ max/min/x/3-connection">
+                                title="Nhãn pick: C (connection), ∩ (intersection) — loại trừ max/min/x/3-connection/tail">
                                 <button type="button" id="submitRingLabelConnBtn"
                                     class="submit-ring-label-btn submit-ring-label-btn--conn" aria-pressed="false"
                                     title="Khoanh theo Connection (C)">C</button>
@@ -4570,6 +4698,57 @@
                             class="period-filter-mode-menu filter-popup-note-tag-menu hidden" role="listbox"
                             aria-label="Lọc note theo khoảng cách"></ul>
                     </div>
+                    <div id="filterPopupDatebandFreqPicker" class="filter-popup-dateband-freq hidden"
+                        aria-hidden="true">
+                        <div class="filter-popup-intersection-freq" role="group"
+                            title="Cặp cửa sổ 10 khớp đáp án: hai freq khớp ngưỡng x và y (không phân thứ tự). Ngưỡng x,y chỉ từ 2 đến 7."
+                            aria-label="Tần suất dateband: x, toán tử, ngưỡng; y, toán tử, ngưỡng">
+                            <label class="filter-popup-intersection-freq-item">
+                                <span class="filter-popup-intersection-freq-key">x</span>
+                                <select id="filterPopupDatebandOpX" class="filter-popup-intersection-freq-op"
+                                    aria-label="Dấu so sánh freq số a với ngưỡng x">
+                                    <option value=">=">&gt;=</option>
+                                    <option value="=">=</option>
+                                    <option value="<=">&lt;=</option>
+                                </select>
+                                <span id="filterPopupDatebandFreqX"
+                                    class="filter-popup-position-input filter-popup-intersection-freq-num" tabindex="0"
+                                    role="textbox" aria-label="Ngưỡng x (2–7)"
+                                    title="Ngưỡng x 2–7; ▴▾ tăng giảm">2</span>
+                                <div id="filterPopupDatebandFreqXSpin" class="filter-popup-intersection-freq-spin"
+                                    role="group" aria-label="Tăng giảm ngưỡng x (2–7)">
+                                    <button type="button" id="filterPopupDatebandFreqXInc"
+                                        class="filter-popup-nonexist-num-spin-btn" title="Tăng x (tối đa 7)"
+                                        aria-label="Tăng ngưỡng x">▴</button>
+                                    <button type="button" id="filterPopupDatebandFreqXDec"
+                                        class="filter-popup-nonexist-num-spin-btn" title="Giảm x (tối thiểu 2)"
+                                        aria-label="Giảm ngưỡng x">▾</button>
+                                </div>
+                            </label>
+                            <label class="filter-popup-intersection-freq-item">
+                                <span class="filter-popup-intersection-freq-key">y</span>
+                                <select id="filterPopupDatebandOpY" class="filter-popup-intersection-freq-op"
+                                    aria-label="Dấu so sánh freq số b với ngưỡng y">
+                                    <option value=">=">&gt;=</option>
+                                    <option value="=">=</option>
+                                    <option value="<=">&lt;=</option>
+                                </select>
+                                <span id="filterPopupDatebandFreqY"
+                                    class="filter-popup-position-input filter-popup-intersection-freq-num" tabindex="0"
+                                    role="textbox" aria-label="Ngưỡng y (2–7)"
+                                    title="Ngưỡng y 2–7; ▴▾ tăng giảm">2</span>
+                                <div id="filterPopupDatebandFreqYSpin" class="filter-popup-intersection-freq-spin"
+                                    role="group" aria-label="Tăng giảm ngưỡng y (2–7)">
+                                    <button type="button" id="filterPopupDatebandFreqYInc"
+                                        class="filter-popup-nonexist-num-spin-btn" title="Tăng y (tối đa 7)"
+                                        aria-label="Tăng ngưỡng y">▴</button>
+                                    <button type="button" id="filterPopupDatebandFreqYDec"
+                                        class="filter-popup-nonexist-num-spin-btn" title="Giảm y (tối thiểu 2)"
+                                        aria-label="Giảm ngưỡng y">▾</button>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
                     <div id="filterPopupNonexistTools" class="filter-popup-nonexist-tools hidden">
                         <span id="filterPopupNonexistNum" class="filter-popup-position-input filter-popup-nonexist-num"
                             tabindex="0" role="textbox" aria-label="Số nonexist 1-35"
@@ -4693,7 +4872,24 @@
                 </div>
             </div>
             <div class="filter-popup-body">
-                <div id="filterTableWrap" class="right-table-viewport" tabindex="0" aria-label="Bảng lọc kỳ"></div>
+                <div class="right-table-viewport-wrap filter-table-viewport-wrap">
+                    <div id="filterTableWrap" class="right-table-viewport" tabindex="0" aria-label="Bảng lọc kỳ"></div>
+                    <div class="right-table-edge-jumps" role="presentation">
+                        <button type="button" id="filterTableScrollJumpTopBtn"
+                            class="right-table-edge-jump-btn right-table-edge-jump-btn--top"
+                            title="Lên đầu bảng (smooth)" aria-label="Lên đầu bảng">⏮</button>
+                        <button type="button" id="filterTableScrollStepUpBtn"
+                            class="right-table-edge-jump-btn right-table-edge-jump-btn--step" title="Cuộn lên một đoạn"
+                            aria-label="Cuộn lên một đoạn">▲</button>
+                        <div class="right-table-edge-jumps-spacer" aria-hidden="true"></div>
+                        <button type="button" id="filterTableScrollStepDownBtn"
+                            class="right-table-edge-jump-btn right-table-edge-jump-btn--step right-table-edge-jump-btn--step-down"
+                            title="Cuộn xuống một đoạn" aria-label="Cuộn xuống một đoạn">▼</button>
+                        <button type="button" id="filterTableScrollJumpBottomBtn"
+                            class="right-table-edge-jump-btn right-table-edge-jump-btn--bottom right-table-edge-jump-btn--jumpEnd"
+                            title="Xuống cuối bảng (smooth)" aria-label="Xuống cuối bảng">⏮</button>
+                    </div>
+                </div>
             </div>
             <div class="filter-popup-resize-handle filter-popup-resize-n" data-resize="n" aria-hidden="true"></div>
             <div class="filter-popup-resize-handle filter-popup-resize-e" data-resize="e" aria-hidden="true"></div>
@@ -4730,7 +4926,25 @@
                 </div>
             </div>
             <div class="filter-popup-body answer-popup-body">
-                <div id="answerTableWrap" class="right-table-viewport" tabindex="0" aria-label="Phiếu trả lời"></div>
+                <div class="right-table-viewport-wrap answer-table-viewport-wrap">
+                    <div id="answerTableWrap" class="right-table-viewport" tabindex="0" aria-label="Phiếu trả lời">
+                    </div>
+                    <div class="right-table-edge-jumps" role="presentation">
+                        <button type="button" id="answerTableScrollJumpTopBtn"
+                            class="right-table-edge-jump-btn right-table-edge-jump-btn--top"
+                            title="Lên đầu bảng (smooth)" aria-label="Lên đầu bảng">⏮</button>
+                        <button type="button" id="answerTableScrollStepUpBtn"
+                            class="right-table-edge-jump-btn right-table-edge-jump-btn--step" title="Cuộn lên một đoạn"
+                            aria-label="Cuộn lên một đoạn">▲</button>
+                        <div class="right-table-edge-jumps-spacer" aria-hidden="true"></div>
+                        <button type="button" id="answerTableScrollStepDownBtn"
+                            class="right-table-edge-jump-btn right-table-edge-jump-btn--step right-table-edge-jump-btn--step-down"
+                            title="Cuộn xuống một đoạn" aria-label="Cuộn xuống một đoạn">▼</button>
+                        <button type="button" id="answerTableScrollJumpBottomBtn"
+                            class="right-table-edge-jump-btn right-table-edge-jump-btn--bottom right-table-edge-jump-btn--jumpEnd"
+                            title="Xuống cuối bảng (smooth)" aria-label="Xuống cuối bảng">⏮</button>
+                    </div>
+                </div>
                 <div class="answer-popup-add-bar">
                     <button type="button" id="answerPopupAddBtn" class="answer-popup-add-btn"
                         title="Thêm phiếu trả lời">+</button>
@@ -4757,14 +4971,15 @@
         const SUBMIT_RING_ENABLED_KEY = 'submitRingEnabled';
         const SUBMIT_RING_MODE_KEY = 'submitRingMode';
         const SUBMIT_RING_CUSTOM_X_KEY = 'submitRingCustomX';
-        const SUBMIT_RING_VALID_MODES = ['max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'nonexist'];
-        const SUBMIT_RING_FREQ_MODES = ['max', 'min', 'custom', 'conn3', 'nonexist'];
+        const SUBMIT_RING_VALID_MODES = ['max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist'];
+        const SUBMIT_RING_FREQ_MODES = ['max', 'min', 'custom', 'conn3', 'tail', 'nonexist'];
         const SUBMIT_RING_LABEL_CONN_KEY = 'submitRingLabelConn';
         const SUBMIT_RING_LABEL_IX_KEY = 'submitRingLabelIx';
         const PERIOD_FILTER_ENABLED_KEY = 'periodFilterEnabled';
         const PERIOD_FILTER_MODE_KEY = 'periodFilterMode';
         const PERIOD_FILTER_INTERSECTION_KIND_KEY = 'periodFilterIntersectionKind';
         const PERIOD_FILTER_INTERSECTION_FREQ_XY_KEY = 'periodFilterIntersectionFreqXY';
+        const PERIOD_FILTER_DATEBAND_FREQ_XY_KEY = 'periodFilterDatebandFreqXY';
         const FILTER_POPUP_LAYOUT_KEY = 'filterPopupLayout';
         const ANSWER_POPUP_LAYOUT_KEY = 'answerPopupLayout';
         const FILTER_NONEXIST_NUM_KEY = 'filterNonexistNum';
@@ -4810,6 +5025,7 @@
             strikethrough: 'Strikethrough'
         };
         const FILTER_MODE_LABELS = {
+            all: 'ALL',
             modeq: '?',
             pair1: '1 bộ 2',
             pair2: '2 bộ 2',
@@ -4819,6 +5035,7 @@
             triple1: '1 bộ 3',
             quad1: '1 bộ 4',
             dateband: '',
+            tail: 'tail',
             conn3: '3-connection',
             nonexist: 'nonexist',
             connection: 'connection',
@@ -4826,6 +5043,7 @@
             posnfreq: 'posnfreq'
         };
         const DATEBAND_FILTER_MODE = 'dateband';
+        const TAIL_FILTER_MODE = 'tail';
         const VALID_FILTER_MODES = Object.keys(FILTER_MODE_LABELS);
         let sheetManager = null;
         let answerPopup = null;
@@ -4895,6 +5113,12 @@
         let filterIntersectionOpX = '>=';
         let filterIntersectionOpY = '>=';
         let filterIntersectionFreqApplyTimer = null;
+        /** dateband #00b0f0: freq cặp cửa sổ 10 khớp đáp án — ngưỡng x,y không phân thứ tự. */
+        let filterDatebandFreqX = 2;
+        let filterDatebandFreqY = 2;
+        let filterDatebandOpX = '>=';
+        let filterDatebandOpY = '>=';
+        let filterDatebandFreqApplyTimer = null;
 
         function normalizeIntersectionFreqOp(raw) {
             const s = String(raw || '').trim();
@@ -5110,6 +5334,12 @@
                 if (typeof window.__syncRightTableThumbTrackInsets === 'function') {
                     requestAnimationFrame(() => window.__syncRightTableThumbTrackInsets());
                 }
+                if (typeof window.__syncFilterTableThumbTrackInsets === 'function') {
+                    requestAnimationFrame(() => window.__syncFilterTableThumbTrackInsets());
+                }
+                if (typeof window.__syncAnswerTableThumbTrackInsets === 'function') {
+                    requestAnimationFrame(() => window.__syncAnswerTableThumbTrackInsets());
+                }
             } catch (eZ) { /* ignore */ }
         }
 
@@ -5164,26 +5394,27 @@
         }
 
         /**
-         * Cột thanh #tableWrap: [go-top][▲] | thumb | [▼][go-bottom].
-         * WebKit: margin track co vùng thumb (KHÔNG set height trên ::-webkit-scrollbar dọc — 12px làm thumb “mất”).
+         * Cột thanh scroll: [go-top][▲] | thumb | [▼][go-bottom].
+         * Dùng chung cho #tableWrap và #filterTableWrap.
          */
-        function initRightTableScrollEdgeJumps() {
-            const wrap = el('tableWrap');
-            const jumpTop = el('rightTableScrollJumpTopBtn');
-            const stepUp = el('rightTableScrollStepUpBtn');
-            const stepDown = el('rightTableScrollStepDownBtn');
-            const jumpBottom = el('rightTableScrollJumpBottomBtn');
+        function bindTableScrollEdgeJumps(config) {
+            const wrap = el(config.wrapId);
+            const jumpTop = el(config.topBtnId);
+            const stepUp = el(config.stepUpBtnId);
+            const stepDown = el(config.stepDownBtnId);
+            const jumpBottom = el(config.bottomBtnId);
             if (!wrap || !jumpTop || !stepUp || !stepDown || !jumpBottom) {
                 return;
             }
-            if (wrap.dataset.rightScrollEdgeJumpsBound === '1') {
+            const boundKey = config.boundKey || 'scrollEdgeJumpsBound';
+            if (wrap.dataset[boundKey] === '1') {
                 return;
             }
-            wrap.dataset.rightScrollEdgeJumpsBound = '1';
+            wrap.dataset[boundKey] = '1';
 
             const stepPixels = () => Math.max(48, Math.round(wrap.clientHeight * 0.22));
 
-            const rail = wrap && wrap.parentElement
+            const rail = wrap.parentElement
                 ? wrap.parentElement.querySelector('.right-table-edge-jumps')
                 : null;
             const spacer = rail ? rail.querySelector('.right-table-edge-jumps-spacer') : null;
@@ -5197,7 +5428,6 @@
                     const sr = spacer.getBoundingClientRect();
                     let topPx = Math.max(0, Math.round(sr.top - rr.top)) + 2;
                     let botPx = Math.max(0, Math.round(rr.bottom - sr.bottom)) + 2;
-                    /* Tránh đo lệch / viewport thấp làm margin quá lớn → thumb biến mất */
                     const ch = wrap.clientHeight || 0;
                     const maxEach = Math.max(28, Math.floor((ch - 40) / 2));
                     topPx = Math.min(topPx, maxEach);
@@ -5207,7 +5437,9 @@
                 } catch (eIn) { /* ignore */ }
             };
 
-            window.__syncRightTableThumbTrackInsets = syncThumbTrackInsets;
+            if (config.syncGlobalKey) {
+                window[config.syncGlobalKey] = syncThumbTrackInsets;
+            }
 
             const syncBtns = () => {
                 const maxScroll = Math.max(0, wrap.scrollHeight - wrap.clientHeight);
@@ -5269,6 +5501,42 @@
             });
         }
 
+        function initRightTableScrollEdgeJumps() {
+            bindTableScrollEdgeJumps({
+                wrapId: 'tableWrap',
+                topBtnId: 'rightTableScrollJumpTopBtn',
+                stepUpBtnId: 'rightTableScrollStepUpBtn',
+                stepDownBtnId: 'rightTableScrollStepDownBtn',
+                bottomBtnId: 'rightTableScrollJumpBottomBtn',
+                boundKey: 'rightScrollEdgeJumpsBound',
+                syncGlobalKey: '__syncRightTableThumbTrackInsets'
+            });
+        }
+
+        function initFilterTableScrollEdgeJumps() {
+            bindTableScrollEdgeJumps({
+                wrapId: 'filterTableWrap',
+                topBtnId: 'filterTableScrollJumpTopBtn',
+                stepUpBtnId: 'filterTableScrollStepUpBtn',
+                stepDownBtnId: 'filterTableScrollStepDownBtn',
+                bottomBtnId: 'filterTableScrollJumpBottomBtn',
+                boundKey: 'filterScrollEdgeJumpsBound',
+                syncGlobalKey: '__syncFilterTableThumbTrackInsets'
+            });
+        }
+
+        function initAnswerTableScrollEdgeJumps() {
+            bindTableScrollEdgeJumps({
+                wrapId: 'answerTableWrap',
+                topBtnId: 'answerTableScrollJumpTopBtn',
+                stepUpBtnId: 'answerTableScrollStepUpBtn',
+                stepDownBtnId: 'answerTableScrollStepDownBtn',
+                bottomBtnId: 'answerTableScrollJumpBottomBtn',
+                boundKey: 'answerScrollEdgeJumpsBound',
+                syncGlobalKey: '__syncAnswerTableThumbTrackInsets'
+            });
+        }
+
         function normalizeSubmitRingMode(mode) {
             const m = String(mode || '').trim();
             return SUBMIT_RING_VALID_MODES.includes(m) ? m : 'max';
@@ -5316,6 +5584,12 @@
                 submitRingFreqMode = 'conn3';
                 return;
             }
+            if (m === 'tail') {
+                submitRingLabelConn = false;
+                submitRingLabelIx = false;
+                submitRingFreqMode = 'tail';
+                return;
+            }
             if (m === 'conn_ix') {
                 submitRingLabelConn = true;
                 submitRingLabelIx = true;
@@ -5356,6 +5630,9 @@
             if (m === 'conn3') {
                 return '3-connection';
             }
+            if (m === 'tail') {
+                return 'tail';
+            }
             if (m === 'nonexist') {
                 return 'nonexist';
             }
@@ -5387,20 +5664,23 @@
             return m + 1;
         }
 
-        function sendSubmitRingConfigToIframe() {
+        function sendSubmitRingConfigToIframe(options) {
+            options = options || {};
             const frame = el('okFrame');
             if (!frame || !frame.contentWindow) {
                 return;
             }
             syncSubmitRingModeFromUi();
             const trackingOnly = isTrackingAutoringContext();
+            const contextSync = !!options.contextSync;
             const mode = trackingOnly ? 'max' : normalizeSubmitRingMode(submitRingMode);
             frame.contentWindow.postMessage({
                 type: 'submitAutoCircleChanged',
                 enabled: trackingOnly ? false : !!submitRingEnabled,
                 mode,
                 customX: clampRingCustomX(submitRingCustomX),
-                preserveManualPicks: trackingOnly
+                preserveManualPicks: !!(options.preserveManualPicks || contextSync || trackingOnly),
+                contextSync
             }, '*');
             notifyLeftAutoringStateToTracking();
         }
@@ -5462,7 +5742,7 @@
             }
             if (modeValue) {
                 modeValue.textContent = trackingAutoring ? 'nonexist' : (labelActive ? modeLabel : dropdownLabel);
-                modeValue.style.textTransform = (dropdownMode === 'custom' || dropdownMode === 'conn3') ? 'none' : 'uppercase';
+                modeValue.style.textTransform = (dropdownMode === 'custom' || dropdownMode === 'conn3' || dropdownMode === 'tail') ? 'none' : 'uppercase';
             }
             if (modeWrap) {
                 modeWrap.classList.toggle('disabled', !submitRingEnabled);
@@ -5638,7 +5918,7 @@
                     submitRingLabelIx = !submitRingLabelIx;
                 }
                 if (submitRingLabelConn || submitRingLabelIx) {
-                    if (submitRingFreqMode === 'conn3') {
+                    if (submitRingFreqMode === 'conn3' || submitRingFreqMode === 'tail') {
                         submitRingFreqMode = 'max';
                     }
                 }
@@ -5700,6 +5980,10 @@
             return mode === DATEBAND_FILTER_MODE;
         }
 
+        function isTailFilterMode(mode) {
+            return mode === TAIL_FILTER_MODE;
+        }
+
         function applyPeriodFilterModeVisual(targetEl, mode) {
             if (!targetEl) {
                 return;
@@ -5715,8 +5999,14 @@
         }
 
         function getFilterModeTitleHint(mode) {
+            if (normalizeFilterMode(mode) === 'all') {
+                return 'Tất cả kỳ (giống sheet chính)';
+            }
             if (isDatebandFilterMode(mode)) {
                 return 'date nền #00b0f0';
+            }
+            if (isTailFilterMode(mode)) {
+                return 'Đáp án có phần tử thuộc tail (cửa sổ 10 chuỗi trước kỳ)';
             }
             if (isPosnfreqFilterMode(mode)) {
                 return 'posnfreq (position + frequency)';
@@ -5755,6 +6045,10 @@
 
         function isConn3FilterMode(mode) {
             return normalizeFilterMode(mode) === 'conn3';
+        }
+
+        function isAllFilterMode(mode) {
+            return normalizeFilterMode(mode) === 'all';
         }
 
         function supportsConnectionNoteTagFilter(mode) {
@@ -5985,6 +6279,19 @@
                 .filter((n) => Number.isFinite(n));
         }
 
+        function getDatebandFilterOptions(noteTags) {
+            const opts = {
+                datebandMinFreqA: filterDatebandFreqX,
+                datebandMinFreqB: filterDatebandFreqY,
+                datebandFreqOpA: normalizeIntersectionFreqOp(filterDatebandOpX),
+                datebandFreqOpB: normalizeIntersectionFreqOp(filterDatebandOpY)
+            };
+            if (Array.isArray(noteTags) && noteTags.length > 0) {
+                opts.noteTags = noteTags.filter((n) => Number.isFinite(n) && n >= 1 && n <= 10);
+            }
+            return opts;
+        }
+
         function getFilterOptionsForMode(mode) {
             if (isNonexistFilterMode(mode)) {
                 return getNonexistFilterOptions();
@@ -6000,6 +6307,10 @@
                     intersectionFreqOpA: normalizeIntersectionFreqOp(filterIntersectionOpX),
                     intersectionFreqOpB: normalizeIntersectionFreqOp(filterIntersectionOpY)
                 };
+            }
+            if (isDatebandFilterMode(mode)) {
+                const noteTags = getActiveNoteTagFilterValues();
+                return getDatebandFilterOptions(noteTags.length ? noteTags : null);
             }
             if (isConnectionFilterMode(mode)) {
                 const ctags = getActiveConnectionNoteTagFilterValuesForMode(mode);
@@ -6119,6 +6430,7 @@
             }
             highlightFilterPopupNoteTagMenu();
             syncFilterPopupDropdownCounts();
+            syncFilterPopupDatebandFreqUi();
         }
 
         function highlightFilterPopupNoteTagMenu() {
@@ -6665,6 +6977,207 @@
             } else {
                 rebuildFilterModeCounts();
                 updatePeriodFilterMatchCount();
+            }
+        }
+
+        function loadFilterDatebandFreqSettings() {
+            try {
+                const raw = localStorage.getItem(PERIOD_FILTER_DATEBAND_FREQ_XY_KEY);
+                if (!raw) {
+                    filterDatebandFreqX = 2;
+                    filterDatebandFreqY = 2;
+                    filterDatebandOpX = '>=';
+                    filterDatebandOpY = '>=';
+                    return;
+                }
+                const p = JSON.parse(raw);
+                const x = parseInt(p && p.x, 10);
+                const y = parseInt(p && p.y, 10);
+                filterDatebandFreqX = Number.isFinite(x) ? Math.min(7, Math.max(2, x)) : 2;
+                filterDatebandFreqY = Number.isFinite(y) ? Math.min(7, Math.max(2, y)) : 2;
+                filterDatebandOpX = normalizeIntersectionFreqOp(p && p.opX);
+                filterDatebandOpY = normalizeIntersectionFreqOp(p && p.opY);
+            } catch (e) {
+                filterDatebandFreqX = 2;
+                filterDatebandFreqY = 2;
+                filterDatebandOpX = '>=';
+                filterDatebandOpY = '>=';
+            }
+        }
+
+        function saveFilterDatebandFreqSettings() {
+            try {
+                localStorage.setItem(
+                    PERIOD_FILTER_DATEBAND_FREQ_XY_KEY,
+                    JSON.stringify({
+                        x: filterDatebandFreqX,
+                        y: filterDatebandFreqY,
+                        opX: normalizeIntersectionFreqOp(filterDatebandOpX),
+                        opY: normalizeIntersectionFreqOp(filterDatebandOpY)
+                    })
+                );
+            } catch (e) { /* ignore */ }
+        }
+
+        function scheduleApplyDatebandFreqFromUi() {
+            clearTimeout(filterDatebandFreqApplyTimer);
+            filterDatebandFreqApplyTimer = setTimeout(() => {
+                filterDatebandFreqApplyTimer = null;
+                applyDatebandFreqFromUi();
+            }, 120);
+        }
+
+        function syncFilterPopupDatebandFreqSpinButtons() {
+            const active = periodFilterEnabled && isDatebandFilterMode(periodFilterMode);
+            const xinc = el('filterPopupDatebandFreqXInc');
+            const xdec = el('filterPopupDatebandFreqXDec');
+            const yinc = el('filterPopupDatebandFreqYInc');
+            const ydec = el('filterPopupDatebandFreqYDec');
+            if (xinc && xdec) {
+                xinc.disabled = !active || filterDatebandFreqX >= 7;
+                xdec.disabled = !active || filterDatebandFreqX <= 2;
+            }
+            if (yinc && ydec) {
+                yinc.disabled = !active || filterDatebandFreqY >= 7;
+                ydec.disabled = !active || filterDatebandFreqY <= 2;
+            }
+        }
+
+        function bumpFilterPopupDatebandFreq(which, delta) {
+            if (!periodFilterEnabled || !isDatebandFilterMode(periodFilterMode)) {
+                return false;
+            }
+            const isX = which === 'x';
+            const v = isX ? filterDatebandFreqX : filterDatebandFreqY;
+            const next = Math.min(7, Math.max(2, v + delta));
+            if (next === v) {
+                return false;
+            }
+            if (isX) {
+                filterDatebandFreqX = next;
+            } else {
+                filterDatebandFreqY = next;
+            }
+            const span = el(isX ? 'filterPopupDatebandFreqX' : 'filterPopupDatebandFreqY');
+            if (span) {
+                setFilterPopupPositionText(span, String(next));
+            }
+            saveFilterDatebandFreqSettings();
+            invalidateFilterPopupRenderCache();
+            syncFilterPopupDatebandFreqSpinButtons();
+            if (isPeriodFilterContextSheet()) {
+                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
+            } else {
+                rebuildFilterModeCounts();
+                updatePeriodFilterMatchCount();
+            }
+            return true;
+        }
+
+        function applyDatebandFreqFromUi() {
+            const ix = el('filterPopupDatebandFreqX');
+            const iy = el('filterPopupDatebandFreqY');
+            const ox = el('filterPopupDatebandOpX');
+            const oy = el('filterPopupDatebandOpY');
+            if (!ix || !iy) {
+                return;
+            }
+            const vx = parseInt(getFilterPopupPositionText(ix), 10);
+            const vy = parseInt(getFilterPopupPositionText(iy), 10);
+            const nx = Number.isFinite(vx) ? Math.min(7, Math.max(2, vx)) : filterDatebandFreqX;
+            const ny = Number.isFinite(vy) ? Math.min(7, Math.max(2, vy)) : filterDatebandFreqY;
+            filterDatebandFreqX = nx;
+            filterDatebandFreqY = ny;
+            setFilterPopupPositionText(ix, String(nx));
+            setFilterPopupPositionText(iy, String(ny));
+            if (ox) {
+                filterDatebandOpX = normalizeIntersectionFreqOp(ox.value);
+                ox.value = filterDatebandOpX;
+            }
+            if (oy) {
+                filterDatebandOpY = normalizeIntersectionFreqOp(oy.value);
+                oy.value = filterDatebandOpY;
+            }
+            saveFilterDatebandFreqSettings();
+            invalidateFilterPopupRenderCache();
+            syncFilterPopupDatebandFreqSpinButtons();
+            if (periodFilterEnabled && isPeriodFilterContextSheet()
+                && isDatebandFilterMode(periodFilterMode)) {
+                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
+            } else {
+                rebuildFilterModeCounts();
+                updatePeriodFilterMatchCount();
+            }
+        }
+
+        function syncFilterPopupDatebandFreqUi() {
+            const picker = el('filterPopupDatebandFreqPicker');
+            const show = periodFilterEnabled && isDatebandFilterMode(periodFilterMode);
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+                picker.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+            const ix = el('filterPopupDatebandFreqX');
+            const iy = el('filterPopupDatebandFreqY');
+            const ox = el('filterPopupDatebandOpX');
+            const oy = el('filterPopupDatebandOpY');
+            if (ix) {
+                setFilterPopupPositionText(ix, String(filterDatebandFreqX));
+                ix.tabIndex = show ? 0 : -1;
+            }
+            if (iy) {
+                setFilterPopupPositionText(iy, String(filterDatebandFreqY));
+                iy.tabIndex = show ? 0 : -1;
+            }
+            if (ox) {
+                ox.value = normalizeIntersectionFreqOp(filterDatebandOpX);
+                ox.disabled = !show;
+            }
+            if (oy) {
+                oy.value = normalizeIntersectionFreqOp(filterDatebandOpY);
+                oy.disabled = !show;
+            }
+            syncFilterPopupDatebandFreqSpinButtons();
+        }
+
+        function initFilterPopupDatebandFreqControls() {
+            loadFilterDatebandFreqSettings();
+            syncFilterPopupDatebandFreqUi();
+            const picker = el('filterPopupDatebandFreqPicker');
+            const ox = el('filterPopupDatebandOpX');
+            const oy = el('filterPopupDatebandOpY');
+            if (!picker || picker.dataset.bound === '1') {
+                return;
+            }
+            picker.dataset.bound = '1';
+            picker.addEventListener('mousedown', (event) => event.stopPropagation());
+            picker.addEventListener('click', (event) => event.stopPropagation());
+            const bindDatebandSpin = (spinEl, incId, decId, axis) => {
+                const inc = el(incId);
+                const dec = el(decId);
+                if (inc) {
+                    inc.addEventListener('mousedown', (event) => event.stopPropagation());
+                    inc.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        bumpFilterPopupDatebandFreq(axis, 1);
+                    });
+                }
+                if (dec) {
+                    dec.addEventListener('mousedown', (event) => event.stopPropagation());
+                    dec.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        bumpFilterPopupDatebandFreq(axis, -1);
+                    });
+                }
+            };
+            bindDatebandSpin(el('filterPopupDatebandFreqXSpin'), 'filterPopupDatebandFreqXInc', 'filterPopupDatebandFreqXDec', 'x');
+            bindDatebandSpin(el('filterPopupDatebandFreqYSpin'), 'filterPopupDatebandFreqYInc', 'filterPopupDatebandFreqYDec', 'y');
+            if (ox && oy) {
+                const onOp = () => scheduleApplyDatebandFreqFromUi();
+                ox.addEventListener('change', onOp);
+                oy.addEventListener('change', onOp);
             }
         }
 
@@ -8742,25 +9255,38 @@
 
         /** Filter options for the mode “pool” (dropdown All): no note-tag sub-filter. */
         function getFilterOptionsForParentCount(mode) {
-            if (isNonexistFilterMode(mode)) {
-                return getNonexistFilterOptions();
+            const normalized = normalizeFilterMode(mode);
+            if (isNonexistFilterMode(normalized)) {
+                const colors = filterNonexistColors.filter((c) => NONEXIST_FILTER_COLORS.includes(c));
+                return { colors, styles: [], num: null };
             }
-            if (isPosnfreqFilterMode(mode)) {
+            if (isPosnfreqFilterMode(normalized)) {
                 return getPosnfreqFilterOptionsForMatching();
             }
-            if (isIntersectionFilterMode(mode)) {
+            if (isIntersectionFilterMode(normalized)) {
                 return {
                     intersectionKind: filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect',
-                    intersectionMinFreqA: filterIntersectionFreqX,
-                    intersectionMinFreqB: filterIntersectionFreqY,
-                    intersectionFreqOpA: normalizeIntersectionFreqOp(filterIntersectionOpX),
-                    intersectionFreqOpB: normalizeIntersectionFreqOp(filterIntersectionOpY)
+                    intersectionMinFreqA: 2,
+                    intersectionMinFreqB: 2,
+                    intersectionFreqOpA: '>=',
+                    intersectionFreqOpB: '>='
                 };
+            }
+            if (isDatebandFilterMode(normalized)) {
+                return {
+                    datebandMinFreqA: 2,
+                    datebandMinFreqB: 2,
+                    datebandFreqOpA: '>=',
+                    datebandFreqOpB: '>='
+                };
+            }
+            if (isTailFilterMode(normalized)) {
+                return null;
             }
             return null;
         }
 
-        /** Total kỳ khớp mode khi note tag = All (không áp lọc phụ 1:…10:). */
+        /** Tổng kỳ mẫu lớn nhất của mode chính (không thu hẹp theo lọc phụ: note tag, freq x/y, nonexist số/kiểu, …). */
         function getFilterParentCountForMode(mode) {
             if (!isPeriodFilterContextSheet()) {
                 return 0;
@@ -8792,6 +9318,9 @@
             if (!Number.isFinite(num)) {
                 return 0;
             }
+            if (isDatebandFilterMode(mode)) {
+                return sheetManager.getFilterMatchingIndices(mode, getDatebandFilterOptions([num])).length;
+            }
             return sheetManager.getFilterMatchingIndices(mode, { noteTags: [num] }).length;
         }
 
@@ -8801,29 +9330,10 @@
                 return;
             }
             const mode = periodFilterMode;
-            if (isDatebandFilterMode(mode) && typeof sheetManager.ensureDatebandFilterIndicesCache === 'function') {
-                const base = sheetManager.ensureDatebandFilterIndicesCache();
-                const distCache = typeof sheetManager.ensureDatebandRowDistCache === 'function'
-                    ? sheetManager.ensureDatebandRowDistCache()
-                    : null;
+            if (isDatebandFilterMode(mode)) {
                 filterNoteTagMenuCounts[FILTER_NOTE_TAG_ALL] = getFilterParentCountForMode(mode);
                 for (const tag of FILTER_NOTE_TAG_VALUES) {
-                    const num = parseInt(tag, 10);
-                    if (!Number.isFinite(num)) {
-                        filterNoteTagMenuCounts[tag] = 0;
-                        continue;
-                    }
-                    let count = 0;
-                    for (let b = 0; b < base.length; b++) {
-                        const rowIdx = base[b];
-                        if (distCache && distCache[rowIdx] && distCache[rowIdx].has(num)) {
-                            count++;
-                        } else if (typeof sheetManager.rowMatchesDatebandNoteDistFilter === 'function'
-                            && sheetManager.rowMatchesDatebandNoteDistFilter(rowIdx, num)) {
-                            count++;
-                        }
-                    }
-                    filterNoteTagMenuCounts[tag] = count;
+                    filterNoteTagMenuCounts[tag] = getFilterNoteTagCountForTag(tag);
                 }
                 return;
             }
@@ -8995,6 +9505,9 @@
 
         function getFilterPopupEmptyMessage(mode) {
             const normalized = normalizeFilterMode(mode);
+            if (normalized === 'all') {
+                return 'Không có dữ liệu kỳ.';
+            }
             if (isNonexistFilterMode(normalized)) {
                 if (!filterNonexistColors.length) {
                     return 'Chọn ít nhất một màu nonexist.';
@@ -9021,6 +9534,18 @@
                 const oxa = normalizeIntersectionFreqOp(filterIntersectionOpX);
                 const oya = normalizeIntersectionFreqOp(filterIntersectionOpY);
                 return `Không có kỳ nào khớp intersection (${k}): cặp a,b theo thứ tự 5 số submit với freq(a)${oxa}${filterIntersectionFreqX}, freq(b)${oya}${filterIntersectionFreqY} trong tối đa 10 chuỗi trước kỳ.`;
+            }
+            if (isDatebandFilterMode(normalized)) {
+                const oxa = normalizeIntersectionFreqOp(filterDatebandOpX);
+                const oya = normalizeIntersectionFreqOp(filterDatebandOpY);
+                const tags = getActiveNoteTagFilterValues();
+                const tagPart = tags.length > 0
+                    ? ` với note ${tags.map((n) => `${n}:`).join(', ')}`
+                    : '';
+                return `Không có kỳ nào khớp date #00b0f0: cặp cửa sổ 10 khớp đáp án với hai freq khớp ngưỡng x=${filterDatebandFreqX} (${oxa}) và y=${filterDatebandFreqY} (${oya}), không phân thứ tự${tagPart}.`;
+            }
+            if (isTailFilterMode(normalized)) {
+                return 'Không có kỳ nào có đáp án chứa phần tử thuộc tail (cặp tail cửa sổ 10 chuỗi trước kỳ).';
             }
             if (isConnectionFilterMode(normalized)) {
                 const ctags = getActiveConnectionNoteTagFilterValuesForMode(normalized);
@@ -9588,9 +10113,9 @@
                 return false;
             }
             filterPopupActiveIdx = idx;
-            syncMainRowFromFilter(idx);
             applyFilterPopupRowFocus(idx);
             scrollFilterPopupRowIntoView();
+            syncMainRowFromFilter(idx);
             return true;
         }
 
@@ -10414,6 +10939,9 @@
         }
 
         function setPeriodFilterEnabled(enabled, options = {}) {
+            const wasEnabled = periodFilterEnabled;
+            const closingAllIdx = filterPopupActiveIdx;
+            const closingAllMode = wasEnabled && !enabled && isAllFilterMode(periodFilterMode);
             periodFilterEnabled = !!enabled;
 
             if (options.persist !== false) {
@@ -10462,14 +10990,139 @@
             }
 
             closeFilterPopup();
+            resetFilterAllModeWindow();
             syncPeriodFilterNavModeToIframe();
             syncPeriodFilterToolbarUi(false);
+            if (closingAllMode && closingAllIdx >= 0) {
+                const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 120));
+                idle(() => syncMainRowFromFilter(closingAllIdx, { forceFull: true }));
+            }
             if (options.restoreFocus !== false) {
                 requestAnimationFrame(() => restoreKeyboardFocusTarget());
             }
         }
 
-        function clearFilterPopupRowFocus() {
+        function syncFilterPopupAllModeClass() {
+            const wrap = el('filterTableWrap');
+            if (!wrap) {
+                return;
+            }
+            const allMode = periodFilterEnabled && isAllFilterMode(periodFilterMode);
+            wrap.classList.toggle('filter-popup-all-mode', allMode);
+            if (!allMode) {
+                resetFilterAllModeWindow();
+            }
+        }
+
+        const FILTER_ALL_MODE_WINDOW_CELL_CLASSES = [
+            'window-selected',
+            'window-edge-top',
+            'window-edge-bottom',
+            'window-edge-left',
+            'window-edge-right',
+            'window-divider-left',
+            'window-divider-right',
+            'window-focus'
+        ];
+
+        function clearFilterAllModeWindowCells(cells) {
+            if (!cells || !cells.length) {
+                return;
+            }
+            for (let i = 0; i < cells.length; i++) {
+                const cell = cells[i];
+                cell.classList.remove(...FILTER_ALL_MODE_WINDOW_CELL_CLASSES);
+            }
+        }
+
+        function clearFilterAllModeWindowOnRows(wrap, startIdx, endIdx) {
+            if (!wrap || typeof startIdx !== 'number' || typeof endIdx !== 'number' || endIdx < startIdx) {
+                return;
+            }
+            for (let rowIdx = startIdx; rowIdx <= endIdx; rowIdx++) {
+                const row = wrap.querySelector(`tbody tr[data-idx="${rowIdx}"]`);
+                if (!row) {
+                    continue;
+                }
+                clearFilterAllModeWindowCells(row.querySelectorAll('td.cell-result, td.cell-note, td.cell-nonexist'));
+            }
+        }
+
+        function paintFilterAllModeWindowRow(wrap, rowIdx, startIdx, endIdx, targetIdx) {
+            const row = wrap.querySelector(`tbody tr[data-idx="${rowIdx}"]`);
+            if (!row) {
+                return;
+            }
+            const resultCell = row.querySelector('td.cell-result');
+            const noteCell = row.querySelector('td.cell-note');
+            const nonexistCell = row.querySelector('td.cell-nonexist');
+            const cells = [resultCell, noteCell, nonexistCell].filter(Boolean);
+            if (!cells.length) {
+                return;
+            }
+            cells.forEach((cell) => {
+                cell.classList.add('window-selected');
+            });
+            if (resultCell) {
+                resultCell.classList.add('window-edge-left', 'window-divider-right');
+            }
+            if (nonexistCell) {
+                nonexistCell.classList.add('window-edge-right', 'window-divider-left');
+            }
+            if (noteCell) {
+                noteCell.classList.add('window-divider-left', 'window-divider-right');
+            }
+            if (rowIdx === startIdx) {
+                cells.forEach((cell) => cell.classList.add('window-edge-top'));
+            }
+            if (rowIdx === endIdx) {
+                cells.forEach((cell) => cell.classList.add('window-edge-bottom'));
+            }
+            if (rowIdx === targetIdx) {
+                cells.forEach((cell) => cell.classList.add('window-focus'));
+            }
+        }
+
+        function paintFilterAllModeWindowOnRows(wrap, startIdx, endIdx, targetIdx) {
+            if (!wrap || endIdx < startIdx) {
+                return;
+            }
+            for (let rowIdx = startIdx; rowIdx <= endIdx; rowIdx++) {
+                paintFilterAllModeWindowRow(wrap, rowIdx, startIdx, endIdx, targetIdx);
+            }
+        }
+
+        function resetFilterAllModeWindow() {
+            const wrap = el('filterTableWrap');
+            if (wrap && filterAllModeWindowRange) {
+                clearFilterAllModeWindowOnRows(
+                    wrap,
+                    filterAllModeWindowRange.start,
+                    filterAllModeWindowRange.end
+                );
+            }
+            filterAllModeWindowRange = null;
+        }
+
+        function applyFilterPopupAllModeWindow(idx) {
+            if (!periodFilterEnabled || !isAllFilterMode(periodFilterMode)) {
+                return;
+            }
+            const wrap = el('filterTableWrap');
+            if (!wrap || !sheetManager || typeof idx !== 'number' || idx < 0) {
+                return;
+            }
+            const start = Math.max(0, idx - 10);
+            const end = idx;
+            const prev = filterAllModeWindowRange;
+            if (prev) {
+                clearFilterAllModeWindowOnRows(wrap, prev.start, prev.end);
+            }
+            paintFilterAllModeWindowOnRows(wrap, start, end, idx);
+            filterAllModeWindowRange = { start, end, target: idx };
+        }
+
+        function clearFilterPopupRowFocus(clearWindow = true) {
             const wrap = el('filterTableWrap');
             if (!wrap) {
                 return;
@@ -10477,18 +11130,32 @@
             wrap.querySelectorAll('tbody tr.filter-popup-row-focus').forEach(row => {
                 row.classList.remove('filter-popup-row-focus');
             });
+            if (!clearWindow) {
+                return;
+            }
+            if (periodFilterEnabled && isAllFilterMode(periodFilterMode)) {
+                resetFilterAllModeWindow();
+            } else if (sheetManager && wrap) {
+                sheetManager.clearWindowBorderClassesOnWrap(wrap);
+            }
         }
 
         function applyFilterPopupRowFocus(idx) {
             const wrap = el('filterTableWrap');
             if (!wrap || typeof idx !== 'number' || idx < 0) {
+                syncFilterPopupAllModeClass();
                 return;
             }
 
-            clearFilterPopupRowFocus();
+            const allMode = periodFilterEnabled && isAllFilterMode(periodFilterMode);
+            clearFilterPopupRowFocus(!allMode);
+            syncFilterPopupAllModeClass();
             const row = wrap.querySelector(`tbody tr[data-idx="${idx}"]`);
-            if (row) {
+            if (row && !allMode) {
                 row.classList.add('filter-popup-row-focus');
+            }
+            if (allMode) {
+                applyFilterPopupAllModeWindow(idx);
             }
         }
 
@@ -10513,23 +11180,51 @@
                 return;
             }
             if (options.previewOnly) {
+                if (periodFilterEnabled && isAllFilterMode(periodFilterMode)) {
+                    const tableWrap = el('tableWrap');
+                    sheetManager.syncSourceSheetFocusFromFilter(idx, {
+                        previewOnly: true,
+                        skipCenter: false,
+                        tableWrapEl: tableWrap
+                    });
+                    return;
+                }
                 return previewMainTableNavToRowIndex(idx);
             }
             const rows = getFilterSourceSheetRows();
-            const row = rows[idx];
-            if (!row) {
+            if (!rows[idx]) {
                 return;
             }
-            const isEmpty = sheetManager.isEmptyResultRow(row);
-            const ctxSheet = sheetManager.activeSheet;
-            const useSheet1Focus = ctxSheet === 'sheet1' || ctxSheet === 'tracking';
-            sheetManager.onRowClick(idx, isEmpty, null, {
-                skipSave: true,
+            const onSheet1 = sheetManager.activeSheet === 'sheet1';
+            sheetManager.focusSourceSheetRow(idx, {
                 fromFilterNav: true,
                 light: options.full !== true,
-                asSheet1: useSheet1Focus,
-                skipCenter: ctxSheet !== 'sheet1'
+                skipCenter: false,
+                skipMainWindowSelection: !!(options.skipMainWindowSelection || !onSheet1)
             });
+        }
+
+        function queueFilterPopupAllModeCommit(idx) {
+            if (typeof idx === 'number' && idx >= 0) {
+                filterPopupActiveIdx = idx;
+            }
+        }
+
+        function scheduleFilterAllModeSetLines(payload) {
+            filterAllModeSetLinesPayload = payload;
+            clearTimeout(filterAllModeSetLinesTimer);
+            filterAllModeSetLinesTimer = setTimeout(() => {
+                filterAllModeSetLinesTimer = null;
+                const msg = filterAllModeSetLinesPayload;
+                filterAllModeSetLinesPayload = null;
+                if (!msg) {
+                    return;
+                }
+                const frame = el('okFrame');
+                if (frame && frame.contentWindow) {
+                    frame.contentWindow.postMessage(msg, '*');
+                }
+            }, RIGHT_PANE_NAV_COALESCE_MS);
         }
 
         function previewMainTableNavToRowIndex(idx) {
@@ -10547,6 +11242,9 @@
             const tableWrap = el('tableWrap');
             if (!tableWrap) {
                 return false;
+            }
+            if (typeof sheetManager.syncComboFocusFromSourceRowIndex === 'function') {
+                sheetManager.syncComboFocusFromSourceRowIndex(idx);
             }
             const start = Math.max(0, idx - 10);
             sheetManager.applyWindowSelection(start, idx, idx, tableWrap, { previewOnly: true });
@@ -10661,6 +11359,10 @@
 
         const RIGHT_PANE_NAV_COALESCE_MS = 48;
         const rightPaneNavCoalesce = { mode: null, needsCommit: false, timer: null };
+        let filterAllModeSetLinesTimer = null;
+        let filterAllModeSetLinesPayload = null;
+        /** Cửa sổ 10 kỳ trên filter ALL — chỉ ~11 hàng, không quét cả bảng. */
+        let filterAllModeWindowRange = null;
 
         function getRightPaneArrowStepFromKey(key) {
             return getFilterPopupNavStepFromKey(key);
@@ -10953,6 +11655,9 @@
             const ixKey = isIntersectionFilterMode(periodFilterMode)
                 ? `ix:${ixKind}:xy:${filterIntersectionFreqX},${filterIntersectionFreqY}:${opTok(filterIntersectionOpX)}:${opTok(filterIntersectionOpY)}`
                 : '';
+            const dbKey = isDatebandFilterMode(periodFilterMode)
+                ? `db:xy:${filterDatebandFreqX},${filterDatebandFreqY}:${opTok(filterDatebandOpX)}:${opTok(filterDatebandOpY)}`
+                : '';
             const h2 = isFilterHeader2Enabled() ? getFilterHeader2ActiveSlotTexts().join(',') : '';
             return [
                 periodFilterMode,
@@ -10966,6 +11671,7 @@
                 posnfreqKey,
                 filterNonexistGreen005000 ? 'g005:1' : 'g005:0',
                 ixKey,
+                dbKey,
                 `h2on:${isFilterHeader2Enabled() ? 1 : 0}`,
                 `h2:${h2}`
             ].join('|');
@@ -10978,7 +11684,7 @@
         }
 
         function filterPopupHasLiveTable(wrap, cacheKey) {
-            if (!wrap || !filterPopupIndicesCached.length || !filterPopupHtmlCache) {
+            if (!wrap) {
                 return false;
             }
             if (cacheKey && cacheKey !== filterPopupRenderCacheKey) {
@@ -10988,7 +11694,16 @@
             if (!table) {
                 return false;
             }
-            return wrap.querySelectorAll('tbody tr[data-idx]').length === filterPopupIndicesCached.length;
+            const domCount = wrap.querySelectorAll('tbody tr[data-idx]').length;
+            const expected = filterPopupIndicesCached.length
+                || getFilterPopupTableIndices().length;
+            if (isAllFilterMode(periodFilterMode)) {
+                return domCount > 0 && domCount === expected;
+            }
+            if (!filterPopupIndicesCached.length || !filterPopupHtmlCache) {
+                return false;
+            }
+            return domCount === filterPopupIndicesCached.length;
         }
 
         function activateFilterPopupRow(idx, event) {
@@ -10999,9 +11714,9 @@
             rememberKeyboardFocusTarget('filter');
             filterPopupActiveIdx = idx;
             applyFilterPopupRowFocus(idx);
-            syncMainRowFromFilter(idx);
             scrollFilterPopupRowIntoView();
             updateFilterPopupMatchCount();
+            syncMainRowFromFilter(idx);
             try {
                 if (wrap) {
                     wrap.focus({ preventScroll: true });
@@ -11021,6 +11736,9 @@
             }
             filterPopupActiveIdx = focusRowIndex;
             applyFilterPopupRowFocus(filterPopupActiveIdx);
+            if (sheetManager && typeof sheetManager.reapplyActiveWindowHighlightsToDom === 'function') {
+                sheetManager.reapplyActiveWindowHighlightsToDom();
+            }
             scrollFilterPopupRowIntoView();
             updateFilterPopupMatchCount();
             const positionInput = el('filterPopupPositionInput');
@@ -11055,6 +11773,9 @@
         }
 
         function updateFilterPopupPrevRecallFoldTooltips() {
+            if (periodFilterEnabled && isAllFilterMode(periodFilterMode)) {
+                return;
+            }
             const wrap = el('filterTableWrap');
             if (!wrap || !sheetManager || typeof sheetManager.applyPrevPeriodRecallFoldTooltips !== 'function') {
                 return;
@@ -11090,7 +11811,16 @@
                 return;
             }
             if (!filterPopupHasLiveTable(wrap, getFilterPopupRenderCacheKey())) {
-                wrap.innerHTML = filterPopupHtmlCache;
+                if (filterPopupHtmlCache) {
+                    wrap.innerHTML = filterPopupHtmlCache;
+                } else {
+                    invalidateFilterPopupRenderCache();
+                    refreshFilterPopupHeavy({
+                        syncMain: options.syncMain === true,
+                        clearPopupNav: options.clearPopupNav === true
+                    });
+                    return;
+                }
             }
             filterPopupIndices = freshHeader1;
             filterPopupIndicesCached = freshIdx.slice();
@@ -11106,6 +11836,9 @@
             } else {
                 filterPopupActiveIdx = resolveFilterPopupActiveIdx(getFilterPopupDisplayIndices());
                 applyFilterPopupRowFocus(filterPopupActiveIdx);
+                if (sheetManager && typeof sheetManager.reapplyActiveWindowHighlightsToDom === 'function') {
+                    sheetManager.reapplyActiveWindowHighlightsToDom();
+                }
             }
             syncFilterPopupHeaderUi();
             requestAnimationFrame(() => {
@@ -11119,12 +11852,15 @@
 
         function finishFilterPopupOpen(options = {}) {
             const syncMain = options.syncMain === true;
+            syncFilterPopupAllModeClass();
             clearFilterPopupRowFocus();
             if (filterPopupActiveIdx >= 0) {
+                applyFilterPopupRowFocus(filterPopupActiveIdx);
                 if (syncMain) {
                     syncMainRowFromFilter(filterPopupActiveIdx);
+                } else if (sheetManager && typeof sheetManager.reapplyActiveWindowHighlightsToDom === 'function') {
+                    sheetManager.reapplyActiveWindowHighlightsToDom();
                 }
-                applyFilterPopupRowFocus(filterPopupActiveIdx);
                 scrollFilterPopupRowIntoView();
             }
             syncPeriodFilterNavModeToIframe();
@@ -11324,9 +12060,19 @@
             syncFilterPopupPosnfreqSubmitOverlap();
             syncFilterPopupConn3WindowOverlap();
             applyFilterPopupNonexist005000RowBorders(wrap);
-            filterPopupHtmlCache = wrap.innerHTML;
             filterPopupRenderCacheKey = cacheKey;
+            if (isAllFilterMode(periodFilterMode)) {
+                filterPopupHtmlCache = '';
+            } else {
+                filterPopupHtmlCache = wrap.innerHTML;
+            }
+            syncFilterPopupAllModeClass();
             updateFilterPopupPrevRecallFoldTooltips();
+            try {
+                if (typeof window.__syncFilterTableThumbTrackInsets === 'function') {
+                    requestAnimationFrame(() => window.__syncFilterTableThumbTrackInsets());
+                }
+            } catch (eFpScroll) { /* ignore */ }
             finishFilterPopupOpen({ syncMain });
         }
 
@@ -12112,6 +12858,7 @@
             initFilterPopupNoteTagControls();
             initFilterPopupConnectionNoteTagControls();
             initFilterPopupIntersectionKindControls();
+            initFilterPopupDatebandFreqControls();
             initFilterPopupPosnfreqControls();
             initFilterPopupPosnfreqOverlapPctToggle();
             initFilterPopupConn3OverlapPctToggle();
@@ -12182,7 +12929,10 @@
                     setTimeout(() => {
                         try {
                             const r = sheetManager.activeWindowRange;
-                            sheetManager.applyWindowSelection(r.start, r.end, r.target);
+                            sheetManager.applyWindowSelection(r.start, r.end, r.target, null, {
+                                idRefHighlightIndices: r.idRefHighlightIndices || null,
+                                focusNoteRefHighlightIndices: r.focusNoteRefHighlightIndices || null
+                            });
                         } catch (err) {
                             // ignore
                         }
@@ -12306,6 +13056,8 @@
             initZoomControls();
             initSheetTabsHorizontalScroll();
             initRightTableScrollEdgeJumps();
+            initFilterTableScrollEdgeJumps();
+            initAnswerTableScrollEdgeJumps();
             initSubmitRingToolbar();
             initPeriodFilterToolbar();
             initAnswerPopupShortcut();
@@ -12318,7 +13070,7 @@
             // Listen for sheet changes
             window.addEventListener('sheetChanged', (e) => {
                 syncSubmitRingToolbarUi();
-                sendSubmitRingConfigToIframe();
+                sendSubmitRingConfigToIframe({ contextSync: true });
                 const finishSheetChanged = () => {
                     renderTable();
                     renderSheetTabs();
@@ -12352,7 +13104,10 @@
                     const r = sheetManager.activeWindowRange;
                     setTimeout(() => {
                         try {
-                            sheetManager.applyWindowSelection(r.start, r.end, r.target);
+                            sheetManager.applyWindowSelection(r.start, r.end, r.target, null, {
+                                idRefHighlightIndices: r.idRefHighlightIndices || null,
+                                focusNoteRefHighlightIndices: r.focusNoteRefHighlightIndices || null
+                            });
                         } catch (err) {
                             // ignore
                         }
@@ -12471,6 +13226,8 @@
                     };
                     if (fromTrackingSync) {
                         scheduleTrackingSetLinesPost(setLinesPayload);
+                    } else if (fromFilterNav && periodFilterEnabled && isAllFilterMode(periodFilterMode)) {
+                        scheduleFilterAllModeSetLines(setLinesPayload);
                     } else {
                         frame.contentWindow.postMessage(setLinesPayload, '*');
                     }
@@ -12623,6 +13380,12 @@
                     syncAnswerPopupSheet1FocusMask();
                     scheduleComboH1ReplaceFromLeftCircled();
                 } else if (msg.type === 'leftCircledNumsReady') {
+                    if (sheetManager && typeof sheetManager.setLeftBasicPreviewPickNums === 'function') {
+                        const changed = sheetManager.setLeftBasicPreviewPickNums(msg.nums || []);
+                        if (changed) {
+                            window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
+                        }
+                    }
                     const ap = ensureAnswerPopup();
                     if (ap.isOpen() && msg.submitActive) {
                         if (!ap.checked) {
@@ -12635,6 +13398,12 @@
                     }
                     applyLeftCircledNumsToComboH1(msg.nums);
                 } else if (msg.type === 'leftCircledNums' && msg.nonce) {
+                    if (sheetManager && typeof sheetManager.setLeftBasicPreviewPickNums === 'function') {
+                        const changed = sheetManager.setLeftBasicPreviewPickNums(msg.nums || []);
+                        if (changed) {
+                            window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
+                        }
+                    }
                     const ap = ensureAnswerPopup();
                     if (ap.isOpen() && ap.onLeftCircledNums(msg.nums)) {
                         return;

@@ -378,6 +378,20 @@ const TRACKING_KIND = 'tracking';
 /** Chuột phải ô nonexist: nhảy tới kỳ có id = id hàng hiện tại + delta (vd 00014 → 00024 khi delta=10). */
 const NONEXIST_CONTEXTMENU_ID_DELTA = 10;
 
+/** Màu nền ô id (sheet1) theo số lần được tham chiếu trong note — tối đa 10 bậc. */
+const ID_REF_COUNT_BG_COLORS = [
+    'rgb(235, 255, 235)', // 1 — #EBFFEB
+    'rgb(200, 255, 200)', // 2 — #C8FFC8
+    'rgb(120, 230, 120)', // 3 — #78E678
+    'rgb(0, 180, 0)',     // 4 — #00B400
+    'rgb(0, 160, 0)',     // 5
+    'rgb(0, 140, 0)',     // 6
+    'rgb(0, 115, 0)',     // 7
+    'rgb(0, 90, 0)',      // 8
+    'rgb(0, 65, 0)',      // 9
+    'rgb(0, 40, 0)'       // 10+
+];
+
 class RightPaneSheetManager {
     constructor() {
         this.sheets = {};
@@ -408,6 +422,8 @@ class RightPaneSheetManager {
         this.leftSubmitActive = false;
         /** Autoring ON (toolbar) — ảnh hưởng basic tracking. */
         this.leftAutoringEnabled = false;
+        /** Số khoanh trái — preview freq trên basic tracking (kỳ cuối chưa có đáp án). */
+        this.leftBasicPreviewPickNums = [];
         /** Cache filter mode connection (invalid khi refreshDerivedState). */
         this._connectionFilterIndicesCache = null;
         this._connectionFilterIndicesCacheRowLen = 0;
@@ -547,6 +563,8 @@ class RightPaneSheetManager {
         this.datebandFilterIndicesCacheRowLen = 0;
         this.datebandRowDistCache = null;
         this.datebandRowDistCacheRowLen = 0;
+        this.tailFilterIndicesCache = null;
+        this.tailFilterIndicesCacheRowLen = 0;
         this._connectionFilterIndicesCache = null;
         this._connectionFilterIndicesCacheRowLen = 0;
         this._connectionFilterNoteCacheRef = null;
@@ -1430,9 +1448,84 @@ class RightPaneSheetManager {
         return set ? set.has(dist) : false;
     }
 
+    /**
+     * Dateband #00b0f0: cặp cửa sổ 10 khớp đáp án — hai freq khớp ngưỡng x,y (không phân thứ tự).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {number} [threshX=2]
+     * @param {number} [threshY=2]
+     * @param {string} [opX='>=']
+     * @param {string} [opY='>=']
+     * @returns {boolean}
+     */
+    rowMatchesDatebandPairFreqFilter(rows, rowIndex, threshX = 2, threshY = 2, opX = '>=', opY = '>=') {
+        const list = rows || this.getSourceSheetRows();
+        if (!this.rowHasCyanDateBand(list, rowIndex)) {
+            return false;
+        }
+        const currentRow = list[rowIndex] || {};
+        const currentNums = this.parseMainNums(currentRow.result || currentRow.Result || '');
+        if (currentNums.length !== 5 || rowIndex < 10) {
+            return false;
+        }
+        const windowRows = list.slice(Math.max(0, rowIndex - 10), rowIndex);
+        if (windowRows.length < 10) {
+            return false;
+        }
+        const visiblePairs = this.computePairsForRows(windowRows);
+        if (!visiblePairs || !visiblePairs.length) {
+            return false;
+        }
+        const freq = new Array(36).fill(0);
+        for (let wi = 0; wi < windowRows.length; wi++) {
+            const nums = this.parseMainNums(windowRows[wi].result || windowRows[wi].Result || '');
+            for (let k = 0; k < nums.length; k++) {
+                const n = nums[k];
+                if (n >= 1 && n <= 35) {
+                    freq[n]++;
+                }
+            }
+        }
+        for (let p = 0; p < visiblePairs.length; p++) {
+            const a = visiblePairs[p][0];
+            const b = visiblePairs[p][1];
+            if (!this.pairExists(currentNums, a, b)) {
+                continue;
+            }
+            if (this.pairFreqMatchesUnorderedThresholds(freq[a], freq[b], threshX, threshY, opX, opY)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Hai freq của cặp khớp ngưỡng x,y — gán x/y cho số nào cũng được.
+     */
+    pairFreqMatchesUnorderedThresholds(freqA, freqB, threshX, threshY, opX, opY) {
+        return (this.freqMatchesComparison(freqA, threshX, opX) && this.freqMatchesComparison(freqB, threshY, opY))
+            || (this.freqMatchesComparison(freqA, threshY, opY) && this.freqMatchesComparison(freqB, threshX, opX));
+    }
+
+    freqMatchesComparison(freq, threshold, op) {
+        if (op === '=') {
+            return freq === threshold;
+        }
+        if (op === '<=') {
+            return freq <= threshold;
+        }
+        return freq >= threshold;
+    }
+
     getFilterMatchingIndices(mode, filterOptions = null) {
         const indices = [];
         const rows = this.getSourceSheetRows();
+        if (mode === 'all') {
+            for (let i = 0; i < rows.length; i++) {
+                indices.push(i);
+            }
+            return indices;
+        }
         if (mode === 'nonexist') {
             const opts = filterOptions || {};
             const numRaw = opts.num;
@@ -1471,6 +1564,21 @@ class RightPaneSheetManager {
             : [];
 
         if (mode === 'dateband') {
+            const o = filterOptions || {};
+            let thX = parseInt(o.datebandMinFreqA, 10);
+            let thY = parseInt(o.datebandMinFreqB, 10);
+            if (!Number.isFinite(thX)) {
+                thX = 2;
+            }
+            if (!Number.isFinite(thY)) {
+                thY = 2;
+            }
+            thX = Math.min(7, Math.max(2, thX));
+            thY = Math.min(7, Math.max(2, thY));
+            const rawOpA = String(o.datebandFreqOpA || '').trim();
+            const rawOpB = String(o.datebandFreqOpB || '').trim();
+            const opA = rawOpA === '=' || rawOpA === '<=' || rawOpA === '>=' ? rawOpA : '>=';
+            const opB = rawOpB === '=' || rawOpB === '<=' || rawOpB === '>=' ? rawOpB : '>=';
             const base = this.ensureDatebandFilterIndicesCache();
             const distFilter = noteTags.length > 0 ? noteTags[0] : null;
             for (let b = 0; b < base.length; b++) {
@@ -1478,9 +1586,16 @@ class RightPaneSheetManager {
                 if (distFilter !== null && !this.rowMatchesDatebandNoteDistFilter(i, distFilter)) {
                     continue;
                 }
+                if (!this.rowMatchesDatebandPairFreqFilter(rows, i, thX, thY, opA, opB)) {
+                    continue;
+                }
                 indices.push(i);
             }
             return indices;
+        }
+
+        if (mode === 'tail') {
+            return this.ensureTailFilterIndicesCache().slice();
         }
 
         if (mode === 'conn3') {
@@ -2368,38 +2483,43 @@ class RightPaneSheetManager {
      */
     getRowPickPropertyLabelHtml(rows, rowIndex, row) {
         const flags = this.getRowPickPropertyFlags(rows, rowIndex, row);
-        if (!flags.conn && !flags.ix) {
+        if (!flags.conn3 && !flags.conn && !flags.ix) {
             return '';
         }
         let html = '<span class="row-pick-badges">';
-        if (flags.conn) {
-            html += '<span class="row-pick-badge row-pick-badge--conn" title="Connection">C</span>';
-        }
-        if (flags.ix) {
-            html += '<span class="row-pick-badge row-pick-badge--ix" title="Intersection">∩</span>';
+        if (flags.conn3) {
+            html += '<span class="row-pick-badge row-pick-badge--conn3" title="3-connection">3C</span>';
+        } else {
+            if (flags.conn) {
+                html += '<span class="row-pick-badge row-pick-badge--conn" title="Connection">C</span>';
+            }
+            if (flags.ix) {
+                html += '<span class="row-pick-badge row-pick-badge--ix" title="Intersection">∩</span>';
+            }
         }
         html += '</span>';
         return html;
     }
 
     /**
-     * Nhãn pick của kỳ: Connection (C) và/hoặc Intersection (∩).
+     * Nhãn pick của kỳ: 3C đứng một mình (bao gồm C/∩); không 3C thì C và/hoặc ∩.
      * @param {object[]} rows
      * @param {number} rowIndex
      * @param {object} row
-     * @returns {{ conn: boolean, ix: boolean }}
+     * @returns {{ conn: boolean, conn3: boolean, ix: boolean }}
      */
     getRowPickPropertyFlags(rows, rowIndex, row) {
         if (!row || this.isEmptyResultRow(row)) {
-            return { conn: false, ix: false };
+            return { conn: false, conn3: false, ix: false };
         }
         const pickNums = this.parseMainNums(row.result || row.Result || '');
         if (pickNums.length < 2) {
-            return { conn: false, ix: false };
+            return { conn: false, conn3: false, ix: false };
         }
         const pairs = this.buildChainPairsFromPickSet(rows, rowIndex, pickNums);
         return {
             conn: this.pairListSatisfiesConnection(pairs),
+            conn3: this.rowMatchesConn3Filter(rows, rowIndex),
             ix: this.rowPickSetSatisfiesIntersect(rows, rowIndex, pickNums)
         };
     }
@@ -3092,17 +3212,22 @@ class RightPaneSheetManager {
         if (!tableWrap.dataset.nonexistContextmenuBound) {
             tableWrap.dataset.nonexistContextmenuBound = '1';
             tableWrap.addEventListener('contextmenu', (e) => {
-                this.handleNonexistCellContextMenu(e, tableWrap);
+                this.handleSourceSheetCellContextMenu(e, tableWrap);
             });
         }
 
         if (applyWindowSelection && this.activeWindowRange) {
             const selectionRoot = options.selectionRoot || tableWrap;
+            const r = this.activeWindowRange;
             this.applyWindowSelection(
-                this.activeWindowRange.start,
-                this.activeWindowRange.end,
-                this.activeWindowRange.target,
-                selectionRoot
+                r.start,
+                r.end,
+                r.target,
+                selectionRoot,
+                {
+                    idRefHighlightIndices: r.idRefHighlightIndices || null,
+                    focusNoteRefHighlightIndices: r.focusNoteRefHighlightIndices || null
+                }
             );
         }
 
@@ -3111,6 +3236,14 @@ class RightPaneSheetManager {
         const mainWrap = typeof document !== 'undefined' ? document.getElementById('tableWrap') : null;
         if (options.applyAnswerPopupMask !== false && tableWrap && tableWrap === mainWrap) {
             this.applyAnswerPopupFocusMaskToDom(tableWrap, { reset: true });
+        }
+        if (this.activeWindowRange && Array.isArray(this.activeWindowRange.idRefHighlightIndices)
+            && this.activeWindowRange.idRefHighlightIndices.length) {
+            this.applyIdRefHighlightToDom(this.activeWindowRange.idRefHighlightIndices, tableWrap);
+        }
+        if (this.activeWindowRange && Array.isArray(this.activeWindowRange.focusNoteRefHighlightIndices)
+            && this.activeWindowRange.focusNoteRefHighlightIndices.length) {
+            this.applyFocusNoteRefHighlightToDom(this.activeWindowRange.focusNoteRefHighlightIndices, tableWrap);
         }
     }
 
@@ -4201,12 +4334,157 @@ class RightPaneSheetManager {
             return;
         }
 
+        this.clearWindowBorderClassesOnWrap(tableWrap);
+        this.clearIdRefHighlightFromDom(tableWrap);
+        this.clearFocusNoteRefHighlightFromDom(tableWrap);
+    }
+
+    /**
+     * Chỉ gỡ viền cửa sổ 10 trên một bảng — không đụng viền cyan/đỏ trên bảng kia.
+     * @param {HTMLElement} tableWrapEl
+     */
+    clearWindowBorderClassesOnWrap(tableWrapEl) {
+        const tableWrap = tableWrapEl || document.getElementById('tableWrap');
+        if (!tableWrap) {
+            return;
+        }
+
         tableWrap.querySelectorAll('td.window-selected, td.window-edge-top, td.window-edge-bottom, td.window-edge-left, td.window-edge-right, td.window-divider-left, td.window-divider-right, td.window-focus, .win-label-inline').forEach(cell => {
             cell.classList.remove('window-selected', 'window-edge-top', 'window-edge-bottom', 'window-edge-left', 'window-edge-right', 'window-divider-left', 'window-divider-right', 'window-focus');
             if (cell.classList && cell.classList.contains('win-label-inline')) {
                 cell.remove();
             }
         });
+    }
+
+    /**
+     * Vẽ lại viền cyan/đỏ theo activeWindowRange (sau khi filter popup chỉ đổi focus hàng).
+     * @param {HTMLElement} [tableWrapEl]
+     */
+    reapplyActiveWindowHighlightsToDom(tableWrapEl) {
+        const r = this.activeWindowRange;
+        if (!r) {
+            return;
+        }
+        if (Array.isArray(r.idRefHighlightIndices) && r.idRefHighlightIndices.length) {
+            this.applyIdRefHighlightToDom(r.idRefHighlightIndices, tableWrapEl);
+        }
+        if (Array.isArray(r.focusNoteRefHighlightIndices) && r.focusNoteRefHighlightIndices.length) {
+            this.applyFocusNoteRefHighlightToDom(r.focusNoteRefHighlightIndices, tableWrapEl);
+        }
+    }
+
+    /**
+     * @returns {HTMLElement[]}
+     */
+    getIdRefHighlightTableWraps(extraWrap) {
+        const wraps = [];
+        if (extraWrap) {
+            wraps.push(extraWrap);
+        }
+        if (typeof document !== 'undefined') {
+            const mainWrap = document.getElementById('tableWrap');
+            const filterWrap = document.getElementById('filterTableWrap');
+            if (mainWrap && !wraps.includes(mainWrap)) {
+                wraps.push(mainWrap);
+            }
+            if (filterWrap && !wraps.includes(filterWrap)) {
+                wraps.push(filterWrap);
+            }
+        }
+        return wraps;
+    }
+
+    clearIdRefHighlightFromDom(tableWrapEl) {
+        const wraps = this.getIdRefHighlightTableWraps(tableWrapEl);
+        for (let w = 0; w < wraps.length; w++) {
+            const wrap = wraps[w];
+            if (!wrap) {
+                continue;
+            }
+            wrap.querySelectorAll('td.cell-note.id-ref-contextmenu-highlight, td.cell-result.id-ref-contextmenu-highlight').forEach((cell) => {
+                cell.classList.remove('id-ref-contextmenu-highlight');
+            });
+        }
+    }
+
+    /**
+     * Viền xanh tham chiếu id — gắn cửa sổ trượt 10 (mất khi đổi focus).
+     * @param {number[]} refRowIndices
+     * @param {HTMLElement} [tableWrapEl]
+     */
+    applyIdRefHighlightToDom(refRowIndices, tableWrapEl) {
+        if (!Array.isArray(refRowIndices) || !refRowIndices.length) {
+            return;
+        }
+        const wraps = this.getIdRefHighlightTableWraps(tableWrapEl);
+        for (let w = 0; w < wraps.length; w++) {
+            const wrap = wraps[w];
+            if (!wrap) {
+                continue;
+            }
+            for (let r = 0; r < refRowIndices.length; r++) {
+                const rowIdx = refRowIndices[r];
+                const tr = wrap.querySelector(`tbody tr[data-idx="${rowIdx}"]`);
+                if (!tr) {
+                    continue;
+                }
+                const noteCell = tr.querySelector('td.cell-note');
+                if (noteCell) {
+                    noteCell.classList.add('id-ref-contextmenu-highlight');
+                }
+                const resultCell = tr.querySelector('td.cell-result');
+                if (resultCell) {
+                    resultCell.classList.add('id-ref-contextmenu-highlight');
+                }
+            }
+        }
+    }
+
+    clearFocusNoteRefHighlightFromDom(tableWrapEl) {
+        const wraps = this.getIdRefHighlightTableWraps(tableWrapEl);
+        for (let w = 0; w < wraps.length; w++) {
+            const wrap = wraps[w];
+            if (!wrap) {
+                continue;
+            }
+            wrap.querySelectorAll('td.cell-note.id-focus-note-ref-highlight, td.cell-result.id-focus-note-ref-highlight').forEach((cell) => {
+                cell.classList.remove('id-focus-note-ref-highlight');
+            });
+        }
+    }
+
+    /**
+     * Viền đỏ: các kỳ trong cửa sổ 10 mà note của hàng focus tham chiếu tới.
+     * @param {number[]} refRowIndices
+     * @param {HTMLElement} [tableWrapEl]
+     */
+    applyFocusNoteRefHighlightToDom(refRowIndices, tableWrapEl) {
+        if (!Array.isArray(refRowIndices) || !refRowIndices.length) {
+            return;
+        }
+        const wraps = this.getIdRefHighlightTableWraps(tableWrapEl);
+        for (let w = 0; w < wraps.length; w++) {
+            const wrap = wraps[w];
+            if (!wrap) {
+                continue;
+            }
+            for (let r = 0; r < refRowIndices.length; r++) {
+                const rowIdx = refRowIndices[r];
+                const tr = wrap.querySelector(`tbody tr[data-idx="${rowIdx}"]`);
+                if (!tr) {
+                    continue;
+                }
+                const noteCell = tr.querySelector('td.cell-note');
+                if (noteCell) {
+                    noteCell.classList.add('id-focus-note-ref-highlight');
+                }
+                const resultCell = tr.querySelector('td.cell-result');
+                if (resultCell) {
+                    resultCell.classList.add('id-focus-note-ref-highlight');
+                }
+            }
+        }
     }
 
     /**
@@ -4218,6 +4496,7 @@ class RightPaneSheetManager {
             return;
         }
         const previewOnly = !!(options && options.previewOnly);
+        const prevWindowRange = this.activeWindowRange;
 
         this.clearWindowSelection(tableWrap);
 
@@ -4227,6 +4506,21 @@ class RightPaneSheetManager {
                 this.refreshNonexistCellsForActiveWindow(tableWrap);
             }
             return;
+        }
+
+        let idRefHighlightIndices = null;
+        if (options && Array.isArray(options.idRefHighlightIndices)) {
+            idRefHighlightIndices = options.idRefHighlightIndices.slice();
+        } else if (previewOnly && prevWindowRange && Array.isArray(prevWindowRange.idRefHighlightIndices)) {
+            idRefHighlightIndices = prevWindowRange.idRefHighlightIndices.slice();
+        }
+        let focusNoteRefHighlightIndices = null;
+        if (typeof targetIdx === 'number' && targetIdx >= 0) {
+            if (options && Array.isArray(options.focusNoteRefHighlightIndices)) {
+                focusNoteRefHighlightIndices = options.focusNoteRefHighlightIndices.slice();
+            } else {
+                focusNoteRefHighlightIndices = this.findWindowRowIndicesReferencedInFocusNote(targetIdx);
+            }
         }
 
         for (let rowIdx = startIdx; rowIdx <= endIdx; rowIdx++) {
@@ -4285,10 +4579,27 @@ class RightPaneSheetManager {
             }
         }
 
-        const prevWindowRange = this.activeWindowRange;
-        this.activeWindowRange = { start: startIdx, end: endIdx, target: targetIdx };
+        this.activeWindowRange = {
+            start: startIdx,
+            end: endIdx,
+            target: targetIdx,
+            idRefHighlightIndices,
+            focusNoteRefHighlightIndices
+        };
         if (previewOnly) {
+            if (idRefHighlightIndices && idRefHighlightIndices.length) {
+                this.applyIdRefHighlightToDom(idRefHighlightIndices, tableWrap);
+            }
+            if (focusNoteRefHighlightIndices && focusNoteRefHighlightIndices.length) {
+                this.applyFocusNoteRefHighlightToDom(focusNoteRefHighlightIndices, tableWrap);
+            }
             return;
+        }
+        if (idRefHighlightIndices && idRefHighlightIndices.length) {
+            this.applyIdRefHighlightToDom(idRefHighlightIndices, tableWrap);
+        }
+        if (focusNoteRefHighlightIndices && focusNoteRefHighlightIndices.length) {
+            this.applyFocusNoteRefHighlightToDom(focusNoteRefHighlightIndices, tableWrap);
         }
         // Refresh nonexist HTML first; renderWindowLabels after so innerHTML does not strip labels.
         const refreshIndices = new Set();
@@ -5231,16 +5542,11 @@ class RightPaneSheetManager {
         }
 
         const freq = this.idFrequencyMap.get(String(idNum)) || 0;
-        switch (freq) {
-            case 1:
-                return 'rgb(235, 255, 235)';
-            case 2:
-                return 'rgb(200, 255, 200)';
-            case 3:
-                return 'rgb(120, 230, 120)';
-            default:
-                return freq > 0 ? 'rgb(0, 180, 0)' : '';
+        if (freq <= 0) {
+            return '';
         }
+        const idx = Math.min(freq, ID_REF_COUNT_BG_COLORS.length) - 1;
+        return ID_REF_COUNT_BG_COLORS[idx];
     }
 
     /**
@@ -5283,6 +5589,116 @@ class RightPaneSheetManager {
         }
 
         return false;
+    }
+
+    /**
+     * Compute tail candidates for a 10-row window (same heuristic as left pane tail list).
+     * @param {object[]} rows
+     * @returns {{a:number,b:number}[]}
+     */
+    computeTailsForRows(rows) {
+        if (!rows || rows.length < 10) {
+            return [];
+        }
+        const display = rows.slice(0, 10);
+        const sets = display.map(row => new Set(this.parseMainNums(row.result || row.Result || '')));
+        const adjMap = {};
+        for (let i = 0; i < sets.length - 1; i++) {
+            const top = sets[i];
+            const bottom = sets[i + 1];
+            top.forEach((a) => {
+                bottom.forEach((b) => {
+                    if (a === b) {
+                        return;
+                    }
+                    const key = a + ',' + b;
+                    if (!adjMap[key]) {
+                        adjMap[key] = [];
+                    }
+                    adjMap[key].push(i);
+                });
+            });
+        }
+        const tails = [];
+        for (const key in adjMap) {
+            const idxs = adjMap[key].slice().sort((a, b) => a - b);
+            const parts = key.split(',').map((x) => parseInt(x, 10));
+            const a = parts[0];
+            const b = parts[1];
+            let last = -3;
+            let count = 0;
+            for (const ii of idxs) {
+                if (ii > last + 1) {
+                    count++;
+                    last = ii;
+                }
+            }
+            if (count >= 2) {
+                tails.push({ a, b });
+            }
+        }
+        tails.sort((x, y) => {
+            if (x.a !== y.a) {
+                return x.a - y.a;
+            }
+            return x.b - y.b;
+        });
+        return tails;
+    }
+
+    /**
+     * Row matches tail filter when answer contains a tail pair from the previous 10-row window.
+     */
+    shouldHighlightDateByTailWindow(rows, rowIndex) {
+        const currentRow = rows[rowIndex] || {};
+        const currentNums = this.parseMainNums(currentRow.result || currentRow.Result || '');
+
+        if (currentNums.length !== 5) {
+            return false;
+        }
+
+        if (rowIndex < 10) {
+            return false;
+        }
+
+        const windowRows = rows.slice(Math.max(0, rowIndex - 10), rowIndex);
+        if (windowRows.length < 10) {
+            return false;
+        }
+
+        const visibleTails = this.computeTailsForRows(windowRows);
+        if (!visibleTails || !visibleTails.length) {
+            return false;
+        }
+
+        for (let t = 0; t < visibleTails.length; t++) {
+            const tail = visibleTails[t];
+            if (this.pairExists(currentNums, tail.a, tail.b)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Cached row indices whose answer contains a tail pair from the 10-row window before that row.
+     */
+    ensureTailFilterIndicesCache() {
+        const rows = this.getSourceSheetRows();
+        if (this.tailFilterIndicesCache && this.tailFilterIndicesCacheRowLen === rows.length) {
+            return this.tailFilterIndicesCache;
+        }
+
+        const indices = [];
+        for (let i = 0; i < rows.length; i++) {
+            if (!this.isEmptyResultRow(rows[i]) && this.shouldHighlightDateByTailWindow(rows, i)) {
+                indices.push(i);
+            }
+        }
+        this.tailFilterIndicesCache = indices;
+        this.tailFilterIndicesCacheRowLen = rows.length;
+        return indices;
     }
 
     /**
@@ -5761,6 +6177,183 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Trích prevId được tham chiếu trong note (mỗi part dạng current-prev=...).
+     * @returns {number[]}
+     */
+    static extractReferencedPrevIdsFromNoteText(noteText) {
+        const ids = [];
+        const txt = String(noteText || '').trim();
+        if (!txt || txt === '?') {
+            return ids;
+        }
+        const parts = txt.split(' ');
+        for (let p = 0; p < parts.length; p++) {
+            const part = parts[p];
+            if (part.indexOf('-') < 0) {
+                continue;
+            }
+            const leftPart = part.split('=')[0];
+            const idPrevRaw = String(leftPart.split('-')[1] || '').trim();
+            const idPrevDigits = String(idPrevRaw).replace(/\D/g, '');
+            const idPrevNum = parseInt(idPrevDigits, 10);
+            if (Number.isFinite(idPrevNum)) {
+                ids.push(idPrevNum);
+            }
+        }
+        return ids;
+    }
+
+    /**
+     * Các chỉ số hàng sheet1 có note tham chiếu tới prevId = targetIdNum.
+     * @returns {number[]}
+     */
+    findRowIndicesReferencingIdInNotes(targetIdNum) {
+        if (!Number.isFinite(targetIdNum)) {
+            return [];
+        }
+        const rows = this.getSourceSheetRows();
+        const indices = [];
+        for (let i = 0; i < rows.length; i++) {
+            const row = rows[i];
+            if (!row || this.isEmptyResultRow(row)) {
+                continue;
+            }
+            const noteMeta = this.getComputedNoteMeta(i, row);
+            const prevIds = RightPaneSheetManager.extractReferencedPrevIdsFromNoteText(noteMeta.text);
+            if (prevIds.includes(targetIdNum)) {
+                indices.push(i);
+            }
+        }
+        return indices;
+    }
+
+    /**
+     * Các hàng trong cửa sổ 10 của focusRowIndex có id được note của hàng focus tham chiếu tới.
+     * @param {number} focusRowIndex
+     * @returns {number[]}
+     */
+    findWindowRowIndicesReferencedInFocusNote(focusRowIndex) {
+        const rows = this.getSourceSheetRows();
+        if (!Number.isFinite(focusRowIndex) || focusRowIndex < 0 || focusRowIndex >= rows.length) {
+            return [];
+        }
+        const row = rows[focusRowIndex];
+        if (!row || this.isEmptyResultRow(row)) {
+            return [];
+        }
+        const windowTop = focusRowIndex >= 10 ? focusRowIndex - 10 : 0;
+        const windowEnd = focusRowIndex;
+        const noteMeta = this.getComputedNoteMeta(focusRowIndex, row);
+        const prevIds = RightPaneSheetManager.extractReferencedPrevIdsFromNoteText(noteMeta.text);
+        if (!prevIds.length) {
+            return [];
+        }
+        const seen = new Set();
+        const indices = [];
+        for (let p = 0; p < prevIds.length; p++) {
+            const matchIdx = this.findSourceSheetRowIndexByNumericId(prevIds[p]);
+            if (matchIdx < 0 || matchIdx < windowTop || matchIdx > windowEnd) {
+                continue;
+            }
+            if (seen.has(matchIdx)) {
+                continue;
+            }
+            seen.add(matchIdx);
+            indices.push(matchIdx);
+        }
+        indices.sort((a, b) => a - b);
+        return indices;
+    }
+
+    /**
+     * Focus hàng có id = id hàng gốc + delta (vd 00014 → 00024 khi delta=10).
+     * @param {object} [clickOptions] — truyền thêm vào onRowClick (vd idRefHighlightIndices)
+     * @returns {boolean} true nếu đã xử lý (đã preventDefault)
+     */
+    focusSourceSheetRowByIdDelta(sourceIdx, idDelta, event, tableWrap, clickOptions) {
+        const rows = this.getSourceSheetRows();
+        if (!Number.isFinite(sourceIdx) || sourceIdx < 0 || sourceIdx >= rows.length) {
+            return false;
+        }
+        const row = rows[sourceIdx];
+        if (!row) {
+            return false;
+        }
+        const currentIdNum = this.parseRowId(row.id || row.ID || '');
+        if (currentIdNum === null) {
+            return false;
+        }
+        const targetIdNum = currentIdNum + idDelta;
+        const targetIdx = this.findSourceSheetRowIndexByNumericId(targetIdNum);
+        if (targetIdx < 0 || targetIdx === sourceIdx) {
+            return true;
+        }
+        const targetRow = rows[targetIdx];
+        const targetEmpty = this.isEmptyResultRow(targetRow);
+        this.onRowClick(targetIdx, targetEmpty, event, {
+            fromFilterNav: tableWrap && tableWrap.id === 'filterTableWrap',
+            ...(clickOptions || {})
+        });
+        try {
+            if (tableWrap) {
+                tableWrap.focus({ preventScroll: true });
+            }
+        } catch (err) {
+            /* ignore */
+        }
+        return true;
+    }
+
+    /**
+     * Chuột phải trên ô id / nonexist sheet1.
+     * @returns {boolean} true nếu đã xử lý (đã preventDefault)
+     */
+    handleSourceSheetCellContextMenu(event, tableWrap) {
+        if (!event || this.activeSheet !== 'sheet1') {
+            return false;
+        }
+        const idTd = event.target && event.target.closest && event.target.closest('td.cell-id');
+        if (idTd && tableWrap && tableWrap.contains(idTd)) {
+            return this.handleIdCellContextMenu(event, tableWrap, idTd);
+        }
+        return this.handleNonexistCellContextMenu(event, tableWrap);
+    }
+
+    /**
+     * Chuột phải trên ô id: focus id+delta + viền cyan n ô note + result tham chiếu id vừa click.
+     * @returns {boolean}
+     */
+    handleIdCellContextMenu(event, tableWrap, td) {
+        const tr = td.closest('tr[data-idx]');
+        if (!tr) {
+            return false;
+        }
+        const idx = Number(tr.dataset.idx);
+        if (!Number.isFinite(idx) || idx < 0) {
+            return false;
+        }
+        const rows = this.getSourceSheetRows();
+        if (idx >= rows.length) {
+            return false;
+        }
+        const row = rows[idx];
+        if (!row) {
+            return false;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const clickedIdNum = this.parseRowId(row.id || row.ID || '');
+        if (clickedIdNum === null) {
+            return true;
+        }
+        const refRowIndices = this.findRowIndicesReferencingIdInNotes(clickedIdNum);
+        this.focusSourceSheetRowByIdDelta(idx, NONEXIST_CONTEXTMENU_ID_DELTA, event, tableWrap, {
+            idRefHighlightIndices: refRowIndices
+        });
+        return true;
+    }
+
+    /**
      * Chuột phải trên ô nonexist: chặn menu trình duyệt, focus hàng có id = id hàng gốc + NONEXIST_CONTEXTMENU_ID_DELTA.
      * @param {MouseEvent} event
      * @param {HTMLElement} tableWrap
@@ -5792,23 +6385,7 @@ class RightPaneSheetManager {
         }
         event.preventDefault();
         event.stopPropagation();
-        const currentIdNum = parseInt(String(row.id || row.ID || '').trim(), 10);
-        if (!Number.isFinite(currentIdNum)) {
-            return true;
-        }
-        const targetIdNum = currentIdNum + NONEXIST_CONTEXTMENU_ID_DELTA;
-        const targetIdx = this.findSourceSheetRowIndexByNumericId(targetIdNum);
-        if (targetIdx < 0 || targetIdx === idx) {
-            return true;
-        }
-        const targetRow = rows[targetIdx];
-        const targetEmpty = this.isEmptyResultRow(targetRow);
-        this.onRowClick(targetIdx, targetEmpty, event, { fromFilterNav: tableWrap.id === 'filterTableWrap' });
-        try {
-            tableWrap.focus({ preventScroll: true });
-        } catch (err) {
-            /* ignore */
-        }
+        this.focusSourceSheetRowByIdDelta(idx, NONEXIST_CONTEXTMENU_ID_DELTA, event, tableWrap);
         return true;
     }
 
@@ -5895,7 +6472,11 @@ class RightPaneSheetManager {
 
         const windowEnd = idx;
         const targetIdx = idx;
-        this.applyWindowSelection(windowTop, windowEnd, targetIdx);
+        if (!options.skipMainWindowSelection) {
+            this.applyWindowSelection(windowTop, windowEnd, targetIdx, null, {
+                idRefHighlightIndices: options.idRefHighlightIndices || null
+            });
+        }
 
         const tableWrap = document.getElementById('tableWrap');
         const activeSheetMeta = this.sheets[this.activeSheet] || {};
@@ -5918,6 +6499,69 @@ class RightPaneSheetManager {
                 contextPrefixCount
             }
         }));
+    }
+
+    /**
+     * Filter popup ALL: đồng bộ focus + cửa sổ 10 trên sheet chính, không setLines/iframe.
+     */
+    syncComboFocusFromSourceRowIndex(idx, options = {}) {
+        const rows = this.getSourceSheetRows();
+        if (typeof idx !== 'number' || idx < 0 || idx >= rows.length) {
+            return false;
+        }
+        const row = rows[idx];
+        const useComboFocus = this.activeSheet === 'sheet1'
+            || this.activeSheet === 'tracking'
+            || options.asSheet1;
+        if (!useComboFocus) {
+            return false;
+        }
+        const nextFocusId = String(row.id || row.ID || '').trim();
+        const hadG1 = this.comboG1Enabled;
+        const comboStateChanged = this.comboFocusRowId !== nextFocusId
+            || this.comboFocusRowIndex !== idx
+            || (this.isEmptyResultRow(row) && hadG1);
+        this.comboFocusRowId = nextFocusId;
+        this.comboFocusRowIndex = idx;
+        if (this.isEmptyResultRow(row)) {
+            this.comboG1Enabled = false;
+        }
+        if (comboStateChanged) {
+            window.dispatchEvent(new CustomEvent('comboControlsChanged', {
+                detail: { sheet: this.activeSheet === 'tracking' ? 'tracking' : 'sheet1' }
+            }));
+        }
+        return true;
+    }
+
+    syncSourceSheetFocusFromFilter(idx, options = {}) {
+        const rows = this.getSourceSheetRows();
+        if (typeof idx !== 'number' || idx < 0 || idx >= rows.length) {
+            return false;
+        }
+        this.syncComboFocusFromSourceRowIndex(idx, options);
+        if (!options.fromTrackingSync) {
+            try {
+                this.syncSpecialTrackingTimelineFromSheet1Row(idx);
+            } catch (eStSync) {
+                /* ignore */
+            }
+        }
+        if (this.activeSheet === 'tracking') {
+            return true;
+        }
+        const tableWrap = options.tableWrapEl || document.getElementById('tableWrap');
+        const activeSheetMeta = this.sheets[this.activeSheet] || {};
+        if (!tableWrap || activeSheetMeta.kind === 'combo') {
+            return false;
+        }
+        const start = Math.max(0, idx - 10);
+        const previewOnly = options.previewOnly !== false;
+        this.applyWindowSelection(start, idx, idx, tableWrap, { previewOnly });
+        if (!options.skipCenter) {
+            this.centerActiveWindowInView(tableWrap);
+        }
+        return true;
     }
 
     /**
@@ -6976,9 +7620,12 @@ class RightPaneSheetManager {
     static readTrackingLabelModeFromStorage() {
         try {
             const raw = sessionStorage.getItem(TRACKING_LABEL_MODE_KEY);
+            if (raw == null || raw === '') {
+                return 'out';
+            }
             return RightPaneSheetManager.normalizeTrackingLabelMode(raw);
         } catch (e) {
-            return 'in';
+            return 'out';
         }
     }
 
@@ -7059,8 +7706,8 @@ class RightPaneSheetManager {
         return out;
     }
 
-    /** Dấu { trong cột frequency (basic), nhóm ≥2 số cùng giá trị. */
-    static syncBasicTrackingFreqBraces(layer, groups, slotCount) {
+    /** Dấu { cột frequency — nhóm ≥2 số cùng giá trị tích lũy; nhãn x = số bar trong bụng. */
+    static syncTrackingFreqBraces(layer, groups, slotCount) {
         if (!layer) {
             return;
         }
@@ -7077,15 +7724,23 @@ class RightPaneSheetManager {
         }
         const frag = document.createDocumentFragment();
         for (const g of groups) {
+            const memberCount = Array.isArray(g.nums) ? g.nums.length : 0;
+            if (memberCount < 2) {
+                continue;
+            }
             const el = document.createElement('div');
             el.className = 'special-tracking-freq-brace';
             el.setAttribute('data-freq', String(g.freq));
-            el.title = `Frequency ${g.freq}: ${g.nums.join(', ')}`;
+            el.setAttribute('data-member-count', String(memberCount));
+            el.title = `Tần suất ${g.freq}: ${g.nums.join(', ')} (${memberCount} số)`;
             const topPct = (g.minSlot / slotCount) * 100;
             const heightPct = ((g.maxSlot - g.minSlot + 1) / slotCount) * 100;
             el.style.top = `${topPct}%`;
             el.style.height = `${heightPct}%`;
-            el.innerHTML = '<svg viewBox="0 0 8 100" preserveAspectRatio="none" aria-hidden="true">'
+            el.innerHTML = '<span class="special-tracking-freq-brace-count" aria-hidden="true">'
+                + String(memberCount)
+                + '</span>'
+                + '<svg viewBox="0 0 8 100" preserveAspectRatio="none" aria-hidden="true">'
                 + '<path d="M 0,0 C 5,1 7,22 7,50 C 7,78 5,99 0,100" fill="none" '
                 + 'stroke="currentColor" stroke-width="1.75" vector-effect="non-scaling-stroke" '
                 + 'stroke-linecap="round" stroke-linejoin="round"/>'
@@ -7093,6 +7748,11 @@ class RightPaneSheetManager {
             frag.appendChild(el);
         }
         layer.appendChild(frag);
+    }
+
+    /** @deprecated */
+    static syncBasicTrackingFreqBraces(layer, groups, slotCount) {
+        RightPaneSheetManager.syncTrackingFreqBraces(layer, groups, slotCount);
     }
 
     setLeftSubmitActive(on) {
@@ -7103,11 +7763,78 @@ class RightPaneSheetManager {
         this.leftAutoringEnabled = !!on;
     }
 
+    setLeftBasicPreviewPickNums(nums) {
+        const next = [];
+        const seen = new Set();
+        if (Array.isArray(nums)) {
+            for (let i = 0; i < nums.length; i++) {
+                const n = nums[i];
+                if (n >= 1 && n <= 35 && !seen.has(n)) {
+                    seen.add(n);
+                    next.push(n);
+                }
+            }
+        }
+        const prev = this.leftBasicPreviewPickNums || [];
+        const same = prev.length === next.length && prev.every((v, i) => v === next[i]);
+        if (!same) {
+            this.leftBasicPreviewPickNums = next;
+        }
+        return !same;
+    }
+
+    getBasicTrackingFocusRowIndex() {
+        const rows = this.sourceRows || [];
+        if (!rows.length) {
+            return -1;
+        }
+        if (typeof this.comboFocusRowIndex === 'number'
+            && this.comboFocusRowIndex >= 0
+            && this.comboFocusRowIndex < rows.length) {
+            return this.comboFocusRowIndex;
+        }
+        if (this.activeWindowRange && typeof this.activeWindowRange.target === 'number') {
+            const t = this.activeWindowRange.target;
+            if (t >= 0 && t < rows.length) {
+                return t;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * Basic tracking + submit OFF + focus hàng cuối chưa có đáp án + timeline đúng frame đó.
+     */
+    isBasicTrackingEmptyLastRowPreviewActive(sheet, frameIndex) {
+        if (!sheet || this.getTrackingViewMode(sheet) !== 'basic') {
+            return false;
+        }
+        if (this.leftSubmitActive) {
+            return false;
+        }
+        const rows = this.sourceRows || [];
+        if (!rows.length) {
+            return false;
+        }
+        const lastIdx = rows.length - 1;
+        const focusIdx = this.getBasicTrackingFocusRowIndex();
+        if (focusIdx !== lastIdx) {
+            return false;
+        }
+        const row = rows[lastIdx];
+        if (!row || !this.isEmptyResultRow(row)) {
+            return false;
+        }
+        const frameForRow = this.getTrackingFrameIndexForSourceRow(sheet, lastIdx);
+        return frameForRow >= 0 && frameIndex === frameForRow;
+    }
+
     /**
      * Basic tracking: layout hiển thị theo freq tích lũy đã “commit”.
      * Khi submit trái OFF, 5 số kỳ hiện tại chưa được cộng vào tích lũy.
+     * previewPickNums: giả lập +1 freq cho số khoanh trái (kỳ cuối chưa có đáp án).
      */
-    static computeBasicTrackingDisplayLayout(draws, fr, submitOn) {
+    static computeBasicTrackingDisplayLayout(draws, fr, submitOn, previewPickNums) {
         const list = draws || [];
         const drawEndIndex = (fr && fr.drawIndex != null && fr.drawIndex >= 0) ? fr.drawIndex : -1;
         const counts = {};
@@ -7120,6 +7847,14 @@ class RightPaneSheetManager {
                 const n = justDrawnNums[u];
                 if (n >= 1 && n <= 35) {
                     counts[n] = Math.max(0, (counts[n] || 0) - 1);
+                }
+            }
+            if (Array.isArray(previewPickNums) && previewPickNums.length) {
+                for (let u = 0; u < previewPickNums.length; u++) {
+                    const n = previewPickNums[u];
+                    if (n >= 1 && n <= 35) {
+                        counts[n] = (counts[n] || 0) + 1;
+                    }
                 }
             }
         }
@@ -7792,7 +8527,7 @@ class RightPaneSheetManager {
             + '<div class="special-tracking-rank-wrap">'
             + '<div class="special-tracking-rank-shell">'
             + `<div class="special-tracking-rank-stack" data-st-rank-stack>${rankBarsHtml}</div>`
-            + (isBasic ? '<div class="special-tracking-freq-brace-layer" data-st-freq-braces aria-hidden="true"></div>' : '')
+            + '<div class="special-tracking-freq-brace-layer" data-st-freq-braces aria-hidden="true"></div>'
             + '</div>'
             + '</div>'
             + '</div>'
@@ -7830,8 +8565,8 @@ class RightPaneSheetManager {
             + 'min="0.5" max="3" step="0.5" value="1" aria-valuemin="0.5" aria-valuemax="3" aria-valuenow="1" aria-label="Tốc độ phát" />'
             + '<span class="special-tracking-speed-readout" data-st-speed-val>1×</span>'
             + '</div></div>'
-            + `<button type="button" class="special-tracking-label-toggle" data-st-label-toggle aria-pressed="false" `
-            + `title="Vị trí nhãn số trên thanh: in (trong bar) / out (sát biên)" aria-label="Nhãn bar: in">in</button>`
+            + `<button type="button" class="special-tracking-label-toggle" data-st-label-toggle aria-pressed="true" `
+            + `title="Nhãn số sát biên bar (bấm để in)" aria-label="Nhãn bar: out">out</button>`
             + `<button type="button" class="special-tracking-view-toggle" data-st-view-toggle aria-pressed="true" `
             + `title="Chế độ hiển thị: ${viewLabel} (bấm để đổi)" aria-label="Chế độ ${viewLabel}">${viewLabel}</button>`
             + '</div>'
@@ -8083,7 +8818,7 @@ class RightPaneSheetManager {
                 };
             }
         });
-        const freqBraceLayer = isBasic ? root.querySelector('[data-st-freq-braces]') : null;
+        const freqBraceLayer = root.querySelector('[data-st-freq-braces]');
 
         let tlRectCache = null;
         const refreshTlRect = () => {
@@ -8230,16 +8965,21 @@ class RightPaneSheetManager {
             const justSet = new Set(justNums);
             const leftSubmitOn = !!this.leftSubmitActive;
             const basicDraws = isBasic ? (sheet.basicDraws || []) : [];
+            const previewActive = isBasic
+                && this.isBasicTrackingEmptyLastRowPreviewActive(sheet, frameIndex);
+            const previewPickNums = previewActive ? (this.leftBasicPreviewPickNums || []) : [];
+            const previewPickSet = previewActive ? new Set(previewPickNums) : new Set();
             let basicDisplay = null;
             let basicWindow10Freq = null;
             let freqTieGroups = [];
             if (isBasic) {
-                const cacheKey = `${frameIndex}|${leftSubmitOn ? 1 : 0}`;
+                const cacheKey = `${frameIndex}|${leftSubmitOn ? 1 : 0}|${previewPickNums.join(',')}`;
                 if (basicPaintCacheKey !== cacheKey || !basicPaintCache) {
                     basicDisplay = RightPaneSheetManager.computeBasicTrackingDisplayLayout(
                         basicDraws,
                         fr,
-                        leftSubmitOn
+                        leftSubmitOn,
+                        previewPickNums
                     );
                     const srcRow = this.getTrackingSourceRowIndexForFrame(sheet, frameIndex);
                     basicWindow10Freq = this.computeMainNumsWindow10Freq(
@@ -8258,6 +8998,12 @@ class RightPaneSheetManager {
                     basicWindow10Freq = basicPaintCache.basicWindow10Freq;
                     freqTieGroups = basicPaintCache.freqTieGroups;
                 }
+            } else {
+                freqTieGroups = RightPaneSheetManager.buildBasicTrackingFreqTieGroups(
+                    fr.byNum,
+                    fr.slotByNum,
+                    numMax
+                );
             }
 
             for (let n = 1; n <= numMax; n++) {
@@ -8310,6 +9056,7 @@ class RightPaneSheetManager {
                     && this.leftAutoringEnabled
                     && win10Freq === 0
                     && isJust;
+                const leftPickPreviewLabel = previewPickSet.has(n);
                 el.classList.toggle(
                     'special-tracking-rank-bar--win10-freq-zero',
                     isBasic && win10Freq === 0
@@ -8337,9 +9084,10 @@ class RightPaneSheetManager {
                     && !(predictNeonActive && Boolean(pr));
                 el.classList.toggle(
                     'special-tracking-rank-bar--focus',
-                    showClickFocus || autoringNonexistLabel
+                    showClickFocus || autoringNonexistLabel || leftPickPreviewLabel
                 );
                 el.classList.toggle('special-tracking-rank-bar--autoring-nonexist', autoringNonexistLabel);
+                el.classList.toggle('special-tracking-rank-bar--left-pick-preview', leftPickPreviewLabel);
                 el.classList.toggle('special-tracking-rank-bar--actual-answer', actualAnswer);
                 el.classList.toggle('special-tracking-rank-bar--predict', Boolean(pr));
                 el.classList.toggle('special-tracking-rank-bar--predict-hit', predictHit);
@@ -8351,7 +9099,9 @@ class RightPaneSheetManager {
                     prioEl.setAttribute('aria-hidden', pr ? 'false' : 'true');
                 }
                 let aria = `Số ${n}, click để tô sáng`;
-                if (autoringNonexistLabel) {
+                if (leftPickPreviewLabel) {
+                    aria = `Số ${n}, khoanh trái — preview freq +1 (kỳ chưa có đáp án)`;
+                } else if (autoringNonexistLabel) {
                     aria = `Số ${n}, nonexist (win10=0) trong đáp án kỳ hiện tại — autoring tracking`;
                 } else if (actualAnswer) {
                     aria = isBasic
@@ -8366,8 +9116,8 @@ class RightPaneSheetManager {
                     el.setAttribute('aria-label', aria);
                 }
             }
-            if (freqBraceLayer && isBasic) {
-                RightPaneSheetManager.syncBasicTrackingFreqBraces(
+            if (freqBraceLayer) {
+                RightPaneSheetManager.syncTrackingFreqBraces(
                     freqBraceLayer,
                     freqTieGroups,
                     slotCount
@@ -8631,8 +9381,38 @@ class RightPaneSheetManager {
         const onLeftAutoringStateChanged = () => {
             paint();
         };
+        const onLeftCircledNumsChanged = () => {
+            paint();
+        };
+        const onRowClickedForPreview = () => {
+            paint();
+        };
         window.addEventListener('leftSubmitStateChanged', onLeftSubmitStateChanged);
         window.addEventListener('leftAutoringStateChanged', onLeftAutoringStateChanged);
+        window.addEventListener('leftCircledNumsChanged', onLeftCircledNumsChanged);
+        window.addEventListener('rowClicked', onRowClickedForPreview);
+
+        const requestLeftCircledForPreview = () => {
+            const frame = document.getElementById('okFrame');
+            if (!frame || !frame.contentWindow) {
+                return;
+            }
+            const nonce = `trkPrev_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+            const onMessage = (ev) => {
+                const msg = ev.data || {};
+                if (msg.type !== 'leftCircledNums' || msg.nonce !== nonce) {
+                    return;
+                }
+                window.removeEventListener('message', onMessage);
+                if (this.setLeftBasicPreviewPickNums(msg.nums || [])) {
+                    paint();
+                }
+            };
+            window.addEventListener('message', onMessage);
+            frame.contentWindow.postMessage({ type: 'requestLeftCircledNums', nonce }, '*');
+            setTimeout(() => window.removeEventListener('message', onMessage), 400);
+        };
+        requestLeftCircledForPreview();
 
         paint();
         syncMotionClass();
@@ -8690,6 +9470,8 @@ class RightPaneSheetManager {
             window.removeEventListener('keydown', onTrackingArrowNav, true);
             window.removeEventListener('leftSubmitStateChanged', onLeftSubmitStateChanged);
             window.removeEventListener('leftAutoringStateChanged', onLeftAutoringStateChanged);
+            window.removeEventListener('leftCircledNumsChanged', onLeftCircledNumsChanged);
+            window.removeEventListener('rowClicked', onRowClickedForPreview);
         };
         tableWrap.__trackingCleanup = cleanupTrackingUi;
         tableWrap.__specialTrackingCleanup = cleanupTrackingUi;
