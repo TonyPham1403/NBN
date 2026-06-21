@@ -5400,6 +5400,14 @@
                     sheetManager.centerActiveWindowInView(wrap);
                 }
             }
+            if (periodFilterEnabled && isAllFilterMode(periodFilterMode)
+                && filterPopupActiveIdx >= 0 && filterWrap && sheetManager) {
+                const start = Math.max(0, filterPopupActiveIdx - 10);
+                sheetManager.centerActiveWindowInView(filterWrap, {
+                    startIdx: start,
+                    endIdx: filterPopupActiveIdx
+                });
+            }
 
             try {
                 if (typeof window.__syncRightTableThumbTrackInsets === 'function') {
@@ -10186,6 +10194,9 @@
                         setFilterPopupPositionInputWidth(positionInput, posText);
                     }
                 }
+                if (filterPopupActiveIdx >= 0) {
+                    scrollFilterPopupRowIntoView();
+                }
                 return;
             }
             const list = getFilterPopupEffectiveListIndices();
@@ -10206,6 +10217,9 @@
                 const posText = pos >= 0 ? String(pos + 1) : '';
                 setFilterPopupPositionText(positionInput, posText);
                 setFilterPopupPositionInputWidth(positionInput, posText);
+            }
+            if (filterPopupActiveIdx >= 0) {
+                scrollFilterPopupRowIntoView();
             }
         }
 
@@ -11541,9 +11555,28 @@
             return true;
         }
 
+        function centerFilterPopupAllModeWindowInView() {
+            const wrap = el('filterTableWrap');
+            if (!wrap || !sheetManager || filterPopupActiveIdx < 0) {
+                return;
+            }
+            if (!periodFilterEnabled || !isAllFilterMode(periodFilterMode)) {
+                return;
+            }
+            const start = Math.max(0, filterPopupActiveIdx - 10);
+            sheetManager.centerActiveWindowInView(wrap, {
+                startIdx: start,
+                endIdx: filterPopupActiveIdx
+            });
+        }
+
         function scrollFilterPopupRowIntoView() {
             const wrap = el('filterTableWrap');
             if (!wrap || filterPopupActiveIdx < 0) {
+                return;
+            }
+            if (periodFilterEnabled && isAllFilterMode(periodFilterMode)) {
+                centerFilterPopupAllModeWindowInView();
                 return;
             }
             const tr = wrap.querySelector(`tbody tr[data-idx="${filterPopupActiveIdx}"]`);

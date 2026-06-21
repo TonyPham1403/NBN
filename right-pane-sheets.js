@@ -3397,13 +3397,22 @@ class RightPaneSheetManager {
     /**
      * Center the active sliding window inside the right table viewport.
      */
-    centerActiveWindowInView(tableWrap) {
-        if (!tableWrap || !this.activeWindowRange) {
+    centerActiveWindowInView(tableWrap, options = {}) {
+        if (!tableWrap) {
             return;
         }
 
-        const startIdx = this.activeWindowRange.start;
-        const endIdx = this.activeWindowRange.end;
+        let startIdx;
+        let endIdx;
+        if (typeof options.startIdx === 'number' && typeof options.endIdx === 'number') {
+            startIdx = options.startIdx;
+            endIdx = options.endIdx;
+        } else if (this.activeWindowRange) {
+            startIdx = this.activeWindowRange.start;
+            endIdx = this.activeWindowRange.end;
+        } else {
+            return;
+        }
         if (typeof startIdx !== 'number' || typeof endIdx !== 'number' || endIdx < startIdx) {
             return;
         }
@@ -6711,6 +6720,21 @@ class RightPaneSheetManager {
             }
         }
         if (this.activeSheet === 'tracking') {
+            const start = Math.max(0, idx - 10);
+            const end = idx;
+            const previewOnly = options.previewOnly !== false;
+            const prevWindowRange = this.activeWindowRange;
+            let idRefHighlightIndices = null;
+            if (previewOnly && prevWindowRange && Array.isArray(prevWindowRange.idRefHighlightIndices)) {
+                idRefHighlightIndices = prevWindowRange.idRefHighlightIndices.slice();
+            }
+            this.activeWindowRange = {
+                start,
+                end,
+                target: idx,
+                idRefHighlightIndices,
+                focusNoteRefHighlightIndices: this.findWindowRowIndicesReferencedInFocusNote(idx)
+            };
             return true;
         }
         const tableWrap = options.tableWrapEl || document.getElementById('tableWrap');
