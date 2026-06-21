@@ -1035,18 +1035,7 @@
             z-index: 4;
         }
 
-        /* Basic: cửa sổ trượt 10 (trước kỳ hiện tại) — win10=0 đỏ; win10=1 gạch chân (nhãn + cột freq tích lũy) */
-        .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero .special-tracking-rank-num,
-        .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero .special-tracking-rank-count {
-            color: #ff0000 !important;
-        }
-
-        .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero .special-tracking-rank-num {
-            -webkit-text-stroke: 0 !important;
-            paint-order: normal;
-            text-shadow: none !important;
-        }
-
+        /* Basic: cửa sổ trượt 10 — win10=0 đỏ; win10=1 gạch chân; win10=1+ch11/12 thêm in nghiêng */
         .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-one .special-tracking-rank-num {
             text-decoration: underline solid 1.5px #000000 !important;
             text-decoration-color: #000000 !important;
@@ -1056,6 +1045,25 @@
 
         .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-one .special-tracking-rank-count {
             border-bottom: 1.5px solid #000000;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-num--win10-freq-one-italic,
+        .special-tracking-root--basic .special-tracking-rank-count--win10-freq-one-italic {
+            font-style: italic !important;
+            display: inline-block;
+            transform: skewX(-12deg);
+            transform-origin: center center;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero .special-tracking-rank-num,
+        .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero .special-tracking-rank-count {
+            color: #ff0000 !important;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero .special-tracking-rank-num {
+            -webkit-text-stroke: 0 !important;
+            paint-order: normal;
+            text-shadow: none !important;
         }
 
         /* Basic + autoring (tracking): viền đen giống click quan sát bar — dùng class --focus */

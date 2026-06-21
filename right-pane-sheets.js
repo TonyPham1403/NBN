@@ -1937,6 +1937,49 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Chuỗi 11/12 trước cửa sổ 10 — cùng logic ok_left.getCh11Ch12NumsSet cho rowIndex sheet1/tracking.
+     * @returns {Set<number>}
+     */
+    getCh11Ch12NumsSetForSourceRow(rows, rowIndex) {
+        const set = new Set();
+        if (!Array.isArray(rows) || typeof rowIndex !== 'number' || rowIndex < 0) {
+            return set;
+        }
+        const windowTop = rowIndex >= 10 ? rowIndex - 10 : 0;
+        const contextPrefixCount = rowIndex >= 10 ? Math.min(2, windowTop) : 0;
+        const addFromRow = (row) => {
+            const nums = this.parseMainNums(row?.result || row?.Result || '');
+            for (let k = 0; k < nums.length; k++) {
+                const n = nums[k];
+                if (n >= 1 && n <= 35) {
+                    set.add(n);
+                }
+            }
+        };
+        if (contextPrefixCount >= 2) {
+            const i11 = windowTop - 2;
+            const i12 = windowTop - 1;
+            if (i11 >= 0 && i11 < rows.length) {
+                addFromRow(rows[i11]);
+            }
+            if (i12 >= 0 && i12 < rows.length) {
+                addFromRow(rows[i12]);
+            }
+        } else if (contextPrefixCount === 1) {
+            const i = windowTop - 1;
+            if (i >= 0 && i < rows.length) {
+                addFromRow(rows[i]);
+            }
+        } else if (rows.length >= 13) {
+            addFromRow(rows[10]);
+            addFromRow(rows[11]);
+        } else if (rows.length === 12) {
+            addFromRow(rows[10]);
+        }
+        return set;
+    }
+
+    /**
      * 10 chuỗi trước kỳ `rowIndex` (Chuỗi 1 = sát kỳ đang xét).
      * @param {object[]} rows
      * @param {number} rowIndex
@@ -9158,6 +9201,7 @@ class RightPaneSheetManager {
             const isBasicLastFrame = isBasic && frameIndex >= total - 1;
             let basicDisplay = null;
             let basicWindow10Freq = null;
+            let basicCh11Ch12Set = null;
             let freqTieGroups = [];
             if (isBasic) {
                 const cacheKey = `${frameIndex}|${leftSubmitOn ? 1 : 0}|${previewPickNums.join(',')}`;
@@ -9173,16 +9217,26 @@ class RightPaneSheetManager {
                         this.sourceRows || [],
                         srcRow
                     );
+                    basicCh11Ch12Set = this.getCh11Ch12NumsSetForSourceRow(
+                        this.sourceRows || [],
+                        srcRow
+                    );
                     freqTieGroups = RightPaneSheetManager.buildBasicTrackingFreqTieGroups(
                         basicDisplay.counts,
                         basicDisplay.slotByNum,
                         numMax
                     );
                     basicPaintCacheKey = cacheKey;
-                    basicPaintCache = { basicDisplay, basicWindow10Freq, freqTieGroups };
+                    basicPaintCache = {
+                        basicDisplay,
+                        basicWindow10Freq,
+                        basicCh11Ch12Set,
+                        freqTieGroups
+                    };
                 } else {
                     basicDisplay = basicPaintCache.basicDisplay;
                     basicWindow10Freq = basicPaintCache.basicWindow10Freq;
+                    basicCh11Ch12Set = basicPaintCache.basicCh11Ch12Set;
                     freqTieGroups = basicPaintCache.freqTieGroups;
                 }
             } else {
@@ -9238,6 +9292,10 @@ class RightPaneSheetManager {
                     }
                 }
                 const win10Freq = isBasic && basicWindow10Freq ? (basicWindow10Freq[n] || 0) : null;
+                const win10FreqOne = isBasic && win10Freq === 1;
+                const win10FreqOneItalic = win10FreqOne
+                    && basicCh11Ch12Set
+                    && basicCh11Ch12Set.has(n);
                 const isJust = justSet.has(n);
                 const autoringNonexistLabel = isBasic
                     && this.leftAutoringEnabled
@@ -9250,8 +9308,14 @@ class RightPaneSheetManager {
                 );
                 el.classList.toggle(
                     'special-tracking-rank-bar--win10-freq-one',
-                    isBasic && win10Freq === 1
+                    win10FreqOne
                 );
+                if (numEl) {
+                    numEl.classList.toggle('special-tracking-rank-num--win10-freq-one-italic', win10FreqOneItalic);
+                }
+                if (countEl) {
+                    countEl.classList.toggle('special-tracking-rank-count--win10-freq-one-italic', win10FreqOneItalic);
+                }
                 if (isBasic) {
                     el.dataset.stWin10Freq = win10Freq != null ? String(win10Freq) : '';
                 } else {
