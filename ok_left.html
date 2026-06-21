@@ -5662,9 +5662,14 @@
             return main + ':{' + formatLeftTableNumSpan(a) + ',' + formatLeftTableNumSpan(b) + '}';
         }
 
-        /** Tail row: chỉ hiện cặp số, không tiền tố main (ví dụ `{18,31}` thay vì `1:{18,31}`). */
-        function formatTailButtonLabel(a, b) {
-            return '{' + formatLeftTableNumSpan(a) + ',' + formatLeftTableNumSpan(b) + '}';
+        /** Tail row: `{a,b}`; thêm `:n` khi tail count >= 3 (vd `{13,35}:3`). */
+        function formatTailButtonLabel(a, b, count) {
+            let label = '{' + formatLeftTableNumSpan(a) + ',' + formatLeftTableNumSpan(b) + '}';
+            const c = parseInt(count, 10);
+            if (Number.isFinite(c) && c >= 3) {
+                label += ':' + c;
+            }
+            return label;
         }
 
         function refreshPairTailNumberStyles() {
@@ -5674,7 +5679,7 @@
                 const main = btn.getAttribute('data-main');
                 if (isNaN(a) || isNaN(b) || main == null) return;
                 btn.innerHTML = btn.classList.contains('tail-btn')
-                    ? formatTailButtonLabel(a, b)
+                    ? formatTailButtonLabel(a, b, btn.getAttribute('data-tail-count'))
                     : formatPairTailButtonLabel(main, a, b);
             });
             try { scheduleSyncPairNeonHintAnimations(); } catch (e) { }
@@ -5779,7 +5784,7 @@
                     html += 'tail[' + tails.length + ']: ';
                     for (let ti = 0; ti < tails.length; ti++) {
                         const t = tails[ti]; const a = t.a, b = t.b, main = (t.main === Infinity) ? '-' : t.main;
-                        html += '<button type="button" class="pair-btn tail-btn" data-tail-idx="' + ti + '" data-a="' + a + '" data-b="' + b + '" data-main="' + main + '">' + formatTailButtonLabel(a, b) + '</button>';
+                        html += '<button type="button" class="pair-btn tail-btn" data-tail-idx="' + ti + '" data-a="' + a + '" data-b="' + b + '" data-main="' + main + '" data-tail-count="' + t.count + '">' + formatTailButtonLabel(a, b, t.count) + '</button>';
                     }
                     html += '</div>';
                 }
