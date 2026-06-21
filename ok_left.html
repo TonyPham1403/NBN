@@ -730,6 +730,7 @@
             --chuoi-adj-dbl-line: 1.2px;
             --chuoi-adj-dbl-gap: 4px;
             --chuoi-adj-diag-l: calc((var(--chuoi-adj-dbl-gap) + var(--chuoi-adj-dbl-border-outer)) * 1.41421356);
+            --chuoi-adj-stray-inset: 3px;
             --chuoi-adj-ring-fill: rgba(158, 132, 238, 0.96);
             --chuoi-adj-inner-fill: #ffffff;
         }
@@ -867,6 +868,26 @@
             left: auto;
             transform-origin: right bottom;
             transform: rotate(45deg);
+        }
+
+        /* Số vơi ra (đầu cặp pair trên chuỗi khác main/adj): một viền dày inset — không kép, không chéo */
+        #right tr.chuoi-pattern-row .cell.index.chuoi-pair-trk-extra-freq {
+            position: relative;
+            z-index: 2;
+            box-sizing: border-box;
+            border: none;
+            border-radius: 1px;
+            box-shadow: inset 0 0 0 var(--chuoi-adj-stray-inset) var(--chuoi-pair-trk-adj-freq-frame);
+        }
+
+        #right tr.chuoi-pattern-row .cell.index.chuoi-pair-trk-extra-freq.note-highlight {
+            color: #0097a7;
+            font-weight: bold;
+        }
+
+        #right tr.chuoi-pattern-row .cell.index.chuoi-pair-trk-extra-freq.nonexist-intersect {
+            color: #e6b800;
+            font-weight: bold;
         }
 
         /* Make Chuỗi rows feel taller by enlarging the visible label and numbers slightly.
@@ -6019,6 +6040,66 @@
             return out;
         }
 
+        /**
+         * Số vơi ra: vẫn là đầu cặp pair (a|b) nhưng xuất hiện trên chuỗi không thuộc main (cả hai)
+         * hoặc adjacent (tách đúng biên liền kề). Viền đơn ngoài — không kép / không chéo.
+         */
+        function getExtraPairChuoiFreqHighlightSpecs(adjSpecs) {
+            const out = [];
+            const adjSeen = new Set();
+            (adjSpecs || []).forEach(function (sp) {
+                adjSeen.add(sp.lineIndex + ':' + sp.num);
+            });
+            if (!raw || !Array.isArray(raw.lines) || raw.lines.length < 10) {
+                return out;
+            }
+            let eff;
+            try {
+                eff = getEffectiveSelectionSetForPairNeon();
+            } catch (eEff) {
+                return out;
+            }
+            if (!eff || eff.size < 2) {
+                return out;
+            }
+            const displayLines = getRawDisplayLines();
+            const seen = new Set();
+
+            function considerPair(a, b) {
+                if (!Number.isFinite(a) || !Number.isFinite(b)) {
+                    return;
+                }
+                if (!pairTailButtonShouldShowPairSelected(a, b, eff)) {
+                    return;
+                }
+                for (let li = 0; li < displayLines.length; li++) {
+                    const nums = getNumsFromLineObj(displayLines[li]);
+                    [a, b].forEach(function (num) {
+                        if (nums.indexOf(num) === -1) {
+                            return;
+                        }
+                        const k = li + ':' + num;
+                        if (adjSeen.has(k) || seen.has(k)) {
+                            return;
+                        }
+                        seen.add(k);
+                        out.push({ lineIndex: li, num: num });
+                    });
+                }
+            }
+
+            try {
+                const pairs = computePairs() || [];
+                for (let pi = 0; pi < pairs.length; pi++) {
+                    const p = pairs[pi];
+                    if (p && p.length >= 2) {
+                        considerPair(p[0], p[1]);
+                    }
+                }
+            } catch (eP) { /* ignore */ }
+            return out;
+        }
+
         function stripChuoiPairAdjFreqDecor(span) {
             if (!span || !span.querySelectorAll) {
                 return;
@@ -6046,7 +6127,7 @@
             }
         }
 
-        /** Gắn/gỡ class viền chuỗi tại chỗ — khung solo: pair + tail; viền vuông kép chân index: chỉ pair. Submit ON: theo simulated. */
+        /** Gắn/gỡ class viền chuỗi tại chỗ — khung solo: pair + tail; viền kép chân index: pair main/adj; viền đơn: số vơi ra. */
         function syncChuoiPairTrackedSoloInDOM() {
             try {
                 try { syncSubmitPreviewBodyClasses(); } catch (eB) { /* ignore */ }
@@ -6060,6 +6141,12 @@
                         stripChuoiPairAdjFreqDecor(prevAdj[u]);
                         prevAdj[u].classList.remove('chuoi-pair-trk-adj-freq');
                     } catch (eU) { /* ignore */ }
+                }
+                const prevExtra = right.querySelectorAll('.cell.index.chuoi-pair-trk-extra-freq');
+                for (let ve = 0; ve < prevExtra.length; ve++) {
+                    try {
+                        prevExtra[ve].classList.remove('chuoi-pair-trk-extra-freq');
+                    } catch (eVe) { /* ignore */ }
                 }
                 const trackedSet = getTrackedPairChuoiLineIndicesSet();
                 const mains = right.querySelectorAll('tr.chuoi-main-row');
@@ -6093,6 +6180,26 @@
                             span.classList.add('chuoi-pair-trk-adj-freq');
                             ensureChuoiPairAdjFreqDecor(span);
                         } catch (eS) { /* ignore */ }
+                    }
+                }
+                const extraSpecs = getExtraPairChuoiFreqHighlightSpecs(adjSpecs);
+                for (let ei = 0; ei < extraSpecs.length; ei++) {
+                    const sp = extraSpecs[ei];
+                    const li = sp.lineIndex | 0;
+                    const num = sp.num;
+                    const ptr = patterns[li];
+                    if (!ptr) {
+                        continue;
+                    }
+                    const td2 = ptr.children[1];
+                    if (!td2) {
+                        continue;
+                    }
+                    const span = td2.querySelector('.cell.index[data-num="' + String(num) + '"]');
+                    if (span) {
+                        try {
+                            span.classList.add('chuoi-pair-trk-extra-freq');
+                        } catch (eEx) { /* ignore */ }
                     }
                 }
             } catch (e) { /* ignore */ }
