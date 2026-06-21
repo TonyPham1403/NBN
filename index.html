@@ -11331,16 +11331,58 @@
             }
         }
 
+        function refreshFilterPopupAllModeNonexistCells(idx) {
+            const wrap = el('filterTableWrap');
+            if (!wrap || !sheetManager || typeof idx !== 'number' || idx < 0) {
+                filterAllModeNonexistRefreshPrev = null;
+                return;
+            }
+            const start = Math.max(0, idx - 10);
+            const end = idx;
+            const win = sheetManager.activeWindowRange;
+            if (!win || win.start !== start || win.end !== end || win.target !== idx) {
+                const tableWrap = el('tableWrap');
+                if (tableWrap) {
+                    sheetManager.syncSourceSheetFocusFromFilter(idx, {
+                        previewOnly: true,
+                        skipCenter: true,
+                        tableWrapEl: tableWrap
+                    });
+                }
+            }
+            const indices = new Set();
+            const prev = filterAllModeNonexistRefreshPrev;
+            if (prev && typeof prev.start === 'number' && typeof prev.end === 'number') {
+                for (let i = prev.start; i <= prev.end; i++) {
+                    indices.add(i);
+                }
+            }
+            for (let i = start; i <= end; i++) {
+                indices.add(i);
+            }
+            filterAllModeNonexistRefreshPrev = null;
+            sheetManager.refreshNonexistCellsForRowIndices(wrap, indices, { forFilterPopup: true });
+        }
+
         function resetFilterAllModeWindow() {
             const wrap = el('filterTableWrap');
-            if (wrap && filterAllModeWindowRange) {
+            const prev = filterAllModeWindowRange;
+            if (wrap && prev) {
                 clearFilterAllModeWindowOnRows(
                     wrap,
-                    filterAllModeWindowRange.start,
-                    filterAllModeWindowRange.end
+                    prev.start,
+                    prev.end
                 );
+                if (sheetManager) {
+                    const indices = [];
+                    for (let i = prev.start; i <= prev.end; i++) {
+                        indices.push(i);
+                    }
+                    sheetManager.refreshNonexistCellsForRowIndices(wrap, indices, { forFilterPopup: true });
+                }
             }
             filterAllModeWindowRange = null;
+            filterAllModeNonexistRefreshPrev = null;
         }
 
         function applyFilterPopupAllModeWindow(idx) {
@@ -11354,6 +11396,9 @@
             const start = Math.max(0, idx - 10);
             const end = idx;
             const prev = filterAllModeWindowRange;
+            filterAllModeNonexistRefreshPrev = prev
+                ? { start: prev.start, end: prev.end }
+                : null;
             if (prev) {
                 clearFilterAllModeWindowOnRows(wrap, prev.start, prev.end);
             }
@@ -11418,14 +11463,16 @@
             if (!sheetManager || typeof idx !== 'number' || idx < 0) {
                 return;
             }
+            const allMode = periodFilterEnabled && isAllFilterMode(periodFilterMode);
             if (options.previewOnly) {
-                if (periodFilterEnabled && isAllFilterMode(periodFilterMode)) {
+                if (allMode) {
                     const tableWrap = el('tableWrap');
                     sheetManager.syncSourceSheetFocusFromFilter(idx, {
                         previewOnly: true,
                         skipCenter: false,
                         tableWrapEl: tableWrap
                     });
+                    refreshFilterPopupAllModeNonexistCells(idx);
                     return;
                 }
                 return previewMainTableNavToRowIndex(idx);
@@ -11441,6 +11488,9 @@
                 skipCenter: false,
                 skipMainWindowSelection: !!(options.skipMainWindowSelection || !onSheet1)
             });
+            if (allMode) {
+                refreshFilterPopupAllModeNonexistCells(idx);
+            }
         }
 
         function queueFilterPopupAllModeCommit(idx) {
@@ -11602,6 +11652,8 @@
         let filterAllModeSetLinesPayload = null;
         /** Cửa sổ 10 kỳ trên filter ALL — chỉ ~11 hàng, không quét cả bảng. */
         let filterAllModeWindowRange = null;
+        /** Hàng cửa sổ 10 trước đó — refresh nonexist vàng 1.5x khi đổi focus ALL. */
+        let filterAllModeNonexistRefreshPrev = null;
 
         function getRightPaneArrowStepFromKey(key) {
             return getFilterPopupNavStepFromKey(key);

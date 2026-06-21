@@ -5122,16 +5122,25 @@ class RightPaneSheetManager {
 
     /**
      * Re-render nonexist cells for specific row indices (yellow x1.5 tracks active window).
+     * @param {object} [options]
+     * @param {boolean} [options.forFilterPopup] — #filterTableWrap + getSourceSheetRows()
      */
-    refreshNonexistCellsForRowIndices(tableWrap, rowIndices) {
-        if (!tableWrap || this.activeSheet !== 'sheet1') {
+    refreshNonexistCellsForRowIndices(tableWrap, rowIndices, options = {}) {
+        if (!tableWrap) {
             return;
         }
-        const meta = this.sheets[this.activeSheet] || {};
-        if (meta.kind === 'combo') {
+        const forFilterPopup = options.forFilterPopup === true
+            || tableWrap.id === 'filterTableWrap';
+        if (!forFilterPopup && this.activeSheet !== 'sheet1') {
             return;
         }
-        const displayRows = this.dataRows || [];
+        const meta = forFilterPopup ? null : (this.sheets[this.activeSheet] || {});
+        if (!forFilterPopup && meta && meta.kind === 'combo') {
+            return;
+        }
+        const displayRows = forFilterPopup
+            ? (this.getSourceSheetRows() || [])
+            : (this.dataRows || []);
         if (!this.nonexistCache || this.nonexistCache.length !== displayRows.length) {
             this.refreshDerivedState();
         }
@@ -5157,8 +5166,10 @@ class RightPaneSheetManager {
             }
             const row = displayRows[i];
             cell.innerHTML = this.renderSourceRowNonexistCellHtml(i, row);
-            tr.classList.toggle('answer-popup-focus-masked', this.shouldAnswerPopupMaskSheet1Row(i));
-            cell.classList.toggle('answer-popup-focus-nonexist', this.shouldAnswerPopupMaskSheet1Row(i));
+            if (!forFilterPopup) {
+                tr.classList.toggle('answer-popup-focus-masked', this.shouldAnswerPopupMaskSheet1Row(i));
+                cell.classList.toggle('answer-popup-focus-nonexist', this.shouldAnswerPopupMaskSheet1Row(i));
+            }
         }
     }
 
