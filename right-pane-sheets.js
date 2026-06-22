@@ -8214,6 +8214,11 @@ class RightPaneSheetManager {
         if (!rows.length) {
             return -1;
         }
+        if (typeof this.comboFocusRowIndex === 'number'
+            && this.comboFocusRowIndex >= 0
+            && this.comboFocusRowIndex < rows.length) {
+            return this.comboFocusRowIndex;
+        }
         const onTracking = this.activeSheet === TRACKING_SHEET_ID || this.activeSheet === 'specialtracking';
         if (onTracking) {
             const st = this.sheets[TRACKING_SHEET_ID] || this.sheets.specialtracking;
@@ -8224,11 +8229,6 @@ class RightPaneSheetManager {
                     return fromUi;
                 }
             }
-        }
-        if (typeof this.comboFocusRowIndex === 'number'
-            && this.comboFocusRowIndex >= 0
-            && this.comboFocusRowIndex < rows.length) {
-            return this.comboFocusRowIndex;
         }
         if (this.activeWindowRange && typeof this.activeWindowRange.target === 'number') {
             const t = this.activeWindowRange.target;
@@ -9717,6 +9717,7 @@ class RightPaneSheetManager {
             frameIndex = next;
             syncBasicLastIdBarNavAnchor();
             paint();
+            persistTrackingUi();
             scheduleNext();
             if (!this._syncingSheet1FromTracking) {
                 scheduleSheet1Sync(frameIndex, true);
@@ -9728,6 +9729,7 @@ class RightPaneSheetManager {
             frameIndex = next;
             syncBasicLastIdBarNavAnchor();
             schedulePaint();
+            persistTrackingUi();
             scheduleNext();
             if (!opts.skipSheet1Sync && !this._syncingSheet1FromTracking) {
                 scheduleSheet1Sync(frameIndex);
