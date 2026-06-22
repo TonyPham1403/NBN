@@ -1,0 +1,13 @@
+{
+  "name": "sua-proj",
+  "private": true,
+  "type": "module",
+  "description": "Special tracking arena + optional Node ML (npm install trong proj/)",
+  "scripts": {
+    "arena": "node scripts/special-tracking-algorithm-arena.mjs",
+    "arena:ml-quick": "set ARENA_ML_QUICK=1&& node scripts/special-tracking-algorithm-arena.mjs"
+  },
+  "optionalDependencies": {
+    "@tensorflow/tfjs": "^4.22.0"
+  }
+}
