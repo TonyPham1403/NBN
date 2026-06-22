@@ -406,6 +406,8 @@ class RightPaneSheetManager {
         this.answerPopupFocusMask = { active: false, rowIndex: -1 };
         this._answerPopupMaskAppliedRow = -1;
         this._answerPopupMaskApplyRaf = 0;
+        this._filterAllModeMaskAppliedRow = -1;
+        this._filterAllModeMaskApplyRaf = 0;
         this.comboG1Enabled = false;
         this.comboH1Text = '';
         this.comboHComments = {};
@@ -3143,41 +3145,83 @@ class RightPaneSheetManager {
         });
     }
 
+    scheduleApplyFilterAllModeFocusMask(tableWrap) {
+        if (this._filterAllModeMaskApplyRaf) {
+            return;
+        }
+        const wrap = tableWrap || document.getElementById('filterTableWrap');
+        this._filterAllModeMaskApplyRaf = requestAnimationFrame(() => {
+            this._filterAllModeMaskApplyRaf = 0;
+            this.applyFilterAllModeFocusMaskToDom(wrap);
+        });
+    }
+
     applyAnswerPopupFocusMaskToDom(tableWrap, options = {}) {
         if (!tableWrap || this.activeSheet !== 'sheet1') {
             return;
         }
-        if (options.reset) {
-            this._answerPopupMaskAppliedRow = -1;
-        }
-
-        const m = this.answerPopupFocusMask || {};
-        const prevIdx = this._answerPopupMaskAppliedRow;
-        const nextIdx = m.active ? m.rowIndex : -1;
-
-        if (prevIdx >= 0 && prevIdx !== nextIdx) {
-            this.setAnswerPopupFocusMaskOnRowDom(tableWrap, prevIdx, false);
-        }
-        if (nextIdx >= 0 && nextIdx !== prevIdx) {
-            this.setAnswerPopupFocusMaskOnRowDom(tableWrap, nextIdx, true);
-        }
-
-        this._answerPopupMaskAppliedRow = nextIdx;
+        this._applySourceFocusPreviewMaskToDom(
+            tableWrap,
+            this.answerPopupFocusMask,
+            '_answerPopupMaskAppliedRow',
+            options
+        );
     }
 
-    setAnswerPopupFocusMaskOnRowDom(tableWrap, rowIndex, masked) {
+    applyFilterAllModeFocusMaskToDom(tableWrap, options = {}) {
+        if (!tableWrap || tableWrap.id !== 'filterTableWrap') {
+            return;
+        }
+        this._applySourceFocusPreviewMaskToDom(
+            tableWrap,
+            this.answerPopupFocusMask,
+            '_filterAllModeMaskAppliedRow',
+            options
+        );
+    }
+
+    _applySourceFocusPreviewMaskToDom(tableWrap, maskState, appliedRowKey, options = {}) {
+        if (!tableWrap) {
+            return;
+        }
+
+        const m = maskState || {};
+        const prevIdx = this[appliedRowKey];
+        const nextIdx = m.active ? m.rowIndex : -1;
+        const force = !!options.reset;
+
+        if (prevIdx >= 0) {
+            if (prevIdx !== nextIdx || (force && nextIdx < 0)) {
+                this.setFocusPreviewMaskOnRowDom(tableWrap, prevIdx, false);
+            }
+        }
+        if (nextIdx >= 0 && (nextIdx !== prevIdx || force)) {
+            this.setFocusPreviewMaskOnRowDom(tableWrap, nextIdx, true);
+        }
+
+        this[appliedRowKey] = nextIdx;
+    }
+
+    setFocusPreviewMaskOnRowDom(tableWrap, rowIndex, masked) {
         const tr = tableWrap.querySelector(`tbody tr[data-idx="${rowIndex}"]`);
         if (!tr) {
             return;
         }
         tr.classList.toggle('answer-popup-focus-masked', masked);
         const nonexistCell = tr.querySelector('td.cell-nonexist');
-        const row = (this.dataRows || [])[rowIndex];
+        const rows = tableWrap.id === 'filterTableWrap'
+            ? (this.getSourceSheetRows() || [])
+            : (this.dataRows || []);
+        const row = rows[rowIndex];
         if (!nonexistCell || !row) {
             return;
         }
         nonexistCell.classList.toggle('answer-popup-focus-nonexist', masked);
         nonexistCell.innerHTML = this.renderSourceRowNonexistCellHtml(rowIndex, row);
+    }
+
+    setAnswerPopupFocusMaskOnRowDom(tableWrap, rowIndex, masked) {
+        this.setFocusPreviewMaskOnRowDom(tableWrap, rowIndex, masked);
     }
 
     /**
@@ -3293,6 +3337,10 @@ class RightPaneSheetManager {
         const mainWrap = typeof document !== 'undefined' ? document.getElementById('tableWrap') : null;
         if (options.applyAnswerPopupMask !== false && tableWrap && tableWrap === mainWrap) {
             this.applyAnswerPopupFocusMaskToDom(tableWrap, { reset: true });
+        }
+        const filterWrap = typeof document !== 'undefined' ? document.getElementById('filterTableWrap') : null;
+        if (options.applyAnswerPopupMask !== false && tableWrap && tableWrap === filterWrap) {
+            this.applyFilterAllModeFocusMaskToDom(tableWrap, { reset: true });
         }
         if (this.activeWindowRange && Array.isArray(this.activeWindowRange.idRefHighlightIndices)
             && this.activeWindowRange.idRefHighlightIndices.length) {
@@ -3640,6 +3688,9 @@ class RightPaneSheetManager {
             f1Input.dataset.bound = '1';
             f1Input.addEventListener('input', () => {
                 this.comboFocusRowId = f1Input.value.trim();
+                const sourceRows = this.getSourceSheetRows();
+                const byId = sourceRows.findIndex((r) => String(r.id || r.ID || '').trim() === this.comboFocusRowId);
+                this.comboFocusRowIndex = byId >= 0 ? byId : -1;
                 this.save();
                 window.dispatchEvent(new CustomEvent('comboControlsChanged', { detail: { sheet: this.activeSheet } }));
             });
@@ -5175,10 +5226,9 @@ class RightPaneSheetManager {
             }
             const row = displayRows[i];
             cell.innerHTML = this.renderSourceRowNonexistCellHtml(i, row);
-            if (!forFilterPopup) {
-                tr.classList.toggle('answer-popup-focus-masked', this.shouldAnswerPopupMaskSheet1Row(i));
-                cell.classList.toggle('answer-popup-focus-nonexist', this.shouldAnswerPopupMaskSheet1Row(i));
-            }
+            const masked = this.shouldAnswerPopupMaskSheet1Row(i);
+            tr.classList.toggle('answer-popup-focus-masked', masked);
+            cell.classList.toggle('answer-popup-focus-nonexist', masked);
         }
     }
 

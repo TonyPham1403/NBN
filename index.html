@@ -5161,13 +5161,25 @@
         /** Tăng dần khi click filter / answer dock để popup nào click sau nổi trên. */
         let floatingPopupDockZCounter = 0;
 
-        /** Filter / answer popup dùng dữ liệu sheet1; cho phép trên sheet tracking lẫn sheet1. */
+        /** Filter popup: sheet1 + tracking. Answer popup thêm các sheet combo_x. */
         function isPeriodFilterContextSheet() {
             if (!sheetManager) {
                 return false;
             }
             const sheet = sheetManager.activeSheet;
             return sheet === 'sheet1' || sheet === 'tracking';
+        }
+
+        function isComboContextSheet() {
+            if (!sheetManager) {
+                return false;
+            }
+            const meta = sheetManager.sheets[sheetManager.activeSheet];
+            return !!(meta && meta.kind === 'combo');
+        }
+
+        function isAnswerPopupContextSheet() {
+            return isPeriodFilterContextSheet() || isComboContextSheet();
         }
 
         function getFilterSourceSheetRows() {
@@ -11290,6 +11302,7 @@
 
             closeFilterPopup();
             resetFilterAllModeWindow();
+            syncFilterPopupAllModeFocusMask();
             syncPeriodFilterNavModeToIframe();
             syncPeriodFilterToolbarUi(false);
             if (closingAllMode) {
@@ -11312,6 +11325,8 @@
             wrap.classList.toggle('filter-popup-all-mode', allMode);
             if (!allMode) {
                 resetFilterAllModeWindow();
+            } else {
+                syncFilterPopupAllModeFocusMask();
             }
         }
 
@@ -11445,6 +11460,7 @@
             }
             filterAllModeWindowRange = null;
             filterAllModeNonexistRefreshPrev = null;
+            syncFilterPopupAllModeFocusMask();
         }
 
         function applyFilterPopupAllModeWindow(idx) {
@@ -11503,6 +11519,7 @@
             if (allMode) {
                 applyFilterPopupAllModeWindow(idx);
             }
+            syncFilterPopupAllModeFocusMask();
         }
 
         function getMainSourceSheetFocusRowIndex() {
@@ -11519,6 +11536,14 @@
                 const t = sheetManager.activeWindowRange.target;
                 if (t >= 0) {
                     return t;
+                }
+            }
+            const rows = getFilterSourceSheetRows();
+            const focusId = String(sheetManager.comboFocusRowId || '').trim();
+            if (focusId && rows.length) {
+                const byId = rows.findIndex((r) => String(r.id || r.ID || '').trim() === focusId);
+                if (byId >= 0) {
+                    return byId;
                 }
             }
             if (typeof sheetManager.comboFocusRowIndex === 'number' && sheetManager.comboFocusRowIndex >= 0) {
@@ -12285,6 +12310,7 @@
                 }
                 scrollFilterPopupRowIntoView();
             }
+            syncFilterPopupAllModeFocusMask();
             syncPeriodFilterNavModeToIframe();
         }
 
@@ -12490,6 +12516,7 @@
             }
             syncFilterPopupAllModeClass();
             updateFilterPopupPrevRecallFoldTooltips();
+            syncFilterPopupAllModeFocusMask();
             try {
                 if (typeof window.__syncFilterTableThumbTrackInsets === 'function') {
                     requestAnimationFrame(() => window.__syncFilterTableThumbTrackInsets());
@@ -13194,6 +13221,23 @@
             if (sm.activeSheet === 'sheet1' && typeof sm.scheduleApplyAnswerPopupFocusMask === 'function') {
                 sm.scheduleApplyAnswerPopupFocusMask();
             }
+            syncFilterPopupAllModeFocusMask();
+        }
+
+        function syncFilterPopupAllModeFocusMask() {
+            const sm = sheetManager;
+            const wrap = el('filterTableWrap');
+            if (!sm || !wrap || typeof sm.applyFilterAllModeFocusMaskToDom !== 'function') {
+                return;
+            }
+            const ap = answerPopup;
+            const answerOpen = !!(ap && ap.isOpen && ap.isOpen());
+            const allMode = periodFilterEnabled && isAllFilterMode(periodFilterMode);
+            if (answerOpen && allMode && typeof sm.scheduleApplyFilterAllModeFocusMask === 'function') {
+                sm.scheduleApplyFilterAllModeFocusMask(wrap);
+            } else {
+                sm.applyFilterAllModeFocusMaskToDom(wrap, { reset: true });
+            }
         }
 
         function ensureAnswerPopup() {
@@ -13201,6 +13245,8 @@
                 answerPopup = new AnswerPopupController({
                     el,
                     getSheetManager: () => sheetManager,
+                    getSourceRows: getFilterSourceSheetRows,
+                    isContextSheet: isAnswerPopupContextSheet,
                     parseNums,
                     initDrag: initAnswerPopupDrag,
                     initResize: initAnswerPopupResize,
@@ -13233,7 +13279,7 @@
                     return;
                 }
                 const ap = ensureAnswerPopup();
-                if (!isPeriodFilterContextSheet()) {
+                if (!isAnswerPopupContextSheet()) {
                     if (!ap.isOpen()) {
                         return;
                     }
@@ -13543,6 +13589,13 @@
                     renderTable();
                     syncComboLogicUi();
                 }
+                const ap = answerPopup;
+                if (ap && ap.isOpen() && isComboContextSheet() && sheetManager) {
+                    const idx = getMainSourceSheetFocusRowIndex();
+                    if (typeof idx === 'number' && idx >= 0) {
+                        ap.onFocusRowChanged(idx);
+                    }
+                }
             });
 
             const tableWrap = el('tableWrap');
@@ -13574,8 +13627,7 @@
                 if (periodFilterEnabled && !fromFilterNav && typeof detail.focusRowIndex === 'number') {
                     syncFilterPopupFocusFromMainRow(detail.focusRowIndex);
                 }
-                if (typeof detail.focusRowIndex === 'number'
-                    && (detail.sheetName === 'sheet1' || sheetManager?.activeSheet === 'tracking')) {
+                if (typeof detail.focusRowIndex === 'number' && isAnswerPopupContextSheet()) {
                     ensureAnswerPopup().onFocusRowChanged(detail.focusRowIndex);
                 }
                 selectedLines = detail.selectedLines || [];
@@ -13698,7 +13750,7 @@
                     if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
                         return;
                     }
-                    if (!isPeriodFilterContextSheet()) {
+                    if (!isAnswerPopupContextSheet()) {
                         return;
                     }
                     const ap = ensureAnswerPopup();
