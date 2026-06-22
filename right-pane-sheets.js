@@ -7927,14 +7927,129 @@ class RightPaneSheetManager {
         return out;
     }
 
-    /** Dấu { cột frequency — nhóm ≥2 số cùng giá trị tích lũy; nhãn x = số bar trong bụng. */
-    static syncTrackingFreqBraces(layer, groups, slotCount) {
+    static getFreqTieGroupBellyKey(nums) {
+        if (!Array.isArray(nums) || !nums.length) {
+            return '';
+        }
+        return nums.slice().sort((a, b) => a - b).join(',');
+    }
+
+    static FREQ_BRACE_STREAK_NUMERALS = '一二三四五六七八九';
+    static FREQ_BRACE_STREAK_MAX = 99;
+
+    /** 1–99 → 一…十, 十一…十九, 二十…九十九 */
+    static formatChineseStreakNumeral(streak) {
+        const n = Math.max(1, Math.min(RightPaneSheetManager.FREQ_BRACE_STREAK_MAX, streak | 0));
+        const digits = RightPaneSheetManager.FREQ_BRACE_STREAK_NUMERALS;
+        if (n <= 10) {
+            if (n === 10) {
+                return '十';
+            }
+            return digits[n - 1];
+        }
+        if (n < 20) {
+            return `十${digits[n - 11]}`;
+        }
+        const tens = Math.floor(n / 10);
+        const ones = n % 10;
+        const tensChar = digits[tens - 1];
+        if (ones === 0) {
+            return `${tensChar}十`;
+        }
+        return `${tensChar}十${digits[ones - 1]}`;
+    }
+
+    static formatFreqBraceCountLabel(memberCount, unchangedStreak) {
+        const count = Math.max(2, memberCount | 0);
+        const streak = Math.max(1, Math.min(RightPaneSheetManager.FREQ_BRACE_STREAK_MAX, unchangedStreak | 0));
+        if (streak <= 1) {
+            return String(count);
+        }
+        const numeral = RightPaneSheetManager.formatChineseStreakNumeral(streak);
+        return `${count}${numeral}`;
+    }
+
+    /**
+     * Đếm số frame liên tiếp (lùi từ frameIndex) mà bụng cùng tập số vẫn tồn tại.
+     * @returns {{ groups: object[], streakByKey: Map<string, number> }}
+     */
+    computeTrackingFreqTieGroupsWithStreaks(sheet, frames, frameIndex, options = {}) {
+        const isBasic = !!options.isBasic;
+        const numMax = options.numMax || 35;
+        const leftSubmitOn = !!options.leftSubmitOn;
+        const basicDraws = options.basicDraws || [];
+        const bellyKey = RightPaneSheetManager.getFreqTieGroupBellyKey;
+
+        const getGroupsForFrame = (f) => {
+            const fr = frames[f];
+            if (!fr) {
+                return [];
+            }
+            if (isBasic) {
+                const previewActive = this.isBasicTrackingEmptyLastRowPreviewActive(sheet, f);
+                const previewPickNums = previewActive ? (this.leftBasicPreviewPickNums || []) : [];
+                const display = RightPaneSheetManager.computeBasicTrackingDisplayLayout(
+                    basicDraws,
+                    fr,
+                    leftSubmitOn,
+                    previewPickNums
+                );
+                return RightPaneSheetManager.buildBasicTrackingFreqTieGroups(
+                    display.counts,
+                    display.slotByNum,
+                    numMax
+                );
+            }
+            return RightPaneSheetManager.buildBasicTrackingFreqTieGroups(
+                fr.byNum,
+                fr.slotByNum,
+                numMax
+            );
+        };
+
+        const groups = getGroupsForFrame(frameIndex);
+        const streakByKey = new Map();
+        for (let g = 0; g < groups.length; g++) {
+            const group = groups[g];
+            const key = bellyKey(group.nums);
+            if (!key || streakByKey.has(key)) {
+                continue;
+            }
+            let streak = 1;
+            for (let f = frameIndex - 1; f >= 0; f--) {
+                const prevGroups = getGroupsForFrame(f);
+                let found = false;
+                for (let p = 0; p < prevGroups.length; p++) {
+                    if (bellyKey(prevGroups[p].nums) === key) {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found) {
+                    break;
+                }
+                streak++;
+                if (streak >= RightPaneSheetManager.FREQ_BRACE_STREAK_MAX) {
+                    break;
+                }
+            }
+            streakByKey.set(key, streak);
+        }
+        return { groups, streakByKey };
+    }
+
+    /** Dấu { cột frequency — nhóm ≥2 số cùng giá trị tích lũy; nhãn = [n] + 一二… (bụng không đổi). */
+    static syncTrackingFreqBraces(layer, groups, slotCount, streakByKey) {
         if (!layer) {
             return;
         }
         const sig = !groups.length
             ? ''
-            : groups.map((g) => `${g.freq}:${g.minSlot}-${g.maxSlot}:${g.nums.join(',')}`).join('|');
+            : groups.map((g) => {
+                const key = RightPaneSheetManager.getFreqTieGroupBellyKey(g.nums);
+                const streak = (streakByKey && streakByKey.get(key)) || 1;
+                return `${g.freq}:${g.minSlot}-${g.maxSlot}:${key}:${streak}`;
+            }).join('|');
         if (layer.dataset.stBraceSig === sig) {
             return;
         }
@@ -7949,17 +8064,21 @@ class RightPaneSheetManager {
             if (memberCount < 2) {
                 continue;
             }
+            const bellyKey = RightPaneSheetManager.getFreqTieGroupBellyKey(g.nums);
+            const unchangedStreak = (streakByKey && streakByKey.get(bellyKey)) || 1;
+            const countLabel = RightPaneSheetManager.formatFreqBraceCountLabel(memberCount, unchangedStreak);
             const el = document.createElement('div');
             el.className = 'special-tracking-freq-brace';
             el.setAttribute('data-freq', String(g.freq));
             el.setAttribute('data-member-count', String(memberCount));
-            el.title = `Tần suất ${g.freq}: ${g.nums.join(', ')} (${memberCount} số)`;
+            el.setAttribute('data-unchanged-streak', String(unchangedStreak));
+            el.title = `Tần suất ${g.freq}: ${g.nums.join(', ')} (${memberCount} số, bụng không đổi ${unchangedStreak} kỳ)`;
             const topPct = (g.minSlot / slotCount) * 100;
             const heightPct = ((g.maxSlot - g.minSlot + 1) / slotCount) * 100;
             el.style.top = `${topPct}%`;
             el.style.height = `${heightPct}%`;
             el.innerHTML = '<span class="special-tracking-freq-brace-count" aria-hidden="true">'
-                + String(memberCount)
+                + countLabel
                 + '</span>'
                 + '<svg viewBox="0 0 8 100" preserveAspectRatio="none" aria-hidden="true">'
                 + '<path d="M 0,0 C 5,1 7,22 7,50 C 7,78 5,99 0,100" fill="none" '
@@ -9238,6 +9357,7 @@ class RightPaneSheetManager {
             let basicWindow10Freq = null;
             let basicCh11Ch12Set = null;
             let freqTieGroups = [];
+            let freqTieStreakByKey = new Map();
             if (isBasic) {
                 const cacheKey = `${frameIndex}|${leftSubmitOn ? 1 : 0}|${previewPickNums.join(',')}`;
                 if (basicPaintCacheKey !== cacheKey || !basicPaintCache) {
@@ -9256,30 +9376,36 @@ class RightPaneSheetManager {
                         this.sourceRows || [],
                         srcRow
                     );
-                    freqTieGroups = RightPaneSheetManager.buildBasicTrackingFreqTieGroups(
-                        basicDisplay.counts,
-                        basicDisplay.slotByNum,
-                        numMax
-                    );
+                    const tieResult = this.computeTrackingFreqTieGroupsWithStreaks(sheet, frames, frameIndex, {
+                        isBasic: true,
+                        numMax,
+                        leftSubmitOn,
+                        basicDraws
+                    });
+                    freqTieGroups = tieResult.groups;
+                    freqTieStreakByKey = tieResult.streakByKey;
                     basicPaintCacheKey = cacheKey;
                     basicPaintCache = {
                         basicDisplay,
                         basicWindow10Freq,
                         basicCh11Ch12Set,
-                        freqTieGroups
+                        freqTieGroups,
+                        freqTieStreakByKey
                     };
                 } else {
                     basicDisplay = basicPaintCache.basicDisplay;
                     basicWindow10Freq = basicPaintCache.basicWindow10Freq;
                     basicCh11Ch12Set = basicPaintCache.basicCh11Ch12Set;
                     freqTieGroups = basicPaintCache.freqTieGroups;
+                    freqTieStreakByKey = basicPaintCache.freqTieStreakByKey || new Map();
                 }
             } else {
-                freqTieGroups = RightPaneSheetManager.buildBasicTrackingFreqTieGroups(
-                    fr.byNum,
-                    fr.slotByNum,
+                const tieResult = this.computeTrackingFreqTieGroupsWithStreaks(sheet, frames, frameIndex, {
+                    isBasic: false,
                     numMax
-                );
+                });
+                freqTieGroups = tieResult.groups;
+                freqTieStreakByKey = tieResult.streakByKey;
             }
 
             for (let n = 1; n <= numMax; n++) {
@@ -9305,6 +9431,25 @@ class RightPaneSheetManager {
                 if (fillEl) {
                     fillEl.style.width = `${wPct}%`;
                 }
+                const win10Freq = isBasic && basicWindow10Freq ? (basicWindow10Freq[n] || 0) : null;
+                const win10FreqOne = isBasic && win10Freq === 1;
+                const win10FreqOneItalic = win10FreqOne
+                    && basicCh11Ch12Set
+                    && basicCh11Ch12Set.has(n);
+                const isJust = justSet.has(n);
+                const leftPickPreviewLabel = previewPickSet.has(n);
+                const showWin10ZeroTransition = isBasic
+                    && win10Freq === 0
+                    && ((leftSubmitOn && isJust) || leftPickPreviewLabel);
+                if (countEl) {
+                    const cumFreq = isBasic && basicDisplay
+                        ? (basicDisplay.counts[n] || 0)
+                        : (fr.byNum[n] || 0);
+                    const freqText = String(cumFreq);
+                    if (countEl.textContent !== freqText) {
+                        countEl.textContent = freqText;
+                    }
+                }
                 if (numEl) {
                     if (labelMode === 'out') {
                         numEl.style.left = '';
@@ -9316,27 +9461,29 @@ class RightPaneSheetManager {
                         numEl.style.left = `max(2px, calc(${wPct}% - ${insetPx}px))`;
                         numEl.style.transform = 'translate(-100%, -50%)';
                     }
-                }
-                if (countEl) {
-                    const cumFreq = isBasic && basicDisplay
-                        ? (basicDisplay.counts[n] || 0)
-                        : (fr.byNum[n] || 0);
-                    const freqText = String(cumFreq);
-                    if (countEl.textContent !== freqText) {
-                        countEl.textContent = freqText;
+                    if (showWin10ZeroTransition) {
+                        const transitionHtml = '<span class="special-tracking-rank-num-transition">'
+                            + `<span class="special-tracking-rank-num-from">${n}</span>`
+                            + '<span class="special-tracking-rank-num-arrow" aria-hidden="true">→</span>'
+                            + `<span class="special-tracking-rank-num-to">${n}</span>`
+                            + '</span>';
+                        if (numEl.innerHTML !== transitionHtml) {
+                            numEl.innerHTML = transitionHtml;
+                        }
+                        numEl.classList.add('special-tracking-rank-num--submit-win10-zero-transition');
+                    } else {
+                        const numText = String(n);
+                        if (numEl.textContent !== numText) {
+                            numEl.textContent = numText;
+                        }
+                        numEl.classList.remove('special-tracking-rank-num--submit-win10-zero-transition');
                     }
+                    numEl.classList.toggle('special-tracking-rank-num--win10-freq-one-italic', win10FreqOneItalic);
                 }
-                const win10Freq = isBasic && basicWindow10Freq ? (basicWindow10Freq[n] || 0) : null;
-                const win10FreqOne = isBasic && win10Freq === 1;
-                const win10FreqOneItalic = win10FreqOne
-                    && basicCh11Ch12Set
-                    && basicCh11Ch12Set.has(n);
-                const isJust = justSet.has(n);
                 const autoringNonexistLabel = isBasic
                     && this.leftAutoringEnabled
                     && win10Freq === 0
                     && isJust;
-                const leftPickPreviewLabel = previewPickSet.has(n);
                 el.classList.toggle(
                     'special-tracking-rank-bar--win10-freq-zero',
                     isBasic && win10Freq === 0
@@ -9345,9 +9492,10 @@ class RightPaneSheetManager {
                     'special-tracking-rank-bar--win10-freq-one',
                     win10FreqOne
                 );
-                if (numEl) {
-                    numEl.classList.toggle('special-tracking-rank-num--win10-freq-one-italic', win10FreqOneItalic);
-                }
+                el.classList.toggle(
+                    'special-tracking-rank-bar--submit-win10-zero-answer',
+                    showWin10ZeroTransition
+                );
                 if (countEl) {
                     countEl.classList.toggle('special-tracking-rank-count--win10-freq-one-italic', win10FreqOneItalic);
                 }
@@ -9384,7 +9532,11 @@ class RightPaneSheetManager {
                     prioEl.setAttribute('aria-hidden', pr ? 'false' : 'true');
                 }
                 let aria = `Số ${n}, click để tô sáng`;
-                if (leftPickPreviewLabel) {
+                if (showWin10ZeroTransition) {
+                    aria = leftPickPreviewLabel && !leftSubmitOn
+                        ? `Số ${n}, nonexist cửa sổ 10 (đỏ) → preview khoanh trái (đen gạch chân), kỳ cuối chưa có đáp án`
+                        : `Số ${n}, nonexist cửa sổ 10 (đỏ) → đáp án kỳ hiện tại (đen gạch chân), submit ON`;
+                } else if (leftPickPreviewLabel) {
                     aria = `Số ${n}, khoanh trái — preview freq +1 (kỳ chưa có đáp án)`;
                 } else if (autoringNonexistLabel) {
                     aria = `Số ${n}, nonexist (win10=0) trong đáp án kỳ hiện tại — autoring tracking`;
@@ -9405,7 +9557,8 @@ class RightPaneSheetManager {
                 RightPaneSheetManager.syncTrackingFreqBraces(
                     freqBraceLayer,
                     freqTieGroups,
-                    slotCount
+                    slotCount,
+                    freqTieStreakByKey
                 );
             }
             if (stepEl) {

@@ -1066,6 +1066,48 @@
             text-shadow: none !important;
         }
 
+        /* Basic + Submit ON: bar win10=0 trong đáp án — nhãn đỏ → đen gạch chân */
+        .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero .special-tracking-rank-num--submit-win10-zero-transition {
+            color: #111 !important;
+            -webkit-text-stroke: 0 !important;
+            text-shadow: none !important;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-num-transition {
+            display: inline-flex;
+            align-items: baseline;
+            gap: 0;
+            font-size: inherit;
+            font-weight: inherit;
+            line-height: 1;
+            white-space: nowrap;
+            letter-spacing: inherit;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-num-from {
+            color: #ff0000 !important;
+            font-weight: 900;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-num-arrow {
+            color: #333;
+            font-weight: 900;
+            font-size: inherit;
+            padding: 0 1px;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-num-to {
+            color: #000 !important;
+            font-weight: 900;
+            text-decoration: underline solid 1.5px #000 !important;
+            text-underline-offset: 2px;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero.special-tracking-rank-bar--submit-win10-zero-answer .special-tracking-rank-count {
+            color: #000 !important;
+            border-bottom: 1.5px solid #000000;
+        }
+
         /* Basic + autoring (tracking): viền đen giống click quan sát bar — dùng class --focus */
         .special-tracking-root--basic .special-tracking-rank-bar--autoring-nonexist {
             z-index: 50 !important;
@@ -1112,7 +1154,7 @@
             top: 50%;
             z-index: 2;
             transform: translate(-35%, -50%);
-            font-size: clamp(9px, 1.2vh, 12px);
+            font-size: clamp(8px, 1.1vh, 11px);
             font-weight: 900;
             font-variant-numeric: tabular-nums;
             line-height: 1;
@@ -1120,6 +1162,8 @@
             pointer-events: none;
             user-select: none;
             text-shadow: 0 0 3px rgba(255, 255, 255, 0.85);
+            white-space: nowrap;
+            letter-spacing: -0.02em;
         }
 
         .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-freq-brace-count {
