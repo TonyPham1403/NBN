@@ -5103,7 +5103,7 @@
         </div>
     </div>
 
-    <script src="right-pane-sheets.js?v=20250703"></script>
+    <script src="right-pane-sheets.js?v=20250706"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -13491,7 +13491,7 @@
                 // cases where rows (like the synthetic final row) are added/updated
                 // by logic that runs after the initial render. This avoids losing
                 // the black border when the DOM is updated asynchronously.
-                if (sheetManager.activeWindowRange) {
+                if (sheetManager.activeWindowRange && !sheetManager._lastSheet1RenderWasDomRestore) {
                     setTimeout(() => {
                         try {
                             const r = sheetManager.activeWindowRange;
@@ -13635,49 +13635,30 @@
 
             // Listen for sheet changes
             window.addEventListener('sheetChanged', (e) => {
-                syncSubmitRingToolbarUi();
-                sendSubmitRingConfigToIframe({ contextSync: true });
                 const finishSheetChanged = () => {
                     renderTable();
                     renderSheetTabs();
                     updatePeriodFilterMatchCount();
                     syncFilterPopupDropdownCounts();
                 };
-                if (sheetManager && sheetManager.activeSheet === 'combo_1') {
-                    finishSheetChanged();
-                    scheduleComboH1ReplaceFromLeftCircled();
-                } else {
-                    finishSheetChanged();
-                }
+                finishSheetChanged();
+                requestAnimationFrame(() => {
+                    syncSubmitRingToolbarUi();
+                    sendSubmitRingConfigToIframe({ contextSync: true });
+                    if (sheetManager && sheetManager.activeSheet === 'combo_1') {
+                        scheduleComboH1ReplaceFromLeftCircled();
+                    }
+                    selectedLines = [];
+                    selectedNums.clear();
+                    renderSelectedLines();
+                    renderSummaryTable();
+                });
                 if (periodFilterEnabled && isPeriodFilterContextSheet()) {
                     requestAnimationFrame(() => {
                         if (isPeriodFilterContextSheet()) {
                             refreshFilterPopup({ syncMain: false, immediateRender: true });
                         }
                     });
-                }
-                // Clear selection when switching sheets
-                selectedLines = [];
-                selectedNums.clear();
-                renderSelectedLines();
-                renderSummaryTable();
-
-                // Reapply the saved window selection (if any) after a short delay to
-                // avoid races with table rendering when switching sheets. This fixes
-                // the issue where the black border for the last-row window disappears
-                // after switching away and back to `sheet1`.
-                if (sheetManager && sheetManager.activeWindowRange && sheetManager.activeSheet === 'sheet1') {
-                    const r = sheetManager.activeWindowRange;
-                    setTimeout(() => {
-                        try {
-                            sheetManager.applyWindowSelection(r.start, r.end, r.target, null, {
-                                idRefHighlightIndices: r.idRefHighlightIndices || null,
-                                focusNoteRefHighlightIndices: r.focusNoteRefHighlightIndices || null
-                            });
-                        } catch (err) {
-                            // ignore
-                        }
-                    }, 10);
                 }
             });
 

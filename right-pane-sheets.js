@@ -426,6 +426,8 @@ class RightPaneSheetManager {
         this._sheet1LeftPaneTimer = 0;
         this._sheet1LeftPaneStepMs = 58;
         this._sheet1NavTableWrap = null;
+        /** Cache DOM bảng sheet1 khi đổi tab — tránh rebuild toàn bộ rows. */
+        this._sheet1DomCache = null;
         /** Submit ON ở nửa màn trái (iframe ok_left) — ảnh hưởng basic tracking. */
         this.leftSubmitActive = false;
         /** Autoring ON (toolbar) — ảnh hưởng basic tracking. */
@@ -494,6 +496,7 @@ class RightPaneSheetManager {
      * Load data into the active sheet
      */
     loadData(rows) {
+        this.invalidateSheet1TableDomCache();
         this.sourceRows = rows || [];
         this.rebuildSheetsFromSource();
         this.activeSheet = 'sheet1';
@@ -1078,10 +1081,198 @@ class RightPaneSheetManager {
         return this.colorPalette[colorIndex];
     }
 
+    getSourceSheetTableSig() {
+        const rows = this.getSourceSheetRows();
+        const tail = rows.length ? rows[rows.length - 1] : {};
+        const tailId = String(tail.id ?? tail.ID ?? '');
+        return `${rows.length}|${tailId}`;
+    }
+
+    getActiveWindowRangeCacheKey() {
+        const r = this.activeWindowRange;
+        if (!r || typeof r.start !== 'number' || typeof r.end !== 'number') {
+            return 'none';
+        }
+        const target = typeof r.target === 'number' ? r.target : '';
+        const idRefs = Array.isArray(r.idRefHighlightIndices) ? r.idRefHighlightIndices.join(',') : '';
+        const noteRefs = Array.isArray(r.focusNoteRefHighlightIndices) ? r.focusNoteRefHighlightIndices.join(',') : '';
+        return `${r.start}|${r.end}|${target}|${idRefs}|${noteRefs}`;
+    }
+
+    invalidateSheet1TableDomCache() {
+        this._sheet1DomCache = null;
+    }
+
+    cacheSheet1TableDom(tableWrap) {
+        if (!this.isSourceSheet1TableDom(tableWrap)) {
+            return;
+        }
+        this._sheet1DomCache = {
+            sig: this.getSourceSheetTableSig(),
+            html: tableWrap.innerHTML,
+            windowRangeKey: this.getActiveWindowRangeCacheKey()
+        };
+    }
+
+    isSourceSheet1TableDom(tableWrap) {
+        if (!tableWrap) {
+            return false;
+        }
+        const table = tableWrap.querySelector('table.sheet1-source-table');
+        if (!table || !table.classList.contains('sheet-data-table')) {
+            return false;
+        }
+        if (table.classList.contains('combo-sheet-table')
+            || table.classList.contains('combo-special-table')
+            || table.classList.contains('combo-sheet-grid')) {
+            return false;
+        }
+        return true;
+    }
+
+    tryRestoreSheet1TableDom(tableWrap, options = {}) {
+        if (!tableWrap || !this._sheet1DomCache) {
+            return false;
+        }
+        if (this._sheet1DomCache.sig !== this.getSourceSheetTableSig()) {
+            this.invalidateSheet1TableDomCache();
+            return false;
+        }
+        if (!String(this._sheet1DomCache.html || '').includes('sheet1-source-table')) {
+            this.invalidateSheet1TableDomCache();
+            return false;
+        }
+        tableWrap.innerHTML = this._sheet1DomCache.html;
+        if (options.bindKeyboard !== false) {
+            this.bindSourceSheetKeyboardNavigation(tableWrap);
+        }
+        this.bindSourceSheetTableAfterRender(tableWrap, {
+            ...options,
+            fromDomRestore: true,
+            cachedWindowRangeKey: this._sheet1DomCache.windowRangeKey ?? null
+        });
+        this._lastSheet1RenderWasDomRestore = true;
+        return true;
+    }
+
+    bindSourceSheetRowClickDelegation(tableWrap, options = {}) {
+        if (!tableWrap) {
+            return;
+        }
+        tableWrap.querySelectorAll('tbody tr').forEach(tr => {
+            tr.style.cursor = 'pointer';
+        });
+        if (options.skipRowClickBind === true) {
+            return;
+        }
+        tableWrap.__rowClickOnActivated = typeof options.onRowActivated === 'function'
+            ? options.onRowActivated
+            : null;
+        if (tableWrap.dataset.rowClickDelegated === '1') {
+            return;
+        }
+        tableWrap.dataset.rowClickDelegated = '1';
+        tableWrap.addEventListener('click', (e) => {
+            const tr = e.target.closest('tbody tr[data-idx]');
+            if (!tr || !tableWrap.contains(tr)) {
+                return;
+            }
+            this.onRowClick(Number(tr.dataset.idx), tr.dataset.empty === '1', e);
+            try {
+                tableWrap.focus({ preventScroll: true });
+            } catch (err) {
+                // ignore focus failures
+            }
+            const onActivated = tableWrap.__rowClickOnActivated;
+            if (typeof onActivated === 'function') {
+                onActivated(Number(tr.dataset.idx));
+            }
+        });
+    }
+
+    bindSourceSheetTableAfterRender(tableWrap, options = {}) {
+        const applyWindowSelection = options.applyWindowSelection !== false;
+        const fromDomRestore = options.fromDomRestore === true;
+        this.bindSourceSheetRowClickDelegation(tableWrap, options);
+
+        if (!tableWrap.dataset.nonexistContextmenuBound) {
+            tableWrap.dataset.nonexistContextmenuBound = '1';
+            tableWrap.addEventListener('contextmenu', (e) => {
+                this.handleSourceSheetCellContextMenu(e, tableWrap);
+            });
+        }
+
+        if (!fromDomRestore) {
+            if (applyWindowSelection && this.activeWindowRange) {
+                const selectionRoot = options.selectionRoot || tableWrap;
+                const r = this.activeWindowRange;
+                this.applyWindowSelection(
+                    r.start,
+                    r.end,
+                    r.target,
+                    selectionRoot,
+                    {
+                        idRefHighlightIndices: r.idRefHighlightIndices || null,
+                        focusNoteRefHighlightIndices: r.focusNoteRefHighlightIndices || null
+                    }
+                );
+            }
+
+            const mainWrap = typeof document !== 'undefined' ? document.getElementById('tableWrap') : null;
+            if (options.applyAnswerPopupMask !== false && tableWrap && tableWrap === mainWrap) {
+                this.applyAnswerPopupFocusMaskToDom(tableWrap, { reset: true });
+            }
+            const filterWrap = typeof document !== 'undefined' ? document.getElementById('filterTableWrap') : null;
+            if (options.applyAnswerPopupMask !== false && tableWrap && tableWrap === filterWrap) {
+                this.applyFilterAllModeFocusMaskToDom(tableWrap, { reset: true });
+            }
+            if (this.activeWindowRange && Array.isArray(this.activeWindowRange.idRefHighlightIndices)
+                && this.activeWindowRange.idRefHighlightIndices.length) {
+                this.applyIdRefHighlightToDom(this.activeWindowRange.idRefHighlightIndices, tableWrap);
+            }
+            if (this.activeWindowRange && Array.isArray(this.activeWindowRange.focusNoteRefHighlightIndices)
+                && this.activeWindowRange.focusNoteRefHighlightIndices.length) {
+                this.applyFocusNoteRefHighlightToDom(this.activeWindowRange.focusNoteRefHighlightIndices, tableWrap);
+            }
+        } else if (tableWrap && tableWrap.id === 'tableWrap') {
+            const m = this.answerPopupFocusMask || {};
+            this._answerPopupMaskAppliedRow = m.active ? m.rowIndex : -1;
+            const cachedKey = options.cachedWindowRangeKey ?? null;
+            const currentKey = this.getActiveWindowRangeCacheKey();
+            const focusChangedWhileAway = cachedKey !== currentKey;
+            if (focusChangedWhileAway && applyWindowSelection && this.activeWindowRange) {
+                const r = this.activeWindowRange;
+                this.applyWindowSelection(
+                    r.start,
+                    r.end,
+                    r.target,
+                    tableWrap,
+                    {
+                        idRefHighlightIndices: r.idRefHighlightIndices || null,
+                        focusNoteRefHighlightIndices: r.focusNoteRefHighlightIndices || null
+                    }
+                );
+                if (options.applyAnswerPopupMask !== false) {
+                    this.applyAnswerPopupFocusMaskToDom(tableWrap, { reset: true });
+                }
+                requestAnimationFrame(() => {
+                    if (this.activeSheet === 'sheet1') {
+                        this.centerActiveWindowInView(tableWrap);
+                    }
+                });
+            }
+        }
+
+        bindPrevPeriodRecallFoldTooltipGlobal();
+    }
+
     /**
      * Render data table with frequency-based styling
      */
     renderTable(tableWrap) {
+        if (tableWrap && this.isSourceSheet1TableDom(tableWrap)) {
+            this.cacheSheet1TableDom(tableWrap);
+        }
         if (tableWrap) {
             tableWrap.classList.remove('table-wrap--tracking');
         }
@@ -1130,7 +1321,10 @@ class RightPaneSheetManager {
         }
 
         if (this.activeSheet === 'sheet1') {
-            this.renderSourceSheet(tableWrap, sheet.data);
+            this._lastSheet1RenderWasDomRestore = false;
+            if (!this.tryRestoreSheet1TableDom(tableWrap, { bindKeyboard: true })) {
+                this.renderSourceSheet(tableWrap, sheet.data);
+            }
             return;
         }
 
@@ -3247,7 +3441,7 @@ class RightPaneSheetManager {
             this.bindSourceSheetKeyboardNavigation(tableWrap);
         }
 
-        let html = '<table class="sheet-data-table"><thead><tr><th>date</th><th>id</th><th class="cell-pick-label-h">label</th><th>result</th><th>note</th><th>nonexist</th></tr></thead><tbody>';
+        let html = '<table class="sheet-data-table sheet1-source-table"><thead><tr><th>date</th><th>id</th><th class="cell-pick-label-h">label</th><th>result</th><th>note</th><th>nonexist</th></tr></thead><tbody>';
 
         const displayRows = rows || [];
         const rowIndices = Array.isArray(options.indices)
@@ -3295,66 +3489,9 @@ class RightPaneSheetManager {
         html += '</tbody></table>';
         tableWrap.innerHTML = html;
 
-        if (options.skipRowClickBind !== true) {
-            tableWrap.querySelectorAll('tbody tr').forEach(tr => {
-                tr.style.cursor = 'pointer';
-                tr.addEventListener('click', (e) => {
-                    this.onRowClick(Number(tr.dataset.idx), tr.dataset.empty === '1', e);
-                    try {
-                        tableWrap.focus({ preventScroll: true });
-                    } catch (err) {
-                        // ignore focus failures
-                    }
-                    if (typeof options.onRowActivated === 'function') {
-                        options.onRowActivated(Number(tr.dataset.idx));
-                    }
-                });
-            });
-        } else {
-            tableWrap.querySelectorAll('tbody tr').forEach(tr => {
-                tr.style.cursor = 'pointer';
-            });
-        }
-
-        if (!tableWrap.dataset.nonexistContextmenuBound) {
-            tableWrap.dataset.nonexistContextmenuBound = '1';
-            tableWrap.addEventListener('contextmenu', (e) => {
-                this.handleSourceSheetCellContextMenu(e, tableWrap);
-            });
-        }
-
-        if (applyWindowSelection && this.activeWindowRange) {
-            const selectionRoot = options.selectionRoot || tableWrap;
-            const r = this.activeWindowRange;
-            this.applyWindowSelection(
-                r.start,
-                r.end,
-                r.target,
-                selectionRoot,
-                {
-                    idRefHighlightIndices: r.idRefHighlightIndices || null,
-                    focusNoteRefHighlightIndices: r.focusNoteRefHighlightIndices || null
-                }
-            );
-        }
-
-        bindPrevPeriodRecallFoldTooltipGlobal();
-
-        const mainWrap = typeof document !== 'undefined' ? document.getElementById('tableWrap') : null;
-        if (options.applyAnswerPopupMask !== false && tableWrap && tableWrap === mainWrap) {
-            this.applyAnswerPopupFocusMaskToDom(tableWrap, { reset: true });
-        }
-        const filterWrap = typeof document !== 'undefined' ? document.getElementById('filterTableWrap') : null;
-        if (options.applyAnswerPopupMask !== false && tableWrap && tableWrap === filterWrap) {
-            this.applyFilterAllModeFocusMaskToDom(tableWrap, { reset: true });
-        }
-        if (this.activeWindowRange && Array.isArray(this.activeWindowRange.idRefHighlightIndices)
-            && this.activeWindowRange.idRefHighlightIndices.length) {
-            this.applyIdRefHighlightToDom(this.activeWindowRange.idRefHighlightIndices, tableWrap);
-        }
-        if (this.activeWindowRange && Array.isArray(this.activeWindowRange.focusNoteRefHighlightIndices)
-            && this.activeWindowRange.focusNoteRefHighlightIndices.length) {
-            this.applyFocusNoteRefHighlightToDom(this.activeWindowRange.focusNoteRefHighlightIndices, tableWrap);
+        this.bindSourceSheetTableAfterRender(tableWrap, options);
+        if (this.activeSheet === 'sheet1' && tableWrap.id === 'tableWrap') {
+            this.cacheSheet1TableDom(tableWrap);
         }
     }
 
@@ -6872,7 +7009,12 @@ class RightPaneSheetManager {
         }
         this.activeSheet = sheetName;
         this.dataRows = this.sheets[sheetName].data || [];
-        this.save();
+        const active = sheetName;
+        requestAnimationFrame(() => {
+            if (this.activeSheet === active) {
+                this.save();
+            }
+        });
         return true;
     }
 
@@ -6887,10 +7029,6 @@ class RightPaneSheetManager {
      * Render sheet tabs (like Excel)
      */
     renderSheetTabs(container) {
-        container.innerHTML = '';
-        const tabBar = document.createElement('div');
-        tabBar.className = 'sheet-tabs-bar';
-
         const sheetNames = [
             'sheet1',
             TRACKING_SHEET_ID,
@@ -6900,12 +7038,27 @@ class RightPaneSheetManager {
             'combo_4',
             'combo_5'
         ];
-        for (const name of sheetNames) {
-            if (!this.sheets[name]) {
-                continue;
+        const visibleNames = sheetNames.filter(name => this.sheets[name]);
+        const existingBar = container.querySelector('.sheet-tabs-bar');
+        if (existingBar) {
+            const existingTabs = existingBar.querySelectorAll('.sheet-tab[data-sheet-name]');
+            if (existingTabs.length === visibleNames.length
+                && visibleNames.every((name, i) => existingTabs[i].dataset.sheetName === name)) {
+                existingTabs.forEach(tab => {
+                    tab.classList.toggle('active', tab.dataset.sheetName === this.activeSheet);
+                });
+                return;
             }
+        }
+
+        container.innerHTML = '';
+        const tabBar = document.createElement('div');
+        tabBar.className = 'sheet-tabs-bar';
+
+        for (const name of visibleNames) {
             const tab = document.createElement('button');
             tab.className = 'sheet-tab';
+            tab.dataset.sheetName = name;
             if (name === this.activeSheet) {
                 tab.classList.add('active');
             }
