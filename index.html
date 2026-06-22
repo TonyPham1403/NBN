@@ -11237,7 +11237,6 @@
 
         function setPeriodFilterEnabled(enabled, options = {}) {
             const wasEnabled = periodFilterEnabled;
-            const closingAllIdx = filterPopupActiveIdx;
             const closingAllMode = wasEnabled && !enabled && isAllFilterMode(periodFilterMode);
             periodFilterEnabled = !!enabled;
 
@@ -11258,6 +11257,9 @@
                     filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
                     filterPopupActiveIdx = resolveFilterPopupActiveIdx(getFilterPopupDisplayIndices());
                     applyFilterPopupRowFocus(filterPopupActiveIdx);
+                    if (isAllFilterMode(periodFilterMode) && filterPopupActiveIdx >= 0) {
+                        syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly: true });
+                    }
                     syncPeriodFilterToolbarUi(true);
                     requestAnimationFrame(() => {
                         scrollFilterPopupRowIntoView();
@@ -11290,9 +11292,11 @@
             resetFilterAllModeWindow();
             syncPeriodFilterNavModeToIframe();
             syncPeriodFilterToolbarUi(false);
-            if (closingAllMode && closingAllIdx >= 0) {
-                const idle = window.requestIdleCallback || ((fn) => setTimeout(fn, 120));
-                idle(() => syncMainRowFromFilter(closingAllIdx, { forceFull: true }));
+            if (closingAllMode) {
+                const mainIdx = getMainSourceSheetFocusRowIndex();
+                if (mainIdx >= 0) {
+                    filterPopupActiveIdx = mainIdx;
+                }
             }
             if (options.restoreFocus !== false) {
                 requestAnimationFrame(() => restoreKeyboardFocusTarget());
@@ -11501,9 +11505,35 @@
             }
         }
 
+        function getMainSourceSheetFocusRowIndex() {
+            if (!sheetManager) {
+                return -1;
+            }
+            if (typeof sheetManager.getBasicTrackingFocusRowIndex === 'function') {
+                const idx = sheetManager.getBasicTrackingFocusRowIndex();
+                if (typeof idx === 'number' && idx >= 0) {
+                    return idx;
+                }
+            }
+            if (sheetManager.activeWindowRange && typeof sheetManager.activeWindowRange.target === 'number') {
+                const t = sheetManager.activeWindowRange.target;
+                if (t >= 0) {
+                    return t;
+                }
+            }
+            if (typeof sheetManager.comboFocusRowIndex === 'number' && sheetManager.comboFocusRowIndex >= 0) {
+                return sheetManager.comboFocusRowIndex;
+            }
+            return -1;
+        }
+
         function resolveFilterPopupActiveIdx(indices) {
             if (!indices || indices.length === 0) {
                 return -1;
+            }
+            const mainIdx = getMainSourceSheetFocusRowIndex();
+            if (typeof mainIdx === 'number' && mainIdx >= 0 && indices.includes(mainIdx)) {
+                return mainIdx;
             }
             if (indices.includes(filterPopupActiveIdx)) {
                 return filterPopupActiveIdx;
@@ -11521,6 +11551,7 @@
             if (!sheetManager || typeof idx !== 'number' || idx < 0) {
                 return;
             }
+            const full = options.full === true || options.forceFull === true;
             const allMode = periodFilterEnabled && isAllFilterMode(periodFilterMode);
             if (options.previewOnly) {
                 if (allMode) {
@@ -11542,7 +11573,7 @@
             const onSheet1 = sheetManager.activeSheet === 'sheet1';
             sheetManager.focusSourceSheetRow(idx, {
                 fromFilterNav: true,
-                light: options.full !== true,
+                light: !full,
                 skipCenter: false,
                 skipMainWindowSelection: !!(options.skipMainWindowSelection || !onSheet1)
             });
@@ -12223,7 +12254,9 @@
             } else {
                 filterPopupActiveIdx = resolveFilterPopupActiveIdx(getFilterPopupDisplayIndices());
                 applyFilterPopupRowFocus(filterPopupActiveIdx);
-                if (sheetManager && typeof sheetManager.reapplyActiveWindowHighlightsToDom === 'function') {
+                if (isAllFilterMode(periodFilterMode) && filterPopupActiveIdx >= 0) {
+                    syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly: true });
+                } else if (sheetManager && typeof sheetManager.reapplyActiveWindowHighlightsToDom === 'function') {
                     sheetManager.reapplyActiveWindowHighlightsToDom();
                 }
             }
@@ -12245,6 +12278,8 @@
                 applyFilterPopupRowFocus(filterPopupActiveIdx);
                 if (syncMain) {
                     syncMainRowFromFilter(filterPopupActiveIdx);
+                } else if (isAllFilterMode(periodFilterMode)) {
+                    syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly: true });
                 } else if (sheetManager && typeof sheetManager.reapplyActiveWindowHighlightsToDom === 'function') {
                     sheetManager.reapplyActiveWindowHighlightsToDom();
                 }
