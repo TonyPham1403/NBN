@@ -4575,7 +4575,7 @@
 <body>
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html" style="width:100%;height:100%;border:0"></iframe>
+            <iframe id="okFrame" src="ok_left.html?v=20250621" style="width:100%;height:100%;border:0"></iframe>
         </section>
 
         <section class="pane right">
@@ -5069,8 +5069,8 @@
         </div>
     </div>
 
-    <script src="right-pane-sheets.js"></script>
-    <script src="answer-popup.js"></script>
+    <script src="right-pane-sheets.js?v=20250621"></script>
+    <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
         const MAX_NUM = 35; // support up to 35
@@ -5162,12 +5162,15 @@
         let floatingPopupDockZCounter = 0;
 
         /** Filter popup: sheet1 + tracking. Answer popup thêm các sheet combo_x. */
+        function isSourceDataContextSheet(sheet) {
+            return sheet === 'sheet1' || sheet === 'tracking' || sheet === 'specialtracking';
+        }
+
         function isPeriodFilterContextSheet() {
             if (!sheetManager) {
                 return false;
             }
-            const sheet = sheetManager.activeSheet;
-            return sheet === 'sheet1' || sheet === 'tracking';
+            return isSourceDataContextSheet(sheetManager.activeSheet);
         }
 
         function isComboContextSheet() {
@@ -13241,6 +13244,12 @@
         }
 
         function ensureAnswerPopup() {
+            if (typeof AnswerPopupController === 'undefined') {
+                console.error(
+                    '[answer-popup] Không tải được answer-popup.js — kiểm tra file đã deploy và thử Ctrl+F5.'
+                );
+                return null;
+            }
             if (!answerPopup) {
                 answerPopup = new AnswerPopupController({
                     el,
@@ -13279,6 +13288,9 @@
                     return;
                 }
                 const ap = ensureAnswerPopup();
+                if (!ap) {
+                    return;
+                }
                 if (!isAnswerPopupContextSheet()) {
                     if (!ap.isOpen()) {
                         return;
@@ -13628,7 +13640,10 @@
                     syncFilterPopupFocusFromMainRow(detail.focusRowIndex);
                 }
                 if (typeof detail.focusRowIndex === 'number' && isAnswerPopupContextSheet()) {
-                    ensureAnswerPopup().onFocusRowChanged(detail.focusRowIndex);
+                    const ap = ensureAnswerPopup();
+                    if (ap) {
+                        ap.onFocusRowChanged(detail.focusRowIndex);
+                    }
                 }
                 selectedLines = detail.selectedLines || [];
                 selectedNums.clear();
@@ -13754,6 +13769,9 @@
                         return;
                     }
                     const ap = ensureAnswerPopup();
+                    if (!ap) {
+                        return;
+                    }
                     if (!ap.isOpen()) {
                         ap.openPopup();
                     } else {
@@ -13862,6 +13880,10 @@
                         }
                     }
                     const ap = ensureAnswerPopup();
+                    if (!ap) {
+                        applyLeftCircledNumsToComboH1(msg.nums);
+                        return;
+                    }
                     if (ap.isOpen() && msg.submitActive) {
                         if (!ap.checked) {
                             ap.syncCheckFromSubmit(true);
@@ -13880,7 +13902,7 @@
                         }
                     }
                     const ap = ensureAnswerPopup();
-                    if (ap.isOpen() && ap.onLeftCircledNums(msg.nums)) {
+                    if (ap && ap.isOpen() && ap.onLeftCircledNums(msg.nums)) {
                         return;
                     }
                     applyLeftCircledNumsToComboH1(msg.nums);

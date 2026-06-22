@@ -1,5 +1,5 @@
 /**
- * Answer popup: phiếu trả lời gắn kỳ đang focus (sheet1), pick số từ nửa trái.
+ * Answer popup: phiếu trả lời gắn kỳ đang focus (sheet1 / tracking), pick số từ nửa trái.
  */
 const ANSWER_INITIAL_TICKET_COUNT = 3;
 const ANSWER_MIN_TICKET_COUNT = 1;
@@ -234,6 +234,29 @@ class AnswerPopupController {
         return typeof this.deps.getSheetManager === 'function' ? this.deps.getSheetManager() : null;
     }
 
+    getSourceRows(sm) {
+        const manager = sm || this.getSheetManager();
+        if (!manager) {
+            return [];
+        }
+        if (typeof this.deps.getSourceRows === 'function') {
+            return this.deps.getSourceRows() || [];
+        }
+        if (typeof manager.getSourceSheetRows === 'function') {
+            return manager.getSourceSheetRows() || [];
+        }
+        return manager.dataRows || [];
+    }
+
+    getSourceRow(sm, rowIndex) {
+        const idx = Number(rowIndex);
+        if (!Number.isFinite(idx) || idx < 0) {
+            return {};
+        }
+        const rows = this.getSourceRows(sm);
+        return rows[idx] || {};
+    }
+
     parseNums(s) {
         if (typeof this.deps.parseNums === 'function') {
             return this.deps.parseNums(s);
@@ -242,8 +265,19 @@ class AnswerPopupController {
     }
 
     isEnabled() {
+        if (typeof this.deps.isContextSheet === 'function') {
+            return !!this.deps.isContextSheet();
+        }
         const sm = this.getSheetManager();
-        return !!(sm && sm.activeSheet === 'sheet1');
+        if (!sm) {
+            return false;
+        }
+        const sheet = sm.activeSheet;
+        if (sheet === 'sheet1' || sheet === 'tracking' || sheet === 'specialtracking') {
+            return true;
+        }
+        const meta = sm.sheets && sm.sheets[sheet];
+        return !!(meta && meta.kind === 'combo');
     }
 
     isOpen() {
@@ -259,7 +293,7 @@ class AnswerPopupController {
         if (!sm || this.focusRowIndex < 0) {
             return (this.answerNums || []).slice();
         }
-        const row = sm.dataRows[this.focusRowIndex] || {};
+        const row = this.getSourceRow(sm, this.focusRowIndex);
         const raw = row.result || row.Result || '';
         if (typeof sm.parseMainNums === 'function') {
             return sm.parseMainNums(raw);
@@ -279,25 +313,55 @@ class AnswerPopupController {
         if (!sm) {
             return -1;
         }
-        if (sm.comboFocusRowIndex >= 0) {
+        const rows = this.getSourceRows(sm);
+        const sheet = sm.activeSheet;
+        const meta = sm.sheets && sm.sheets[sheet];
+        const isCombo = !!(meta && meta.kind === 'combo');
+
+        if (isCombo) {
+            const focusId = String(sm.comboFocusRowId || '').trim();
+            if (focusId && rows.length) {
+                const byId = rows.findIndex((r) => String(r.id || r.ID || '').trim() === focusId);
+                if (byId >= 0) {
+                    return byId;
+                }
+            }
+            if (typeof sm.comboFocusRowIndex === 'number'
+                && sm.comboFocusRowIndex >= 0
+                && sm.comboFocusRowIndex < rows.length) {
+                return sm.comboFocusRowIndex;
+            }
+        }
+
+        if (typeof sm.getBasicTrackingFocusRowIndex === 'function') {
+            const trkIdx = sm.getBasicTrackingFocusRowIndex();
+            if (trkIdx >= 0 && trkIdx < rows.length) {
+                return trkIdx;
+            }
+        }
+        if (!isCombo && typeof sm.comboFocusRowIndex === 'number'
+            && sm.comboFocusRowIndex >= 0
+            && sm.comboFocusRowIndex < rows.length) {
             return sm.comboFocusRowIndex;
         }
-        if (this.focusRowIndex >= 0) {
+        if (this.focusRowIndex >= 0 && this.focusRowIndex < rows.length) {
             return this.focusRowIndex;
         }
         const range = sm.activeWindowRange;
-        if (range && typeof range.target === 'number' && range.target >= 0) {
+        if (range && typeof range.target === 'number'
+            && range.target >= 0
+            && range.target < rows.length) {
             return range.target;
         }
         const focusId = String(sm.comboFocusRowId || '').trim();
-        if (focusId && Array.isArray(sm.dataRows)) {
-            const byId = sm.dataRows.findIndex((r) => String(r.id || r.ID || '').trim() === focusId);
+        if (focusId && rows.length) {
+            const byId = rows.findIndex((r) => String(r.id || r.ID || '').trim() === focusId);
             if (byId >= 0) {
                 return byId;
             }
         }
-        if (Array.isArray(sm.dataRows) && sm.dataRows.length > 0) {
-            return sm.dataRows.length - 1;
+        if (rows.length > 0) {
+            return rows.length - 1;
         }
         return -1;
     }
@@ -469,8 +533,8 @@ class AnswerPopupController {
         const changed = idx !== this.focusRowIndex;
         this.focusRowIndex = idx;
         const sm = this.getSheetManager();
-        if (sm && sm.dataRows && sm.dataRows[idx]) {
-            const row = sm.dataRows[idx];
+        if (sm) {
+            const row = this.getSourceRow(sm, idx);
             this.focusDate = String(row.date || row.Date || '');
             this.focusId = String(row.id || row.ID || '');
         }
@@ -508,7 +572,7 @@ class AnswerPopupController {
         if (!sm || !Number.isFinite(idx) || idx < 0) {
             return;
         }
-        const row = sm.dataRows[idx] || {};
+        const row = this.getSourceRow(sm, idx);
         this.focusRowIndex = idx;
         this.focusDate = String(row.date || row.Date || '');
         this.focusId = String(row.id || row.ID || '');
@@ -556,7 +620,7 @@ class AnswerPopupController {
             return '';
         }
         try {
-            const meta = sm.buildNonexistForRow(sm.dataRows, this.focusRowIndex);
+            const meta = sm.buildNonexistForRow(this.getSourceRows(sm), this.focusRowIndex);
             return meta && meta.text ? String(meta.text) : '';
         } catch (e) {
             return '';
@@ -570,7 +634,7 @@ class AnswerPopupController {
             return { text: '', highlightYellow: false };
         }
         try {
-            const rows = sm.dataRows;
+            const rows = this.getSourceRows(sm).slice();
             const tempRows = rows.map((r, i) => {
                 if (i !== this.focusRowIndex) {
                     return r;
@@ -784,7 +848,7 @@ class AnswerPopupController {
             }
             this.activeTicketId = null;
             this.postLeftTicketPreview([]);
-            const row = sm.dataRows[this.focusRowIndex] || {};
+            const row = this.getSourceRow(sm, this.focusRowIndex);
             this.answerNums = sm.parseMainNums(row.result || row.Result || '');
             this.checked = true;
             this.tickets.forEach((t) => this.applyCheckToTicket(t));
@@ -1119,6 +1183,11 @@ class AnswerPopupController {
         if (typeof this.deps.applyUiScale === 'function') {
             requestAnimationFrame(() => this.deps.applyUiScale());
         }
+        try {
+            if (typeof window.__syncAnswerTableThumbTrackInsets === 'function') {
+                requestAnimationFrame(() => window.__syncAnswerTableThumbTrackInsets());
+            }
+        } catch (eScroll) { /* ignore */ }
     }
 
     onTableClick(e) {

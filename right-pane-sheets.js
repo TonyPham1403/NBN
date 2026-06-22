@@ -8214,6 +8214,17 @@ class RightPaneSheetManager {
         if (!rows.length) {
             return -1;
         }
+        const onTracking = this.activeSheet === TRACKING_SHEET_ID || this.activeSheet === 'specialtracking';
+        if (onTracking) {
+            const st = this.sheets[TRACKING_SHEET_ID] || this.sheets.specialtracking;
+            const ui = st && st.trackingUi;
+            if (ui && typeof ui.focusSourceRowIndex === 'number') {
+                const fromUi = ui.focusSourceRowIndex;
+                if (fromUi >= 0 && fromUi < rows.length) {
+                    return fromUi;
+                }
+            }
+        }
         if (typeof this.comboFocusRowIndex === 'number'
             && this.comboFocusRowIndex >= 0
             && this.comboFocusRowIndex < rows.length) {
