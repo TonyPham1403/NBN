@@ -413,6 +413,10 @@
             transition-duration: 0s, 0.15s, 0.15s;
         }
 
+        .special-tracking-root--frame-stepping .special-tracking-rank-bar {
+            transition: top 0.1s ease-out, background 0.15s, box-shadow 0.15s;
+        }
+
         .special-tracking-rank-bar:hover {
             background: rgba(255, 255, 255, 0.42);
         }
@@ -453,6 +457,18 @@
             pointer-events: none;
             box-sizing: border-box;
             box-shadow: inset 0 0 0 3px #ea580c;
+        }
+
+        /* Viền cam + đáp án: tắt viền xanh ::before riêng, gộp vào ::after */
+        .special-tracking-rank-bar--click-focus.special-tracking-rank-bar--actual-answer::before {
+            box-shadow: none !important;
+        }
+
+        /* Basic: cam 3px ngoài, xanh lá mỏng sát trong */
+        .special-tracking-root--basic .special-tracking-rank-bar--click-focus.special-tracking-rank-bar--actual-answer::after {
+            box-shadow:
+                inset 0 0 0 3px #ea580c,
+                inset 0 0 0 5px rgba(0, 125, 68, 0.95);
         }
 
         .special-tracking-rank-bar--focus:hover,
@@ -1022,6 +1038,24 @@
             --st-freq-meta-w: clamp(68px, 15vw, 92px);
             --st-freq-brace-w: var(--st-freq-meta-w);
             --st-freq-brace-right: 0;
+            --st-special-focus-border-w: 5px;
+        }
+
+        /* Special: viền cam focus dày hơn basic */
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-bar--click-focus::after {
+            box-shadow: inset 0 0 0 var(--st-special-focus-border-w) #ea580c;
+        }
+
+        /* Special: viền xanh đáp án dày hơn */
+        .special-tracking-root:not(.special-tracking-root--basic):not(.special-tracking-root--predict-on) .special-tracking-rank-bar--actual-answer::before {
+            box-shadow: inset 0 0 0 var(--st-special-focus-border-w) rgba(0, 125, 68, 0.95);
+        }
+
+        /* Special: cam + xanh cùng độ dày, xanh sát trong cam */
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-bar--click-focus.special-tracking-rank-bar--actual-answer::after {
+            box-shadow:
+                inset 0 0 0 var(--st-special-focus-border-w) #ea580c,
+                inset 0 0 0 calc(var(--st-special-focus-border-w) * 2) rgba(0, 125, 68, 0.95);
         }
 
         .special-tracking-root--basic .special-tracking-rank-num {
@@ -1311,7 +1345,7 @@
             width: 0%;
             background: linear-gradient(180deg, #ff4d4d 0%, #ff0000 55%, #cc0000 100%);
             border-radius: 5px 0 0 5px;
-            transition: width 0.12s linear;
+            transition: width 0.1s ease-out;
             pointer-events: none;
         }
 
@@ -1326,7 +1360,7 @@
             border: 2px solid #ff0000;
             box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
             pointer-events: none;
-            transition: left 0.12s linear;
+            transition: left 0.1s ease-out;
             z-index: 2;
             transform: translate(-50%, -50%);
         }
@@ -4575,7 +4609,7 @@
 <body>
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20250621" style="width:100%;height:100%;border:0"></iframe>
+            <iframe id="okFrame" src="ok_left.html?v=20250702" style="width:100%;height:100%;border:0"></iframe>
         </section>
 
         <section class="pane right">
@@ -5069,7 +5103,7 @@
         </div>
     </div>
 
-    <script src="right-pane-sheets.js?v=20250622"></script>
+    <script src="right-pane-sheets.js?v=20250703"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -11653,6 +11687,9 @@
                 sheetManager.syncComboFocusFromSourceRowIndex(idx);
             }
             const start = Math.max(0, idx - 10);
+            if (sheetManager.activeSheet === 'sheet1' && typeof sheetManager.scheduleSheet1NavToIndex === 'function') {
+                return sheetManager.scheduleSheet1NavToIndex(idx, tableWrap);
+            }
             sheetManager.applyWindowSelection(start, idx, idx, tableWrap, { previewOnly: true });
             sheetManager.centerActiveWindowInView(tableWrap);
             return true;
@@ -11848,6 +11885,45 @@
             });
         }
 
+        function buildLeftPaneSetLinesPayload(detail) {
+            const lines = (detail.lines || []).map((line) => String(line || ''));
+            return {
+                type: 'setLines',
+                lines: lines,
+                contextPrefixCount: detail.contextPrefixCount || 0,
+                disableSubmit: !!detail.isFocusEmpty,
+                submitActive: iframeSubmitActive,
+                preserveSelection: detail.preserveSelection !== false,
+                focusRowId: String(detail.clickedRowId || '').trim(),
+                focusRowIndex: detail.focusRowIndex,
+                focusNonexistHighlights: detail.focusNonexistHighlights || {},
+                submitAutoCircleEnabled: isTrackingAutoringContext() ? false : submitRingEnabled,
+                submitAutoCircleMode: getEffectiveSubmitRingMode(),
+                submitAutoCircleCustomX: clampRingCustomX(submitRingCustomX),
+                referenceConn3HeaderLines: detail.skipReferenceMeta ? [] : (detail.referenceConn3HeaderLines || []),
+                referenceConn3Triplets: detail.skipReferenceMeta ? [] : (detail.referenceConn3Triplets || []),
+                referenceConn3FooterLine: detail.skipReferenceMeta ? '' : (detail.referenceConn3FooterLine || ''),
+                trackingFrameStep: !!detail.trackingFrameStep
+            };
+        }
+
+        window.addEventListener('leftPaneSetLines', (e) => {
+            const detail = e.detail || {};
+            const frame = el('okFrame');
+            if (!frame || !frame.contentWindow || !Array.isArray(detail.lines) || !detail.lines.length) {
+                return;
+            }
+            if (Array.isArray(detail.selectedLines)) {
+                selectedLines = detail.selectedLines;
+                selectedNums.clear();
+                const last = detail.selectedLines[detail.selectedLines.length - 1];
+                if (last && last.result && sheetManager && typeof sheetManager.parseNums === 'function') {
+                    sheetManager.parseNums(last.result).forEach((n) => selectedNums.add(n));
+                }
+            }
+            frame.contentWindow.postMessage(buildLeftPaneSetLinesPayload(detail), '*');
+        });
+
         function previewMainTableNavStep(step) {
             if (!sheetManager) {
                 return false;
@@ -11866,6 +11942,9 @@
         function commitMainTableNav() {
             if (!sheetManager) {
                 return false;
+            }
+            if (typeof sheetManager.flushSheet1NavPump === 'function') {
+                sheetManager.flushSheet1NavPump();
             }
             const tableWrap = el('tableWrap');
             if (!tableWrap || typeof sheetManager.commitSourceSheetRowAtTarget !== 'function') {
@@ -11946,17 +12025,23 @@
                 return false;
             }
             if (sheetManager && sheetManager.activeSheet === 'tracking') {
-                const verticalStep = key === 'ArrowDown' ? 1 : key === 'ArrowUp' ? -1 : 0;
-                if (verticalStep
-                    && typeof sheetManager.stepBasicTrackingLastIdBarNav === 'function'
-                    && sheetManager.stepBasicTrackingLastIdBarNav(verticalStep)) {
-                    rememberKeyboardFocusTarget('main');
-                    return true;
+                if (key === 'ArrowDown' || key === 'ArrowUp') {
+                    const verticalStep = key === 'ArrowDown' ? 1 : -1;
+                    if (typeof sheetManager.stepBasicTrackingLastIdBarNav === 'function'
+                        && sheetManager.stepBasicTrackingLastIdBarNav(verticalStep)) {
+                        rememberKeyboardFocusTarget('main');
+                        return true;
+                    }
+                    return false;
                 }
-                if (typeof sheetManager.stepTrackingTimelineFrame === 'function'
-                    && sheetManager.stepTrackingTimelineFrame(step)) {
-                    rememberKeyboardFocusTarget('main');
-                    return true;
+                if (key === 'ArrowLeft' || key === 'ArrowRight') {
+                    const timelineStep = key === 'ArrowRight' ? 1 : -1;
+                    if (typeof sheetManager.stepTrackingTimelineFrame === 'function'
+                        && sheetManager.stepTrackingTimelineFrame(timelineStep)) {
+                        rememberKeyboardFocusTarget('main');
+                        return true;
+                    }
+                    return false;
                 }
                 return false;
             }
@@ -13629,8 +13714,12 @@
 
             // Listen for row clicks from sheet manager
             window.addEventListener('rowClicked', (e) => {
-                flushRightPaneNavCoalesce();
                 const detail = e.detail || {};
+                const skipNavFlush = !!detail.fromSheet1NavStep
+                    || (!!detail.fromTrackingSync && !!detail.trackingFrameStep);
+                if (!skipNavFlush) {
+                    flushRightPaneNavCoalesce();
+                }
                 const fromFilterNav = !!detail.fromFilterNav;
                 const fromTrackingSync = !!detail.fromTrackingSync;
                 if (!fromFilterNav) {
@@ -13703,7 +13792,7 @@
                         contextPrefixCount: detail.contextPrefixCount || 0,
                         disableSubmit: isFocusEmpty,
                         submitActive: iframeSubmitActive,
-                        preserveSelection: fromFilterNav || fromTrackingSync,
+                        preserveSelection: fromFilterNav || fromTrackingSync || !!detail.fromSheet1NavStep,
                         focusRowId: String(detail.clickedRowId || '').trim(),
                         focusRowIndex: detail.focusRowIndex,
                         focusNonexistHighlights: detail.focusNonexistHighlights || {},
@@ -13712,9 +13801,12 @@
                         submitAutoCircleCustomX: clampRingCustomX(submitRingCustomX),
                         referenceConn3HeaderLines: referenceConn3HeaderLines,
                         referenceConn3Triplets: referenceConn3Triplets,
-                        referenceConn3FooterLine: referenceConn3FooterLine
+                        referenceConn3FooterLine: referenceConn3FooterLine,
+                        trackingFrameStep: !!(detail.trackingFrameStep || detail.fromSheet1NavStep)
                     };
-                    if (fromTrackingSync) {
+                    if (detail.fromSheet1NavStep || (fromTrackingSync && detail.trackingFrameStep)) {
+                        frame.contentWindow.postMessage(setLinesPayload, '*');
+                    } else if (fromTrackingSync) {
                         scheduleTrackingSetLinesPost(setLinesPayload);
                     } else if (fromFilterNav && periodFilterEnabled && isAllFilterMode(periodFilterMode)) {
                         scheduleFilterAllModeSetLines(setLinesPayload);

@@ -1836,8 +1836,7 @@
                 return;
             }
             selectionCleared = false;
-            clearedSelectionBackup = null;
-            clearedPickOrderBackup = null;
+            invalidateClearSelectionToggleBackup();
             autoRingPicked.clear();
             clearPairContributionTracking();
             pairNeonObserveNum = null;
@@ -1984,6 +1983,7 @@
         }
         let preserveSubmitOnNextProcess = false;
         let preserveSelectionOnNextProcess = false;
+        let trackingFrameStepProcess = false;
         let answerNums = [];
         let pickOrder = [];
         let lastClickedChuoiText = '';
@@ -2114,6 +2114,15 @@
         let clearedPairNeonObserveNumBackup = null;
         let clearedPairNeonObserveContextBeyondLonePairBackup = null;
         let selectionCleared = false;
+
+        function invalidateClearSelectionToggleBackup() {
+            selectionCleared = false;
+            clearedSelectionBackup = null;
+            clearedPickOrderBackup = null;
+            clearedFocusBackup = null;
+            clearedPairNeonObserveNumBackup = null;
+            clearedPairNeonObserveContextBeyondLonePairBackup = null;
+        }
 
         // quick-undo state for applyPair / quick clear
         let undoPrevSelected = null;
@@ -3000,6 +3009,7 @@
         function restoreSelectionStateSnapshot(snap) {
             if (!snap) return;
             try {
+                invalidateClearSelectionToggleBackup();
                 selected.clear();
                 clearPairContributionTracking();
                 transientSelected.clear();
@@ -3562,14 +3572,9 @@
         function toggleNumber(n) {
             if (submitActive) return;
             try { if (isBlocked(n)) return; } catch (e) { }
-            // If selection was previously cleared via Reset/q toggle, clear its backup now
+            // If selection was previously cleared via Reset/q toggle, drop stale backup
             if (selectionCleared) {
-                selectionCleared = false;
-                clearedSelectionBackup = null;
-                clearedPickOrderBackup = null;
-                clearedFocusBackup = null;
-                clearedPairNeonObserveNumBackup = null;
-                clearedPairNeonObserveContextBeyondLonePairBackup = null;
+                invalidateClearSelectionToggleBackup();
             }
             // Toggle state
             if (selected.has(n)) {
@@ -3758,12 +3763,14 @@
             }
             debugLog('process() rowsUsed length:', rowsUsed.length);
             if (rowsUsed.length < 10) { raw = null; updateRender(); return; }
-            try {
-                var elSearchClr = document.getElementById('searchBox');
-                if (elSearchClr) {
-                    elSearchClr.value = '';
-                }
-            } catch (eClr) { /* ignore */ }
+            if (!trackingFrameStepProcess) {
+                try {
+                    var elSearchClr = document.getElementById('searchBox');
+                    if (elSearchClr) {
+                        elSearchClr.value = '';
+                    }
+                } catch (eClr) { /* ignore */ }
+            }
             // compute simple freq and firstNums from the 10-line window (sau contextPrefix)
             const winRows = rowsUsed.slice(contextPrefix, contextPrefix + 10);
             if (winRows.length < 10) { raw = null; updateRender(); return; }
@@ -3852,7 +3859,9 @@
                 (answerNums || []).forEach(n => simulatedSelected.add(n));
             }
 
-            recomputePairsFromSelected();
+            if (!trackingFrameStepProcess) {
+                recomputePairsFromSelected();
+            }
             updateBlocked();
             if (preserveSelectionOnNextProcess) {
                 try {
@@ -4341,12 +4350,7 @@
                 return false;
             }
             if (selectionCleared) {
-                selectionCleared = false;
-                clearedSelectionBackup = null;
-                clearedPickOrderBackup = null;
-                clearedFocusBackup = null;
-                clearedPairNeonObserveNumBackup = null;
-                clearedPairNeonObserveContextBeyondLonePairBackup = null;
+                invalidateClearSelectionToggleBackup();
             }
             if (opts.fromTailList) {
                 const tailIdxEarly = resolveTailIndexForApply(a, b, opts);
@@ -7385,11 +7389,7 @@
                     toggleSubmitOnSpace();
                 }
                 selectionCleared = false;
-                clearedSelectionBackup = null;
-                clearedPickOrderBackup = null;
-                clearedFocusBackup = null;
-                clearedPairNeonObserveNumBackup = null;
-                clearedPairNeonObserveContextBeyondLonePairBackup = null;
+                invalidateClearSelectionToggleBackup();
                 selected.clear();
                 transientSelected.clear();
                 simulatedSelected.clear();
@@ -7421,6 +7421,10 @@
         function toggleClearSelection() {
             try {
                 if (submitActive) return; // do nothing during submit preview
+                // selectionCleared=true nhưng đã khoanh số mới → không restore backup cũ
+                if (selectionCleared && selected.size > 0) {
+                    invalidateClearSelectionToggleBackup();
+                }
                 if (!selectionCleared) {
                     // backup current selection and order
                     clearedSelectionBackup = new Set(selected);
@@ -9186,22 +9190,27 @@
                 }
 
                 if (msg.type === 'setLines' && Array.isArray(msg.lines)) {
+                    trackingFrameStepProcess = !!(msg.trackingFrameStep && msg.preserveSelection);
                     pendingContextPrefixCount = 0;
                     if (msg.contextPrefixCount != null) {
                         const cpc = parseInt(msg.contextPrefixCount, 10);
                         if (!isNaN(cpc) && cpc > 0) pendingContextPrefixCount = Math.min(2, cpc);
                     }
-                    if (typeof msg.submitAutoCircleEnabled === 'boolean') {
-                        submitAutoCircleEnabled = msg.submitAutoCircleEnabled;
-                    }
-                    submitAutoCircleMode = normalizeSubmitAutoCircleMode(msg.submitAutoCircleMode);
-                    if (msg.submitAutoCircleCustomX !== undefined && msg.submitAutoCircleCustomX !== null && msg.submitAutoCircleCustomX !== '') {
-                        submitAutoCircleCustomX = clampSubmitAutoCircleCustomX(msg.submitAutoCircleCustomX);
+                    if (!trackingFrameStepProcess) {
+                        if (typeof msg.submitAutoCircleEnabled === 'boolean') {
+                            submitAutoCircleEnabled = msg.submitAutoCircleEnabled;
+                        }
+                        submitAutoCircleMode = normalizeSubmitAutoCircleMode(msg.submitAutoCircleMode);
+                        if (msg.submitAutoCircleCustomX !== undefined && msg.submitAutoCircleCustomX !== null && msg.submitAutoCircleCustomX !== '') {
+                            submitAutoCircleCustomX = clampSubmitAutoCircleCustomX(msg.submitAutoCircleCustomX);
+                        }
                     }
                     disableSubmitForCurrentData = !!msg.disableSubmit;
-                    syncSubmitButtonAvailability();
+                    if (!trackingFrameStepProcess) {
+                        syncSubmitButtonAvailability();
+                    }
                     const refHint = document.getElementById('referenceHint');
-                    if (refHint) {
+                    if (refHint && !trackingFrameStepProcess) {
                         renderReferenceHintPanel({
                             headerLines: Array.isArray(msg.referenceConn3HeaderLines)
                                 ? msg.referenceConn3HeaderLines
@@ -9224,12 +9233,13 @@
                     // Chỉ coi là đổi focus khi cả hai id đều có giá trị và khác nhau (tránh xóa khoanh khi parent thiếu id)
                     const focusIdChanged = !!(newFk && lastAutoRingFocusKey && newFk !== lastAutoRingFocusKey);
                     var restoredFromMemory = false;
+                    const skipFocusSwapForTrackingStep = trackingFrameStepProcess;
 
-                    if (focusIdChanged) {
+                    if (!skipFocusSwapForTrackingStep && focusIdChanged) {
                         try { selectionMemoryByFocusId.set(lastAutoRingFocusKey, snapshotSelectionState()); } catch (e) { }
                     }
 
-                    if (focusIdChanged) {
+                    if (!skipFocusSwapForTrackingStep && focusIdChanged) {
                         autoRingPicked.clear();
                         if (newFk) autoRingVisitedIds.delete(newFk);
                         selected.clear();
@@ -9264,6 +9274,7 @@
                     } catch (e) { console.error(e); }
                     preserveSubmitOnNextProcess = false;
                     preserveSelectionOnNextProcess = false;
+                    trackingFrameStepProcess = false;
 
                     if (wasSubmitActive) {
                         submitActive = true;
@@ -9305,11 +9316,13 @@
                             }
                             try { notifyParentLeftCircledNums(); } catch (e) { }
                         };
-                        if (wasSubmitActive) {
+                        if (wasSubmitActive || msg.trackingFrameStep) {
                             runAutoRing();
                         } else {
                             requestAnimationFrame(runAutoRing);
                         }
+                    } else if (msg.trackingFrameStep) {
+                        try { notifyParentLeftCircledNums(); } catch (e) { }
                     } else {
                         requestAnimationFrame(function () {
                             try { notifyParentLeftCircledNums(); } catch (e) { }
@@ -9352,6 +9365,7 @@
                         && pickNums.every(function (n) { return selected.has(n); })) {
                         return;
                     }
+                    invalidateClearSelectionToggleBackup();
                     selected.clear();
                     transientSelected.clear();
                     simulatedSelected.clear();
