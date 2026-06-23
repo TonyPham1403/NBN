@@ -2992,6 +2992,8 @@
             return {
                 selected: Array.from(selected),
                 pickOrder: pickOrder ? pickOrder.slice() : [],
+                autoRingPicked: Array.from(autoRingPicked),
+                selectionCleared: !!selectionCleared,
                 pairNeonObserveNum: pairNeonObserveNum,
                 pairNeonObserveContextBeyondLonePair: pairNeonObserveContextBeyondLonePair,
                 currentPairIndex: currentPairIndex,
@@ -3016,6 +3018,16 @@
                 simulatedSelected.clear();
                 (snap.selected || []).forEach(function (n) { if (!isNaN(n)) selected.add(n); });
                 pickOrder = snap.pickOrder ? snap.pickOrder.slice() : [];
+                autoRingPicked.clear();
+                var ringRestore = Array.isArray(snap.autoRingPicked) && snap.autoRingPicked.length
+                    ? snap.autoRingPicked
+                    : (snap.selected || []);
+                ringRestore.forEach(function (n) {
+                    if (!isNaN(n)) {
+                        autoRingPicked.add(n);
+                    }
+                });
+                selectionCleared = !!snap.selectionCleared;
                 pairNeonObserveContextBeyondLonePair = snap.pairNeonObserveContextBeyondLonePair === true;
                 pairNeonObserveNum = null;
                 var po = snap.pairNeonObserveNum;
@@ -3096,7 +3108,8 @@
             } catch (e) { /* non-fatal */ }
         }
 
-        function maybeApplySubmitAutoRingAfterProcess(focusRowIdRaw) {
+        function maybeApplySubmitAutoRingAfterProcess(focusRowIdRaw, options) {
+            options = options || {};
             try {
                 if (!submitAutoCircleEnabled || !raw) return;
                 if (disableSubmitForCurrentData) {
@@ -3110,7 +3123,7 @@
 
                 var fk = normalizeAutoRingFocusKey(focusRowIdRaw);
                 if (!fk) return;
-                if (autoRingVisitedIds.has(fk)) return;
+                if (!options.focusArrival && autoRingVisitedIds.has(fk)) return;
 
                 var ans = getAnswerNumsFromCurrentLine11();
                 var ringMode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
@@ -9231,19 +9244,20 @@
                     focusNonexistHighlights = (msg.focusNonexistHighlights && typeof msg.focusNonexistHighlights === 'object')
                         ? msg.focusNonexistHighlights
                         : {};
+                    const prevFkAtStart = lastAutoRingFocusKey;
                     const newFk = normalizeAutoRingFocusKey(focusRowId);
-                    // Chỉ coi là đổi focus khi cả hai id đều có giá trị và khác nhau (tránh xóa khoanh khi parent thiếu id)
-                    const focusIdChanged = !!(newFk && lastAutoRingFocusKey && newFk !== lastAutoRingFocusKey);
+                    const isFocusArrival = !!(newFk && newFk !== prevFkAtStart);
+                    const focusIdChanged = !!(isFocusArrival && prevFkAtStart);
                     var restoredFromMemory = false;
                     const skipFocusSwapForTrackingStep = trackingFrameStepProcess;
 
-                    if (!skipFocusSwapForTrackingStep && focusIdChanged) {
-                        try { selectionMemoryByFocusId.set(lastAutoRingFocusKey, snapshotSelectionState()); } catch (e) { }
+                    if (!skipFocusSwapForTrackingStep && prevFkAtStart && isFocusArrival) {
+                        try { selectionMemoryByFocusId.set(prevFkAtStart, snapshotSelectionState()); } catch (e) { }
                     }
 
-                    if (!skipFocusSwapForTrackingStep && focusIdChanged) {
+                    if ((!skipFocusSwapForTrackingStep && isFocusArrival)
+                        || (skipFocusSwapForTrackingStep && isFocusArrival && submitAutoCircleEnabled)) {
                         autoRingPicked.clear();
-                        if (newFk) autoRingVisitedIds.delete(newFk);
                         selected.clear();
                         clearPairContributionTracking();
                         transientSelected.clear();
@@ -9261,7 +9275,7 @@
                             preSubmitSelected = null;
                             preSubmitOrder = null;
                         }
-                        if (newFk && selectionMemoryByFocusId.has(newFk)) {
+                        if (newFk && selectionMemoryByFocusId.has(newFk) && !submitAutoCircleEnabled) {
                             try {
                                 restoreSelectionStateSnapshot(selectionMemoryByFocusId.get(newFk));
                                 restoredFromMemory = true;
@@ -9270,13 +9284,17 @@
                     }
 
                     preserveSubmitOnNextProcess = !!wasSubmitActive;
-                    preserveSelectionOnNextProcess = !!msg.preserveSelection || !focusIdChanged || restoredFromMemory;
+                    preserveSelectionOnNextProcess = !!msg.preserveSelection || !isFocusArrival || restoredFromMemory;
                     try {
                         process();
                     } catch (e) { console.error(e); }
                     preserveSubmitOnNextProcess = false;
                     preserveSelectionOnNextProcess = false;
                     trackingFrameStepProcess = false;
+
+                    if (newFk) {
+                        lastAutoRingFocusKey = newFk;
+                    }
 
                     if (wasSubmitActive) {
                         submitActive = true;
@@ -9294,7 +9312,6 @@
                             }
                         } catch (e) { }
                     } else {
-                        try { persistSelectionMemoryForFocus(); } catch (e) { }
                         if (msg.disableSubmit) {
                             try {
                                 const sbOff = document.getElementById('submitBtn');
@@ -9306,17 +9323,25 @@
                             try { postSubmitStateChangedToParent(); } catch (e) { }
                         }
                     }
-                    lastAutoRingFocusKey = newFk || lastAutoRingFocusKey;
                     if (submitAutoCircleEnabled) {
                         var focusIdForRing = focusRowId;
+                        var focusArrivalForRing = isFocusArrival;
                         var runAutoRing = function () {
-                            try { maybeApplySubmitAutoRingAfterProcess(focusIdForRing); } catch (e) { console.error(e); }
+                            try {
+                                maybeApplySubmitAutoRingAfterProcess(focusIdForRing, { focusArrival: focusArrivalForRing });
+                            } catch (e) { console.error(e); }
                             if (submitActive) {
                                 try { applySubmitState(); } catch (e) { console.error(e); }
                                 try { applySelectionAndBlockedInDOM(); } catch (e) { }
                                 try { restartNeonAnimationsInDOM(); } catch (e) { }
+                            } else {
+                                try { applySelectionAndBlockedInDOM(); } catch (e) { }
+                                try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
                             }
                             try { notifyParentLeftCircledNums(); } catch (e) { }
+                            if (!submitActive) {
+                                try { persistSelectionMemoryForFocus(); } catch (e) { /* ignore */ }
+                            }
                         };
                         if (wasSubmitActive || msg.trackingFrameStep) {
                             runAutoRing();
@@ -9325,9 +9350,21 @@
                         }
                     } else if (msg.trackingFrameStep) {
                         try { notifyParentLeftCircledNums(); } catch (e) { }
+                        if (!submitActive) {
+                            try { applySelectionAndBlockedInDOM(); } catch (e) { /* ignore */ }
+                            try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
+                            try { persistSelectionMemoryForFocus(); } catch (e) { /* ignore */ }
+                        }
                     } else {
                         requestAnimationFrame(function () {
+                            if (!submitActive) {
+                                try { applySelectionAndBlockedInDOM(); } catch (e) { /* ignore */ }
+                                try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
+                            }
                             try { notifyParentLeftCircledNums(); } catch (e) { }
+                            if (!submitActive) {
+                                try { persistSelectionMemoryForFocus(); } catch (e) { /* ignore */ }
+                            }
                         });
                     }
                 } else if (msg.type === 'requestLeftCircledNums' && msg.nonce) {

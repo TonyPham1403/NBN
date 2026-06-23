@@ -10364,7 +10364,14 @@ class RightPaneSheetManager {
             onScrubUp();
         };
 
+        const rememberMainKeyboardFocus = () => {
+            if (typeof window.rememberKeyboardFocusTarget === 'function') {
+                window.rememberKeyboardFocusTarget('main');
+            }
+        };
+
         const onTlDown = (ev) => {
+            rememberMainKeyboardFocus();
             const cx = ev.clientX != null ? ev.clientX : (ev.touches && ev.touches[0] ? ev.touches[0].clientX : 0);
             scrubDrag = true;
             setScrubbing(true);
@@ -10436,6 +10443,7 @@ class RightPaneSheetManager {
 
         root.querySelectorAll('[data-st-bar]').forEach((row) => {
             const onPick = (ev) => {
+                rememberMainKeyboardFocus();
                 const n = parseInt(row.dataset.specialNum, 10);
                 if (!Number.isFinite(n)) {
                     return;
@@ -10527,12 +10535,21 @@ class RightPaneSheetManager {
             if (ev.ctrlKey || ev.metaKey || ev.altKey) {
                 return;
             }
+            if (typeof window.shouldRouteRightPaneArrowsToFilter === 'function'
+                && window.shouldRouteRightPaneArrowsToFilter()) {
+                return;
+            }
+            if (typeof window.shouldRouteRightPaneArrowsToAnswer === 'function'
+                && window.shouldRouteRightPaneArrowsToAnswer()) {
+                return;
+            }
             const t = ev.target;
             if (t instanceof Element && t.closest('input, textarea, select, [contenteditable="true"]')) {
                 return;
             }
             ev.preventDefault();
             ev.stopPropagation();
+            rememberMainKeyboardFocus();
             if (verticalStep && stepBasicLastIdBarNav(verticalStep)) {
                 return;
             }

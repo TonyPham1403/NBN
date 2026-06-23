@@ -5320,6 +5320,8 @@
                 keyboardFocusTarget = 'left';
             } else if (t === 'filter' || t === 'right-filter') {
                 keyboardFocusTarget = 'right-filter';
+            } else if (t === 'answer' || t === 'right-answer') {
+                keyboardFocusTarget = 'right-answer';
             } else {
                 keyboardFocusTarget = 'right-main';
             }
@@ -5329,11 +5331,39 @@
             return keyboardFocusTarget === 'right-filter';
         }
 
+        function isRightPaneAnswerKeyboardTarget() {
+            return keyboardFocusTarget === 'right-answer';
+        }
+
+        /** Filter popup mở + lần focus gần nhất là filter → arrow 4 hướng đi filter, không tracking. */
+        function shouldRouteRightPaneArrowsToFilter() {
+            return isFilterPopupNavActive() && isRightPaneFilterKeyboardTarget();
+        }
+
+        function isAnswerPopupNavActive() {
+            const ap = answerPopup;
+            return !!(ap && typeof ap.isOpen === 'function' && ap.isOpen()
+                && isAnswerPopupContextSheet());
+        }
+
+        /** Answer popup mở + lần focus gần nhất là answer → arrow 4 hướng đi answer, không tracking/main. */
+        function shouldRouteRightPaneArrowsToAnswer() {
+            return isAnswerPopupNavActive() && isRightPaneAnswerKeyboardTarget();
+        }
+
+        if (typeof window !== 'undefined') {
+            window.rememberKeyboardFocusTarget = rememberKeyboardFocusTarget;
+            window.shouldRouteRightPaneArrowsToFilter = shouldRouteRightPaneArrowsToFilter;
+            window.shouldRouteRightPaneArrowsToAnswer = shouldRouteRightPaneArrowsToAnswer;
+        }
+
         function restoreKeyboardFocusTarget() {
             const frame = el('okFrame');
             const wrap = keyboardFocusTarget === 'right-filter'
                 ? el('filterTableWrap')
-                : el('tableWrap');
+                : keyboardFocusTarget === 'right-answer'
+                    ? el('answerTableWrap')
+                    : el('tableWrap');
 
             if (keyboardFocusTarget === 'left') {
                 try {
@@ -11252,6 +11282,7 @@
             }
             dock.classList.remove('hidden');
             dock.setAttribute('aria-hidden', 'false');
+            raiseFloatingPopupDock(dock);
         }
 
         function closeFilterPopup() {
@@ -11831,6 +11862,11 @@
                 flushTrackingSetLinesCoalesce();
                 return ok;
             }
+            if (mode === 'answer') {
+                const ok = commitAnswerPopupNav();
+                flushTrackingSetLinesCoalesce();
+                return ok;
+            }
             const ok = commitMainTableNav();
             flushTrackingSetLinesCoalesce();
             return ok;
@@ -11980,9 +12016,36 @@
             return true;
         }
 
+        function previewAnswerPopupNavStep(step) {
+            if (!isAnswerPopupNavActive()) {
+                return false;
+            }
+            const ap = ensureAnswerPopup();
+            if (!ap || typeof ap.previewTicketNavStep !== 'function') {
+                return false;
+            }
+            const handled = ap.previewTicketNavStep(step);
+            if (handled) {
+                rememberKeyboardFocusTarget('answer');
+            }
+            return handled;
+        }
+
+        function commitAnswerPopupNav() {
+            if (!isAnswerPopupNavActive()) {
+                return false;
+            }
+            const ap = ensureAnswerPopup();
+            if (!ap || typeof ap.commitTicketNav !== 'function') {
+                return false;
+            }
+            rememberKeyboardFocusTarget('answer');
+            return ap.commitTicketNav();
+        }
+
         function queueRightPaneNav(mode, step) {
             const delta = Number(step) || 0;
-            if (!delta || (mode !== 'main' && mode !== 'filter')) {
+            if (!delta || (mode !== 'main' && mode !== 'filter' && mode !== 'answer')) {
                 return false;
             }
             if (rightPaneNavCoalesce.mode && rightPaneNavCoalesce.mode !== mode) {
@@ -11990,6 +12053,8 @@
             }
             if (mode === 'filter') {
                 previewFilterPopupNavStep(delta);
+            } else if (mode === 'answer') {
+                previewAnswerPopupNavStep(delta);
             } else {
                 previewMainTableNavStep(delta);
             }
@@ -12040,6 +12105,9 @@
                 tableWrap.addEventListener('mousedown', () => {
                     rememberKeyboardFocusTarget('main');
                 }, true);
+                tableWrap.addEventListener('focusin', () => {
+                    rememberKeyboardFocusTarget('main');
+                });
             }
 
             const filterDock = el('filterPopupDock');
@@ -12056,6 +12124,28 @@
             if (filterWrap) {
                 filterWrap.addEventListener('focusin', () => {
                     rememberKeyboardFocusTarget('filter');
+                });
+            }
+
+            const answerDock = el('answerPopupDock');
+            if (answerDock) {
+                answerDock.addEventListener('mousedown', (event) => {
+                    if (event.target.closest('#answerTableWrap')) {
+                        return;
+                    }
+                    if (!answerDock.classList.contains('hidden')) {
+                        rememberKeyboardFocusTarget('answer');
+                    }
+                }, true);
+            }
+
+            const answerWrap = el('answerTableWrap');
+            if (answerWrap) {
+                answerWrap.addEventListener('mousedown', () => {
+                    rememberKeyboardFocusTarget('answer');
+                }, true);
+                answerWrap.addEventListener('focusin', () => {
+                    rememberKeyboardFocusTarget('answer');
                 });
             }
         }
@@ -12076,7 +12166,10 @@
                 }
 
                 if (isRightPaneArrowKey(event.key)) {
-                    if (handleFilterPopupNavKeydown(event)) {
+                    if (shouldRouteRightPaneArrowsToFilter() && handleFilterPopupNavKeydown(event)) {
+                        return;
+                    }
+                    if (shouldRouteRightPaneArrowsToAnswer() && handleAnswerPopupNavKeydown(event)) {
                         return;
                     }
                     if (navigateRightPaneByArrowKey(event.key)) {
@@ -12102,7 +12195,10 @@
         }
 
         function handleFilterPopupNavKeydown(event) {
-            if (!isFilterPopupNavActive() || !isRightPaneFilterKeyboardTarget()) {
+            if (!isFilterPopupNavActive()) {
+                return false;
+            }
+            if (!isRightPaneFilterKeyboardTarget()) {
                 return false;
             }
             if (isPeriodFilterShortcutBlockedTarget(event.target)) {
@@ -12115,6 +12211,26 @@
             event.preventDefault();
             event.stopImmediatePropagation();
             queueRightPaneNav('filter', step);
+            return true;
+        }
+
+        function handleAnswerPopupNavKeydown(event) {
+            if (!isAnswerPopupNavActive()) {
+                return false;
+            }
+            if (!isRightPaneAnswerKeyboardTarget()) {
+                return false;
+            }
+            if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+                return false;
+            }
+            const step = getFilterPopupNavStepFromKey(event.key);
+            if (!step) {
+                return false;
+            }
+            event.preventDefault();
+            event.stopImmediatePropagation();
+            queueRightPaneNav('answer', step);
             return true;
         }
 
@@ -13340,7 +13456,8 @@
                     syncSheet1FocusMask: syncAnswerPopupSheet1FocusMask,
                     prepareLayout: prepareAnswerPopupLayout,
                     saveLayout: saveAnswerPopupLayout,
-                    applyUiScale: applyAnswerPopupUiScale
+                    applyUiScale: applyAnswerPopupUiScale,
+                    raiseDock: () => raiseFloatingPopupDock(el('answerPopupDock'))
                 });
             }
             return answerPopup;
@@ -13382,6 +13499,7 @@
                 if (!ap.isOpen()) {
                     ap.clearLeftPickForAnswerOpen();
                     ap.openPopup();
+                    rememberKeyboardFocusTarget('answer');
                 } else {
                     ap.close();
                 }
@@ -13907,6 +14025,10 @@
                     const arrowStep = getFilterPopupNavStepFromKey(msg.key);
                     if (arrowStep && isFilterPopupNavActive() && isRightPaneFilterKeyboardTarget()) {
                         queueRightPaneNav('filter', arrowStep);
+                        return;
+                    }
+                    if (arrowStep && isAnswerPopupNavActive() && isRightPaneAnswerKeyboardTarget()) {
+                        queueRightPaneNav('answer', arrowStep);
                         return;
                     }
                     navigateRightPaneByArrowKey(msg.key);

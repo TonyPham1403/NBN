@@ -27,6 +27,8 @@ class AnswerPopupController {
         this._ticketIdSeq = 0;
         /** Phiếu đang focus trước khi bật Submit — khôi phục khi Submit tắt */
         this._activeTicketIdSavedForSubmitRestore = null;
+        /** Preview focus khi giữ phím ↑↓←→ (commit sau coalesce). */
+        this._ticketNavFocusIdx = null;
     }
 
     allocFormId() {
@@ -491,6 +493,9 @@ class AnswerPopupController {
             dock.classList.remove('hidden');
             dock.setAttribute('aria-hidden', 'false');
         }
+        if (typeof this.deps.raiseDock === 'function') {
+            this.deps.raiseDock();
+        }
         this._submitCheckSyncLock = true;
         try {
             this.checked = false;
@@ -507,6 +512,7 @@ class AnswerPopupController {
         this.clearWinFireworks();
         this.hideQuickpasteManual();
         this._activeTicketIdSavedForSubmitRestore = null;
+        this._ticketNavFocusIdx = null;
         this.open = false;
         this.activeTicketId = null;
         this.checked = false;
@@ -577,6 +583,7 @@ class AnswerPopupController {
         this.focusDate = String(row.date || row.Date || '');
         this.focusId = String(row.id || row.ID || '');
         this.checked = false;
+        this._ticketNavFocusIdx = null;
         this._nextFormSeq = 0;
         this.answerNums = this.parseNums(sm.parseMainNums ? sm.parseMainNums(row.result || row.Result || '') : (row.result || ''));
         this.tickets = this.createInitialTickets();
@@ -710,9 +717,123 @@ class AnswerPopupController {
         if (!this.findTicket(id)) {
             return;
         }
+        this._ticketNavFocusIdx = null;
         this.activeTicketId = id;
         this.render();
         this.syncLeftFromActiveTicket();
+    }
+
+    getActiveTicketNavIndex() {
+        if (!this.tickets.length) {
+            return -1;
+        }
+        if (this.activeTicketId) {
+            const idx = this.tickets.findIndex((t) => t.id === this.activeTicketId);
+            if (idx >= 0) {
+                return idx;
+            }
+        }
+        return 0;
+    }
+
+    getTicketNavFocusIndex() {
+        if (!this.tickets.length) {
+            return -1;
+        }
+        if (typeof this._ticketNavFocusIdx === 'number'
+            && this._ticketNavFocusIdx >= 0
+            && this._ticketNavFocusIdx < this.tickets.length) {
+            return this._ticketNavFocusIdx;
+        }
+        return this.getActiveTicketNavIndex();
+    }
+
+    applyTicketNavFocusUi(focusIdx) {
+        const tableWrap = this.el('answerTableWrap');
+        if (!tableWrap || focusIdx < 0) {
+            return;
+        }
+        tableWrap.querySelectorAll('tr.answer-ticket-row').forEach((row) => {
+            const idx = parseInt(row.getAttribute('data-index'), 10);
+            row.classList.toggle('is-active', idx === focusIdx);
+        });
+    }
+
+    scrollTicketRowIntoView(focusIdx) {
+        const tableWrap = this.el('answerTableWrap');
+        if (!tableWrap || focusIdx < 0) {
+            return;
+        }
+        const row = tableWrap.querySelector(`tr.answer-ticket-row[data-index="${focusIdx}"]`);
+        if (!row) {
+            return;
+        }
+        const thead = tableWrap.querySelector('thead');
+        const headerHeight = thead ? thead.getBoundingClientRect().height : 0;
+        const topInset = headerHeight + 4;
+        const bottomInset = 4;
+        const wrapRect = tableWrap.getBoundingClientRect();
+        const rowRect = row.getBoundingClientRect();
+        if (rowRect.top < wrapRect.top + topInset) {
+            tableWrap.scrollTop += rowRect.top - wrapRect.top - topInset;
+            return;
+        }
+        if (rowRect.bottom > wrapRect.bottom - bottomInset) {
+            tableWrap.scrollTop += rowRect.bottom - wrapRect.bottom + bottomInset;
+        }
+    }
+
+    /**
+     * Preview: đổi highlight phiếu khi giữ phím (chưa sync nửa trái).
+     * @param {number} step +1 / -1
+     * @returns {boolean}
+     */
+    previewTicketNavStep(step) {
+        if (!this.open || !this.tickets.length) {
+            return false;
+        }
+        const delta = Number(step) || 0;
+        if (!delta) {
+            return false;
+        }
+        const cur = this.getTicketNavFocusIndex();
+        const len = this.tickets.length;
+        let next = cur + delta;
+        if (next >= len) {
+            next = 0;
+        } else if (next < 0) {
+            next = len - 1;
+        }
+        if (next === cur) {
+            return false;
+        }
+        this._ticketNavFocusIdx = next;
+        this.applyTicketNavFocusUi(next);
+        this.scrollTicketRowIntoView(next);
+        return true;
+    }
+
+    /** Commit sau coalesce: áp dụng phiếu đang preview + sync nửa trái. */
+    commitTicketNav() {
+        if (!this.open || !this.tickets.length) {
+            return false;
+        }
+        const idx = this.getTicketNavFocusIndex();
+        this._ticketNavFocusIdx = null;
+        const ticket = this.tickets[idx];
+        if (!ticket) {
+            return false;
+        }
+        const changed = ticket.id !== this.activeTicketId;
+        this.activeTicketId = ticket.id;
+        if (changed) {
+            this.render();
+            this.syncLeftFromActiveTicket();
+        } else {
+            this.applyTicketNavFocusUi(idx);
+        }
+        this.scrollTicketRowIntoView(idx);
+        return true;
     }
 
     toggleNumOnActiveTicket(num) {
@@ -1144,8 +1265,9 @@ class AnswerPopupController {
             return;
         }
         tableWrap.classList.toggle('is-check-mode', !!this.checked);
+        const navFocusIdx = this.getTicketNavFocusIndex();
         const bodyRows = this.tickets.map((t, index) => {
-            const active = t.id === this.activeTicketId;
+            const active = index === navFocusIdx;
             const winCls = this.checked && t.isWin ? ' is-winning' : '';
             const activeCls = active ? ' is-active' : '';
             const resultHtml = this.formatResultHtml(t);
