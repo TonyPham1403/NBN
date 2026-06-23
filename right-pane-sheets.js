@@ -8429,6 +8429,18 @@ class RightPaneSheetManager {
         return nums.slice().sort((a, b) => a - b).join(',');
     }
 
+    /** Khóa đếm streak: cùng freq + cùng tập số (đổi freq → đếm lại từ 1). */
+    static getFreqTieGroupStreakKey(group) {
+        if (!group || !Array.isArray(group.nums) || !group.nums.length) {
+            return '';
+        }
+        const numsKey = RightPaneSheetManager.getFreqTieGroupBellyKey(group.nums);
+        if (!numsKey) {
+            return '';
+        }
+        return `${group.freq | 0}:${numsKey}`;
+    }
+
     static FREQ_BRACE_STREAK_NUMERALS = '一二三四五六七八九';
     static FREQ_BRACE_STREAK_MAX = 99;
 
@@ -8465,7 +8477,7 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Đếm số frame liên tiếp (lùi từ frameIndex) mà bụng cùng tập số vẫn tồn tại.
+     * Đếm số frame liên tiếp (lùi từ frameIndex) mà bụng cùng freq + cùng tập số vẫn tồn tại.
      * @returns {{ groups: object[], streakByKey: Map<string, number> }}
      */
     computeTrackingFreqTieGroupsWithStreaks(sheet, frames, frameIndex, options = {}) {
@@ -8473,7 +8485,7 @@ class RightPaneSheetManager {
         const numMax = options.numMax || 35;
         const leftSubmitOn = !!options.leftSubmitOn;
         const basicDraws = options.basicDraws || [];
-        const bellyKey = RightPaneSheetManager.getFreqTieGroupBellyKey;
+        const streakKeyOf = RightPaneSheetManager.getFreqTieGroupStreakKey;
 
         const getGroupsForFrame = (f) => {
             const fr = frames[f];
@@ -8506,7 +8518,7 @@ class RightPaneSheetManager {
         const streakByKey = new Map();
         for (let g = 0; g < groups.length; g++) {
             const group = groups[g];
-            const key = bellyKey(group.nums);
+            const key = streakKeyOf(group);
             if (!key || streakByKey.has(key)) {
                 continue;
             }
@@ -8515,7 +8527,7 @@ class RightPaneSheetManager {
                 const prevGroups = getGroupsForFrame(f);
                 let found = false;
                 for (let p = 0; p < prevGroups.length; p++) {
-                    if (bellyKey(prevGroups[p].nums) === key) {
+                    if (streakKeyOf(prevGroups[p]) === key) {
                         found = true;
                         break;
                     }
@@ -8533,7 +8545,7 @@ class RightPaneSheetManager {
         return { groups, streakByKey };
     }
 
-    /** Dấu { cột frequency — nhóm ≥2 số cùng giá trị tích lũy; nhãn = [n] + 一二… (bụng không đổi). */
+    /** Dấu { cột frequency — nhóm ≥2 số cùng giá trị tích lũy; nhãn = [n] + 一二… (freq + tập số không đổi). */
     static syncTrackingFreqBraces(layer, groups, slotCount, streakByKey) {
         if (!layer) {
             return;
@@ -8541,7 +8553,7 @@ class RightPaneSheetManager {
         const sig = !groups.length
             ? ''
             : groups.map((g) => {
-                const key = RightPaneSheetManager.getFreqTieGroupBellyKey(g.nums);
+                const key = RightPaneSheetManager.getFreqTieGroupStreakKey(g);
                 const streak = (streakByKey && streakByKey.get(key)) || 1;
                 return `${g.freq}:${g.minSlot}-${g.maxSlot}:${key}:${streak}`;
             }).join('|');
@@ -8559,15 +8571,15 @@ class RightPaneSheetManager {
             if (memberCount < 2) {
                 continue;
             }
-            const bellyKey = RightPaneSheetManager.getFreqTieGroupBellyKey(g.nums);
-            const unchangedStreak = (streakByKey && streakByKey.get(bellyKey)) || 1;
+            const streakKey = RightPaneSheetManager.getFreqTieGroupStreakKey(g);
+            const unchangedStreak = (streakByKey && streakByKey.get(streakKey)) || 1;
             const countLabel = RightPaneSheetManager.formatFreqBraceCountLabel(memberCount, unchangedStreak);
             const el = document.createElement('div');
             el.className = 'special-tracking-freq-brace';
             el.setAttribute('data-freq', String(g.freq));
             el.setAttribute('data-member-count', String(memberCount));
             el.setAttribute('data-unchanged-streak', String(unchangedStreak));
-            el.title = `Tần suất ${g.freq}: ${g.nums.join(', ')} (${memberCount} số, bụng không đổi ${unchangedStreak} kỳ)`;
+            el.title = `Tần suất ${g.freq}: ${g.nums.join(', ')} (${memberCount} số, freq + tập số không đổi ${unchangedStreak} kỳ)`;
             const topPct = (g.minSlot / slotCount) * 100;
             const heightPct = ((g.maxSlot - g.minSlot + 1) / slotCount) * 100;
             el.style.top = `${topPct}%`;
@@ -9884,6 +9896,9 @@ class RightPaneSheetManager {
                 && this.isBasicTrackingBarPreviewActive(sheet, frameIndex);
             const previewPickNums = previewActive ? (this.leftBasicPreviewPickNums || []) : [];
             const previewPickSet = previewActive ? new Set(previewPickNums) : new Set();
+            const autoringPickSet = this.leftAutoringEnabled
+                ? new Set(this.leftBasicPreviewPickNums || [])
+                : new Set();
             let basicDisplay = null;
             let basicWindow10Freq = null;
             let basicCh11Ch12Set = null;
@@ -10011,10 +10026,11 @@ class RightPaneSheetManager {
                     }
                     numEl.classList.toggle('special-tracking-rank-num--win10-freq-one-italic', win10FreqOneItalic);
                 }
-                const autoringNonexistLabel = isBasic
+                const autoringBarLabel = isBasic
                     && this.leftAutoringEnabled
-                    && win10Freq === 0
-                    && isJust;
+                    && leftSubmitOn
+                    && isJust
+                    && autoringPickSet.has(n);
                 el.classList.toggle(
                     'special-tracking-rank-bar--win10-freq-zero',
                     isBasic && win10Freq === 0
@@ -10042,15 +10058,15 @@ class RightPaneSheetManager {
                 const predictHit = Boolean(pr) && actualNext != null && n === actualNext;
                 el.classList.toggle(
                     'special-tracking-rank-bar--just',
-                    !isBasic && isJust && !actualAnswer && !autoringNonexistLabel
+                    !isBasic && isJust && !actualAnswer && !autoringBarLabel
                 );
                 const userClickFocus = getFocusNums().has(n);
                 el.classList.toggle('special-tracking-rank-bar--click-focus', userClickFocus);
                 el.classList.toggle(
                     'special-tracking-rank-bar--focus',
-                    autoringNonexistLabel || (!leftSubmitOn && leftPickPreviewLabel)
+                    autoringBarLabel || (!leftSubmitOn && leftPickPreviewLabel)
                 );
-                el.classList.toggle('special-tracking-rank-bar--autoring-nonexist', autoringNonexistLabel);
+                el.classList.toggle('special-tracking-rank-bar--autoring-nonexist', autoringBarLabel);
                 el.classList.toggle(
                     'special-tracking-rank-bar--left-pick-preview',
                     !leftSubmitOn && leftPickPreviewLabel
@@ -10072,8 +10088,8 @@ class RightPaneSheetManager {
                         : `Số ${n}, nonexist cửa sổ 10 (đỏ) → đáp án kỳ hiện tại (đen gạch chân), submit ON`;
                 } else if (leftPickPreviewLabel && !leftSubmitOn) {
                     aria = `Số ${n}, click giả lập — preview freq +1 (submit OFF)`;
-                } else if (autoringNonexistLabel) {
-                    aria = `Số ${n}, nonexist (win10=0) trong đáp án kỳ hiện tại — autoring tracking`;
+                } else if (autoringBarLabel) {
+                    aria = `Số ${n}, autoring khoanh trái — đồng bộ với sheet1`;
                 } else if (actualAnswer) {
                     aria = isBasic
                         ? `Số ${n}, trong đáp án 5 số chính kỳ hiện tại (id), Shift+click để viền cam`
@@ -10529,7 +10545,7 @@ class RightPaneSheetManager {
             paint();
         };
         const onLeftAutoringStateChanged = () => {
-            paint();
+            requestLeftCircledForPreview();
         };
         const onLeftCircledNumsChanged = () => {
             paint();

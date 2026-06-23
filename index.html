@@ -1782,7 +1782,6 @@
             cursor: not-allowed;
         }
 
-        .submit-ring-controls.freq-mode-disabled .sheet-tools-mode-wrap,
         .submit-ring-controls.freq-mode-disabled #submitRingCustomXWrap {
             opacity: 0.42;
             pointer-events: none;
@@ -5724,14 +5723,7 @@
             return SUBMIT_RING_FREQ_MODES.includes(m) ? m : 'max';
         }
 
-        function isTrackingAutoringContext() {
-            return !!(sheetManager && sheetManager.activeSheet === 'tracking');
-        }
-
         function getEffectiveSubmitRingMode() {
-            if (isTrackingAutoringContext()) {
-                return 'nonexist';
-            }
             if (submitRingLabelConn && submitRingLabelIx) {
                 return 'conn_ix';
             }
@@ -5843,15 +5835,13 @@
                 return;
             }
             syncSubmitRingModeFromUi();
-            const trackingOnly = isTrackingAutoringContext();
             const contextSync = !!options.contextSync;
-            const mode = trackingOnly ? 'max' : normalizeSubmitRingMode(submitRingMode);
             frame.contentWindow.postMessage({
                 type: 'submitAutoCircleChanged',
-                enabled: trackingOnly ? false : !!submitRingEnabled,
-                mode,
+                enabled: !!submitRingEnabled,
+                mode: normalizeSubmitRingMode(submitRingMode),
                 customX: clampRingCustomX(submitRingCustomX),
-                preserveManualPicks: !!(options.preserveManualPicks || contextSync || trackingOnly),
+                preserveManualPicks: !!(options.preserveManualPicks || contextSync),
                 contextSync
             }, '*');
             notifyLeftAutoringStateToTracking();
@@ -5883,11 +5873,10 @@
             submitRingFreqMode = normalizeSubmitRingFreqMode(submitRingFreqMode);
             submitRingCustomX = clampRingCustomX(submitRingCustomX);
             syncSubmitRingModeFromUi();
-            const trackingAutoring = isTrackingAutoringContext();
             const labelActive = submitRingLabelConn || submitRingLabelIx;
-            const effectiveMode = trackingAutoring ? 'nonexist' : submitRingMode;
-            const dropdownMode = trackingAutoring ? 'nonexist' : submitRingFreqMode;
-            const xControlsDisabled = !submitRingEnabled || labelActive || dropdownMode !== 'custom' || trackingAutoring;
+            const effectiveMode = submitRingMode;
+            const dropdownMode = submitRingFreqMode;
+            const xControlsDisabled = !submitRingEnabled || labelActive || dropdownMode !== 'custom';
             const modeLabel = getSubmitRingModeDisplayLabel(effectiveMode);
             const dropdownLabel = getSubmitRingModeDisplayLabel(dropdownMode);
             if (toggleBtn) {
@@ -5900,37 +5889,29 @@
                 );
             }
             if (controls) {
-                controls.classList.toggle('freq-mode-disabled', labelActive || trackingAutoring);
-                controls.classList.toggle('submit-ring-controls--tracking', trackingAutoring);
+                controls.classList.toggle('freq-mode-disabled', labelActive);
+                controls.classList.remove('submit-ring-controls--tracking');
             }
             if (modeSelect) {
                 modeSelect.value = dropdownMode;
-                modeSelect.disabled = !submitRingEnabled || labelActive || trackingAutoring;
-                modeSelect.setAttribute('title', trackingAutoring
-                    ? 'Sheet tracking: autoring chỉ trên bar (không khoanh trái)'
-                    : (labelActive
-                        ? `Dropdown (${dropdownLabel}) — tắt khi dùng C/∩`
-                        : `Chế độ khoanh: ${dropdownLabel}`));
+                modeSelect.disabled = !submitRingEnabled;
+                modeSelect.setAttribute('title', labelActive
+                    ? `Chọn chế độ khác để tắt C/∩ (${dropdownLabel})`
+                    : `Chế độ khoanh: ${dropdownLabel}`);
             }
             if (modeValue) {
-                modeValue.textContent = trackingAutoring ? 'nonexist' : (labelActive ? modeLabel : dropdownLabel);
+                modeValue.textContent = labelActive ? modeLabel : dropdownLabel;
                 modeValue.style.textTransform = (dropdownMode === 'custom' || dropdownMode === 'conn3' || dropdownMode === 'tail') ? 'none' : 'uppercase';
             }
             if (modeWrap) {
                 modeWrap.classList.toggle('disabled', !submitRingEnabled);
-                modeWrap.classList.toggle(
-                    'enabled',
-                    (modeHighlighted && !labelActive)
-                    || (trackingAutoring && submitRingEnabled)
-                );
-                modeWrap.setAttribute('title', trackingAutoring
-                    ? 'Sheet tracking: autoring nonexist trên bar tracking'
-                    : (labelActive
-                        ? `Đang dùng nhãn ${modeLabel}`
-                        : `Chế độ khoanh: ${dropdownLabel}`));
+                modeWrap.classList.toggle('enabled', modeHighlighted && !labelActive);
+                modeWrap.setAttribute('title', labelActive
+                    ? `Đang dùng nhãn ${modeLabel}`
+                    : `Chế độ khoanh: ${dropdownLabel}`);
             }
             if (customWrap) {
-                customWrap.classList.toggle('hidden', dropdownMode !== 'custom' || labelActive || trackingAutoring);
+                customWrap.classList.toggle('hidden', dropdownMode !== 'custom' || labelActive);
             }
             if (customInput) {
                 customInput.value = String(submitRingCustomX);
@@ -5943,14 +5924,14 @@
                 customInc.disabled = xControlsDisabled;
             }
             if (labelWrap) {
-                labelWrap.classList.toggle('disabled', !submitRingEnabled || trackingAutoring);
+                labelWrap.classList.toggle('disabled', !submitRingEnabled);
             }
             if (labelConnBtn) {
-                labelConnBtn.disabled = !submitRingEnabled || trackingAutoring;
+                labelConnBtn.disabled = !submitRingEnabled;
                 labelConnBtn.setAttribute('aria-pressed', submitRingLabelConn ? 'true' : 'false');
             }
             if (labelIxBtn) {
-                labelIxBtn.disabled = !submitRingEnabled || trackingAutoring;
+                labelIxBtn.disabled = !submitRingEnabled;
                 labelIxBtn.setAttribute('aria-pressed', submitRingLabelIx ? 'true' : 'false');
             }
         }
@@ -11897,7 +11878,7 @@
                 focusRowId: String(detail.clickedRowId || '').trim(),
                 focusRowIndex: detail.focusRowIndex,
                 focusNonexistHighlights: detail.focusNonexistHighlights || {},
-                submitAutoCircleEnabled: isTrackingAutoringContext() ? false : submitRingEnabled,
+                submitAutoCircleEnabled: !!submitRingEnabled,
                 submitAutoCircleMode: getEffectiveSubmitRingMode(),
                 submitAutoCircleCustomX: clampRingCustomX(submitRingCustomX),
                 referenceConn3HeaderLines: detail.skipReferenceMeta ? [] : (detail.referenceConn3HeaderLines || []),
@@ -13001,8 +12982,19 @@
             }
         }
 
+        function isAutoringModeSelectTarget(target) {
+            if (!target || !(target instanceof Element)) {
+                return false;
+            }
+            return target.id === 'submitRingModeSelect'
+                || !!target.closest('#submitRingModeWrap');
+        }
+
         function isPeriodFilterShortcutBlockedTarget(target) {
             if (!target || !(target instanceof Element)) {
+                return false;
+            }
+            if (isAutoringModeSelectTarget(target)) {
                 return false;
             }
             const tag = target.tagName;
@@ -13777,7 +13769,7 @@
                         focusRowId: String(detail.clickedRowId || '').trim(),
                         focusRowIndex: detail.focusRowIndex,
                         focusNonexistHighlights: detail.focusNonexistHighlights || {},
-                        submitAutoCircleEnabled: isTrackingAutoringContext() ? false : submitRingEnabled,
+                        submitAutoCircleEnabled: !!submitRingEnabled,
                         submitAutoCircleMode: getEffectiveSubmitRingMode(),
                         submitAutoCircleCustomX: clampRingCustomX(submitRingCustomX),
                         referenceConn3HeaderLines: referenceConn3HeaderLines,
