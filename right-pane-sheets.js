@@ -9984,6 +9984,9 @@ class RightPaneSheetManager {
                     && basicCh11Ch12Set.has(n);
                 const isJust = justSet.has(n);
                 const leftPickPreviewLabel = previewPickSet.has(n);
+                const actualAnswer = isBasic
+                    ? (leftSubmitOn && isJust)
+                    : (!predictNeonOn && n === fr.justDrawn);
                 const showWin10ZeroTransition = isBasic
                     && win10Freq === 0
                     && ((leftSubmitOn && isJust) || (!leftSubmitOn && leftPickPreviewLabel));
@@ -10030,7 +10033,8 @@ class RightPaneSheetManager {
                     && this.leftAutoringEnabled
                     && leftSubmitOn
                     && isJust
-                    && autoringPickSet.has(n);
+                    && autoringPickSet.has(n)
+                    && !actualAnswer;
                 el.classList.toggle(
                     'special-tracking-rank-bar--win10-freq-zero',
                     isBasic && win10Freq === 0
@@ -10052,9 +10056,6 @@ class RightPaneSheetManager {
                     delete el.dataset.stWin10Freq;
                 }
                 const pr = predictRankByNum.get(n);
-                const actualAnswer = isBasic
-                    ? (leftSubmitOn && isJust)
-                    : (!predictNeonOn && n === fr.justDrawn);
                 const predictHit = Boolean(pr) && actualNext != null && n === actualNext;
                 el.classList.toggle(
                     'special-tracking-rank-bar--just',
