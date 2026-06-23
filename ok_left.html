@@ -7448,6 +7448,7 @@
                     pickOrder = [];
                     pairNeonObserveNum = null;
                     resetPairNeonObserveContextBeyondLonePair();
+                    autoRingPicked.clear();
                     selectionCleared = true;
                     clearPairContributionTracking();
                     // clear focus/phase state so arrow hides and nav doesn't auto-reselect
@@ -7459,6 +7460,7 @@
                         lastClickedRegion = null;
                         // keep phaseHistory so undo (q again) can restore previous phase targets
                     } catch (ee) { }
+                    try { persistSelectionMemoryForFocus(); } catch (eMem) { /* ignore */ }
                 } else {
                     // restore
                     if (clearedSelectionBackup) selected = new Set(clearedSelectionBackup);
@@ -7751,7 +7753,7 @@
                                 if (preSubmitOrder && preSubmitOrder.length) {
                                     pickOrder = preSubmitOrder.slice();
                                 }
-                            } else if (submitAutoCircleEnabled && autoRingPicked.size > 0) {
+                            } else if (submitAutoCircleEnabled && autoRingPicked.size > 0 && !selectionCleared) {
                                 restoreUsedAutoring = true;
                                 selected.clear();
                                 clearPairContributionTracking();
