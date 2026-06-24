@@ -8486,20 +8486,23 @@ class RightPaneSheetManager {
         const leftSubmitOn = !!options.leftSubmitOn;
         const basicDraws = options.basicDraws || [];
         const streakKeyOf = RightPaneSheetManager.getFreqTieGroupStreakKey;
+        const previewAtPaintFrame = isBasic
+            && this.isBasicTrackingBarPreviewActive(sheet, frameIndex);
+        const previewPickNums = previewAtPaintFrame ? (this.leftBasicPreviewPickNums || []) : [];
 
-        const getGroupsForFrame = (f) => {
+        const getGroupsForFrame = (f, usePreview = false) => {
             const fr = frames[f];
             if (!fr) {
                 return [];
             }
             if (isBasic) {
-                const previewActive = this.isBasicTrackingBarPreviewActive(sheet, f);
-                const previewPickNums = previewActive ? (this.leftBasicPreviewPickNums || []) : [];
+                const applyPreview = usePreview && f === frameIndex && previewAtPaintFrame;
+                const picks = applyPreview ? previewPickNums : [];
                 const display = RightPaneSheetManager.computeBasicTrackingDisplayLayout(
                     basicDraws,
                     fr,
                     leftSubmitOn,
-                    previewPickNums
+                    picks
                 );
                 return RightPaneSheetManager.buildBasicTrackingFreqTieGroups(
                     display.counts,
@@ -8514,7 +8517,10 @@ class RightPaneSheetManager {
             );
         };
 
-        const groups = getGroupsForFrame(frameIndex);
+        const groups = getGroupsForFrame(frameIndex, true);
+        const committedKeysAtPaint = previewAtPaintFrame
+            ? new Set(getGroupsForFrame(frameIndex, false).map((g) => streakKeyOf(g)))
+            : null;
         const streakByKey = new Map();
         for (let g = 0; g < groups.length; g++) {
             const group = groups[g];
@@ -8523,21 +8529,24 @@ class RightPaneSheetManager {
                 continue;
             }
             let streak = 1;
-            for (let f = frameIndex - 1; f >= 0; f--) {
-                const prevGroups = getGroupsForFrame(f);
-                let found = false;
-                for (let p = 0; p < prevGroups.length; p++) {
-                    if (streakKeyOf(prevGroups[p]) === key) {
-                        found = true;
+            const previewChangedGroup = committedKeysAtPaint && !committedKeysAtPaint.has(key);
+            if (!previewChangedGroup) {
+                for (let f = frameIndex - 1; f >= 0; f--) {
+                    const prevGroups = getGroupsForFrame(f, false);
+                    let found = false;
+                    for (let p = 0; p < prevGroups.length; p++) {
+                        if (streakKeyOf(prevGroups[p]) === key) {
+                            found = true;
+                            break;
+                        }
+                    }
+                    if (!found) {
                         break;
                     }
-                }
-                if (!found) {
-                    break;
-                }
-                streak++;
-                if (streak >= RightPaneSheetManager.FREQ_BRACE_STREAK_MAX) {
-                    break;
+                    streak++;
+                    if (streak >= RightPaneSheetManager.FREQ_BRACE_STREAK_MAX) {
+                        break;
+                    }
                 }
             }
             streakByKey.set(key, streak);

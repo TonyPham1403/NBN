@@ -1584,11 +1584,23 @@
             appearance: none;
             -webkit-appearance: none;
             -moz-appearance: none;
+            pointer-events: none;
         }
 
         #submitRingModeSelect option {
             background: #ffffff;
             color: #0f172a;
+        }
+
+        #submitRingModeSelect option[value="dateband"] {
+            background: #00b0f0;
+            color: #000000;
+        }
+
+        #submitRingModeMenu .period-filter-mode-item-label.period-filter-dateband-swatch {
+            display: block;
+            min-width: 72px;
+            height: 16px;
         }
 
         #submitRingModeSelect:disabled {
@@ -4631,7 +4643,10 @@
                                     <option value="conn3">3-connection</option>
                                     <option value="tail">tail</option>
                                     <option value="nonexist">nonexist</option>
+                                    <option value="dateband"> </option>
                                 </select>
+                                <ul id="submitRingModeMenu" class="period-filter-mode-menu submit-ring-mode-menu hidden"
+                                    role="listbox" aria-label="Chế độ autoring"></ul>
                             </div>
                             <div id="submitRingCustomXWrap" class="submit-ring-x-adjoin hidden"
                                 title="Số x (1–35), ▴▾ xoay vòng">
@@ -5114,8 +5129,8 @@
         const SUBMIT_RING_ENABLED_KEY = 'submitRingEnabled';
         const SUBMIT_RING_MODE_KEY = 'submitRingMode';
         const SUBMIT_RING_CUSTOM_X_KEY = 'submitRingCustomX';
-        const SUBMIT_RING_VALID_MODES = ['max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist'];
-        const SUBMIT_RING_FREQ_MODES = ['max', 'min', 'custom', 'conn3', 'tail', 'nonexist'];
+        const SUBMIT_RING_VALID_MODES = ['max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist', 'dateband'];
+        const SUBMIT_RING_FREQ_MODES = ['max', 'min', 'custom', 'conn3', 'tail', 'nonexist', 'dateband'];
         const SUBMIT_RING_LABEL_CONN_KEY = 'submitRingLabelConn';
         const SUBMIT_RING_LABEL_IX_KEY = 'submitRingLabelIx';
         const PERIOD_FILTER_ENABLED_KEY = 'periodFilterEnabled';
@@ -5784,6 +5799,12 @@
                 submitRingFreqMode = 'tail';
                 return;
             }
+            if (m === 'dateband') {
+                submitRingLabelConn = false;
+                submitRingLabelIx = false;
+                submitRingFreqMode = 'dateband';
+                return;
+            }
             if (m === 'conn_ix') {
                 submitRingLabelConn = true;
                 submitRingLabelIx = true;
@@ -5830,7 +5851,129 @@
             if (m === 'nonexist') {
                 return 'nonexist';
             }
+            if (m === 'dateband') {
+                return 'dateband';
+            }
             return m.toUpperCase();
+        }
+
+        function applySubmitRingModeMenuVisual(targetEl, mode) {
+            if (!targetEl) {
+                return;
+            }
+            const m = normalizeSubmitRingMode(mode);
+            const isDateband = m === 'dateband';
+            targetEl.textContent = isDateband ? '' : getSubmitRingModeDisplayLabel(m);
+            targetEl.classList.toggle('period-filter-dateband-swatch', isDateband);
+            if (isDateband) {
+                targetEl.setAttribute('aria-label', 'Date nền #00b0f0');
+            } else {
+                targetEl.removeAttribute('aria-label');
+            }
+        }
+
+        let submitRingModeMenuOpen = false;
+
+        function highlightSubmitRingModeMenu(mode) {
+            const menu = el('submitRingModeMenu');
+            if (!menu) {
+                return;
+            }
+            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
+                item.classList.toggle('selected', (item.dataset.mode || '') === mode);
+            });
+        }
+
+        function buildSubmitRingModeMenu() {
+            const menu = el('submitRingModeMenu');
+            if (!menu) {
+                return;
+            }
+            menu.innerHTML = '';
+            for (const mode of SUBMIT_RING_FREQ_MODES) {
+                const item = document.createElement('li');
+                item.className = 'period-filter-mode-item';
+                item.setAttribute('role', 'option');
+                item.dataset.mode = mode;
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'period-filter-mode-item-label';
+                applySubmitRingModeMenuVisual(labelSpan, mode);
+                item.appendChild(labelSpan);
+                item.addEventListener('mousedown', (event) => {
+                    event.preventDefault();
+                });
+                item.addEventListener('click', () => {
+                    selectSubmitRingFreqMode(mode);
+                });
+                menu.appendChild(item);
+            }
+            highlightSubmitRingModeMenu(submitRingFreqMode);
+        }
+
+        function positionSubmitRingModeMenu() {
+            const menu = el('submitRingModeMenu');
+            const modeWrap = el('submitRingModeWrap');
+            if (!menu || !modeWrap) {
+                return;
+            }
+            const rect = modeWrap.getBoundingClientRect();
+            menu.style.left = `${Math.max(8, rect.left)}px`;
+            menu.style.top = `${rect.bottom + 2}px`;
+            menu.style.minWidth = `${Math.max(rect.width, 88)}px`;
+        }
+
+        function closeSubmitRingModeMenu() {
+            const menu = el('submitRingModeMenu');
+            if (!menu) {
+                submitRingModeMenuOpen = false;
+                return;
+            }
+            menu.classList.add('hidden');
+            submitRingModeMenuOpen = false;
+        }
+
+        function openSubmitRingModeMenu() {
+            if (!submitRingEnabled) {
+                return;
+            }
+            closePeriodFilterModeMenu();
+            const menu = el('submitRingModeMenu');
+            const modeWrap = el('submitRingModeWrap');
+            if (!menu || !modeWrap) {
+                return;
+            }
+            if (!menu.querySelector('.period-filter-mode-item')) {
+                buildSubmitRingModeMenu();
+            } else {
+                highlightSubmitRingModeMenu(submitRingFreqMode);
+            }
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
+            positionSubmitRingModeMenu();
+            menu.classList.remove('hidden');
+            submitRingModeMenuOpen = true;
+        }
+
+        function selectSubmitRingFreqMode(mode) {
+            submitRingFreqMode = normalizeSubmitRingFreqMode(mode);
+            submitRingLabelConn = false;
+            submitRingLabelIx = false;
+            syncSubmitRingModeFromUi();
+            persistSubmitRingSettings();
+            syncSubmitRingToolbarUi();
+            sendSubmitRingConfigToIframe();
+            closeSubmitRingModeMenu();
+            requestAnimationFrame(() => restoreKeyboardFocusTarget());
+        }
+
+        function getSubmitRingDatebandPayload() {
+            return {
+                datebandMinFreqA: filterDatebandFreqX,
+                datebandMinFreqB: filterDatebandFreqY,
+                datebandFreqOpA: normalizeIntersectionFreqOp(filterDatebandOpX),
+                datebandFreqOpB: normalizeIntersectionFreqOp(filterDatebandOpY)
+            };
         }
 
         function notifyLeftAutoringStateToTracking() {
@@ -5871,6 +6014,7 @@
                 enabled: !!submitRingEnabled,
                 mode: normalizeSubmitRingMode(submitRingMode),
                 customX: clampRingCustomX(submitRingCustomX),
+                ...getSubmitRingDatebandPayload(),
                 preserveManualPicks: !!(options.preserveManualPicks || contextSync),
                 contextSync
             }, '*');
@@ -5909,6 +6053,7 @@
             const xControlsDisabled = !submitRingEnabled || labelActive || dropdownMode !== 'custom';
             const modeLabel = getSubmitRingModeDisplayLabel(effectiveMode);
             const dropdownLabel = getSubmitRingModeDisplayLabel(dropdownMode);
+            const dropdownHint = dropdownMode === 'dateband' ? 'date nền #00b0f0' : dropdownLabel;
             if (toggleBtn) {
                 toggleBtn.classList.toggle('active', submitRingEnabled);
                 toggleBtn.setAttribute(
@@ -5927,18 +6072,18 @@
                 modeSelect.disabled = !submitRingEnabled;
                 modeSelect.setAttribute('title', labelActive
                     ? `Chọn chế độ khác để tắt C/∩ (${dropdownLabel})`
-                    : `Chế độ khoanh: ${dropdownLabel}`);
+                    : `Chế độ khoanh: ${dropdownHint}`);
             }
             if (modeValue) {
-                modeValue.textContent = labelActive ? modeLabel : dropdownLabel;
-                modeValue.style.textTransform = (dropdownMode === 'custom' || dropdownMode === 'conn3' || dropdownMode === 'tail') ? 'none' : 'uppercase';
+                applySubmitRingModeMenuVisual(modeValue, labelActive ? effectiveMode : dropdownMode);
+                modeValue.style.textTransform = (dropdownMode === 'custom' || dropdownMode === 'conn3' || dropdownMode === 'tail' || dropdownMode === 'dateband') ? 'none' : 'uppercase';
             }
             if (modeWrap) {
                 modeWrap.classList.toggle('disabled', !submitRingEnabled);
                 modeWrap.classList.toggle('enabled', modeHighlighted && !labelActive);
                 modeWrap.setAttribute('title', labelActive
                     ? `Đang dùng nhãn ${modeLabel}`
-                    : `Chế độ khoanh: ${dropdownLabel}`);
+                    : `Chế độ khoanh: ${dropdownHint}`);
             }
             if (customWrap) {
                 customWrap.classList.toggle('hidden', dropdownMode !== 'custom' || labelActive);
@@ -5963,6 +6108,11 @@
             if (labelIxBtn) {
                 labelIxBtn.disabled = !submitRingEnabled;
                 labelIxBtn.setAttribute('aria-pressed', submitRingLabelIx ? 'true' : 'false');
+            }
+            if (!submitRingEnabled) {
+                closeSubmitRingModeMenu();
+            } else {
+                highlightSubmitRingModeMenu(dropdownMode);
             }
         }
 
@@ -6034,16 +6184,42 @@
             }
             if (modeSelect) {
                 modeSelect.addEventListener('change', () => {
-                    submitRingFreqMode = normalizeSubmitRingFreqMode(modeSelect.value);
-                    submitRingLabelConn = false;
-                    submitRingLabelIx = false;
-                    syncSubmitRingModeFromUi();
-                    persistSubmitRingSettings();
-                    syncSubmitRingToolbarUi();
-                    sendSubmitRingConfigToIframe();
-                    requestAnimationFrame(() => restoreKeyboardFocusTarget());
+                    selectSubmitRingFreqMode(modeSelect.value);
                 });
             }
+            const modeWrap = el('submitRingModeWrap');
+            if (modeWrap && modeWrap.dataset.submitRingMenuBound !== '1') {
+                modeWrap.dataset.submitRingMenuBound = '1';
+                modeWrap.addEventListener('mousedown', (event) => {
+                    event.preventDefault();
+                    if (!submitRingEnabled) {
+                        return;
+                    }
+                    if (submitRingModeMenuOpen) {
+                        closeSubmitRingModeMenu();
+                    } else {
+                        openSubmitRingModeMenu();
+                    }
+                });
+            }
+            if (!document.documentElement.dataset.submitRingModeMenuDismissBound) {
+                document.documentElement.dataset.submitRingModeMenuDismissBound = '1';
+                document.addEventListener('mousedown', (event) => {
+                    if (!submitRingModeMenuOpen) {
+                        return;
+                    }
+                    const menu = el('submitRingModeMenu');
+                    const wrap = el('submitRingModeWrap');
+                    if (menu && menu.contains(event.target)) {
+                        return;
+                    }
+                    if (wrap && wrap.contains(event.target)) {
+                        return;
+                    }
+                    closeSubmitRingModeMenu();
+                });
+            }
+            buildSubmitRingModeMenu();
             const bumpRingCustomX = bumpSubmitRingCustomXBy;
 
             if (customInput) {
@@ -7264,6 +7440,9 @@
                 rebuildFilterModeCounts();
                 updatePeriodFilterMatchCount();
             }
+            if (submitRingEnabled && getEffectiveSubmitRingMode() === 'dateband') {
+                sendSubmitRingConfigToIframe();
+            }
             return true;
         }
 
@@ -7300,6 +7479,9 @@
             } else {
                 rebuildFilterModeCounts();
                 updatePeriodFilterMatchCount();
+            }
+            if (submitRingEnabled && getEffectiveSubmitRingMode() === 'dateband') {
+                sendSubmitRingConfigToIframe();
             }
         }
 
@@ -10028,6 +10210,7 @@
         }
 
         function openPeriodFilterModeMenu(anchor) {
+            closeSubmitRingModeMenu();
             closeFilterPopupNoteTagMenu();
             closeFilterPopupConnectionNoteTagMenu();
             closeFilterPopupNonexistColorMenu();
@@ -11627,22 +11810,33 @@
             }
             const full = options.full === true || options.forceFull === true;
             const allMode = periodFilterEnabled && isAllFilterMode(periodFilterMode);
+            const tableWrap = el('tableWrap');
             if (options.previewOnly) {
-                if (allMode) {
-                    const tableWrap = el('tableWrap');
-                    sheetManager.syncSourceSheetFocusFromFilter(idx, {
-                        previewOnly: true,
-                        skipCenter: false,
-                        tableWrapEl: tableWrap
-                    });
-                    refreshFilterPopupAllModeNonexistCells(idx);
-                    return;
+                if (typeof sheetManager.flushSheet1NavPump === 'function') {
+                    sheetManager.flushSheet1NavPump();
                 }
-                return previewMainTableNavToRowIndex(idx);
+                if (typeof sheetManager.resetSheet1LeftPanePump === 'function') {
+                    sheetManager.resetSheet1LeftPanePump();
+                }
+                sheetManager.syncSourceSheetFocusFromFilter(idx, {
+                    previewOnly: true,
+                    skipCenter: false,
+                    tableWrapEl: tableWrap
+                });
+                if (allMode) {
+                    refreshFilterPopupAllModeNonexistCells(idx);
+                }
+                return;
             }
             const rows = getFilterSourceSheetRows();
             if (!rows[idx]) {
                 return;
+            }
+            if (typeof sheetManager.flushSheet1NavPump === 'function') {
+                sheetManager.flushSheet1NavPump();
+            }
+            if (typeof sheetManager.resetSheet1LeftPanePump === 'function') {
+                sheetManager.resetSheet1LeftPanePump();
             }
             const onSheet1 = sheetManager.activeSheet === 'sheet1';
             sheetManager.focusSourceSheetRow(idx, {
@@ -11917,6 +12111,7 @@
                 submitAutoCircleEnabled: !!submitRingEnabled,
                 submitAutoCircleMode: getEffectiveSubmitRingMode(),
                 submitAutoCircleCustomX: clampRingCustomX(submitRingCustomX),
+                ...getSubmitRingDatebandPayload(),
                 referenceConn3HeaderLines: detail.skipReferenceMeta ? [] : (detail.referenceConn3HeaderLines || []),
                 referenceConn3Triplets: detail.skipReferenceMeta ? [] : (detail.referenceConn3Triplets || []),
                 referenceConn3FooterLine: detail.skipReferenceMeta ? '' : (detail.referenceConn3FooterLine || ''),
@@ -13103,7 +13298,8 @@
                 return false;
             }
             return target.id === 'submitRingModeSelect'
-                || !!target.closest('#submitRingModeWrap');
+                || !!target.closest('#submitRingModeWrap')
+                || !!target.closest('#submitRingModeMenu');
         }
 
         function isPeriodFilterShortcutBlockedTarget(target) {
@@ -13890,6 +14086,7 @@
                         submitAutoCircleEnabled: !!submitRingEnabled,
                         submitAutoCircleMode: getEffectiveSubmitRingMode(),
                         submitAutoCircleCustomX: clampRingCustomX(submitRingCustomX),
+                        ...getSubmitRingDatebandPayload(),
                         referenceConn3HeaderLines: referenceConn3HeaderLines,
                         referenceConn3Triplets: referenceConn3Triplets,
                         referenceConn3FooterLine: referenceConn3FooterLine,

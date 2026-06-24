@@ -2004,6 +2004,11 @@
         let submitAutoCircleMode = 'max';
         /** Khi mode === 'custom': khoanh đúng một số x (1–35), không phụ thuộc tần suất trong đáp án. */
         let submitAutoCircleCustomX = 15;
+        /** dateband #00b0f0: ngưỡng freq cặp cửa sổ 10 (đồng bộ filter popup). */
+        let submitAutoCircleDatebandMinFreqA = 2;
+        let submitAutoCircleDatebandMinFreqB = 2;
+        let submitAutoCircleDatebandFreqOpA = '>=';
+        let submitAutoCircleDatebandFreqOpB = '>=';
         /** Track draw ids (right-pane focus row) that already received one-shot auto ring */
         let autoRingVisitedIds = new Set();
         let autoRingPicked = new Set();
@@ -2239,10 +2244,59 @@
 
         function normalizeSubmitAutoCircleMode(mode) {
             var m = String(mode || '').trim();
-            if (m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist') {
+            if (m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist' || m === 'dateband') {
                 return m;
             }
             return 'max';
+        }
+
+        function clampSubmitAutoCircleDatebandFreq(v) {
+            var n = parseInt(v, 10);
+            if (!Number.isFinite(n)) {
+                return 2;
+            }
+            return Math.min(7, Math.max(2, n));
+        }
+
+        function normalizeSubmitAutoCircleDatebandOp(raw) {
+            var s = String(raw || '').trim();
+            if (s === '=' || s === '<=' || s === '>=') {
+                return s;
+            }
+            return '>=';
+        }
+
+        function applySubmitAutoCircleDatebandFromMsg(msg) {
+            if (!msg || typeof msg !== 'object') {
+                return;
+            }
+            if (msg.datebandMinFreqA != null && msg.datebandMinFreqA !== '') {
+                submitAutoCircleDatebandMinFreqA = clampSubmitAutoCircleDatebandFreq(msg.datebandMinFreqA);
+            }
+            if (msg.datebandMinFreqB != null && msg.datebandMinFreqB !== '') {
+                submitAutoCircleDatebandMinFreqB = clampSubmitAutoCircleDatebandFreq(msg.datebandMinFreqB);
+            }
+            if (msg.datebandFreqOpA != null && msg.datebandFreqOpA !== '') {
+                submitAutoCircleDatebandFreqOpA = normalizeSubmitAutoCircleDatebandOp(msg.datebandFreqOpA);
+            }
+            if (msg.datebandFreqOpB != null && msg.datebandFreqOpB !== '') {
+                submitAutoCircleDatebandFreqOpB = normalizeSubmitAutoCircleDatebandOp(msg.datebandFreqOpB);
+            }
+        }
+
+        function freqMatchesDatebandComparison(freq, threshold, op) {
+            if (op === '=') {
+                return freq === threshold;
+            }
+            if (op === '<=') {
+                return freq <= threshold;
+            }
+            return freq >= threshold;
+        }
+
+        function pairFreqMatchesDatebandThresholds(freqA, freqB, threshX, threshY, opX, opY) {
+            return (freqMatchesDatebandComparison(freqA, threshX, opX) && freqMatchesDatebandComparison(freqB, threshY, opY))
+                || (freqMatchesDatebandComparison(freqA, threshY, opY) && freqMatchesDatebandComparison(freqB, threshX, opX));
         }
 
         function isLabelSubmitAutoCircleMode(mode) {
@@ -2502,6 +2556,48 @@
             return [];
         }
 
+        function getDatebandCircleNumsFromAnswer(ans) {
+            var answerSet = new Set((ans || []).filter(function (n) {
+                return !isNaN(n) && n >= 1 && n <= 35;
+            }));
+            if (answerSet.size < 2) {
+                return [];
+            }
+            var displayLines = getRawDisplayLines();
+            if (!displayLines || displayLines.length < 10) {
+                return [];
+            }
+            var visiblePairs = computePairs();
+            if (!visiblePairs || !visiblePairs.length) {
+                return [];
+            }
+            var freq = new Array(36).fill(0);
+            for (var li = 0; li < displayLines.length; li++) {
+                var nums = getNumsFromLineObj(displayLines[li]);
+                for (var k = 0; k < nums.length; k++) {
+                    var n = nums[k];
+                    if (n >= 1 && n <= 35) {
+                        freq[n]++;
+                    }
+                }
+            }
+            var thX = clampSubmitAutoCircleDatebandFreq(submitAutoCircleDatebandMinFreqA);
+            var thY = clampSubmitAutoCircleDatebandFreq(submitAutoCircleDatebandMinFreqB);
+            var opX = normalizeSubmitAutoCircleDatebandOp(submitAutoCircleDatebandFreqOpA);
+            var opY = normalizeSubmitAutoCircleDatebandOp(submitAutoCircleDatebandFreqOpB);
+            for (var p = 0; p < visiblePairs.length; p++) {
+                var a = visiblePairs[p][0];
+                var b = visiblePairs[p][1];
+                if (!answerSet.has(a) || !answerSet.has(b)) {
+                    continue;
+                }
+                if (pairFreqMatchesDatebandThresholds(freq[a], freq[b], thX, thY, opX, opY)) {
+                    return a < b ? [a, b] : [b, a];
+                }
+            }
+            return [];
+        }
+
         function getTailCircleNumsFromAnswer(ans) {
             var answerSet = new Set((ans || []).filter(function (n) {
                 return !isNaN(n) && n >= 1 && n <= 35;
@@ -2543,6 +2639,12 @@
             }
             if (mode === 'tail') {
                 getTailCircleNumsFromAnswer(getAnswerNumsForAutoring()).forEach(function (n) {
+                    out.add(n);
+                });
+                return out;
+            }
+            if (mode === 'dateband') {
+                getDatebandCircleNumsFromAnswer(getAnswerNumsForAutoring()).forEach(function (n) {
                     out.add(n);
                 });
                 return out;
@@ -9219,6 +9321,20 @@
                         if (msg.submitAutoCircleCustomX !== undefined && msg.submitAutoCircleCustomX !== null && msg.submitAutoCircleCustomX !== '') {
                             submitAutoCircleCustomX = clampSubmitAutoCircleCustomX(msg.submitAutoCircleCustomX);
                         }
+                        applySubmitAutoCircleDatebandFromMsg({
+                            datebandMinFreqA: msg.submitAutoCircleDatebandMinFreqA != null
+                                ? msg.submitAutoCircleDatebandMinFreqA
+                                : msg.datebandMinFreqA,
+                            datebandMinFreqB: msg.submitAutoCircleDatebandMinFreqB != null
+                                ? msg.submitAutoCircleDatebandMinFreqB
+                                : msg.datebandMinFreqB,
+                            datebandFreqOpA: msg.submitAutoCircleDatebandFreqOpA != null
+                                ? msg.submitAutoCircleDatebandFreqOpA
+                                : msg.datebandFreqOpA,
+                            datebandFreqOpB: msg.submitAutoCircleDatebandFreqOpB != null
+                                ? msg.submitAutoCircleDatebandFreqOpB
+                                : msg.datebandFreqOpB
+                        });
                     }
                     disableSubmitForCurrentData = !!msg.disableSubmit;
                     if (!trackingFrameStepProcess) {
@@ -9429,6 +9545,7 @@
                     if (msg.customX !== undefined && msg.customX !== null && msg.customX !== '') {
                         submitAutoCircleCustomX = clampSubmitAutoCircleCustomX(msg.customX);
                     }
+                    applySubmitAutoCircleDatebandFromMsg(msg);
 
                     if (preserveManualPicks) {
                         try { applySubmitState(); } catch (e) { }
