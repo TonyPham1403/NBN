@@ -4912,14 +4912,9 @@ class RightPaneSheetManager {
         }
 
         if (this.activeSheet === 'sheet1') {
-            const base = this._sheet1LeftPaneTarget >= 0
-                ? this._sheet1LeftPaneTarget
-                : currentIdx;
-            const navTarget = Math.max(0, Math.min(displayRows.length - 1, base + delta));
-            if (navTarget === base) {
-                return false;
-            }
-            return this.scheduleSheet1NavToIndex(navTarget, wrap);
+            this.resetSheet1LeftPanePump();
+            this.applySheet1NavPreviewAtIndex(nextIdx, wrap);
+            return true;
         }
 
         const start = Math.max(0, nextIdx - 10);
@@ -4949,15 +4944,8 @@ class RightPaneSheetManager {
             return false;
         }
 
-        this.flushSheet1NavPump();
-
-        const nextRow = wrap.querySelector(`tbody tr[data-idx="${targetIdx}"]`);
-        if (!nextRow) {
-            return false;
-        }
-
         this.resetSheet1LeftPanePump();
-        nextRow.click();
+        this.focusSourceSheetRow(targetIdx, { skipSave: true });
         this.centerActiveWindowInView(wrap);
         return true;
     }

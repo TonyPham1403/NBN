@@ -1996,6 +1996,8 @@
         let checknoteTooltipPinned = false;
         let checknoteTooltipDocListener = null;
         let disableSubmitForCurrentData = false;
+        /** Submit ON/OFF trước khi focus hàng id cuối rỗng — khôi phục khi quay lại hàng có đáp án. */
+        let submitActiveBeforeEmptyFocus = null;
         let currentPairs = []; // computed pairs
         let currentPairIndex = -1;
         let currentTails = [];
@@ -7932,8 +7934,54 @@
             } catch (e) { console.error(e); }
         }
 
+        function syncSubmitModeFromAnswerNums() {
+            if (!submitActive || !raw) {
+                return;
+            }
+            try {
+                var linesLocal = getRawDisplayLines();
+                var pairLines = 0;
+                var quadFound = false;
+                var tripleFound = false;
+                var singleLines = 0;
+                for (var i = 0; i < linesLocal.length; i++) {
+                    var nums = getNumsFromLineObj(linesLocal[i]);
+                    var matched = (answerNums || []).filter(function (n) { return nums.indexOf(n) !== -1; });
+                    if (matched.length >= 4) { quadFound = true; break; }
+                    if (matched.length >= 3) { tripleFound = true; break; }
+                    if (matched.length >= 2) pairLines++;
+                    if (matched.length >= 1) singleLines++;
+                }
+                var newMode = null;
+                if (quadFound) newMode = 'quad1';
+                else if (tripleFound) newMode = 'triple1';
+                else if (pairLines >= 5) newMode = 'pair5';
+                else if (pairLines >= 4) newMode = 'pair4';
+                else if (pairLines >= 3) newMode = 'pair3';
+                else if (pairLines === 2) newMode = 'pair2';
+                else if (pairLines === 1) newMode = 'pair1';
+                else if (singleLines > 0) newMode = 'modeq';
+
+                var modeEl = document.getElementById('mode');
+                if (modeEl) {
+                    modeEl.classList.add('synced-mode');
+                    modeEl.disabled = true;
+                }
+                if (newMode && modeEl) {
+                    if (userModeBeforeSubmit === null) userModeBeforeSubmit = modeEl.value;
+                    modeEl.value = newMode;
+                    modeEl.classList.add('synced-mode');
+                    modeSynced = true;
+                    debugLog('syncSubmitModeFromAnswerNums: mode synced to', newMode);
+                } else {
+                    modeSynced = false;
+                }
+            } catch (e) { debugLog('syncSubmitModeFromAnswerNums: mode inference error', String(e)); }
+        }
+
         // Rebuild submit-preview state for the current raw dataset without manual submit toggling.
-        function syncSubmitStateForNewData() {
+        function syncSubmitStateForNewData(options) {
+            options = options || {};
             try {
                 debugLog('syncSubmitStateForNewData() start', { submitActive: submitActive, hasRaw: !!raw, answerNums: answerNums, pickOrder: pickOrder });
                 if (!submitActive || !raw) return;
@@ -7978,71 +8026,37 @@
                 }
                 syncPickOrderForSubmitState();
 
-                // infer a reasonable mode from derived answers
-                try {
-                    var linesLocal = getRawDisplayLines();
-                    var pairLines = 0;
-                    var quadFound = false;
-                    var tripleFound = false;
-                    var singleLines = 0;
-                    for (var i = 0; i < linesLocal.length; i++) {
-                        var nums = getNumsFromLineObj(linesLocal[i]);
-                        var matched = (answerNums || []).filter(function (n) { return nums.indexOf(n) !== -1; });
-                        if (matched.length >= 4) { quadFound = true; break; }
-                        if (matched.length >= 3) { tripleFound = true; break; }
-                        if (matched.length >= 2) pairLines++;
-                        if (matched.length >= 1) singleLines++;
-                    }
-                    var newMode = null;
-                    if (quadFound) newMode = 'quad1';
-                    else if (tripleFound) newMode = 'triple1';
-                    else if (pairLines >= 5) newMode = 'pair5';
-                    else if (pairLines >= 4) newMode = 'pair4';
-                    else if (pairLines >= 3) newMode = 'pair3';
-                    else if (pairLines === 2) newMode = 'pair2';
-                    else if (pairLines === 1) newMode = 'pair1';
-                    else if (singleLines > 0) newMode = 'modeq';
-
-                    var modeEl = document.getElementById('mode');
-                    if (modeEl) {
-                        modeEl.classList.add('synced-mode');
-                        modeEl.disabled = true;
-                    }
-                    if (newMode && modeEl) {
-                        if (userModeBeforeSubmit === null) userModeBeforeSubmit = modeEl.value;
-                        modeEl.value = newMode;
-                        modeEl.classList.add('synced-mode');
-                        modeSynced = true;
-                        debugLog('syncSubmitStateForNewData: mode synced to', newMode);
-                    } else {
-                        modeSynced = false;
-                    }
-                } catch (e) { debugLog('syncSubmitStateForNewData: mode inference error', String(e)); }
+                syncSubmitModeFromAnswerNums();
 
                 recomputePairsFromSelected();
                 updateBlocked();
-                // Render then apply submit state deterministically, with an extra deferred pass
                 debugLog('syncSubmitStateForNewData: before render/apply', { answerNums: answerNums, pickOrder: pickOrder });
-                updateRender();
-                // First pass: immediate in-place application
-                try { applySubmitState(); restartNeonAnimationsInDOM(); } catch (e) { debugLog('syncSubmitStateForNewData: first apply error', String(e)); }
-                // Defer a second pass across rAF + setTimeout to survive layout/paint ordering
-                requestAnimationFrame(function () {
-                    setTimeout(function () {
-                        debugLog('syncSubmitStateForNewData: deferred second pass');
-                        try { applySubmitState(); restartNeonAnimationsInDOM(); } catch (e) { debugLog('syncSubmitStateForNewData: deferred apply error', String(e)); }
-                    }, 0);
-                });
+                if (!options.skipFullRender) {
+                    updateRender();
+                }
+                if (!options.skipApplySubmitState) {
+                    try { applySubmitState(); restartNeonAnimationsInDOM(); } catch (e) { debugLog('syncSubmitStateForNewData: apply error', String(e)); }
+                }
+                if (!options.skipDeferredPass) {
+                    requestAnimationFrame(function () {
+                        setTimeout(function () {
+                            debugLog('syncSubmitStateForNewData: deferred second pass');
+                            try { applySubmitState(); restartNeonAnimationsInDOM(); } catch (e) { debugLog('syncSubmitStateForNewData: deferred apply error', String(e)); }
+                        }, 0);
+                    });
+                }
 
                 var sb = document.getElementById('submitBtn');
                 if (sb) sb.classList.add('active');
 
-                try {
-                    if (window.parent && window.parent !== window) {
-                        window.parent.postMessage({ type: 'submitStateChanged', submitActive: true }, '*');
-                        debugLog('syncSubmitStateForNewData: posted submitStateChanged to parent');
-                    }
-                } catch (e) { debugLog('syncSubmitStateForNewData: postMessage error', String(e)); }
+                if (!options.skipNotifyParent) {
+                    try {
+                        if (window.parent && window.parent !== window) {
+                            window.parent.postMessage({ type: 'submitStateChanged', submitActive: true }, '*');
+                            debugLog('syncSubmitStateForNewData: posted submitStateChanged to parent');
+                        }
+                    } catch (e) { debugLog('syncSubmitStateForNewData: postMessage error', String(e)); }
+                }
             } catch (e) { console.error(e); debugLog('syncSubmitStateForNewData: unexpected error', String(e)); }
         }
 
@@ -9336,6 +9350,7 @@
                                 : msg.datebandFreqOpB
                         });
                     }
+                    const prevDisableSubmit = disableSubmitForCurrentData;
                     disableSubmitForCurrentData = !!msg.disableSubmit;
                     if (!trackingFrameStepProcess) {
                         syncSubmitButtonAvailability();
@@ -9354,8 +9369,19 @@
                     }
                     leftPaneRawLines = Array.isArray(msg.lines) ? msg.lines.join('\n') : '';
 
-                    // Save the submit state before process() might reset it (empty focus row = no submit preview)
-                    const wasSubmitActive = (submitActive || msg.submitActive) && !msg.disableSubmit;
+                    // Hàng id cuối rỗng: tắt submit UI + disable nút; nhớ ON/OFF trước đó để khôi phục khi quay lại.
+                    let wasSubmitActive;
+                    if (msg.disableSubmit) {
+                        if (!prevDisableSubmit) {
+                            submitActiveBeforeEmptyFocus = !!(submitActive || msg.submitActive);
+                        }
+                        wasSubmitActive = false;
+                    } else if (submitActiveBeforeEmptyFocus !== null) {
+                        wasSubmitActive = !!submitActiveBeforeEmptyFocus;
+                        submitActiveBeforeEmptyFocus = null;
+                    } else {
+                        wasSubmitActive = !!(submitActive || msg.submitActive) && !msg.disableSubmit;
+                    }
                     const focusRowId = (msg.focusRowId != null) ? String(msg.focusRowId) : '';
                     focusNonexistHighlights = (msg.focusNonexistHighlights && typeof msg.focusNonexistHighlights === 'object')
                         ? msg.focusNonexistHighlights
@@ -9401,6 +9427,16 @@
 
                     preserveSubmitOnNextProcess = !!wasSubmitActive;
                     preserveSelectionOnNextProcess = !!msg.preserveSelection || !isFocusArrival || restoredFromMemory;
+                    if (wasSubmitActive) {
+                        submitActive = true;
+                        try {
+                            const sbOn = document.getElementById('submitBtn');
+                            if (sbOn) {
+                                sbOn.classList.add('active');
+                                sbOn.disabled = false;
+                            }
+                        } catch (e) { }
+                    }
                     try {
                         process();
                     } catch (e) { console.error(e); }
@@ -9413,20 +9449,9 @@
                     }
 
                     if (wasSubmitActive) {
-                        submitActive = true;
-                        try {
-                            const sbEl = document.getElementById('submitBtn');
-                            if (sbEl) sbEl.classList.add('active');
-                        } catch (e) { }
-                        try { syncSubmitStateForNewData(); } catch (e) { console.error(e); }
-                        try { applySubmitState(); } catch (e) { console.error(e); }
+                        try { syncSubmitModeFromAnswerNums(); } catch (e) { console.error(e); }
                         try { syncPickOrderForSubmitState(); } catch (e) { }
                         try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
-                        try {
-                            if (window.parent && window.parent !== window) {
-                                window.parent.postMessage({ type: 'submitStateChanged', submitActive: true }, '*');
-                            }
-                        } catch (e) { }
                     } else {
                         if (msg.disableSubmit) {
                             try {
@@ -9436,9 +9461,9 @@
                                     sbOff.disabled = true;
                                 }
                             } catch (e) { }
-                            try { postSubmitStateChangedToParent(); } catch (e) { }
                         }
                     }
+                    const skipSubmitReapplyThisSetLines = wasSubmitActive;
                     if (submitAutoCircleEnabled) {
                         var focusIdForRing = focusRowId;
                         var focusArrivalForRing = isFocusArrival;
@@ -9447,7 +9472,9 @@
                                 maybeApplySubmitAutoRingAfterProcess(focusIdForRing, { focusArrival: focusArrivalForRing });
                             } catch (e) { console.error(e); }
                             if (submitActive) {
-                                try { applySubmitState(); } catch (e) { console.error(e); }
+                                if (!skipSubmitReapplyThisSetLines) {
+                                    try { applySubmitState(); } catch (e) { console.error(e); }
+                                }
                                 try { applySelectionAndBlockedInDOM(); } catch (e) { }
                                 try { restartNeonAnimationsInDOM(); } catch (e) { }
                             } else {

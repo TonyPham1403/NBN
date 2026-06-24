@@ -5243,6 +5243,9 @@
         let selectedNums = new Set(); // numbers from the 'primary' selected row
         let selectedLines = []; // current 11-line selection (array of full row objects)
         let iframeSubmitActive = false;
+        /** Giữ submit ON/OFF parent khi tạm focus hàng id cuối rỗng (iframe disable nút). */
+        let mainFocusRowEmpty = false;
+        let savedSubmitActiveBeforeEmptyFocus = null;
         let rightPaneZoom = 1;
         let submitRingEnabled = false;
         let submitRingMode = 'max';
@@ -11812,9 +11815,6 @@
             const allMode = periodFilterEnabled && isAllFilterMode(periodFilterMode);
             const tableWrap = el('tableWrap');
             if (options.previewOnly) {
-                if (typeof sheetManager.flushSheet1NavPump === 'function') {
-                    sheetManager.flushSheet1NavPump();
-                }
                 if (typeof sheetManager.resetSheet1LeftPanePump === 'function') {
                     sheetManager.resetSheet1LeftPanePump();
                 }
@@ -11831,9 +11831,6 @@
             const rows = getFilterSourceSheetRows();
             if (!rows[idx]) {
                 return;
-            }
-            if (typeof sheetManager.flushSheet1NavPump === 'function') {
-                sheetManager.flushSheet1NavPump();
             }
             if (typeof sheetManager.resetSheet1LeftPanePump === 'function') {
                 sheetManager.resetSheet1LeftPanePump();
@@ -11893,8 +11890,10 @@
                 sheetManager.syncComboFocusFromSourceRowIndex(idx);
             }
             const start = Math.max(0, idx - 10);
-            if (sheetManager.activeSheet === 'sheet1' && typeof sheetManager.scheduleSheet1NavToIndex === 'function') {
-                return sheetManager.scheduleSheet1NavToIndex(idx, tableWrap);
+            if (sheetManager.activeSheet === 'sheet1' && typeof sheetManager.applySheet1NavPreviewAtIndex === 'function') {
+                sheetManager.resetSheet1LeftPanePump();
+                sheetManager.applySheet1NavPreviewAtIndex(idx, tableWrap);
+                return true;
             }
             sheetManager.applyWindowSelection(start, idx, idx, tableWrap, { previewOnly: true });
             sheetManager.centerActiveWindowInView(tableWrap);
@@ -12096,7 +12095,26 @@
             });
         }
 
+        function noteMainFocusEmptyTransition(isFocusEmpty) {
+            if (isFocusEmpty) {
+                if (!mainFocusRowEmpty) {
+                    savedSubmitActiveBeforeEmptyFocus = !!iframeSubmitActive;
+                }
+                mainFocusRowEmpty = true;
+                return;
+            }
+            if (mainFocusRowEmpty && savedSubmitActiveBeforeEmptyFocus !== null) {
+                iframeSubmitActive = !!savedSubmitActiveBeforeEmptyFocus;
+                savedSubmitActiveBeforeEmptyFocus = null;
+                if (sheetManager && typeof sheetManager.setLeftSubmitActive === 'function') {
+                    sheetManager.setLeftSubmitActive(iframeSubmitActive);
+                }
+            }
+            mainFocusRowEmpty = false;
+        }
+
         function buildLeftPaneSetLinesPayload(detail) {
+            noteMainFocusEmptyTransition(!!detail.isFocusEmpty);
             const lines = (detail.lines || []).map((line) => String(line || ''));
             return {
                 type: 'setLines',
@@ -12155,8 +12173,8 @@
             if (!sheetManager) {
                 return false;
             }
-            if (typeof sheetManager.flushSheet1NavPump === 'function') {
-                sheetManager.flushSheet1NavPump();
+            if (typeof sheetManager.resetSheet1LeftPanePump === 'function') {
+                sheetManager.resetSheet1LeftPanePump();
             }
             const tableWrap = el('tableWrap');
             if (!tableWrap || typeof sheetManager.commitSourceSheetRowAtTarget !== 'function') {
@@ -14073,6 +14091,7 @@
                         return line;
                     });
                     const isFocusEmpty = selectedLines.length > 0 && !(String(selectedLines[selectedLines.length - 1].result || '').trim());
+                    noteMainFocusEmptyTransition(isFocusEmpty);
                     const setLinesPayload = {
                         type: 'setLines',
                         lines: lines,
@@ -14232,6 +14251,9 @@
                     return;
                 }
                 if (msg.type === 'submitStateChanged') {
+                    if (!msg.submitActive && savedSubmitActiveBeforeEmptyFocus !== null) {
+                        return;
+                    }
                     const prevSubmitActive = iframeSubmitActive;
                     iframeSubmitActive = !!msg.submitActive;
                     if (sheetManager && typeof sheetManager.setLeftSubmitActive === 'function') {
