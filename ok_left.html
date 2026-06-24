@@ -195,6 +195,13 @@
             box-shadow: none !important;
         }
 
+        /* Submit ON: đáp án đã submit-highlight — không chồng thêm vòng selected vuông/tròn kép */
+        body.submit-preview-active .cell.num.submit-highlight.selected::after {
+            opacity: 0 !important;
+            border-color: transparent !important;
+            box-shadow: none !important;
+        }
+
         /* Autoring + submit answer: neon xanh vẫn bật, vòng đỏ ::after nổi trên glow */
         body.submit-preview-active .cell.num.answer-submit-overlay-pick.answer-neon::after {
             z-index: 2;
@@ -501,9 +508,9 @@
         #referenceHint.reference-hint-panel {
             width: 100%;
             box-sizing: border-box;
-            min-height: 4.5em;
-            max-height: 14em;
-            height: 8em;
+            min-height: calc(1lh + 8px);
+            max-height: calc(3lh + 8px);
+            height: auto;
             font-size: 12px;
             line-height: 1.35;
             color: #153015;
@@ -1007,11 +1014,9 @@
             margin-right: 0;
         }
 
-        /* Make the 5-number submit blocks in the right table appear square like table 1 */
-        /* Use the right-row line-height * scale so width matches computed height and stays square */
-        #right td span.cell.submit-highlight {
+        /* 5 số đáp án submit (neon xanh): khối vuông — không áp cho khoanh autoring */
+        #right td span.cell.submit-highlight:not(.answer-submit-overlay-pick) {
             box-sizing: border-box;
-            /* remove any extra padding so internal content doesn't enlarge the box */
             padding: 0;
             text-align: center;
             border-radius: 4px !important;
@@ -1932,6 +1937,8 @@
                 empty.className = 'reference-hint-empty-note';
                 empty.textContent = 'Toàn bộ bộ 3-connection trong cửa sổ 10 chuỗi trước kỳ — hiện khi chọn dòng ở bảng phải…';
                 panel.appendChild(empty);
+                syncReferenceHintPanelHeight();
+                scheduleComputeAndApplyHeights();
                 return;
             }
             referenceConn3PanelActive = true;
@@ -1980,6 +1987,41 @@
                 panel.appendChild(foot);
             }
             syncReferenceConn3PickHintRow();
+            syncReferenceHintPanelHeight();
+            scheduleComputeAndApplyHeights();
+        }
+
+        function syncReferenceHintPanelHeight() {
+            const panel = document.getElementById('referenceHint');
+            if (!panel) {
+                return;
+            }
+            panel.style.height = 'auto';
+            const cs = window.getComputedStyle(panel);
+            const fontSize = parseFloat(cs.fontSize) || 12;
+            const lineHeightPx = parseFloat(cs.lineHeight);
+            const lineH = Number.isFinite(lineHeightPx) ? lineHeightPx : Math.round(fontSize * 1.35);
+            const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
+            const borderY = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+            const maxContentPx = Math.round(lineH * 3);
+            const minContentPx = Math.round(lineH);
+            const fullContentH = panel.scrollHeight;
+            const visibleContentH = Math.min(fullContentH, maxContentPx);
+            const contentClamped = Math.max(minContentPx, visibleContentH);
+            panel.style.height = (contentClamped + padY + borderY) + 'px';
+        }
+
+        let computeHeightsRaf = 0;
+        function scheduleComputeAndApplyHeights() {
+            if (computeHeightsRaf) {
+                return;
+            }
+            computeHeightsRaf = requestAnimationFrame(function () {
+                requestAnimationFrame(function () {
+                    computeHeightsRaf = 0;
+                    try { computeAndApplyHeights(); } catch (e) { /* ignore */ }
+                });
+            });
         }
         let preserveSubmitOnNextProcess = false;
         let preserveSelectionOnNextProcess = false;
@@ -2117,18 +2159,68 @@
         // Clear/restore toggle state for Reset / 'q' behavior
         let clearedSelectionBackup = null;
         let clearedPickOrderBackup = null;
+        let clearedAutoRingPickedBackup = null;
+        let clearedPreSubmitSelectedBackup = null;
+        let clearedPreSubmitOrderBackup = null;
+        let clearedSubmitCircleOverlaySourceBackup = null;
         let clearedFocusBackup = null;
         let clearedPairNeonObserveNumBackup = null;
         let clearedPairNeonObserveContextBeyondLonePairBackup = null;
+        let clearedSelectionFocusKey = null;
         let selectionCleared = false;
 
         function invalidateClearSelectionToggleBackup() {
             selectionCleared = false;
             clearedSelectionBackup = null;
             clearedPickOrderBackup = null;
+            clearedAutoRingPickedBackup = null;
+            clearedPreSubmitSelectedBackup = null;
+            clearedPreSubmitOrderBackup = null;
+            clearedSubmitCircleOverlaySourceBackup = null;
             clearedFocusBackup = null;
             clearedPairNeonObserveNumBackup = null;
             clearedPairNeonObserveContextBeyondLonePairBackup = null;
+            clearedSelectionFocusKey = null;
+        }
+
+        /** Q/Reset đã xóa khoanh — chờ Q lần 2 undo; không cho sync phiếu/Submit ghi đè backup. */
+        function hasPendingClearSelectionUndo() {
+            if (!selectionCleared) return false;
+            if (!clearedSelectionFocusKey) return true;
+            return clearedSelectionFocusKey === (lastAutoRingFocusKey || '');
+        }
+
+        /** Q/Reset không được đổi Submit ON/OFF — khóa lại nếu nhánh DOM vô tình đụng submitActive. */
+        function enforceSubmitActiveLocked(submitLocked) {
+            if (!!submitActive === !!submitLocked) {
+                return;
+            }
+            submitActive = !!submitLocked;
+            try {
+                var sbLock = document.getElementById('submitBtn');
+                if (sbLock) sbLock.classList.toggle('active', !!submitLocked);
+            } catch (e) { /* ignore */ }
+            try { syncSubmitPreviewBodyClasses(); } catch (e) { /* ignore */ }
+        }
+
+        function restoreSubmitCircleOverlayAfterClearUndo(submitLocked, overlayBackup) {
+            if (!submitLocked) {
+                return;
+            }
+            if (submitAutoCircleEnabled && autoRingPicked.size > 0) {
+                try { markSubmitCircleOverlayAutoring(); } catch (eRingOv) { /* ignore */ }
+                return;
+            }
+            if (overlayBackup === 'ticket-preview' && answerTicketPreviewNums && answerTicketPreviewNums.size > 0) {
+                submitCircleOverlaySource = 'ticket-preview';
+                try { applySubmitCircleOverlayInDOM(); } catch (ePrev) { /* ignore */ }
+                return;
+            }
+            if (overlayBackup === 'autoring' && autoRingPicked.size > 0) {
+                try { markSubmitCircleOverlayAutoring(); } catch (eRingOv2) { /* ignore */ }
+                return;
+            }
+            try { markSubmitCircleOverlayCleared(); } catch (eClrOv) { /* ignore */ }
         }
 
         // quick-undo state for applyPair / quick clear
@@ -2217,6 +2309,7 @@
         }
 
         function clearAutoRingSelectionVisuals() {
+            var ringNums = Array.from(autoRingPicked);
             autoRingPicked.clear();
             if (submitActive && submitCircleOverlaySource === 'autoring') {
                 submitCircleOverlaySource = 'none';
@@ -2240,6 +2333,14 @@
                 try { applySelectionAndBlockedInDOM(); } catch (e) { }
                 try { updateFocusIndicator(); } catch (e) { }
             } else {
+                if (ringNums.length) {
+                    ringNums.forEach(function (n) {
+                        selected.delete(n);
+                        transientSelected.delete(n);
+                    });
+                    try { recomputePairsFromSelected(); } catch (ePairs) { }
+                    try { updateBlocked(); } catch (eBlk) { }
+                }
                 try { applySubmitState(); } catch (e) { }
             }
         }
@@ -2940,6 +3041,9 @@
         }
 
         function applyAutoRingSelection(circleNums) {
+            if (hasPendingClearSelectionUndo()) {
+                return false;
+            }
             circleNums = (circleNums || []).filter(function (n) { return !isNaN(n); });
             if (!circleNums.length) return false;
 
@@ -2975,6 +3079,8 @@
                 });
                 try { recomputePairsFromSelected(); } catch (e) { }
                 try { updateBlocked(); } catch (e) { }
+                try { updatePairList(); } catch (e) { }
+                try { syncCircledFocusForNav(); } catch (eFocus) { /* ignore */ }
                 try { applySubmitState(); } catch (e) { }
                 try { applySelectionAndBlockedInDOM(); } catch (e) { }
                 try { restartNeonAnimationsInDOM(); } catch (e) { }
@@ -3017,9 +3123,251 @@
 
         function hasCircledNumbersForNav() {
             if (submitActive) {
-                return (preSubmitSelected && preSubmitSelected.size > 0) || selected.size > 0;
+                return (preSubmitSelected && preSubmitSelected.size > 0)
+                    || selected.size > 0
+                    || autoRingPicked.size > 0;
             }
             return selected.size > 0 || simulatedSelected.size > 0 || transientSelected.size > 0;
+        }
+
+        /** Tập số khoanh đỏ dùng cho mũi tên — không gồm 5 số đáp án Submit. */
+        function getCircledEffectiveSetForNav() {
+            const out = new Set();
+            if (submitActive) {
+                selected.forEach(function (n) { out.add(n); });
+                if (preSubmitSelected) preSubmitSelected.forEach(function (n) { out.add(n); });
+                autoRingPicked.forEach(function (n) { out.add(n); });
+                return out;
+            }
+            selected.forEach(function (n) { out.add(n); });
+            simulatedSelected.forEach(function (n) { out.add(n); });
+            transientSelected.forEach(function (n) { out.add(n); });
+            return out;
+        }
+
+        /** Thứ tự khoanh đỏ cho fallback mũi tên — không dùng pickOrder đáp án khi Submit ON. */
+        function getCircledPickOrderForNav() {
+            const effective = getCircledEffectiveSetForNav();
+            if (!effective.size) return [];
+            const next = [];
+            if (submitActive) {
+                if (autoRingPicked.size) {
+                    Array.from(autoRingPicked).forEach(function (n) {
+                        if (!isNaN(n) && effective.has(n) && next.indexOf(n) === -1) next.push(n);
+                    });
+                }
+                if (preSubmitOrder && preSubmitOrder.length) {
+                    preSubmitOrder.forEach(function (n) {
+                        if (!isNaN(n) && effective.has(n) && next.indexOf(n) === -1) next.push(n);
+                    });
+                }
+                Array.from(selected).sort(function (a, b) { return a - b; }).forEach(function (n) {
+                    if (next.indexOf(n) === -1) next.push(n);
+                });
+                if (preSubmitSelected) {
+                    Array.from(preSubmitSelected).sort(function (a, b) { return a - b; }).forEach(function (n) {
+                        if (next.indexOf(n) === -1) next.push(n);
+                    });
+                }
+                return next.slice(0, MAX_PICK_NUMBERS);
+            }
+            (pickOrder || []).forEach(function (n) {
+                if (!isNaN(n) && effective.has(n) && next.indexOf(n) === -1) next.push(n);
+            });
+            Array.from(effective).sort(function (a, b) { return a - b; }).forEach(function (n) {
+                if (next.indexOf(n) === -1) next.push(n);
+            });
+            return next.slice(0, MAX_PICK_NUMBERS);
+        }
+
+        function getFocusPhaseNumberForNav() {
+            const effective = getCircledEffectiveSetForNav();
+            if (!effective.size) return null;
+
+            if (isAutoringCircledNavActive()) {
+                const mode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
+                if (mode === 'dateband' || mode === 'tail') {
+                    if (lastClickedNumber != null && effective.has(lastClickedNumber)) {
+                        return lastClickedNumber;
+                    }
+                    const pair = resolveAutoringPairNumsForNav(mode);
+                    if (pair) return pair.b;
+                } else {
+                    const maxFreqNum = getMaxFreqAutoringNumForNav();
+                    if (maxFreqNum != null) return maxFreqNum;
+                }
+            }
+
+            if (currentPhaseNumber != null && effective.has(currentPhaseNumber)) {
+                return currentPhaseNumber;
+            }
+            if (lastClickedNumber != null && effective.has(lastClickedNumber)) {
+                return lastClickedNumber;
+            }
+            const order = getCircledPickOrderForNav();
+            return order.length ? order[order.length - 1] : null;
+        }
+
+        function findPairIndexForCircledNav() {
+            if (!currentPairs || !currentPairs.length) return -1;
+            const effective = getCircledEffectiveSetForNav();
+            if (!effective.size) return -1;
+            for (let i = 0; i < currentPairs.length; i++) {
+                const p = currentPairs[i];
+                if (p && effective.has(p[0]) && effective.has(p[1])) return i;
+            }
+            return -1;
+        }
+
+        function findPairIndexForNums(a, b) {
+            if (!currentPairs || !currentPairs.length || a == null || b == null) return -1;
+            for (let i = 0; i < currentPairs.length; i++) {
+                const p = currentPairs[i];
+                if (!p) continue;
+                if ((p[0] === a && p[1] === b) || (p[0] === b && p[1] === a)) return i;
+            }
+            return -1;
+        }
+
+        function findTailIndexForNums(a, b) {
+            if (!currentTails || !currentTails.length || a == null || b == null) return -1;
+            for (let i = 0; i < currentTails.length; i++) {
+                const t = currentTails[i];
+                if (!t) continue;
+                if ((t.a === a && t.b === b) || (t.a === b && t.b === a)) return i;
+            }
+            return -1;
+        }
+
+        function getAutoringCircledNumsForNav() {
+            const nums = [];
+            autoRingPicked.forEach(function (n) {
+                if (!isNaN(n) && nums.indexOf(n) === -1) nums.push(n);
+            });
+            if (!nums.length) {
+                selected.forEach(function (n) {
+                    if (!isNaN(n) && nums.indexOf(n) === -1) nums.push(n);
+                });
+            }
+            return nums;
+        }
+
+        /** Autoring (không dateband/tail): số khoanh có tần suất lớn nhất trên bảng tần suất. */
+        function getMaxFreqAutoringNumForNav() {
+            if (!raw || !raw.freq) return null;
+            const nums = getAutoringCircledNumsForNav();
+            if (!nums.length) return null;
+            let best = null;
+            let bestF = -1;
+            nums.forEach(function (n) {
+                const f = parseInt(raw.freq[n], 10) || 0;
+                if (best == null || f > bestF || (f === bestF && n < best)) {
+                    bestF = f;
+                    best = n;
+                }
+            });
+            return best;
+        }
+
+        function resolveAutoringPairNumsForNav(mode) {
+            var nums = [];
+            if (mode === 'dateband') {
+                nums = getDatebandCircleNumsFromAnswer(getAnswerNumsForAutoring());
+            } else if (mode === 'tail') {
+                nums = getTailCircleNumsFromAnswer(getAnswerNumsForAutoring());
+            }
+            if (nums.length >= 2) {
+                return { a: nums[0], b: nums[1] };
+            }
+            const ring = getAutoringCircledNumsForNav();
+            if (ring.length >= 2) {
+                return { a: ring[0], b: ring[1] };
+            }
+            return null;
+        }
+
+        function isAutoringCircledNavActive() {
+            return !!(submitAutoCircleEnabled && autoRingPicked.size > 0);
+        }
+
+        /** @deprecated alias */
+        function isSubmitAutoringCircledNavActive() {
+            return isAutoringCircledNavActive();
+        }
+
+        /** Đồng bộ phase/pair/tail focus từ khoanh autoring (Submit ON/OFF). */
+        function syncCircledFocusForNav() {
+            if (!raw || !hasCircledNumbersForNav()) return;
+
+            if (isAutoringCircledNavActive()) {
+                const mode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
+
+                if (mode === 'dateband') {
+                    try { updatePairList(); } catch (ePair) { /* ignore */ }
+                    const pair = resolveAutoringPairNumsForNav('dateband');
+                    if (pair) {
+                        const pairIdx = findPairIndexForNums(pair.a, pair.b);
+                        if (pairIdx >= 0) {
+                            currentPairIndex = pairIdx;
+                            currentTailIndex = -1;
+                            lastClickedRegion = 'pairList';
+                            syncLeftKeyboardRegion('pairList');
+                            lastClickedNumber = pair.b;
+                            currentPhaseNumber = pair.b;
+                            return;
+                        }
+                    }
+                }
+
+                if (mode === 'tail') {
+                    try { currentTails = computeTails() || []; } catch (eTails) { currentTails = []; }
+                    const tail = resolveAutoringPairNumsForNav('tail');
+                    if (tail) {
+                        const tailIdx = findTailIndexForNums(tail.a, tail.b);
+                        if (tailIdx >= 0) {
+                            currentTailIndex = tailIdx;
+                            currentPairIndex = -1;
+                            lastClickedRegion = 'tailList';
+                            syncLeftKeyboardRegion('tailList');
+                            lastClickedNumber = tail.b;
+                            currentPhaseNumber = tail.b;
+                            return;
+                        }
+                    }
+                }
+
+                const focusNum = getMaxFreqAutoringNumForNav();
+                if (focusNum != null) {
+                    currentPhaseNumber = focusNum;
+                    lastClickedNumber = focusNum;
+                    lastClickedRegion = 'left';
+                    syncLeftKeyboardRegion('left');
+                    currentPairIndex = -1;
+                    currentTailIndex = -1;
+                    return;
+                }
+            }
+
+            const focusNum = getFocusPhaseNumberForNav();
+            if (focusNum == null) return;
+
+            const pairIdx = findPairIndexForCircledNav();
+            if (pairIdx >= 0) {
+                currentPairIndex = pairIdx;
+            }
+
+            const navRegion = getLeftKeyboardNavRegion();
+            if (navRegion === 'pairList' || navRegion === 'tailList') {
+                lastClickedNumber = focusNum;
+                return;
+            }
+
+            currentPhaseNumber = focusNum;
+            lastClickedNumber = focusNum;
+            if (!lastClickedRegion || lastClickedRegion === 'pairAction') {
+                lastClickedRegion = 'left';
+                syncLeftKeyboardRegion('left');
+            }
         }
 
         function isFocusedOnPairOrTail() {
@@ -3256,6 +3604,9 @@
             try { applySelectionAndBlockedInDOM(); } catch (e) { }
             try { alignTableActionsAndCenter(); } catch (e) { }
             try { updateFloatingCopyButtons(); } catch (e) { }
+            if (isAutoringCircledNavActive()) {
+                try { syncCircledFocusForNav(); } catch (eF) { /* ignore */ }
+            }
             try { updateFocusIndicator(); } catch (e) { }
             try {
                 if (!submitActive) {
@@ -3407,12 +3758,7 @@
                 }
                 pairNeonObserveNum = null;
                 resetPairNeonObserveContextBeyondLonePair();
-                selectionCleared = false;
-                clearedSelectionBackup = null;
-                clearedPickOrderBackup = null;
-                clearedFocusBackup = null;
-                clearedPairNeonObserveNumBackup = null;
-                clearedPairNeonObserveContextBeyondLonePairBackup = null;
+                invalidateClearSelectionToggleBackup();
                 currentPairIndex = -1;
                 currentTailIndex = -1;
                 undoEnabled = false;
@@ -3986,9 +4332,15 @@
                         getPairNeonObservationNumber();
                     }
                 } catch (e) { }
-                renderTable1();
-                renderTable2();
-                updateRenderLightweight();
+                if (trackingFrameStepProcess) {
+                    renderTable2();
+                    updateRenderLightweight();
+                } else {
+                    renderTable1();
+                    renderTable2();
+                    updateRenderLightweight();
+                    scheduleComputeAndApplyHeights();
+                }
             } else {
                 updateRender();
             }
@@ -5561,14 +5913,50 @@
                 try { updatePairListNeonHints(); } catch (e) { }
                 return;
             }
-            const effective = new Set(); if (submitActive) { simulatedSelected.forEach(n => effective.add(n)); } else { selected.forEach(n => effective.add(n)); }
+            const effective = new Set();
+            const circledForNav = getCircledEffectiveSetForNav();
+            if (submitActive) {
+                simulatedSelected.forEach(n => effective.add(n));
+                circledForNav.forEach(n => effective.add(n));
+            } else {
+                selected.forEach(n => effective.add(n));
+            }
             const displayLines = getRawDisplayLines();
             const pairsWithMain = pairs.map(p => { const a = p[0], b = p[1]; const mains = []; for (let idx = 0; idx < displayLines.length; idx++) { const nums = getNumsFromLineObj(displayLines[idx]); if (nums.indexOf(a) !== -1 && nums.indexOf(b) !== -1) { mains.push(displayLines.length - idx); } } const main = (mains.length > 0) ? Math.min(...mains) : Infinity; return { pair: p, main }; });
             pairsWithMain.sort((x, y) => { if (x.main !== y.main) return x.main - y.main; if (x.pair[0] !== y.pair[0]) return x.pair[0] - y.pair[0]; return x.pair[1] - y.pair[1]; });
             const sortedPairs = pairsWithMain.map(x => x.pair); currentPairs = sortedPairs;
             let firstMatch = -1;
-            for (let i = 0; i < sortedPairs.length; i++) { const p = sortedPairs[i]; if (effective.has(p[0]) && effective.has(p[1])) { firstMatch = i; break; } }
-            if (firstMatch >= 0) { if (currentPairIndex < 0) currentPairIndex = firstMatch; else { const cp = currentPairs[currentPairIndex]; if (!cp || !(effective.has(cp[0]) && effective.has(cp[1]))) currentPairIndex = firstMatch; } } else if (currentPairIndex >= 0) { const cp = currentPairs[currentPairIndex]; if (!cp || !(effective.has(cp[0]) && effective.has(cp[1]))) currentPairIndex = -1; }
+            if (submitActive && circledForNav.size) {
+                for (let i = 0; i < sortedPairs.length; i++) {
+                    const p = sortedPairs[i];
+                    if (circledForNav.has(p[0]) && circledForNav.has(p[1])) { firstMatch = i; break; }
+                }
+            }
+            if (firstMatch < 0) {
+                for (let i = 0; i < sortedPairs.length; i++) {
+                    const p = sortedPairs[i];
+                    if (effective.has(p[0]) && effective.has(p[1])) { firstMatch = i; break; }
+                }
+            }
+            if (firstMatch >= 0) {
+                if (currentPairIndex < 0) {
+                    currentPairIndex = firstMatch;
+                } else {
+                    const cp = currentPairs[currentPairIndex];
+                    const cpCircled = cp && circledForNav.has(cp[0]) && circledForNav.has(cp[1]);
+                    const cpEffective = cp && effective.has(cp[0]) && effective.has(cp[1]);
+                    if (!cp || !(submitActive && circledForNav.size ? cpCircled : cpEffective)) {
+                        currentPairIndex = firstMatch;
+                    }
+                }
+            } else if (currentPairIndex >= 0) {
+                const cp = currentPairs[currentPairIndex];
+                const cpCircled = cp && circledForNav.has(cp[0]) && circledForNav.has(cp[1]);
+                const cpEffective = cp && effective.has(cp[0]) && effective.has(cp[1]);
+                if (!cp || !(submitActive && circledForNav.size ? cpCircled : cpEffective)) {
+                    currentPairIndex = -1;
+                }
+            }
 
             const pairSig = sortedPairs.map(p => p[0] + ',' + p[1]).join('|');
             const existingBtns = Array.from(el.querySelectorAll('.pair-btn'));
@@ -6348,7 +6736,7 @@
                 right.innerHTML = html;
                 try { syncChuoiPairTrackedSoloInDOM(); } catch (eSc) { /* ignore */ }
                 // compute layout for scaffold
-                setTimeout(function () { computeAndApplyHeights(); }, 0);
+                setTimeout(function () { scheduleComputeAndApplyHeights(); }, 0);
                 return;
             }
             let { freq } = raw;
@@ -6446,8 +6834,9 @@
                 }
             } catch (eOv2) { /* ignore */ }
             try { syncChuoiIndexSemanticStylesInDOM(); } catch (eIdx) { /* ignore */ }
-            // compute heights/widths and position floating buttons after DOM updated
-            setTimeout(function () { computeAndApplyHeights(); }, 0);
+            if (!trackingFrameStepProcess) {
+                setTimeout(function () { scheduleComputeAndApplyHeights(); }, 0);
+            }
         }
 
         // Create/update floating copy buttons in the right-half fixed container
@@ -7537,7 +7926,8 @@
         // Toggle clear/restore all selected numbers (used by Reset button and 'q' key)
         function toggleClearSelection() {
             try {
-                if (submitActive) return; // do nothing during submit preview
+                // Q/Reset chỉ xóa/khôi phục khoanh đỏ — không đổi Submit ON/OFF.
+                var submitLocked = !!submitActive;
                 // selectionCleared=true nhưng đã khoanh số mới → không restore backup cũ
                 if (selectionCleared && selected.size > 0) {
                     invalidateClearSelectionToggleBackup();
@@ -7546,6 +7936,10 @@
                     // backup current selection and order
                     clearedSelectionBackup = new Set(selected);
                     clearedPickOrderBackup = pickOrder ? pickOrder.slice() : [];
+                    clearedAutoRingPickedBackup = new Set(autoRingPicked);
+                    clearedPreSubmitSelectedBackup = preSubmitSelected ? new Set(preSubmitSelected) : null;
+                    clearedPreSubmitOrderBackup = preSubmitOrder ? preSubmitOrder.slice() : null;
+                    clearedSubmitCircleOverlaySourceBackup = submitCircleOverlaySource || 'none';
                     // backup current focus/phase state so q->q can restore exact arrow position
                     clearedFocusBackup = {
                         lastClickedRegion: lastClickedRegion,
@@ -7557,17 +7951,25 @@
                     };
                     clearedPairNeonObserveNumBackup = pairNeonObserveNum;
                     clearedPairNeonObserveContextBeyondLonePairBackup = pairNeonObserveContextBeyondLonePair;
+                    clearedSelectionFocusKey = lastAutoRingFocusKey || '';
                     // clear current selection
                     selected = new Set();
-                    // also clear transient and simulated selections so focus indicator hides
+                    // also clear transient selections; giữ simulatedSelected khi Submit ON (5 số đáp án)
                     transientSelected.clear();
-                    simulatedSelected.clear();
+                    if (!submitLocked) {
+                        simulatedSelected.clear();
+                    }
                     pickOrder = [];
                     pairNeonObserveNum = null;
                     resetPairNeonObserveContextBeyondLonePair();
                     autoRingPicked.clear();
                     selectionCleared = true;
                     clearPairContributionTracking();
+                    if (submitLocked) {
+                        preSubmitSelected = null;
+                        preSubmitOrder = null;
+                        try { markSubmitCircleOverlayCleared(); } catch (eOvClr) { /* ignore */ }
+                    }
                     // clear focus/phase state so arrow hides and nav doesn't auto-reselect
                     try {
                         currentPhaseNumber = null;
@@ -7583,8 +7985,27 @@
                     if (clearedSelectionBackup) selected = new Set(clearedSelectionBackup);
                     else selected = new Set();
                     pickOrder = clearedPickOrderBackup ? clearedPickOrderBackup.slice() : [];
+                    if (clearedAutoRingPickedBackup && clearedAutoRingPickedBackup.size) {
+                        clearedAutoRingPickedBackup.forEach(function (n) {
+                            if (!isNaN(n)) {
+                                autoRingPicked.add(n);
+                            }
+                        });
+                    }
+                    if (clearedPreSubmitSelectedBackup && clearedPreSubmitSelectedBackup.size) {
+                        preSubmitSelected = new Set(clearedPreSubmitSelectedBackup);
+                        preSubmitOrder = clearedPreSubmitOrderBackup ? clearedPreSubmitOrderBackup.slice() : [];
+                    } else {
+                        preSubmitSelected = null;
+                        preSubmitOrder = null;
+                    }
+                    var overlayBackup = clearedSubmitCircleOverlaySourceBackup;
                     clearedSelectionBackup = null;
                     clearedPickOrderBackup = null;
+                    clearedAutoRingPickedBackup = null;
+                    clearedPreSubmitSelectedBackup = null;
+                    clearedPreSubmitOrderBackup = null;
+                    clearedSubmitCircleOverlaySourceBackup = null;
                     selectionCleared = false;
                     pairNeonObserveContextBeyondLonePair = (clearedPairNeonObserveContextBeyondLonePairBackup === true);
                     clearedPairNeonObserveContextBeyondLonePairBackup = null;
@@ -7641,15 +8062,33 @@
                         }
                     } catch (ee) { }
                     clearedFocusBackup = null;
+                    restoreSubmitCircleOverlayAfterClearUndo(submitLocked, overlayBackup);
+                    if (submitLocked) {
+                        try { syncPickOrderForSubmitState(); } catch (ePickOrd) { /* ignore */ }
+                    }
+                    try { syncCircledFocusForNav(); } catch (eCircUndo) { /* ignore */ }
+                    if (!submitLocked) {
+                        try { updatePairList(); } catch (ePairUndo) { /* ignore */ }
+                    }
                 }
+
+                enforceSubmitActiveLocked(submitLocked);
 
                 // recompute derived state and update DOM in-place
                 try { recomputePairsFromSelected(); } catch (e) { }
                 try { updateBlocked(); } catch (e) { }
                 try { refreshPairTailSelectionState(); } catch (e) { }
-                try { applySelectionAndBlockedInDOM(); updateFloatingCopyButtons(); alignTableActionsAndCenter(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); }
+                if (submitLocked) {
+                    try { applySubmitState(); } catch (eSubmit) { /* ignore */ }
+                } else {
+                    try { applySelectionAndBlockedInDOM(); updateFloatingCopyButtons(); alignTableActionsAndCenter(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); }
+                }
                 try { updateFocusIndicator(); } catch (e) { }
                 try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
+                try {
+                    if (!submitLocked) persistSelectionMemoryForFocus();
+                } catch (eMemUndo) { /* ignore */ }
+                enforceSubmitActiveLocked(submitLocked);
             } catch (e) { console.error(e); }
         }
 
@@ -7870,7 +8309,8 @@
                                 if (preSubmitOrder && preSubmitOrder.length) {
                                     pickOrder = preSubmitOrder.slice();
                                 }
-                            } else if (submitAutoCircleEnabled && autoRingPicked.size > 0 && !selectionCleared) {
+                            } else if (submitAutoCircleEnabled && autoRingPicked.size > 0
+                                && !(selectionCleared && clearedSelectionBackup)) {
                                 restoreUsedAutoring = true;
                                 selected.clear();
                                 clearPairContributionTracking();
@@ -8399,7 +8839,6 @@
 
                 if ((e.code === 'KeyQ' || e.key === 'q' || e.key === 'Q') && !e.ctrlKey && !e.metaKey && !e.altKey) {
                     try {
-                        if (submitActive) toggleSubmitOnSpace();
                         toggleClearSelection();
                     } catch (eQ) { /* ignore */ }
                     e.preventDefault();
@@ -8968,6 +9407,11 @@
                 try { syncSubmitPreviewBodyClasses(); } catch (eBodyCls) { /* ignore */ }
 
                 // blocked classes already handled per-number above
+                if (submitActive && hasCircledNumbersForNav()) {
+                    try { syncCircledFocusForNav(); } catch (eCircFocus) { /* ignore */ }
+                } else if (isAutoringCircledNavActive()) {
+                    try { syncCircledFocusForNav(); } catch (eCircFocusOff) { /* ignore */ }
+                }
                 try { updateFocusIndicator(); } catch (e) { }
                 try { syncPickPropertyBadges(); } catch (ePb) { /* ignore */ }
             } catch (e) { console.error(e); }
@@ -8976,21 +9420,21 @@
         function updateFocusIndicator() {
             const ind = document.getElementById('focusIndicator');
             if (!ind || !raw) { if (ind) ind.style.opacity = 0; return; }
-            if ((selected.size === 0) && (simulatedSelected.size === 0) && (transientSelected.size === 0)) {
-                if (currentPhaseNumber == null || lastClickedRegion === 'right') {
-                    ind.style.opacity = 0;
-                    return;
-                }
-            }
-            if (submitActive && preSubmitSelected && preSubmitSelected.size === 0 && currentPhaseNumber == null) {
+            // Chỉ hiện ➔ khi còn khoanh đỏ — không tính 5 số đáp án Submit (simulatedSelected).
+            if (!hasCircledNumbersForNav()) {
                 ind.style.opacity = 0;
                 return;
+            }
+            if (isAutoringCircledNavActive()) {
+                try { syncCircledFocusForNav(); } catch (eSync) { /* ignore */ }
             }
 
             let region = lastClickedRegion || 'left';
             if (region === 'pairAction') {
                 region = 'pairList';
             }
+            const focusNum = getFocusPhaseNumberForNav();
+            const circledPickOrder = getCircledPickOrderForNav();
             let top = 0, left = 0;
             try {
                 const indH = ind.offsetHeight || 18;
@@ -8998,6 +9442,15 @@
                 if (region === 'right') {
                     let maxRow = 9;
                     let rowIdx = (currentPhaseRow != null) ? currentPhaseRow : (lastClickedRow != null ? lastClickedRow : 0);
+                    if (focusNum != null) {
+                        for (var rRight = 0; rRight <= maxRow; rRight++) {
+                            var arrRight = getRawDisplayLineNumsAt(rRight);
+                            if (arrRight.indexOf(focusNum) !== -1) {
+                                rowIdx = rRight;
+                                break;
+                            }
+                        }
+                    }
                     if (rowIdx < 0) rowIdx = 0;
                     if (rowIdx > maxRow) rowIdx = maxRow;
                     const tableRows = document.querySelectorAll('#right table tr');
@@ -9012,11 +9465,34 @@
                     const listEl = document.getElementById(listId);
                     if (!listEl) { ind.style.opacity = 0; return; }
                     let btn = null;
-                    if (region === 'pairList' && currentPairIndex >= 0) {
-                        btn = listEl.querySelector('.pair-btn[data-idx="' + currentPairIndex + '"]');
-                    } else if (region === 'tailList' && currentTailIndex >= 0) {
-                        btn = listEl.querySelector('.tail-btn[data-tail-idx="' + currentTailIndex + '"]')
-                            || listEl.querySelector('.pair-btn[data-tail-idx="' + currentTailIndex + '"]');
+                    if (region === 'pairList') {
+                        var pairIdxForNav = currentPairIndex;
+                        if (pairIdxForNav < 0) {
+                            if (isAutoringCircledNavActive()
+                                && normalizeSubmitAutoCircleMode(submitAutoCircleMode) === 'dateband') {
+                                const pair = resolveAutoringPairNumsForNav('dateband');
+                                if (pair) pairIdxForNav = findPairIndexForNums(pair.a, pair.b);
+                            }
+                            if (pairIdxForNav < 0) {
+                                pairIdxForNav = findPairIndexForCircledNav();
+                            }
+                        }
+                        if (pairIdxForNav >= 0) {
+                            btn = listEl.querySelector('.pair-btn[data-idx="' + pairIdxForNav + '"]');
+                        }
+                    } else if (region === 'tailList') {
+                        var tailIdxForNav = currentTailIndex;
+                        if (tailIdxForNav < 0) {
+                            if (isAutoringCircledNavActive()
+                                && normalizeSubmitAutoCircleMode(submitAutoCircleMode) === 'tail') {
+                                const tail = resolveAutoringPairNumsForNav('tail');
+                                if (tail) tailIdxForNav = findTailIndexForNums(tail.a, tail.b);
+                            }
+                        }
+                        if (tailIdxForNav >= 0) {
+                            btn = listEl.querySelector('.tail-btn[data-tail-idx="' + tailIdxForNav + '"]')
+                                || listEl.querySelector('.pair-btn[data-tail-idx="' + tailIdxForNav + '"]');
+                        }
                     }
                     if (!btn) {
                         try {
@@ -9041,16 +9517,14 @@
                     for (let i = 1; i <= 35; i++) { let f = raw.freq[i]; if (!groups[f]) groups[f] = []; groups[f].push(i); }
                     let freqs = Object.keys(groups).map(x => +x).sort((a, b) => b - a);
                     let prevRowIdx = 0;
-                    if (currentPhaseNumber != null) {
-                        let f = raw.freq[currentPhaseNumber]; prevRowIdx = freqs.indexOf(f); if (prevRowIdx === -1) prevRowIdx = 0;
+                    if (focusNum != null) {
+                        let fFocus = raw.freq[focusNum]; prevRowIdx = freqs.indexOf(fFocus); if (prevRowIdx === -1) prevRowIdx = 0;
                     } else if (lastClickedRow != null) {
                         let nums = getRawDisplayLineNumsAt(lastClickedRow);
                         if (nums.length) { let f = raw.freq[nums[0]]; prevRowIdx = freqs.indexOf(f); if (prevRowIdx === -1) prevRowIdx = 0; }
-                    } else if (lastClickedNumber != null) {
-                        let f = raw.freq[lastClickedNumber]; prevRowIdx = freqs.indexOf(f); if (prevRowIdx === -1) prevRowIdx = 0;
                     } else {
-                        for (let i = pickOrder.length - 1; i >= 0; i--) {
-                            let num = pickOrder[i];
+                        for (let i = circledPickOrder.length - 1; i >= 0; i--) {
+                            let num = circledPickOrder[i];
                             let f = raw.freq[num];
                             let idx = freqs.indexOf(f);
                             if (idx !== -1) { prevRowIdx = idx; break; }
@@ -9309,7 +9783,6 @@
 
                 if (msg.type === 'leftPaneToggleClear') {
                     try {
-                        if (submitActive) toggleSubmitOnSpace();
                         toggleClearSelection();
                     } catch (eTgl) { /* ignore */ }
                     return;
@@ -9356,15 +9829,21 @@
                         syncSubmitButtonAvailability();
                     }
                     const refHint = document.getElementById('referenceHint');
-                    if (refHint && !trackingFrameStepProcess) {
+                    const refHeaderLines = Array.isArray(msg.referenceConn3HeaderLines)
+                        ? msg.referenceConn3HeaderLines
+                        : [];
+                    const refTriplets = Array.isArray(msg.referenceConn3Triplets)
+                        ? msg.referenceConn3Triplets
+                        : [];
+                    const refFooterLine = msg.referenceConn3FooterLine || '';
+                    const hasReferencePayload = refHeaderLines.length > 0
+                        || refTriplets.length > 0
+                        || !!String(refFooterLine || '').trim();
+                    if (refHint && (hasReferencePayload || !trackingFrameStepProcess)) {
                         renderReferenceHintPanel({
-                            headerLines: Array.isArray(msg.referenceConn3HeaderLines)
-                                ? msg.referenceConn3HeaderLines
-                                : [],
-                            triplets: Array.isArray(msg.referenceConn3Triplets)
-                                ? msg.referenceConn3Triplets
-                                : [],
-                            footerLine: msg.referenceConn3FooterLine || ''
+                            headerLines: refHeaderLines,
+                            triplets: refTriplets,
+                            footerLine: refFooterLine
                         });
                     }
                     leftPaneRawLines = Array.isArray(msg.lines) ? msg.lines.join('\n') : '';
@@ -9397,8 +9876,9 @@
                         try { selectionMemoryByFocusId.set(prevFkAtStart, snapshotSelectionState()); } catch (e) { }
                     }
 
-                    if ((!skipFocusSwapForTrackingStep && isFocusArrival)
-                        || (skipFocusSwapForTrackingStep && isFocusArrival && submitAutoCircleEnabled)) {
+                    if (!skipFocusSwapForTrackingStep && isFocusArrival) {
+                        // Sang id mới: reset Q/Reset undo — autoring được khoanh lại cho kỳ này.
+                        invalidateClearSelectionToggleBackup();
                         autoRingPicked.clear();
                         selected.clear();
                         clearPairContributionTracking();
@@ -9444,11 +9924,11 @@
                     preserveSelectionOnNextProcess = false;
                     trackingFrameStepProcess = false;
 
-                    if (newFk) {
+                    if (newFk && !msg.trackingFrameStep) {
                         lastAutoRingFocusKey = newFk;
                     }
 
-                    if (wasSubmitActive) {
+                    if (wasSubmitActive && !msg.trackingFrameStep) {
                         try { syncSubmitModeFromAnswerNums(); } catch (e) { console.error(e); }
                         try { syncPickOrderForSubmitState(); } catch (e) { }
                         try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { }
@@ -9464,7 +9944,7 @@
                         }
                     }
                     const skipSubmitReapplyThisSetLines = wasSubmitActive;
-                    if (submitAutoCircleEnabled) {
+                    if (submitAutoCircleEnabled && !msg.trackingFrameStep) {
                         var focusIdForRing = focusRowId;
                         var focusArrivalForRing = isFocusArrival;
                         var runAutoRing = function () {
@@ -9486,7 +9966,7 @@
                                 try { persistSelectionMemoryForFocus(); } catch (e) { /* ignore */ }
                             }
                         };
-                        if (wasSubmitActive || msg.trackingFrameStep) {
+                        if (wasSubmitActive) {
                             runAutoRing();
                         } else {
                             requestAnimationFrame(runAutoRing);
@@ -9534,6 +10014,9 @@
                     return;
                 } else if (msg.type === 'syncAnswerPickSelection') {
                     if (submitActive) {
+                        return;
+                    }
+                    if (hasPendingClearSelectionUndo()) {
                         return;
                     }
                     const pickNums = (msg.nums || [])
@@ -9634,7 +10117,16 @@
                         }
                         applyAutoringDomAfterSelection();
                     } else if (!submitAutoCircleEnabled && wasEnabled) {
+                        var ringNumsOff = Array.from(autoRingPicked);
                         try { autoRingPicked.clear(); } catch (e) { }
+                        if (submitActive && ringNumsOff.length) {
+                            ringNumsOff.forEach(function (n) {
+                                selected.delete(n);
+                                transientSelected.delete(n);
+                            });
+                            try { recomputePairsFromSelected(); } catch (ePairsOff) { }
+                            try { updateBlocked(); } catch (eBlkOff) { }
+                        }
                         try { markSubmitCircleOverlayCleared(); } catch (eOv) { /* ignore */ }
                         try { syncSubmitPreviewBodyClasses(); } catch (eBody) { /* ignore */ }
                         try {
@@ -9678,8 +10170,6 @@
                             e.preventDefault();
                             e.stopPropagation();
                             try {
-                                /* toggleClearSelection() bỏ qua khi submit preview — Space thì vẫn bật/tắt submit nên cảm giác "chỉ Space ăn" */
-                                if (submitActive) toggleSubmitOnSpace();
                                 toggleClearSelection();
                             } catch (e0) { /* ignore */ }
                             return;

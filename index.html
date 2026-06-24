@@ -6046,7 +6046,7 @@
             const labelWrap = el('submitRingLabelWrap');
             const labelConnBtn = el('submitRingLabelConnBtn');
             const labelIxBtn = el('submitRingLabelIxBtn');
-            const modeHighlighted = submitRingEnabled || iframeSubmitActive;
+            const modeHighlighted = !!submitRingEnabled;
             submitRingFreqMode = normalizeSubmitRingFreqMode(submitRingFreqMode);
             submitRingCustomX = clampRingCustomX(submitRingCustomX);
             syncSubmitRingModeFromUi();
@@ -11890,10 +11890,8 @@
                 sheetManager.syncComboFocusFromSourceRowIndex(idx);
             }
             const start = Math.max(0, idx - 10);
-            if (sheetManager.activeSheet === 'sheet1' && typeof sheetManager.applySheet1NavPreviewAtIndex === 'function') {
-                sheetManager.resetSheet1LeftPanePump();
-                sheetManager.applySheet1NavPreviewAtIndex(idx, tableWrap);
-                return true;
+            if (sheetManager.activeSheet === 'sheet1' && typeof sheetManager.scheduleSheet1NavToIndex === 'function') {
+                return sheetManager.scheduleSheet1NavToIndex(idx, tableWrap);
             }
             sheetManager.applyWindowSelection(start, idx, idx, tableWrap, { previewOnly: true });
             sheetManager.centerActiveWindowInView(tableWrap);
@@ -12017,7 +12015,6 @@
             }
             try {
                 frame.contentWindow.postMessage({ type: 'leftPaneToggleClear' }, '*');
-                rememberKeyboardFocusTarget('left');
                 return true;
             } catch (e) {
                 return false;
@@ -12095,6 +12092,42 @@
             });
         }
 
+        let sheet1ArrowFinalizeTimer = null;
+
+        function scheduleSheet1ArrowNavFinalize() {
+            clearTimeout(sheet1ArrowFinalizeTimer);
+            sheet1ArrowFinalizeTimer = setTimeout(() => {
+                sheet1ArrowFinalizeTimer = null;
+                if (!sheetManager || sheetManager.activeSheet !== 'sheet1') {
+                    return;
+                }
+                if (typeof sheetManager.finishSheet1ArrowNav === 'function') {
+                    sheetManager.finishSheet1ArrowNav(el('tableWrap'));
+                } else {
+                    flushTrackingSetLinesCoalesce();
+                    commitMainTableNav();
+                }
+            }, RIGHT_PANE_NAV_COALESCE_MS);
+        }
+
+        function clearSheet1ArrowNavFinalize() {
+            if (sheet1ArrowFinalizeTimer) {
+                clearTimeout(sheet1ArrowFinalizeTimer);
+                sheet1ArrowFinalizeTimer = null;
+            }
+            if (sheetManager && typeof sheetManager.resetSheet1LeftPanePump === 'function') {
+                sheetManager.resetSheet1LeftPanePump();
+            }
+        }
+
+        function navigateSheet1ByArrowStep(step) {
+            const handled = previewMainTableNavStep(step);
+            if (handled) {
+                scheduleSheet1ArrowNavFinalize();
+            }
+            return handled;
+        }
+
         function noteMainFocusEmptyTransition(isFocusEmpty) {
             if (isFocusEmpty) {
                 if (!mainFocusRowEmpty) {
@@ -12137,8 +12170,7 @@
             };
         }
 
-        window.addEventListener('leftPaneSetLines', (e) => {
-            const detail = e.detail || {};
+        function postLeftPaneSetLinesPayload(detail) {
             const frame = el('okFrame');
             if (!frame || !frame.contentWindow || !Array.isArray(detail.lines) || !detail.lines.length) {
                 return;
@@ -12151,7 +12183,12 @@
                     sheetManager.parseNums(last.result).forEach((n) => selectedNums.add(n));
                 }
             }
-            frame.contentWindow.postMessage(buildLeftPaneSetLinesPayload(detail), '*');
+            const payload = buildLeftPaneSetLinesPayload(detail);
+            frame.contentWindow.postMessage(payload, '*');
+        }
+
+        window.addEventListener('leftPaneSetLines', (e) => {
+            postLeftPaneSetLinesPayload(e.detail || {});
         });
 
         function previewMainTableNavStep(step) {
@@ -12303,6 +12340,9 @@
                     return false;
                 }
                 return false;
+            }
+            if (sheetManager.activeSheet === 'sheet1') {
+                return navigateSheet1ByArrowStep(step);
             }
             return queueRightPaneNav('main', step);
         }
@@ -13769,6 +13809,89 @@
         }
 
         // Right table - using new sheet manager
+        let sessionBootstrapDone = false;
+
+        function whenIframeReady(callback) {
+            const frame = el('okFrame');
+            if (!frame || typeof callback !== 'function') {
+                if (typeof callback === 'function') {
+                    callback();
+                }
+                return;
+            }
+            let ready = false;
+            try {
+                const doc = frame.contentDocument;
+                ready = !!(doc && doc.readyState === 'complete');
+            } catch (eReady) {
+                ready = false;
+            }
+            if (ready) {
+                requestAnimationFrame(callback);
+                return;
+            }
+            frame.addEventListener('load', () => requestAnimationFrame(callback), { once: true });
+        }
+
+        function inferSubmitRingModeFromRowIndex(rowIdx) {
+            if (!sheetManager || typeof rowIdx !== 'number' || rowIdx < 0) {
+                return 'max';
+            }
+            if (typeof sheetManager.getSubmitRingModeForRowIndex === 'function') {
+                return sheetManager.getSubmitRingModeForRowIndex(rowIdx);
+            }
+            return 'max';
+        }
+
+        function bootstrapDefaultSessionState() {
+            if (!sheetManager || sessionBootstrapDone) {
+                return;
+            }
+            const focusIdx = typeof sheetManager.getDefaultSheet1FocusRowIndex === 'function'
+                ? sheetManager.getDefaultSheet1FocusRowIndex()
+                : -1;
+            if (focusIdx < 0) {
+                return;
+            }
+            sessionBootstrapDone = true;
+
+            submitRingEnabled = true;
+            iframeSubmitActive = true;
+            try {
+                localStorage.setItem(SUBMIT_RING_ENABLED_KEY, '1');
+            } catch (eStore) { /* ignore */ }
+
+            applyLoadedSubmitRingMode(inferSubmitRingModeFromRowIndex(focusIdx));
+            syncSubmitRingModeFromUi();
+            try {
+                persistSubmitRingSettings();
+                localStorage.setItem(SUBMIT_RING_MODE_KEY, submitRingMode);
+            } catch (ePersist) { /* ignore */ }
+
+            syncSubmitRingToolbarUi();
+            if (typeof sheetManager.setLeftSubmitActive === 'function') {
+                sheetManager.setLeftSubmitActive(true);
+            }
+            notifyLeftAutoringStateToTracking();
+
+            if (sheetManager.activeSheet !== 'sheet1') {
+                sheetManager.activeSheet = 'sheet1';
+                renderTable();
+                renderSheetTabs();
+            }
+
+            sheetManager.focusSourceSheetRow(focusIdx, { skipSave: true });
+            sendSubmitRingConfigToIframe();
+            rememberKeyboardFocusTarget('main');
+        }
+
+        function scheduleDefaultSessionBootstrap() {
+            if (sessionBootstrapDone) {
+                return;
+            }
+            whenIframeReady(bootstrapDefaultSessionState);
+        }
+
         function loadData() {
             fetch('data.json').then(r => r.json()).then(j => {
                 if (!sheetManager) {
@@ -13783,6 +13906,7 @@
                 if (periodFilterEnabled) {
                     requestAnimationFrame(() => prebuildFilterPopupCache());
                 }
+                scheduleDefaultSessionBootstrap();
             }).catch(e => {
                 if (!sheetManager) {
                     sheetManager = new RightPaneSheetManager();
@@ -13793,6 +13917,7 @@
                 syncComboLogicUi();
                 renderTable();
                 renderSheetTabs();
+                scheduleDefaultSessionBootstrap();
             });
         }
 
@@ -14020,6 +14145,7 @@
             // Listen for row clicks from sheet manager
             window.addEventListener('rowClicked', (e) => {
                 const detail = e.detail || {};
+                clearSheet1ArrowNavFinalize();
                 const skipNavFlush = !!detail.fromSheet1NavStep
                     || (!!detail.fromTrackingSync && !!detail.trackingFrameStep);
                 if (!skipNavFlush) {

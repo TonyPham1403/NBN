@@ -4776,7 +4776,9 @@ class RightPaneSheetManager {
         }
         let focusNoteRefHighlightIndices = null;
         if (typeof targetIdx === 'number' && targetIdx >= 0) {
-            if (options && Array.isArray(options.focusNoteRefHighlightIndices)) {
+            if (options && options.skipFocusNoteRef) {
+                focusNoteRefHighlightIndices = [];
+            } else if (options && Array.isArray(options.focusNoteRefHighlightIndices)) {
                 focusNoteRefHighlightIndices = options.focusNoteRefHighlightIndices.slice();
             } else {
                 focusNoteRefHighlightIndices = this.findWindowRowIndicesReferencedInFocusNote(targetIdx);
@@ -4902,24 +4904,74 @@ class RightPaneSheetManager {
         const currentIdx = this.activeWindowRange && typeof this.activeWindowRange.target === 'number'
             ? this.activeWindowRange.target
             : -1;
-        if (currentIdx < 0) {
+        if (currentIdx < 0 && !(this.activeSheet === 'sheet1' && this._sheet1LeftPaneTarget >= 0)) {
             return false;
         }
 
-        const nextIdx = Math.max(0, Math.min(displayRows.length - 1, currentIdx + delta));
-        if (nextIdx === currentIdx) {
+        let baseIdx = currentIdx;
+        if (this.activeSheet === 'sheet1' && this._sheet1LeftPaneTarget >= 0) {
+            baseIdx = this._sheet1LeftPaneTarget;
+        }
+
+        const nextIdx = Math.max(0, Math.min(displayRows.length - 1, baseIdx + delta));
+        const sheet1PumpBehind = this.activeSheet === 'sheet1'
+            && this._sheet1LeftPaneTarget >= 0
+            && this._sheet1LeftPaneCurrent !== this._sheet1LeftPaneTarget;
+        if (nextIdx === baseIdx && !sheet1PumpBehind) {
             return false;
         }
 
         if (this.activeSheet === 'sheet1') {
-            this.resetSheet1LeftPanePump();
-            this.applySheet1NavPreviewAtIndex(nextIdx, wrap);
-            return true;
+            return this.scheduleSheet1NavToIndex(nextIdx, wrap);
         }
 
         const start = Math.max(0, nextIdx - 10);
         this.applyWindowSelection(start, nextIdx, nextIdx, wrap, { previewOnly: true });
         this.centerActiveWindowInView(wrap);
+        return true;
+    }
+
+    /**
+     * After arrow burst ends: flush pump, refresh right pane, sync reference hint once.
+     */
+    finishSheet1ArrowNav(tableWrap) {
+        const wrap = tableWrap || document.getElementById('tableWrap');
+        if (!wrap || this.activeSheet !== 'sheet1') {
+            return false;
+        }
+
+        const targetIdx = this._sheet1LeftPaneTarget >= 0
+            ? this._sheet1LeftPaneTarget
+            : (this.activeWindowRange && typeof this.activeWindowRange.target === 'number'
+                ? this.activeWindowRange.target
+                : -1);
+        if (targetIdx < 0) {
+            return false;
+        }
+
+        this.flushSheet1NavPump();
+
+        const start = Math.max(0, targetIdx - 10);
+        this.applyWindowSelection(start, targetIdx, targetIdx, wrap);
+        this.centerActiveWindowInView(wrap);
+
+        const rows = this.getSourceSheetRows();
+        const data = this.buildSourceRowLeftPaneData(targetIdx, rows, { lightStep: false });
+        if (data) {
+            const refBundle = this.buildConn3ReferenceDetailForRow(targetIdx);
+            this.applySourceRowFocusState(targetIdx, rows, { asSheet1: true, prefetchedData: data });
+            window.dispatchEvent(new CustomEvent('leftPaneSetLines', {
+                detail: {
+                    ...data,
+                    ...refBundle,
+                    trackingFrameStep: false,
+                    preserveSelection: true,
+                    skipReferenceMeta: false
+                }
+            }));
+        }
+
+        this.resetSheet1LeftPanePump();
         return true;
     }
 
@@ -4945,7 +4997,10 @@ class RightPaneSheetManager {
         }
 
         this.resetSheet1LeftPanePump();
-        this.focusSourceSheetRow(targetIdx, { skipSave: true });
+        this.focusSourceSheetRow(targetIdx, {
+            skipSave: true,
+            light: true
+        });
         this.centerActiveWindowInView(wrap);
         return true;
     }
@@ -7510,6 +7565,55 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Hàng focus mặc định khi mở trang: id ngay trên hàng result rỗng cuối sheet.
+     * @returns {number}
+     */
+    getDefaultSheet1FocusRowIndex() {
+        const rows = this.sourceRows || [];
+        if (!rows.length) {
+            return -1;
+        }
+        for (let i = rows.length - 1; i >= 0; i--) {
+            if (this.isEmptyResultRow(rows[i])) {
+                return Math.max(0, i - 1);
+            }
+        }
+        for (let i = rows.length - 1; i >= 0; i--) {
+            const result = rows[i].result || rows[i].Result || '';
+            if (this.parseMainNums(result).length === 5) {
+                return i;
+            }
+        }
+        return rows.length - 1;
+    }
+
+    /**
+     * Chế độ autoring toolbar theo nhãn pick (C / ∩ / 3C) của kỳ.
+     * @param {number} rowIndex
+     * @returns {string}
+     */
+    getSubmitRingModeForRowIndex(rowIndex) {
+        const rows = this.getSourceSheetRows();
+        if (typeof rowIndex !== 'number' || rowIndex < 0 || rowIndex >= rows.length) {
+            return 'max';
+        }
+        const flags = this.getRowPickPropertyFlags(rows, rowIndex, rows[rowIndex]);
+        if (flags.conn3) {
+            return 'conn3';
+        }
+        if (flags.conn && flags.ix) {
+            return 'conn_ix';
+        }
+        if (flags.conn) {
+            return 'conn';
+        }
+        if (flags.ix) {
+            return 'ix';
+        }
+        return 'max';
+    }
+
+    /**
      * Extract the special part after the pipe in a result cell.
      */
     parseSpecialPart(result) {
@@ -7806,7 +7910,7 @@ class RightPaneSheetManager {
         this._sheet1LeftPaneCurrent = -1;
     }
 
-    buildSourceRowLeftPaneData(idx, rows) {
+    buildSourceRowLeftPaneData(idx, rows, options = {}) {
         if (!Array.isArray(rows) || typeof idx !== 'number' || idx < 0 || idx >= rows.length) {
             return null;
         }
@@ -7814,44 +7918,37 @@ class RightPaneSheetManager {
         const contextPrefixCount = idx >= 10 ? Math.min(2, windowTop) : 0;
         const dataStart = Math.max(0, windowTop - contextPrefixCount);
         const isEmptyRow = this.isEmptyResultRow(rows[idx]);
+        const rowAtClick = rows[idx] || {};
+        const clickedRowId = String(rowAtClick.id || rowAtClick.ID || '').trim();
         const slice = isEmptyRow ? rows.slice(dataStart, idx) : rows.slice(dataStart, idx + 1);
         const savedDataRows = this.dataRows;
         this.dataRows = rows;
-        let lines;
+        const lines = [];
         let focusNonexistHighlights;
+        const selectedLines = [];
         try {
-            lines = slice.map((r, offset) => {
+            for (let offset = 0; offset < slice.length; offset++) {
+                const r = slice[offset];
+                const rowIndex = dataStart + offset;
                 const res = r.result || r.Result || '';
-                const noteMeta = this.getComputedNoteMeta(dataStart + offset, r);
+                const noteMeta = this.getComputedNoteMeta(rowIndex, r);
                 const note = noteMeta.text;
-                const nonexist = this.isEmptyResultRow(r) ? '' : this.getComputedNonexistMeta(dataStart + offset, r).text;
-                return [res, note, nonexist].filter(Boolean).join('\t');
-            });
-            focusNonexistHighlights = this.buildNonexistHighlightMapForRow(idx);
+                const nonexist = this.isEmptyResultRow(r) ? '' : this.getComputedNonexistMeta(rowIndex, r).text;
+                lines.push([res, note, nonexist].filter(Boolean).join('\t'));
+                selectedLines.push({
+                    date: r.date || '',
+                    id: r.id || '',
+                    result: res,
+                    note: note,
+                    nonexist: nonexist
+                });
+            }
+            focusNonexistHighlights = options.lightStep
+                ? {}
+                : this.buildNonexistHighlightMapForRow(idx);
         } finally {
             this.dataRows = savedDataRows;
         }
-        const rowAtClick = rows[idx] || {};
-        const clickedRowId = String(rowAtClick.id || rowAtClick.ID || '').trim();
-        const selectedLines = slice.map((r, offset) => {
-            const saved = this.dataRows;
-            this.dataRows = rows;
-            let noteMeta;
-            let nonexistMeta;
-            try {
-                noteMeta = this.getComputedNoteMeta(dataStart + offset, r);
-                nonexistMeta = this.isEmptyResultRow(r) ? { text: '' } : this.getComputedNonexistMeta(dataStart + offset, r);
-            } finally {
-                this.dataRows = saved;
-            }
-            return {
-                date: r.date || '',
-                id: r.id || '',
-                result: r.result || '',
-                note: noteMeta.text,
-                nonexist: nonexistMeta.text
-            };
-        });
         if (isEmptyRow) {
             selectedLines.push({ date: '', id: '', result: '', note: '', nonexist: '' });
             lines.push('');
@@ -7872,7 +7969,8 @@ class RightPaneSheetManager {
         if (!Array.isArray(rows) || typeof idx !== 'number' || idx < 0 || idx >= rows.length) {
             return;
         }
-        const data = this.buildSourceRowLeftPaneData(idx, rows);
+        const data = options.prefetchedData
+            || this.buildSourceRowLeftPaneData(idx, rows, options);
         if (!data) {
             return;
         }
@@ -7897,24 +7995,48 @@ class RightPaneSheetManager {
         }
     }
 
+    buildConn3ReferenceDetailForRow(idx) {
+        if (typeof this.getNoteReferenceHintMeta !== 'function') {
+            return {};
+        }
+        try {
+            const meta = this.getNoteReferenceHintMeta(idx);
+            if (!meta || meta.error) {
+                return {};
+            }
+            return {
+                referenceConn3HeaderLines: Array.isArray(meta.conn3HeaderLines) ? meta.conn3HeaderLines : [],
+                referenceConn3Triplets: Array.isArray(meta.conn3Triplets) ? meta.conn3Triplets : [],
+                referenceConn3FooterLine: meta.conn3FooterLine || ''
+            };
+        } catch (eRef) {
+            return {};
+        }
+    }
+
     postLeftPaneSetLinesForSourceRow(idx, options = {}) {
         const rows = this.getSourceSheetRows();
-        const data = this.buildSourceRowLeftPaneData(idx, rows);
+        const data = this.buildSourceRowLeftPaneData(idx, rows, {
+            lightStep: options.lightStep !== false
+        });
         if (!data || !data.lines.length) {
             return;
         }
-        this.applySourceRowFocusState(idx, rows, { asSheet1: true });
+        const skipReferenceMeta = options.skipReferenceMeta === true;
+        const refBundle = skipReferenceMeta ? {} : this.buildConn3ReferenceDetailForRow(idx);
+        this.applySourceRowFocusState(idx, rows, { asSheet1: true, prefetchedData: data });
         window.dispatchEvent(new CustomEvent('leftPaneSetLines', {
             detail: {
                 ...data,
+                ...refBundle,
                 trackingFrameStep: true,
                 preserveSelection: true,
-                skipReferenceMeta: options.skipReferenceMeta !== false
+                skipReferenceMeta
             }
         }));
     }
 
-    applySheet1NavPreviewAtIndex(idx, tableWrap) {
+    applySheet1NavPreviewAtIndex(idx, tableWrap, options = {}) {
         const wrap = tableWrap || this._sheet1NavTableWrap || document.getElementById('tableWrap');
         if (!wrap || this.activeSheet !== 'sheet1') {
             return;
@@ -7923,8 +8045,14 @@ class RightPaneSheetManager {
             this.syncComboFocusFromSourceRowIndex(idx);
         }
         const start = Math.max(0, idx - 10);
-        this.applyWindowSelection(start, idx, idx, wrap, { previewOnly: true });
-        this.centerActiveWindowInView(wrap);
+        const lightStep = options.lightStep !== false;
+        this.applyWindowSelection(start, idx, idx, wrap, {
+            previewOnly: true,
+            skipFocusNoteRef: lightStep
+        });
+        if (!options.skipCenter) {
+            this.centerActiveWindowInView(wrap);
+        }
     }
 
     pumpSheet1NavStep() {
@@ -7934,8 +8062,8 @@ class RightPaneSheetManager {
         }
         this._sheet1LeftPaneCurrent += this._sheet1LeftPaneCurrent < this._sheet1LeftPaneTarget ? 1 : -1;
         const idx = this._sheet1LeftPaneCurrent;
-        this.applySheet1NavPreviewAtIndex(idx, this._sheet1NavTableWrap);
-        this.postLeftPaneSetLinesForSourceRow(idx, { skipReferenceMeta: true });
+        this.applySheet1NavPreviewAtIndex(idx, this._sheet1NavTableWrap, { lightStep: true });
+        this.postLeftPaneSetLinesForSourceRow(idx, { lightStep: true, skipReferenceMeta: true });
         this._sheet1LeftPaneTimer = setTimeout(
             () => this.pumpSheet1NavStep(),
             this._sheet1LeftPaneStepMs
@@ -7970,7 +8098,7 @@ class RightPaneSheetManager {
         }
         this._sheet1LeftPaneCurrent = target;
         this.applySheet1NavPreviewAtIndex(target, this._sheet1NavTableWrap);
-        this.postLeftPaneSetLinesForSourceRow(target, { skipReferenceMeta: true });
+        this.postLeftPaneSetLinesForSourceRow(target, { lightStep: true, skipReferenceMeta: true });
     }
 
     /**
