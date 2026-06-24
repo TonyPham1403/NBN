@@ -7588,16 +7588,21 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Chế độ autoring toolbar theo nhãn pick (C / ∩ / 3C) của kỳ.
+     * Chế độ autoring toolbar theo đặc tính đáp án kỳ (nhãn C/∩/3C, dateband #00b0f0, tail, …).
      * @param {number} rowIndex
+     * @param {object} [filterOptions]
      * @returns {string}
      */
-    getSubmitRingModeForRowIndex(rowIndex) {
+    getSubmitRingModeForRowIndex(rowIndex, filterOptions = null) {
         const rows = this.getSourceSheetRows();
         if (typeof rowIndex !== 'number' || rowIndex < 0 || rowIndex >= rows.length) {
             return 'max';
         }
-        const flags = this.getRowPickPropertyFlags(rows, rowIndex, rows[rowIndex]);
+        const row = rows[rowIndex];
+        if (this.isEmptyResultRow(row)) {
+            return 'max';
+        }
+        const flags = this.getRowPickPropertyFlags(rows, rowIndex, row);
         if (flags.conn3) {
             return 'conn3';
         }
@@ -7609,6 +7614,35 @@ class RightPaneSheetManager {
         }
         if (flags.ix) {
             return 'ix';
+        }
+        const opts = filterOptions || {};
+        let thX = parseInt(opts.datebandMinFreqA, 10);
+        let thY = parseInt(opts.datebandMinFreqB, 10);
+        if (!Number.isFinite(thX)) {
+            thX = 2;
+        }
+        if (!Number.isFinite(thY)) {
+            thY = 2;
+        }
+        thX = Math.min(7, Math.max(2, thX));
+        thY = Math.min(7, Math.max(2, thY));
+        const rawOpA = String(opts.datebandFreqOpA || '').trim();
+        const rawOpB = String(opts.datebandFreqOpB || '').trim();
+        const opA = (rawOpA === '=' || rawOpA === '<=' || rawOpA === '>=') ? rawOpA : '>=';
+        const opB = (rawOpB === '=' || rawOpB === '<=' || rawOpB === '>=') ? rawOpB : '>=';
+        if (this.rowMatchesDatebandPairFreqFilter(rows, rowIndex, thX, thY, opA, opB)
+            || this.rowHasCyanDateBand(rows, rowIndex)) {
+            return 'dateband';
+        }
+        let tailTh = parseInt(opts.tailMinCount, 10);
+        if (!Number.isFinite(tailTh)) {
+            tailTh = 2;
+        }
+        tailTh = Math.min(5, Math.max(2, tailTh));
+        const rawTailOp = String(opts.tailCountOp || '').trim();
+        const tailOp = (rawTailOp === '=' || rawTailOp === '<=' || rawTailOp === '>=') ? rawTailOp : '>=';
+        if (this.shouldHighlightDateByTailWindow(rows, rowIndex, { tailMinCount: tailTh, tailCountOp: tailOp })) {
+            return 'tail';
         }
         return 'max';
     }

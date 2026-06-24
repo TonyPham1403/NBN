@@ -2563,10 +2563,12 @@
 
         #filterPopupDock.is-filter-popup-header-dragging {
             will-change: transform;
+            touch-action: none;
         }
 
         #answerPopupDock.is-answer-popup-header-dragging {
             will-change: transform;
+            touch-action: none;
         }
 
         #filterPopupHeader>.filter-popup-filter-tools {
@@ -3278,6 +3280,29 @@
             contain-intrinsic-size: auto 26px;
         }
 
+        /* ALL: đang resize popup — tắt content-visibility + viền mỏng hơn để bớt giật */
+        #filterPopupPanel.is-filter-popup-resizing {
+            will-change: width, height;
+        }
+
+        #filterTableWrap.filter-popup-all-mode.is-popup-resizing {
+            contain: layout style;
+        }
+
+        #filterTableWrap.filter-popup-all-mode.is-popup-resizing tbody tr.data-row {
+            content-visibility: visible;
+        }
+
+        #filterTableWrap.filter-popup-all-mode.is-popup-resizing td.window-edge-top,
+        #filterTableWrap.filter-popup-all-mode.is-popup-resizing td.window-edge-bottom,
+        #filterTableWrap.filter-popup-all-mode.is-popup-resizing td.window-edge-left,
+        #filterTableWrap.filter-popup-all-mode.is-popup-resizing td.window-edge-right,
+        #filterTableWrap.filter-popup-all-mode.is-popup-resizing td.window-divider-left,
+        #filterTableWrap.filter-popup-all-mode.is-popup-resizing td.window-divider-right,
+        #filterTableWrap.filter-popup-all-mode.is-popup-resizing td.window-focus {
+            border-width: 2px !important;
+        }
+
         #filterTableWrap .win-label-inline {
             display: none !important;
         }
@@ -3632,8 +3657,18 @@
             font-weight: inherit;
         }
 
-        /* Góc trái trên kiểu Excel: kỳ có ≥1 số trùng kỳ liền trước */
-        .sheet-data-table td.cell-result.has-prev-period-recall::before {
+        /* Góc trái trên kiểu Excel: kỳ có ≥1 số trùng kỳ liền trước (trên span — tránh xung đột ::before viền đỏ) */
+        .sheet-data-table .prev-period-recall-fold {
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 10px;
+            height: 10px;
+            z-index: 5;
+            pointer-events: auto;
+        }
+
+        .sheet-data-table .prev-period-recall-fold::before {
             content: '';
             position: absolute;
             left: 0;
@@ -3644,16 +3679,6 @@
             border-width: 7px 7px 0 0;
             border-color: #107c41 transparent transparent transparent;
             pointer-events: none;
-            z-index: 2;
-        }
-
-        .sheet-data-table .prev-period-recall-fold {
-            position: absolute;
-            left: 0;
-            top: 0;
-            width: 10px;
-            height: 10px;
-            z-index: 3;
         }
 
         .prev-recall-fold-tooltip {
@@ -3745,19 +3770,6 @@
             z-index: 2;
         }
 
-        #tableWrap .sheet-data-table td.cell-note.id-ref-contextmenu-highlight::after,
-        #tableWrap .sheet-data-table td.cell-result.id-ref-contextmenu-highlight::after,
-        #filterTableWrap .sheet-data-table td.cell-note.id-ref-contextmenu-highlight::after,
-        #filterTableWrap .sheet-data-table td.cell-result.id-ref-contextmenu-highlight::after {
-            content: '';
-            position: absolute;
-            inset: 2px;
-            border: 3px solid #00b0f0;
-            pointer-events: none;
-            z-index: 3;
-            box-sizing: border-box;
-        }
-
         /* Focus hàng: viền đỏ các kỳ trong cửa sổ 10 mà note của id focus tham chiếu tới */
         #tableWrap .sheet-data-table td.cell-note.id-focus-note-ref-highlight,
         #tableWrap .sheet-data-table td.cell-result.id-focus-note-ref-highlight,
@@ -3767,10 +3779,25 @@
             z-index: 2;
         }
 
-        #tableWrap .sheet-data-table td.cell-note.id-focus-note-ref-highlight::after,
-        #tableWrap .sheet-data-table td.cell-result.id-focus-note-ref-highlight::after,
-        #filterTableWrap .sheet-data-table td.cell-note.id-focus-note-ref-highlight::after,
-        #filterTableWrap .sheet-data-table td.cell-result.id-focus-note-ref-highlight::after {
+        /* Chỉ cyan */
+        #tableWrap .sheet-data-table td.cell-note.id-ref-contextmenu-highlight:not(.id-focus-note-ref-highlight)::after,
+        #tableWrap .sheet-data-table td.cell-result.id-ref-contextmenu-highlight:not(.id-focus-note-ref-highlight)::after,
+        #filterTableWrap .sheet-data-table td.cell-note.id-ref-contextmenu-highlight:not(.id-focus-note-ref-highlight)::after,
+        #filterTableWrap .sheet-data-table td.cell-result.id-ref-contextmenu-highlight:not(.id-focus-note-ref-highlight)::after {
+            content: '';
+            position: absolute;
+            inset: 2px;
+            border: 3px solid #00b0f0;
+            pointer-events: none;
+            z-index: 3;
+            box-sizing: border-box;
+        }
+
+        /* Chỉ đỏ */
+        #tableWrap .sheet-data-table td.cell-note.id-focus-note-ref-highlight:not(.id-ref-contextmenu-highlight)::after,
+        #tableWrap .sheet-data-table td.cell-result.id-focus-note-ref-highlight:not(.id-ref-contextmenu-highlight)::after,
+        #filterTableWrap .sheet-data-table td.cell-note.id-focus-note-ref-highlight:not(.id-ref-contextmenu-highlight)::after,
+        #filterTableWrap .sheet-data-table td.cell-result.id-focus-note-ref-highlight:not(.id-ref-contextmenu-highlight)::after {
             content: '';
             position: absolute;
             inset: 2px;
@@ -3778,6 +3805,23 @@
             pointer-events: none;
             z-index: 3;
             box-sizing: border-box;
+        }
+
+        /* Cả cyan (chuột phải id) + đỏ (click hàng): cyan ngoài, gap 2px, đỏ trong — một ::after (không dùng ::before) */
+        #tableWrap .sheet-data-table td.cell-note.id-ref-contextmenu-highlight.id-focus-note-ref-highlight::after,
+        #tableWrap .sheet-data-table td.cell-result.id-ref-contextmenu-highlight.id-focus-note-ref-highlight::after,
+        #filterTableWrap .sheet-data-table td.cell-note.id-ref-contextmenu-highlight.id-focus-note-ref-highlight::after,
+        #filterTableWrap .sheet-data-table td.cell-result.id-ref-contextmenu-highlight.id-focus-note-ref-highlight::after {
+            content: '';
+            position: absolute;
+            inset: 2px;
+            border: 3px solid #00b0f0;
+            padding: 2px;
+            box-shadow: inset 0 0 0 3px #dc2626;
+            pointer-events: none;
+            z-index: 3;
+            box-sizing: border-box;
+            background: transparent;
         }
 
         /* Answer popup + Submit OFF: frost overlay (layout unchanged; note may wrap) */
@@ -3789,7 +3833,12 @@
             pointer-events: none;
         }
 
-        .sheet-data-table tr.answer-popup-focus-masked td.cell-result.has-prev-period-recall::before {
+        .sheet-data-table tr.answer-popup-focus-masked td.cell-result>.prev-period-recall-fold {
+            filter: none;
+            opacity: 1;
+        }
+
+        .sheet-data-table tr.answer-popup-focus-masked td.cell-result.has-prev-period-recall .prev-period-recall-fold::before {
             opacity: 0.06;
         }
 
@@ -5269,6 +5318,9 @@
         let filterPopupConn3WindowOnly = false;
         let filterModeCounts = {};
         let filterPopupLayoutSaveTimer = null;
+        let filterPopupResizeActive = false;
+        let filterPopupResizeThumbSyncRaf = 0;
+        let filterPopupResizeMoveRaf = 0;
         let answerPopupLayoutSaveTimer = null;
         let filterNonexistNum = null;
         let filterNonexistStyles = [];
@@ -5699,6 +5751,10 @@
             });
             try {
                 const ro = new ResizeObserver(() => {
+                    if (wrap.id === 'filterTableWrap' && filterPopupResizeActive) {
+                        scheduleFilterPopupResizeThumbSync();
+                        return;
+                    }
                     syncThumbTrackInsets();
                     syncBtns();
                 });
@@ -11277,6 +11333,54 @@
             }, 120);
         }
 
+        function setFilterPopupResizeActive(active) {
+            filterPopupResizeActive = !!active;
+            const dock = el('filterPopupDock');
+            const panel = el('filterPopupPanel');
+            const wrap = el('filterTableWrap');
+            if (panel) {
+                panel.classList.toggle('is-filter-popup-resizing', filterPopupResizeActive);
+            }
+            if (dock) {
+                dock.classList.toggle('is-filter-popup-resizing', filterPopupResizeActive);
+            }
+            if (wrap) {
+                const allMode = periodFilterEnabled && isAllFilterMode(periodFilterMode);
+                wrap.classList.toggle('is-popup-resizing', filterPopupResizeActive && allMode);
+            }
+        }
+
+        function scheduleFilterPopupResizeThumbSync() {
+            if (filterPopupResizeThumbSyncRaf) {
+                return;
+            }
+            filterPopupResizeThumbSyncRaf = requestAnimationFrame(() => {
+                filterPopupResizeThumbSyncRaf = 0;
+                if (!filterPopupResizeActive) {
+                    return;
+                }
+                try {
+                    if (typeof window.__syncFilterTableThumbTrackInsets === 'function') {
+                        window.__syncFilterTableThumbTrackInsets();
+                    }
+                } catch (eThumb) { /* ignore */ }
+            });
+        }
+
+        function finishFilterPopupResizeSync() {
+            if (filterPopupResizeThumbSyncRaf) {
+                cancelAnimationFrame(filterPopupResizeThumbSyncRaf);
+                filterPopupResizeThumbSyncRaf = 0;
+            }
+            requestAnimationFrame(() => {
+                try {
+                    if (typeof window.__syncFilterTableThumbTrackInsets === 'function') {
+                        window.__syncFilterTableThumbTrackInsets();
+                    }
+                } catch (eThumb) { /* ignore */ }
+            });
+        }
+
         function saveFilterPopupLayout() {
             const dock = el('filterPopupDock');
             const panel = el('filterPopupPanel');
@@ -11446,12 +11550,22 @@
                 if (!dock) {
                     return;
                 }
-                dock.addEventListener('mousedown', (event) => {
+                const raise = (event) => {
                     if (event.button !== 0) {
                         return;
                     }
                     raiseFloatingPopupDock(dock);
-                }, true);
+                };
+                const panel = dock.querySelector('.filter-popup-panel');
+                if (panel) {
+                    panel.addEventListener('pointerdown', raise, true);
+                } else {
+                    dock.addEventListener('pointerdown', raise, true);
+                }
+                const header = dock.querySelector('.filter-popup-header');
+                if (header) {
+                    header.addEventListener('pointerdown', raise, true);
+                }
             };
             bind(el('filterPopupDock'));
             bind(el('answerPopupDock'));
@@ -12635,6 +12749,30 @@
             }
         }
 
+        /** Sau khi đổi mode / rebuild danh sách: ưu tiên focus id đang chọn ở bảng chính nếu có trong list mới. */
+        function reconcileFilterPopupFocusAfterListChange(displayIndices, options = {}) {
+            const indices = Array.isArray(displayIndices) ? displayIndices : getFilterPopupDisplayIndices();
+            filterPopupActiveIdx = resolveFilterPopupActiveIdx(indices);
+            if (filterPopupActiveIdx >= 0) {
+                if (options.clearPopupNav) {
+                    syncFilterPopupFocusFromMainRow(filterPopupActiveIdx);
+                } else {
+                    applyFilterPopupRowFocus(filterPopupActiveIdx);
+                    if (isAllFilterMode(periodFilterMode) && filterPopupActiveIdx >= 0) {
+                        syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly: true });
+                    } else if (sheetManager && typeof sheetManager.reapplyActiveWindowHighlightsToDom === 'function') {
+                        sheetManager.reapplyActiveWindowHighlightsToDom();
+                    }
+                }
+            } else if (options.clearPopupNav) {
+                clearFilterPopupRowFocus();
+                resetFilterPopupPositionUi();
+            } else {
+                applyFilterPopupRowFocus(-1);
+            }
+            return filterPopupActiveIdx;
+        }
+
         function initFilterPopupTableClickDelegation() {
             const wrap = el('filterTableWrap');
             if (!wrap || wrap.dataset.popupClickBound === '1') {
@@ -12710,19 +12848,7 @@
             syncFilterPopupPosnfreqSubmitOverlap();
             syncFilterPopupConn3WindowOverlap();
             applyFilterPopupNonexist005000RowBorders(wrap);
-            if (options.clearPopupNav) {
-                filterPopupActiveIdx = -1;
-                clearFilterPopupRowFocus();
-                resetFilterPopupPositionUi();
-            } else {
-                filterPopupActiveIdx = resolveFilterPopupActiveIdx(getFilterPopupDisplayIndices());
-                applyFilterPopupRowFocus(filterPopupActiveIdx);
-                if (isAllFilterMode(periodFilterMode) && filterPopupActiveIdx >= 0) {
-                    syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly: true });
-                } else if (sheetManager && typeof sheetManager.reapplyActiveWindowHighlightsToDom === 'function') {
-                    sheetManager.reapplyActiveWindowHighlightsToDom();
-                }
-            }
+            reconcileFilterPopupFocusAfterListChange(getFilterPopupDisplayIndices(), options);
             syncFilterPopupHeaderUi();
             requestAnimationFrame(() => {
                 if (filterPopupActiveIdx >= 0) {
@@ -12989,13 +13115,7 @@
 
             filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
             const displayIndices = getFilterPopupTableIndices();
-            if (options.clearPopupNav) {
-                filterPopupActiveIdx = -1;
-                clearFilterPopupRowFocus();
-                resetFilterPopupPositionUi();
-            } else {
-                filterPopupActiveIdx = resolveFilterPopupActiveIdx(displayIndices);
-            }
+            reconcileFilterPopupFocusAfterListChange(displayIndices, options);
             syncFilterPopupHeaderUi();
 
             if (filterPopupIndices.length === 0) {
@@ -13089,38 +13209,11 @@
         function initFilterPopupDrag() {
             const dock = el('filterPopupDock');
             const header = el('filterPopupHeader');
+            const panel = el('filterPopupPanel');
             if (!dock || !header || header.dataset.dragBound === '1') {
                 return;
             }
             header.dataset.dragBound = '1';
-
-            let dragging = false;
-            let startX = 0;
-            let startY = 0;
-            let startLeft = 0;
-            let startTop = 0;
-            let lastMoveX = 0;
-            let lastMoveY = 0;
-            let dragMoveRaf = 0;
-
-            const panel = el('filterPopupPanel');
-
-            function flushFilterPopupDragTransform() {
-                dragMoveRaf = 0;
-                if (!dragging) {
-                    return;
-                }
-                const dx = lastMoveX - startX;
-                const ty = Math.max(8 - startTop, lastMoveY - startY);
-                dock.style.transform = `translate3d(${dx}px, ${ty}px, 0)`;
-            }
-
-            function scheduleFilterPopupDragTransform() {
-                if (dragMoveRaf) {
-                    return;
-                }
-                dragMoveRaf = requestAnimationFrame(flushFilterPopupDragTransform);
-            }
 
             function isFilterPopupHeaderNonDragTarget(target) {
                 if (!target || !(target instanceof Element)) {
@@ -13150,61 +13243,19 @@
                 });
             }
 
-            header.addEventListener('mousedown', (event) => {
-                if (event.button !== 0
-                    || event.target.closest('#filterPopupClose')
-                    || isFilterPopupHeaderNonDragTarget(event.target)) {
-                    return;
+            bindFloatingPopupHeaderDrag({
+                dock,
+                panel,
+                header,
+                dragClass: 'is-filter-popup-header-dragging',
+                onLayoutSave: scheduleSaveFilterPopupLayout,
+                onResize: scheduleSaveFilterPopupLayout,
+                onRaise: () => raiseFloatingPopupDock(dock),
+                shouldSkipDragStart: (event) => {
+                    return !!event.target.closest('#filterPopupClose')
+                        || isFilterPopupHeaderNonDragTarget(event.target);
                 }
-                const geometry = pinFilterPopupGeometry(dock, panel);
-                dragging = true;
-                dock.classList.add('is-filter-popup-header-dragging');
-                dock.style.transform = '';
-                startX = event.clientX;
-                startY = event.clientY;
-                startLeft = geometry.left;
-                startTop = geometry.top;
-                lastMoveX = startX;
-                lastMoveY = startY;
-                event.preventDefault();
             });
-
-            document.addEventListener('mousemove', (event) => {
-                if (!dragging) {
-                    return;
-                }
-                lastMoveX = event.clientX;
-                lastMoveY = event.clientY;
-                scheduleFilterPopupDragTransform();
-            });
-
-            document.addEventListener('mouseup', () => {
-                if (!dragging) {
-                    return;
-                }
-                dragging = false;
-                if (dragMoveRaf) {
-                    cancelAnimationFrame(dragMoveRaf);
-                    dragMoveRaf = 0;
-                }
-                const dx = lastMoveX - startX;
-                const dy = lastMoveY - startY;
-                dock.style.transform = '';
-                dock.style.left = `${Math.round(startLeft + dx)}px`;
-                dock.style.top = `${Math.round(Math.max(8, startTop + dy))}px`;
-                dock.classList.remove('is-filter-popup-header-dragging');
-                scheduleSaveFilterPopupLayout();
-            });
-
-            if (panel && typeof ResizeObserver !== 'undefined') {
-                const resizeObserver = new ResizeObserver(() => {
-                    if (dock.classList.contains('hidden')) {
-                        return;
-                    }
-                    scheduleSaveFilterPopupLayout();
-                });
-                resizeObserver.observe(panel);
-            }
 
             applyFilterPopupLayout();
         }
@@ -13223,6 +13274,115 @@
                 width: sizeRect.width,
                 height: sizeRect.height
             };
+        }
+
+        function bindFloatingPopupHeaderDrag(config) {
+            const {
+                dock,
+                panel,
+                header,
+                dragClass,
+                onLayoutSave,
+                onRaise,
+                shouldSkipDragStart
+            } = config;
+            if (!dock || !panel || !header || header.dataset.floatingDragBound === '1') {
+                return;
+            }
+            header.dataset.floatingDragBound = '1';
+
+            let dragging = false;
+            let pointerId = -1;
+            let startX = 0;
+            let startY = 0;
+            let startLeft = 0;
+            let startTop = 0;
+            let lastClientX = 0;
+            let lastClientY = 0;
+
+            function applyDragTransform(clientX, clientY) {
+                const dx = clientX - startX;
+                const ty = Math.max(8 - startTop, clientY - startY);
+                dock.style.transform = `translate3d(${dx}px, ${ty}px, 0)`;
+            }
+
+            function finishDrag(event) {
+                if (!dragging) {
+                    return;
+                }
+                dragging = false;
+                const clientX = event && Number.isFinite(event.clientX) ? event.clientX : lastClientX;
+                const clientY = event && Number.isFinite(event.clientY) ? event.clientY : lastClientY;
+                const dx = clientX - startX;
+                const dy = clientY - startY;
+                dock.style.transform = '';
+                dock.style.left = `${Math.round(startLeft + dx)}px`;
+                dock.style.top = `${Math.round(Math.max(8, startTop + dy))}px`;
+                dock.classList.remove(dragClass);
+                if (pointerId >= 0) {
+                    try {
+                        if (header.hasPointerCapture && header.hasPointerCapture(pointerId)) {
+                            header.releasePointerCapture(pointerId);
+                        }
+                    } catch (eCap) { /* ignore */ }
+                }
+                pointerId = -1;
+                if (typeof onLayoutSave === 'function') {
+                    onLayoutSave();
+                }
+            }
+
+            header.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                if (typeof shouldSkipDragStart === 'function' && shouldSkipDragStart(event)) {
+                    return;
+                }
+                if (typeof onRaise === 'function') {
+                    onRaise();
+                }
+                const geometry = pinFilterPopupGeometry(dock, panel);
+                dragging = true;
+                pointerId = event.pointerId;
+                dock.classList.add(dragClass);
+                dock.style.transform = '';
+                startX = event.clientX;
+                startY = event.clientY;
+                lastClientX = startX;
+                lastClientY = startY;
+                startLeft = geometry.left;
+                startTop = geometry.top;
+                try {
+                    header.setPointerCapture(pointerId);
+                } catch (eCap) { /* ignore */ }
+                event.preventDefault();
+            });
+
+            header.addEventListener('pointermove', (event) => {
+                if (!dragging || event.pointerId !== pointerId) {
+                    return;
+                }
+                lastClientX = event.clientX;
+                lastClientY = event.clientY;
+                applyDragTransform(lastClientX, lastClientY);
+            });
+
+            header.addEventListener('pointerup', finishDrag);
+            header.addEventListener('pointercancel', finishDrag);
+
+            if (panel && typeof ResizeObserver !== 'undefined') {
+                const resizeObserver = new ResizeObserver(() => {
+                    if (dock.classList.contains('hidden') || dock.classList.contains(dragClass)
+                        || panel.classList.contains('is-filter-popup-resizing')) {
+                        return;
+                    }
+                    if (typeof config.onResize === 'function') {
+                        config.onResize();
+                    }
+                });
+                resizeObserver.observe(panel);
+            }
         }
 
         function applyFilterPopupResizeDelta(direction, start, dx, dy, dock, panel) {
@@ -13270,11 +13430,82 @@
             panel.dataset.resizeBound = '1';
 
             let resizing = false;
+            let pointerId = -1;
             let direction = '';
             let start = null;
+            let pendingDx = 0;
+            let pendingDy = 0;
+
+            function flushResizeMove() {
+                filterPopupResizeMoveRaf = 0;
+                if (!resizing || !start) {
+                    return;
+                }
+                applyFilterPopupResizeDelta(
+                    direction,
+                    start,
+                    pendingDx,
+                    pendingDy,
+                    dock,
+                    panel
+                );
+                scheduleFilterPopupResizeThumbSync();
+            }
+
+            function scheduleResizeMove(dx, dy) {
+                pendingDx = dx;
+                pendingDy = dy;
+                if (!filterPopupResizeMoveRaf) {
+                    filterPopupResizeMoveRaf = requestAnimationFrame(flushResizeMove);
+                }
+            }
+
+            function finishResize(event) {
+                if (!resizing) {
+                    return;
+                }
+                resizing = false;
+                if (filterPopupResizeMoveRaf) {
+                    cancelAnimationFrame(filterPopupResizeMoveRaf);
+                    filterPopupResizeMoveRaf = 0;
+                }
+                if (start) {
+                    const clientX = event && Number.isFinite(event.clientX)
+                        ? event.clientX
+                        : start.x + pendingDx;
+                    const clientY = event && Number.isFinite(event.clientY)
+                        ? event.clientY
+                        : start.y + pendingDy;
+                    applyFilterPopupResizeDelta(
+                        direction,
+                        start,
+                        clientX - start.x,
+                        clientY - start.y,
+                        dock,
+                        panel
+                    );
+                }
+                setFilterPopupResizeActive(false);
+                finishFilterPopupResizeSync();
+                start = null;
+                direction = '';
+                if (pointerId >= 0) {
+                    try {
+                        const handle = panel.querySelector('.filter-popup-resize-handle.is-capturing');
+                        if (handle && handle.releasePointerCapture) {
+                            handle.releasePointerCapture(pointerId);
+                        }
+                    } catch (eCap) { /* ignore */ }
+                    panel.querySelectorAll('.filter-popup-resize-handle.is-capturing').forEach((h) => {
+                        h.classList.remove('is-capturing');
+                    });
+                }
+                pointerId = -1;
+                scheduleSaveFilterPopupLayout();
+            }
 
             panel.querySelectorAll('.filter-popup-resize-handle').forEach((handle) => {
-                handle.addEventListener('mousedown', (event) => {
+                handle.addEventListener('pointerdown', (event) => {
                     if (event.button !== 0) {
                         return;
                     }
@@ -13292,33 +13523,41 @@
                         y: event.clientY
                     };
                     resizing = true;
+                    pointerId = event.pointerId;
+                    pendingDx = 0;
+                    pendingDy = 0;
+                    panel.querySelectorAll('.filter-popup-resize-handle.is-capturing').forEach((h) => {
+                        h.classList.remove('is-capturing');
+                    });
+                    handle.classList.add('is-capturing');
+                    setFilterPopupResizeActive(true);
+                    try {
+                        handle.setPointerCapture(pointerId);
+                    } catch (eCap) { /* ignore */ }
                     event.preventDefault();
                     event.stopPropagation();
                 });
             });
 
-            document.addEventListener('mousemove', (event) => {
-                if (!resizing || !start) {
+            document.addEventListener('pointermove', (event) => {
+                if (!resizing || event.pointerId !== pointerId || !start) {
                     return;
                 }
-                applyFilterPopupResizeDelta(
-                    direction,
-                    start,
-                    event.clientX - start.x,
-                    event.clientY - start.y,
-                    dock,
-                    panel
-                );
+                scheduleResizeMove(event.clientX - start.x, event.clientY - start.y);
             });
 
-            document.addEventListener('mouseup', () => {
-                if (!resizing) {
+            document.addEventListener('pointerup', (event) => {
+                if (!resizing || event.pointerId !== pointerId) {
                     return;
                 }
-                resizing = false;
-                start = null;
-                direction = '';
-                scheduleSaveFilterPopupLayout();
+                finishResize(event);
+            });
+
+            document.addEventListener('pointercancel', (event) => {
+                if (!resizing || event.pointerId !== pointerId) {
+                    return;
+                }
+                finishResize(event);
             });
         }
 
@@ -13462,92 +13701,25 @@
                 return;
             }
             header.dataset.answerDragBound = '1';
-            let dragging = false;
-            let startX = 0;
-            let startY = 0;
-            let startLeft = 0;
-            let startTop = 0;
-            let lastMoveX = 0;
-            let lastMoveY = 0;
-            let dragMoveRaf = 0;
 
-            function flushAnswerPopupDragTransform() {
-                dragMoveRaf = 0;
-                if (!dragging) {
-                    return;
-                }
-                const dx = lastMoveX - startX;
-                const ty = Math.max(8 - startTop, lastMoveY - startY);
-                dock.style.transform = `translate3d(${dx}px, ${ty}px, 0)`;
-            }
-
-            function scheduleAnswerPopupDragTransform() {
-                if (dragMoveRaf) {
-                    return;
-                }
-                dragMoveRaf = requestAnimationFrame(flushAnswerPopupDragTransform);
-            }
-
-            header.addEventListener('mousedown', (event) => {
-                if (event.button !== 0) {
-                    return;
-                }
-                if (event.target.closest('#answerPopupClose')
-                    || event.target.closest('#answerPopupClearBtn')
-                    || event.target.closest('#answerPopupCheckBtn')
-                    || event.target.closest('#answerPopupFocusMeta')) {
-                    return;
-                }
-                const geometry = pinFilterPopupGeometry(dock, panel);
-                dragging = true;
-                dock.classList.add('is-answer-popup-header-dragging');
-                dock.style.transform = '';
-                startX = event.clientX;
-                startY = event.clientY;
-                startLeft = geometry.left;
-                startTop = geometry.top;
-                lastMoveX = startX;
-                lastMoveY = startY;
-                event.preventDefault();
-            });
-
-            document.addEventListener('mousemove', (event) => {
-                if (!dragging) {
-                    return;
-                }
-                lastMoveX = event.clientX;
-                lastMoveY = event.clientY;
-                scheduleAnswerPopupDragTransform();
-            });
-
-            document.addEventListener('mouseup', () => {
-                if (!dragging) {
-                    return;
-                }
-                dragging = false;
-                if (dragMoveRaf) {
-                    cancelAnimationFrame(dragMoveRaf);
-                    dragMoveRaf = 0;
-                }
-                const dx = lastMoveX - startX;
-                const dy = lastMoveY - startY;
-                dock.style.transform = '';
-                dock.style.left = `${Math.round(startLeft + dx)}px`;
-                dock.style.top = `${Math.round(Math.max(8, startTop + dy))}px`;
-                dock.classList.remove('is-answer-popup-header-dragging');
-                scheduleSaveAnswerPopupLayout();
-            });
-
-            if (panel && typeof ResizeObserver !== 'undefined') {
-                const resizeObserver = new ResizeObserver(() => {
-                    if (dock.classList.contains('hidden')) {
-                        return;
-                    }
+            bindFloatingPopupHeaderDrag({
+                dock,
+                panel,
+                header,
+                dragClass: 'is-answer-popup-header-dragging',
+                onLayoutSave: scheduleSaveAnswerPopupLayout,
+                onResize: () => {
                     applyAnswerPopupUiScale();
                     scheduleSaveAnswerPopupLayout();
-                });
-                resizeObserver.observe(panel);
-            }
+                },
+                onRaise: () => raiseFloatingPopupDock(dock),
+                shouldSkipDragStart: (event) => {
+                    return !!event.target.closest('#answerPopupClose')
+                        || !!event.target.closest('#answerPopupClearBtn')
+                        || !!event.target.closest('#answerPopupCheckBtn')
+                        || !!event.target.closest('#answerPopupFocusMeta');
+                }
+            });
 
             applyAnswerPopupLayout();
             applyAnswerPopupUiScale();
@@ -13833,12 +14005,20 @@
             frame.addEventListener('load', () => requestAnimationFrame(callback), { once: true });
         }
 
+        function getSubmitRingInferFilterOptions() {
+            return {
+                ...getSubmitRingDatebandPayload(),
+                tailMinCount: filterTailCount,
+                tailCountOp: normalizeIntersectionFreqOp(filterTailOp)
+            };
+        }
+
         function inferSubmitRingModeFromRowIndex(rowIdx) {
             if (!sheetManager || typeof rowIdx !== 'number' || rowIdx < 0) {
                 return 'max';
             }
             if (typeof sheetManager.getSubmitRingModeForRowIndex === 'function') {
-                return sheetManager.getSubmitRingModeForRowIndex(rowIdx);
+                return sheetManager.getSubmitRingModeForRowIndex(rowIdx, getSubmitRingInferFilterOptions());
             }
             return 'max';
         }
