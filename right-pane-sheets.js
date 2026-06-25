@@ -9076,7 +9076,9 @@ class RightPaneSheetManager {
                 : -1;
             ranked.push({ n, v, t });
         }
-        ranked.sort((a, b) => (b.v - a.v) || (a.t - b.t) || (a.n - b.n));
+        ranked.sort((a, b) => RightPaneSheetManager.basicTrackingRankCompare(
+            a, b, list, drawEndIndex, { previewPickSet }
+        ));
         const maxV = Math.max(1, ranked.length && ranked[0].v ? ranked[0].v : 1);
         const slotByNum = new Array(36).fill(bottomSlot);
         for (let s = 0; s < ranked.length; s++) {
@@ -9149,6 +9151,25 @@ class RightPaneSheetManager {
         return tFromDraws;
     }
 
+    /**
+     * So sánh xếp hạng bar basic: freq cao hơn trước; cùng freq thì t nhỏ hơn (đạt sớm hơn).
+     * Cùng kỳ đạt mốc v: lùi so v-1, v-2, … để giữ thứ tự lịch sử (17:87 trước 6:87 → 17:88 vẫn trên 6:88).
+     */
+    static basicTrackingRankCompare(a, b, draws, endInclusive, options = {}) {
+        if (b.v !== a.v) {
+            return b.v - a.v;
+        }
+        const v = a.v | 0;
+        for (let k = v; k >= 1; k--) {
+            const ta = RightPaneSheetManager.basicTrackingRankTForHit(draws, a.n, k, endInclusive, options);
+            const tb = RightPaneSheetManager.basicTrackingRankTForHit(draws, b.n, k, endInclusive, options);
+            if (ta !== tb) {
+                return ta - tb;
+            }
+        }
+        return a.n - b.n;
+    }
+
     buildBasicTrackingFrames(drawSteps) {
         const counts = {};
         for (let i = 1; i <= 35; i++) {
@@ -9183,7 +9204,7 @@ class RightPaneSheetManager {
                         : -1;
                     return { n, v, t };
                 })
-                .sort((a, b) => (b.v - a.v) || (a.t - b.t) || (a.n - b.n))
+                .sort((a, b) => RightPaneSheetManager.basicTrackingRankCompare(a, b, list, endDrawIdx, {}))
                 .map(({ n, v }) => ({ n, v }));
             const maxV = Math.max(1, sorted.length ? sorted[0].v : 1);
             const slotByNum = new Array(36).fill(bottomSlot);
