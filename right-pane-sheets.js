@@ -2224,6 +2224,29 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Số xuất hiện ở chuỗi 1 hoặc chuỗi 2 (hai kỳ liền trước kỳ nguồn) — nghiêng trái trên bar basic tracking.
+     * @returns {Set<number>}
+     */
+    getCh1Ch2NumsSetForSourceRow(rows, rowIndex) {
+        const set = new Set();
+        const lines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            if (line.label !== 1 && line.label !== 2) {
+                continue;
+            }
+            const nums = Array.isArray(line.nums) ? line.nums : [];
+            for (let k = 0; k < nums.length; k++) {
+                const n = nums[k];
+                if (n >= 1 && n <= 35) {
+                    set.add(n);
+                }
+            }
+        }
+        return set;
+    }
+
+    /**
      * 10 chuỗi trước kỳ `rowIndex` (Chuỗi 1 = sát kỳ đang xét).
      * @param {object[]} rows
      * @param {number} rowIndex
@@ -10320,6 +10343,7 @@ class RightPaneSheetManager {
             let basicDisplay = null;
             let basicWindow10Freq = null;
             let basicCh11Ch12Set = null;
+            let basicCh1Ch2Set = null;
             let freqTieGroups = [];
             let freqTieStreakByKey = new Map();
             if (isBasic) {
@@ -10340,6 +10364,10 @@ class RightPaneSheetManager {
                         this.sourceRows || [],
                         srcRow
                     );
+                    basicCh1Ch2Set = this.getCh1Ch2NumsSetForSourceRow(
+                        this.sourceRows || [],
+                        srcRow
+                    );
                     const tieResult = this.computeTrackingFreqTieGroupsWithStreaks(sheet, frames, frameIndex, {
                         isBasic: true,
                         numMax,
@@ -10355,6 +10383,7 @@ class RightPaneSheetManager {
                         basicDisplay,
                         basicWindow10Freq,
                         basicCh11Ch12Set,
+                        basicCh1Ch2Set,
                         freqTieGroups,
                         freqTieStreakByKey
                     };
@@ -10362,6 +10391,7 @@ class RightPaneSheetManager {
                     basicDisplay = basicPaintCache.basicDisplay;
                     basicWindow10Freq = basicPaintCache.basicWindow10Freq;
                     basicCh11Ch12Set = basicPaintCache.basicCh11Ch12Set;
+                    basicCh1Ch2Set = basicPaintCache.basicCh1Ch2Set;
                     freqTieGroups = basicPaintCache.freqTieGroups;
                     freqTieStreakByKey = basicPaintCache.freqTieStreakByKey || new Map();
                 }
@@ -10399,9 +10429,16 @@ class RightPaneSheetManager {
                 }
                 const win10Freq = isBasic && basicWindow10Freq ? (basicWindow10Freq[n] || 0) : null;
                 const win10FreqOne = isBasic && win10Freq === 1;
-                const win10FreqOneItalic = win10FreqOne
+                const win10Ch1Ch2ItalicLeft = isBasic
+                    && basicCh1Ch2Set
+                    && basicCh1Ch2Set.has(n);
+                const win10FreqOneItalicRight = win10FreqOne
                     && basicCh11Ch12Set
                     && basicCh11Ch12Set.has(n);
+                const win10FreqOneItalic = win10Ch1Ch2ItalicLeft ? false : win10FreqOneItalicRight;
+                const numItalicSkew = win10Ch1Ch2ItalicLeft
+                    ? 'skewX(20deg)'
+                    : (win10FreqOneItalic ? 'skewX(-12deg)' : '');
                 const isJust = justSet.has(n);
                 const leftPickPreviewLabel = leftPickSyncSet.has(n);
                 const actualAnswer = isBasic
@@ -10420,16 +10457,20 @@ class RightPaneSheetManager {
                     }
                 }
                 if (numEl) {
+                    const numBaseTranslate = labelMode === 'out'
+                        ? 'translateY(-50%)'
+                        : 'translate(-100%, -50%)';
                     if (labelMode === 'out') {
                         numEl.style.left = '';
                         numEl.style.right = '0';
-                        numEl.style.transform = 'translateY(-50%)';
                     } else {
                         const insetPx = isBasic ? 4 : 8;
                         numEl.style.right = 'auto';
                         numEl.style.left = `max(2px, calc(${wPct}% - ${insetPx}px))`;
-                        numEl.style.transform = 'translate(-100%, -50%)';
                     }
+                    numEl.style.transform = numItalicSkew
+                        ? `${numBaseTranslate} ${numItalicSkew}`
+                        : numBaseTranslate;
                     if (showWin10ZeroTransition) {
                         const transitionHtml = '<span class="special-tracking-rank-num-transition">'
                             + `<span class="special-tracking-rank-num-from">${n}</span>`
@@ -10448,6 +10489,7 @@ class RightPaneSheetManager {
                         numEl.classList.remove('special-tracking-rank-num--submit-win10-zero-transition');
                     }
                     numEl.classList.toggle('special-tracking-rank-num--win10-freq-one-italic', win10FreqOneItalic);
+                    numEl.classList.toggle('special-tracking-rank-num--ch1-ch2-italic-left', win10Ch1Ch2ItalicLeft);
                 }
                 const autoringBarLabel = isBasic
                     && this.leftAutoringEnabled
@@ -10469,6 +10511,7 @@ class RightPaneSheetManager {
                 );
                 if (countEl) {
                     countEl.classList.toggle('special-tracking-rank-count--win10-freq-one-italic', win10FreqOneItalic);
+                    countEl.classList.toggle('special-tracking-rank-count--ch1-ch2-italic-left', win10Ch1Ch2ItalicLeft);
                 }
                 if (isBasic) {
                     el.dataset.stWin10Freq = win10Freq != null ? String(win10Freq) : '';

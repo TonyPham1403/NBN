@@ -1082,10 +1082,24 @@
         }
 
         .special-tracking-root--basic .special-tracking-rank-num--win10-freq-one-italic,
+        .special-tracking-root--basic .special-tracking-rank-num--ch1-ch2-italic-left {
+            font-style: italic !important;
+            display: inline-block;
+            transform-origin: center center;
+        }
+
         .special-tracking-root--basic .special-tracking-rank-count--win10-freq-one-italic {
             font-style: italic !important;
             display: inline-block;
             transform: skewX(-12deg);
+            transform-origin: center center;
+        }
+
+        /* Basic: số có trong chuỗi 1/2 (2 kỳ liền trước) — in nghiêng sang trái; ưu tiên hơn ch11/12 */
+        .special-tracking-root--basic .special-tracking-rank-count--ch1-ch2-italic-left {
+            font-style: italic !important;
+            display: inline-block;
+            transform: skewX(20deg);
             transform-origin: center center;
         }
 
