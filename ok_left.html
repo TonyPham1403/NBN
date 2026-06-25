@@ -2805,13 +2805,7 @@
         /** Numbers currently circled/selected on the left pane (max 5). */
         function getLeftPaneCircledNums() {
             const nums = [];
-            const effective = new Set();
-            if (submitActive) {
-                simulatedSelected.forEach(function (n) { effective.add(n); });
-            } else {
-                selected.forEach(function (n) { effective.add(n); });
-                simulatedSelected.forEach(function (n) { effective.add(n); });
-            }
+            const effective = getCircledEffectiveSetForNav();
             if (pickOrder && pickOrder.length) {
                 pickOrder.forEach(function (n) {
                     if (!isNaN(n) && effective.has(n) && nums.indexOf(n) === -1) {
@@ -3084,6 +3078,7 @@
                 try { applySubmitState(); } catch (e) { }
                 try { applySelectionAndBlockedInDOM(); } catch (e) { }
                 try { restartNeonAnimationsInDOM(); } catch (e) { }
+                try { notifyParentLeftCircledNums(); } catch (eN) { /* ignore */ }
                 return true;
             }
 

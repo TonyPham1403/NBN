@@ -8628,6 +8628,7 @@ class RightPaneSheetManager {
 
     /**
      * Đếm số frame liên tiếp (lùi từ frameIndex) mà bụng cùng freq + cùng tập số vẫn tồn tại.
+     * Khi giả lập (preview) làm đổi tập số trong bụng tại frame hiện tại → streak = 1 (vd. 3四 → 2一).
      * @returns {{ groups: object[], streakByKey: Map<string, number> }}
      */
     computeTrackingFreqTieGroupsWithStreaks(sheet, frames, frameIndex, options = {}) {
@@ -8636,9 +8637,14 @@ class RightPaneSheetManager {
         const leftSubmitOn = !!options.leftSubmitOn;
         const basicDraws = options.basicDraws || [];
         const streakKeyOf = RightPaneSheetManager.getFreqTieGroupStreakKey;
-        const previewAtPaintFrame = isBasic
-            && this.isBasicTrackingBarPreviewActive(sheet, frameIndex);
-        const previewPickNums = previewAtPaintFrame ? (this.leftBasicPreviewPickNums || []) : [];
+        const bellyKeyOf = RightPaneSheetManager.getFreqTieGroupBellyKey;
+        const previewPickNumsResolved = Array.isArray(options.previewPickNums)
+            ? options.previewPickNums
+            : (this.leftBasicPreviewPickNums || []);
+        const previewAtPaintFrame = options.previewAtPaintFrame != null
+            ? !!options.previewAtPaintFrame
+            : (isBasic && this.isBasicTrackingFreqPreviewLayoutActive(sheet, frameIndex, previewPickNumsResolved));
+        const previewPickNums = previewAtPaintFrame ? previewPickNumsResolved : [];
 
         const getGroupsForFrame = (f, usePreview = false) => {
             const fr = frames[f];
@@ -8668,9 +8674,44 @@ class RightPaneSheetManager {
         };
 
         const groups = getGroupsForFrame(frameIndex, true);
-        const committedKeysAtPaint = previewAtPaintFrame
-            ? new Set(getGroupsForFrame(frameIndex, false).map((g) => streakKeyOf(g)))
-            : null;
+        const committedGroupsAtPaint = previewAtPaintFrame
+            ? getGroupsForFrame(frameIndex, false)
+            : [];
+        /** freq → tập số bụng đã commit tại frame đang vẽ */
+        const committedBellyByFreq = new Map();
+        for (let c = 0; c < committedGroupsAtPaint.length; c++) {
+            const cg = committedGroupsAtPaint[c];
+            committedBellyByFreq.set(cg.freq | 0, bellyKeyOf(cg.nums));
+        }
+        const committedKeySet = new Set(committedGroupsAtPaint.map((g) => streakKeyOf(g)));
+
+        const findBellyKeyAtFreq = (frameGroups, freq) => {
+            const want = freq | 0;
+            for (let i = 0; i < frameGroups.length; i++) {
+                const g = frameGroups[i];
+                if ((g.freq | 0) === want) {
+                    return bellyKeyOf(g.nums);
+                }
+            }
+            return null;
+        };
+
+        const isPreviewBellyCompositionChanged = (group) => {
+            if (!previewAtPaintFrame || !group) {
+                return false;
+            }
+            const key = streakKeyOf(group);
+            if (committedKeySet.has(key)) {
+                return false;
+            }
+            const freq = group.freq | 0;
+            const committedBelly = committedBellyByFreq.get(freq);
+            if (committedBelly === undefined) {
+                return true;
+            }
+            return bellyKeyOf(group.nums) !== committedBelly;
+        };
+
         const streakByKey = new Map();
         for (let g = 0; g < groups.length; g++) {
             const group = groups[g];
@@ -8678,19 +8719,14 @@ class RightPaneSheetManager {
             if (!key || streakByKey.has(key)) {
                 continue;
             }
+            const groupFreq = group.freq | 0;
+            const bellyKey = bellyKeyOf(group.nums);
             let streak = 1;
-            const previewChangedGroup = committedKeysAtPaint && !committedKeysAtPaint.has(key);
-            if (!previewChangedGroup) {
+            const previewCompositionChanged = isPreviewBellyCompositionChanged(group);
+            if (!previewCompositionChanged) {
                 for (let f = frameIndex - 1; f >= 0; f--) {
-                    const prevGroups = getGroupsForFrame(f, false);
-                    let found = false;
-                    for (let p = 0; p < prevGroups.length; p++) {
-                        if (streakKeyOf(prevGroups[p]) === key) {
-                            found = true;
-                            break;
-                        }
-                    }
-                    if (!found) {
+                    const prevBelly = findBellyKeyAtFreq(getGroupsForFrame(f, false), groupFreq);
+                    if (prevBelly !== bellyKey) {
                         break;
                     }
                     streak++;
@@ -8856,14 +8892,10 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Basic tracking + Submit OFF: giả lập bar pick tại frame timeline hiện tại
-     * (kỳ lịch sử hoặc kỳ cuối chưa có đáp án khi focus đúng hàng).
+     * Basic tracking: frame timeline khớp hàng nguồn — có thể giả lập pick/freq (không phụ thuộc Submit).
      */
-    isBasicTrackingBarPreviewActive(sheet, frameIndex) {
+    isBasicTrackingFramePreviewEligible(sheet, frameIndex) {
         if (!sheet || this.getTrackingViewMode(sheet) !== 'basic') {
-            return false;
-        }
-        if (this.leftSubmitActive) {
             return false;
         }
         const rows = this.sourceRows || [];
@@ -8888,16 +8920,75 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Basic tracking + submit OFF + focus hàng cuối chưa có đáp án + timeline đúng frame đó.
+     * Basic tracking + Submit OFF: giả lập bar pick tại frame timeline hiện tại
+     * (kỳ lịch sử hoặc kỳ cuối chưa có đáp án khi focus đúng hàng).
      */
-    isBasicTrackingEmptyLastRowPreviewActive(sheet, frameIndex) {
-        if (!this.isBasicTrackingBarPreviewActive(sheet, frameIndex)) {
+    isBasicTrackingBarPreviewActive(sheet, frameIndex) {
+        return !this.leftSubmitActive
+            && this.isBasicTrackingFramePreviewEligible(sheet, frameIndex);
+    }
+
+    /**
+     * Basic tracking + focus hàng cuối chưa có đáp án + timeline đúng frame đó.
+     * Dùng đồng bộ viền đen bar (kể cả Submit ON / autoring).
+     */
+    isBasicTrackingLastEmptyRowSyncActive(sheet, frameIndex) {
+        if (!sheet || this.getTrackingViewMode(sheet) !== 'basic') {
             return false;
         }
         const rows = this.sourceRows || [];
+        if (!rows.length) {
+            return false;
+        }
         const lastIdx = rows.length - 1;
+        const row = rows[lastIdx];
+        if (!row || !this.isEmptyResultRow(row)) {
+            return false;
+        }
+        if (this.getBasicTrackingFocusRowIndex() !== lastIdx) {
+            return false;
+        }
         const rowIdx = this.getTrackingSourceRowIndexForFrame(sheet, frameIndex);
-        return rowIdx === lastIdx;
+        if (rowIdx !== lastIdx) {
+            return false;
+        }
+        const frameForRow = this.getTrackingFrameIndexForSourceRow(sheet, lastIdx);
+        return frameForRow >= 0 && frameIndex === frameForRow;
+    }
+
+    /**
+     * Basic tracking + submit OFF + focus hàng cuối chưa có đáp án + timeline đúng frame đó.
+     */
+    isBasicTrackingEmptyLastRowPreviewActive(sheet, frameIndex) {
+        return this.isBasicTrackingBarPreviewActive(sheet, frameIndex)
+            && this.isBasicTrackingLastEmptyRowSyncActive(sheet, frameIndex);
+    }
+
+    /** Preview freq + viền đen bar: submit OFF, kỳ cuối trống, hoặc đã có pick giả lập. */
+    isBasicTrackingLeftPickBarSyncActive(sheet, frameIndex) {
+        if (this.isBasicTrackingBarPreviewActive(sheet, frameIndex)) {
+            return true;
+        }
+        if (this.isBasicTrackingLastEmptyRowSyncActive(sheet, frameIndex)) {
+            return true;
+        }
+        return this.isBasicTrackingFramePreviewEligible(sheet, frameIndex)
+            && Array.isArray(this.leftBasicPreviewPickNums)
+            && this.leftBasicPreviewPickNums.length > 0;
+    }
+
+    /**
+     * Có áp dụng layout giả lập freq (+1 pick, trừ justDrawn) tại frame đang vẽ.
+     * Submit OFF: luôn bật; Submit ON: chỉ khi đã có pick giả lập.
+     */
+    isBasicTrackingFreqPreviewLayoutActive(sheet, frameIndex, previewPickNums) {
+        if (!this.isBasicTrackingFramePreviewEligible(sheet, frameIndex)) {
+            return false;
+        }
+        if (!this.leftSubmitActive) {
+            return true;
+        }
+        return Array.isArray(previewPickNums) && previewPickNums.length > 0;
     }
 
     /**
@@ -8913,28 +9004,37 @@ class RightPaneSheetManager {
             counts[i] = (fr.byNum && fr.byNum[i]) || 0;
         }
         const justDrawnNums = Array.isArray(fr.justDrawnNums) ? fr.justDrawnNums : [];
-        if (!submitOn) {
+        const hasPreviewPicks = Array.isArray(previewPickNums) && previewPickNums.length > 0;
+        const applyDrawnRollback = !submitOn || hasPreviewPicks;
+        if (applyDrawnRollback) {
             for (let u = 0; u < justDrawnNums.length; u++) {
                 const n = justDrawnNums[u];
                 if (n >= 1 && n <= 35) {
                     counts[n] = Math.max(0, (counts[n] || 0) - 1);
                 }
             }
-            if (Array.isArray(previewPickNums) && previewPickNums.length) {
-                for (let u = 0; u < previewPickNums.length; u++) {
-                    const n = previewPickNums[u];
-                    if (n >= 1 && n <= 35) {
-                        counts[n] = (counts[n] || 0) + 1;
-                    }
+        }
+        if (hasPreviewPicks) {
+            for (let u = 0; u < previewPickNums.length; u++) {
+                const n = previewPickNums[u];
+                if (n >= 1 && n <= 35) {
+                    counts[n] = (counts[n] || 0) + 1;
                 }
             }
         }
         const bottomSlot = 34;
+        const previewPickSet = hasPreviewPicks ? new Set(previewPickNums) : null;
         const ranked = [];
         for (let n = 1; n <= 35; n++) {
             const v = counts[n] || 0;
             const t = v > 0 && drawEndIndex >= 0
-                ? RightPaneSheetManager.basicTrackingStepOfVthHit(list, n, v, drawEndIndex)
+                ? RightPaneSheetManager.basicTrackingRankTForHit(
+                    list,
+                    n,
+                    v,
+                    drawEndIndex,
+                    { previewPickSet }
+                )
                 : -1;
             ranked.push({ n, v, t });
         }
@@ -8972,6 +9072,43 @@ class RightPaneSheetManager {
             }
         }
         return endInclusive;
+    }
+
+    static countBasicTrackingHitsInDraws(draws, n, endInclusive) {
+        let seen = 0;
+        for (let s = 0; s <= endInclusive; s++) {
+            const d = draws[s];
+            if (Array.isArray(d) && d.includes(n)) {
+                seen++;
+            }
+        }
+        return seen;
+    }
+
+    /**
+     * Bước xếp hạng khi cùng freq (t nhỏ = đạt v sớm hơn, slot cao hơn).
+     * Preview +1: lần đạt v giả lập xếp sau mọi số đã đạt v trong draws.
+     */
+    static basicTrackingRankTForHit(draws, n, v, endInclusive, options = {}) {
+        if (v <= 0 || endInclusive < 0) {
+            return -1;
+        }
+        const previewSet = options.previewPickSet;
+        const tFromDraws = RightPaneSheetManager.basicTrackingStepOfVthHit(draws, n, v, endInclusive);
+        if (!previewSet || !previewSet.has(n)) {
+            return tFromDraws;
+        }
+        const hitsInDraws = RightPaneSheetManager.countBasicTrackingHitsInDraws(draws, n, endInclusive);
+        if (hitsInDraws < v) {
+            return endInclusive + 1;
+        }
+        const tAtVminus1 = v > 1
+            ? RightPaneSheetManager.basicTrackingStepOfVthHit(draws, n, v - 1, endInclusive)
+            : -1;
+        if (tFromDraws >= endInclusive && tAtVminus1 < endInclusive) {
+            return endInclusive + 1;
+        }
+        return tFromDraws;
     }
 
     buildBasicTrackingFrames(drawSteps) {
@@ -10051,10 +10188,19 @@ class RightPaneSheetManager {
             const justSet = new Set(justNums);
             const leftSubmitOn = !!this.leftSubmitActive;
             const basicDraws = isBasic ? (sheet.basicDraws || []) : [];
-            const previewActive = isBasic
-                && this.isBasicTrackingBarPreviewActive(sheet, frameIndex);
-            const previewPickNums = previewActive ? (this.leftBasicPreviewPickNums || []) : [];
-            const previewPickSet = previewActive ? new Set(previewPickNums) : new Set();
+            const framePreviewEligible = isBasic
+                && this.isBasicTrackingFramePreviewEligible(sheet, frameIndex);
+            const previewPickNums = framePreviewEligible
+                ? (this.leftBasicPreviewPickNums || [])
+                : [];
+            const freqPreviewLayout = isBasic
+                && this.isBasicTrackingFreqPreviewLayoutActive(sheet, frameIndex, previewPickNums);
+            const previewActive = freqPreviewLayout;
+            const leftPickBarSyncActive = isBasic
+                && this.isBasicTrackingLeftPickBarSyncActive(sheet, frameIndex);
+            const leftPickSyncSet = leftPickBarSyncActive
+                ? new Set(this.leftBasicPreviewPickNums || [])
+                : new Set();
             const autoringPickSet = this.leftAutoringEnabled
                 ? new Set(this.leftBasicPreviewPickNums || [])
                 : new Set();
@@ -10064,12 +10210,13 @@ class RightPaneSheetManager {
             let freqTieGroups = [];
             let freqTieStreakByKey = new Map();
             if (isBasic) {
-                const cacheKey = `${frameIndex}|${leftSubmitOn ? 1 : 0}|${previewPickNums.join(',')}`;
+                const cacheKey = `${frameIndex}|${leftSubmitOn ? 1 : 0}|${freqPreviewLayout ? 1 : 0}|${previewPickNums.join(',')}`;
                 if (basicPaintCacheKey !== cacheKey || !basicPaintCache) {
+                    const layoutSubmitOn = freqPreviewLayout ? false : leftSubmitOn;
                     basicDisplay = RightPaneSheetManager.computeBasicTrackingDisplayLayout(
                         basicDraws,
                         fr,
-                        leftSubmitOn,
+                        layoutSubmitOn,
                         previewPickNums
                     );
                     const srcRow = this.getTrackingSourceRowIndexForFrame(sheet, frameIndex);
@@ -10084,8 +10231,10 @@ class RightPaneSheetManager {
                     const tieResult = this.computeTrackingFreqTieGroupsWithStreaks(sheet, frames, frameIndex, {
                         isBasic: true,
                         numMax,
-                        leftSubmitOn,
-                        basicDraws
+                        leftSubmitOn: freqPreviewLayout ? false : leftSubmitOn,
+                        basicDraws,
+                        previewAtPaintFrame: freqPreviewLayout,
+                        previewPickNums
                     });
                     freqTieGroups = tieResult.groups;
                     freqTieStreakByKey = tieResult.streakByKey;
@@ -10142,7 +10291,7 @@ class RightPaneSheetManager {
                     && basicCh11Ch12Set
                     && basicCh11Ch12Set.has(n);
                 const isJust = justSet.has(n);
-                const leftPickPreviewLabel = previewPickSet.has(n);
+                const leftPickPreviewLabel = leftPickSyncSet.has(n);
                 const actualAnswer = isBasic
                     ? (leftSubmitOn && isJust)
                     : (!predictNeonOn && n === fr.justDrawn);
@@ -10224,12 +10373,12 @@ class RightPaneSheetManager {
                 el.classList.toggle('special-tracking-rank-bar--click-focus', userClickFocus);
                 el.classList.toggle(
                     'special-tracking-rank-bar--focus',
-                    autoringBarLabel || (!leftSubmitOn && leftPickPreviewLabel)
+                    autoringBarLabel || leftPickPreviewLabel
                 );
                 el.classList.toggle('special-tracking-rank-bar--autoring-nonexist', autoringBarLabel);
                 el.classList.toggle(
                     'special-tracking-rank-bar--left-pick-preview',
-                    !leftSubmitOn && leftPickPreviewLabel
+                    leftPickPreviewLabel
                 );
                 el.classList.toggle('special-tracking-rank-bar--actual-answer', actualAnswer);
                 el.classList.toggle('special-tracking-rank-bar--predict', Boolean(pr));
@@ -10378,7 +10527,7 @@ class RightPaneSheetManager {
         };
 
         const syncBasicLastIdBarNavAnchor = () => {
-            if (!this.isBasicTrackingBarPreviewActive(sheet, frameIndex)) {
+            if (!this.isBasicTrackingFramePreviewEligible(sheet, frameIndex)) {
                 basicLastIdBarNavNum = null;
             }
         };
@@ -10413,7 +10562,7 @@ class RightPaneSheetManager {
         };
 
         const stepBasicLastIdBarNav = (delta) => {
-            if (!this.isBasicTrackingBarPreviewActive(sheet, frameIndex)) {
+            if (!this.isBasicTrackingFramePreviewEligible(sheet, frameIndex)) {
                 return false;
             }
             const order = getBasicLastIdBarNavOrder();
@@ -10619,7 +10768,7 @@ class RightPaneSheetManager {
                     persistTrackingUi();
                     return;
                 }
-                if (isBasic && this.isBasicTrackingBarPreviewActive(sheet, frameIndex)) {
+                if (isBasic && this.isBasicTrackingFramePreviewEligible(sheet, frameIndex)) {
                     if (this.toggleBasicTrackingLastIdBarPick(n)) {
                         basicLastIdBarNavNum = n;
                         paint();
