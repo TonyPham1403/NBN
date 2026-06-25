@@ -4816,8 +4816,8 @@
                 <div class="sheet-tools-bar">
                     <div class="sheet-tools-group">
                         <button type="button" id="autoringToggleBtn" class="sheet-tools-toggle"
-                            title="Bật/tắt khoanh tự động cho 5 số submit"
-                            aria-label="Toggle auto circle submit numbers"></button>
+                            title="Bật/tắt khoanh tự động (Shift — không kèm click bar tracking)"
+                            aria-label="Toggle auto circle submit numbers (Shift, not with tracking bar click)"></button>
                         <div id="submitRingControls" class="submit-ring-controls">
                             <div id="submitRingModeWrap" class="sheet-tools-mode-wrap"
                                 title="Chọn kiểu khoanh: max, min, x, 3-connection, tail">
@@ -6297,8 +6297,8 @@
                 toggleBtn.setAttribute(
                     'title',
                     submitRingEnabled
-                        ? `Đang bật khoanh tự động (${modeLabel}). Bấm để tắt`
-                        : 'Đang tắt khoanh tự động. Bấm để bật'
+                        ? `Đang bật khoanh tự động (${modeLabel}). Bấm hoặc Shift (không kèm click bar) để tắt`
+                        : 'Đang tắt khoanh tự động. Bấm hoặc Shift (không kèm click bar) để bật'
                 );
             }
             if (controls) {
@@ -6413,11 +6413,7 @@
                     e.preventDefault();
                 });
                 toggleBtn.addEventListener('click', () => {
-                    submitRingEnabled = !submitRingEnabled;
-                    try { localStorage.setItem(SUBMIT_RING_ENABLED_KEY, submitRingEnabled ? '1' : '0'); } catch (e) { }
-                    syncSubmitRingToolbarUi();
-                    sendSubmitRingConfigToIframe();
-                    requestAnimationFrame(() => restoreKeyboardFocusTarget());
+                    toggleSubmitRingFromShortcut();
                 });
             }
             if (modeSelect) {
@@ -14728,6 +14724,14 @@
             setPeriodFilterEnabled(nextEnabled, { focusPopup: false });
         }
 
+        function toggleSubmitRingFromShortcut() {
+            submitRingEnabled = !submitRingEnabled;
+            try { localStorage.setItem(SUBMIT_RING_ENABLED_KEY, submitRingEnabled ? '1' : '0'); } catch (e) { }
+            syncSubmitRingToolbarUi();
+            sendSubmitRingConfigToIframe();
+            requestAnimationFrame(() => restoreKeyboardFocusTarget());
+        }
+
         function initPeriodFilterCtrlShortcut() {
             if (document.documentElement.dataset.periodFilterCtrlBound === '1') {
                 return;
@@ -14767,6 +14771,62 @@
                 event.preventDefault();
                 event.stopPropagation();
                 togglePeriodFilterFromShortcut();
+            }, true);
+        }
+
+        function initSubmitRingShiftShortcut() {
+            if (document.documentElement.dataset.submitRingShiftBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.submitRingShiftBound = '1';
+
+            let shiftPressedAlone = false;
+            let shiftChordUsed = false;
+
+            /** Shift+click bar tracking = quan sát viền cam — không toggle autoring khi thả Shift. */
+            const markShiftUsedForTrackingBarObserve = (event) => {
+                if (!event.shiftKey) {
+                    return;
+                }
+                const t = event.target;
+                if (t instanceof Element && t.closest('[data-st-bar]')) {
+                    shiftChordUsed = true;
+                }
+            };
+
+            document.addEventListener('pointerdown', markShiftUsedForTrackingBarObserve, true);
+            document.addEventListener('mousedown', markShiftUsedForTrackingBarObserve, true);
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Shift') {
+                    if (event.repeat) {
+                        return;
+                    }
+                    shiftPressedAlone = true;
+                    shiftChordUsed = false;
+                    if (!isPeriodFilterShortcutBlockedTarget(event.target)) {
+                        event.preventDefault();
+                    }
+                    return;
+                }
+                if (event.shiftKey) {
+                    shiftChordUsed = true;
+                }
+            }, true);
+
+            document.addEventListener('keyup', (event) => {
+                if (event.key !== 'Shift') {
+                    return;
+                }
+                const shouldToggle = shiftPressedAlone && !shiftChordUsed;
+                shiftPressedAlone = false;
+                shiftChordUsed = false;
+                if (!shouldToggle || isPeriodFilterShortcutBlockedTarget(event.target)) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                toggleSubmitRingFromShortcut();
             }, true);
         }
 
@@ -15331,6 +15391,7 @@
             initFilterTableScrollEdgeJumps();
             initAnswerTableScrollEdgeJumps();
             initSubmitRingToolbar();
+            initSubmitRingShiftShortcut();
             initPeriodFilterToolbar();
             initAnswerPopupShortcut();
             initAnswerPopupDrag();
@@ -15540,6 +15601,14 @@
                         return;
                     }
                     togglePeriodFilterFromShortcut();
+                    return;
+                }
+                if (msg.type === 'toggleSubmitRing') {
+                    const frame = el('okFrame');
+                    if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
+                        return;
+                    }
+                    toggleSubmitRingFromShortcut();
                     return;
                 }
                 if (msg.type === 'toggleAnswerPopup') {

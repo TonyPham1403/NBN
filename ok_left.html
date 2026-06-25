@@ -8630,6 +8630,68 @@
             }, true);
         })();
 
+        (function initLeftSubmitRingShiftShortcut() {
+            if (document.documentElement.dataset.submitRingShiftBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.submitRingShiftBound = '1';
+
+            var shiftPressedAlone = false;
+            var shiftChordUsed = false;
+
+            function isSubmitRingShortcutBlockedTarget(target) {
+                if (!target || !target.tagName) {
+                    return false;
+                }
+                var tag = target.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
+                    return true;
+                }
+                if (target.isContentEditable) {
+                    return true;
+                }
+                try {
+                    return !!target.closest && target.closest('[contenteditable="true"]');
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Shift') {
+                    if (event.repeat) {
+                        return;
+                    }
+                    shiftPressedAlone = true;
+                    shiftChordUsed = false;
+                    if (!isSubmitRingShortcutBlockedTarget(event.target)) {
+                        event.preventDefault();
+                    }
+                    return;
+                }
+                if (event.shiftKey) {
+                    shiftChordUsed = true;
+                }
+            }, true);
+
+            document.addEventListener('keyup', function (event) {
+                if (event.key !== 'Shift') {
+                    return;
+                }
+                var shouldToggle = shiftPressedAlone && !shiftChordUsed;
+                shiftPressedAlone = false;
+                shiftChordUsed = false;
+                if (!shouldToggle || isSubmitRingShortcutBlockedTarget(event.target)) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                try {
+                    window.parent.postMessage({ type: 'toggleSubmitRing' }, '*');
+                } catch (err) { }
+            }, true);
+        })();
+
         function handleLeftPaneNavKey(key) {
             try {
                 if (!key) return;
