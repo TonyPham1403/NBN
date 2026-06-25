@@ -2634,6 +2634,11 @@
             background: #eff6ff;
         }
 
+        .filter-popup-header-count-stack .filter-popup-header2-pct {
+            margin-left: 10px;
+            font-variant-numeric: tabular-nums;
+        }
+
         .filter-popup-header-count-stack .filter-popup-match-count2[hidden] {
             display: none !important;
         }
@@ -2702,7 +2707,7 @@
         }
 
         .filter-popup-header2:has(#filterPopupMatchCount2:not([hidden])) .filter-popup-header2-nums {
-            margin-right: 64px;
+            margin-right: 108px;
         }
 
         .filter-popup-header2-align-spacer {
@@ -2720,21 +2725,82 @@
             flex-wrap: nowrap;
         }
 
+        .filter-popup-header2-num-wrap {
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            vertical-align: middle;
+            flex-shrink: 0;
+            min-width: 34px;
+            max-width: 42px;
+            height: 24px;
+            min-height: 24px;
+            max-height: 24px;
+            border: 1px solid #cbd5e1;
+            border-radius: 4px;
+            background: #ffffff;
+            box-sizing: border-box;
+        }
+
+        .filter-popup-header2-num-wrap:not(.is-disabled) {
+            border: 2px solid #38ef7d;
+            background: #f6fff9;
+            box-shadow: 0 0 0 1px rgba(56, 239, 125, 0.25);
+        }
+
+        .filter-popup-header2-num-wrap:not(.is-disabled):focus-within {
+            border-color: rgba(202, 152, 18, 0.88);
+            box-shadow: 0 0 0 2px rgba(202, 152, 18, 0.3);
+            background: #fffdf5;
+        }
+
+        .filter-popup-header2-num-wrap.is-disabled {
+            pointer-events: none;
+            cursor: not-allowed;
+            opacity: 0.45;
+            background: #f1f5f9;
+            border: 1px solid #e2e8f0;
+            box-shadow: none;
+        }
+
+        #filterTableWrap.filter-popup-header2-active tbody tr.filter-popup-header2-hidden {
+            display: none !important;
+        }
+
+        #filterTableWrap .filter-popup-header2-empty-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 4;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 16px;
+            background: rgba(255, 255, 255, 0.92);
+            pointer-events: none;
+        }
+
+        #filterTableWrap .filter-popup-header2-empty-overlay[hidden] {
+            display: none !important;
+        }
+
         .filter-popup-header2-num.filter-popup-position-input {
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: auto;
-            min-width: 34px;
-            max-width: 42px;
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            min-width: 0;
+            max-width: none;
             text-align: center;
-            border: 1px solid #cbd5e1;
+            border: none;
             border-radius: 4px;
-            background: #ffffff;
+            background: transparent;
             line-height: 22px;
-            height: 24px;
-            min-height: 24px;
-            max-height: 24px;
+            height: 100%;
+            min-height: 0;
+            max-height: none;
             font-size: 12px;
             font-weight: 700;
             box-sizing: border-box;
@@ -2743,17 +2809,75 @@
             padding: 0 4px;
             margin: 0;
             vertical-align: middle;
+            box-shadow: none;
         }
 
         .filter-popup-header2-num.filter-popup-position-input:focus {
-            border-color: #38ef7d;
+            border-color: transparent;
             outline: none;
-            box-shadow: 0 0 0 1px rgba(56, 239, 125, 0.35);
-            background: #ffffff;
+            box-shadow: none;
+            background: transparent;
         }
 
-        .filter-popup-header2-num.filter-popup-position-input.is-empty {
+        .filter-popup-header2-num.filter-popup-position-input.is-empty:not(.show-placeholder) {
             color: #94a3b8;
+        }
+
+        .filter-popup-header2-num.filter-popup-position-input.show-placeholder.is-empty::before {
+            content: attr(data-placeholder);
+            position: absolute;
+            left: 0;
+            right: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            text-align: center;
+            color: rgba(202, 152, 18, 0.58);
+            font-size: 12px;
+            font-weight: 500;
+            line-height: 1;
+            filter: blur(0.45px);
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .filter-popup-header2-num.filter-popup-position-input.show-placeholder.is-empty {
+            color: transparent;
+            caret-color: #0f172a;
+        }
+
+        .filter-popup-header2-num-wrap.has-partial-placeholder .filter-popup-header2-num.filter-popup-position-input {
+            width: auto;
+            min-width: 0;
+            flex: 0 0 auto;
+            padding: 0 1px;
+            color: #0f172a;
+        }
+
+        .filter-popup-header2-num-suffix {
+            flex: 0 0 auto;
+            color: rgba(202, 152, 18, 0.58);
+            font-size: 12px;
+            font-weight: 500;
+            line-height: 22px;
+            filter: blur(0.45px);
+            pointer-events: none;
+            user-select: none;
+        }
+
+        .filter-popup-header2-num-suffix[hidden] {
+            display: none !important;
+        }
+
+        .filter-popup-header2-num.filter-popup-position-input.is-disabled {
+            pointer-events: none;
+            cursor: not-allowed;
+            color: #94a3b8;
+        }
+
+        .filter-popup-header2-num.filter-popup-position-input.is-disabled:focus {
+            border-color: transparent;
+            box-shadow: none;
+            background: transparent;
         }
 
         button.filter-popup-posnfreq-overlap-pct {
@@ -3965,6 +4089,7 @@
         }
 
         #filterTableWrap {
+            position: relative;
             overflow-x: hidden;
             overflow-y: auto;
             padding-bottom: 48px;
@@ -5044,6 +5169,7 @@
                             <span id="filterPopupHeader2FilteredCount" class="filter-popup-count-segment">0</span>
                             <span class="filter-popup-count-slash" aria-hidden="true">/</span>
                             <span id="filterPopupHeader2ParentCount" class="filter-popup-count-segment">0</span>
+                            <span id="filterPopupHeader2Pct" class="filter-popup-header2-pct">—</span>
                         </span>
                     </div>
                     <button type="button" id="filterPopupPosnfreqSourceBtn" class="filter-popup-posnfreq-source-btn"
@@ -5056,26 +5182,46 @@
                 <span class="filter-popup-title-label filter-popup-header2-align-spacer" aria-hidden="true">Lọc:</span>
                 <div id="filterPopupHeader2Nums" class="filter-popup-header2-nums" role="group"
                     aria-label="Lọc thêm: số 1–35 hoặc mẫn x4/1x trong mẫu kỳ">
-                    <span id="filterPopupHeader2Num0"
-                        class="filter-popup-position-input filter-popup-header2-num is-empty" data-slot="0" tabindex="0"
-                        role="textbox" aria-label="Mẫu 1: 1–35, x4 hoặc 1x"
-                        title="1–35, x4 (4,14,24,34), 1x (10–19)"></span>
-                    <span id="filterPopupHeader2Num1"
-                        class="filter-popup-position-input filter-popup-header2-num is-empty" data-slot="1" tabindex="0"
-                        role="textbox" aria-label="Mẫu 2: 1–35, x4 hoặc 1x"
-                        title="1–35, x4 (4,14,24,34), 1x (10–19)"></span>
-                    <span id="filterPopupHeader2Num2"
-                        class="filter-popup-position-input filter-popup-header2-num is-empty" data-slot="2" tabindex="0"
-                        role="textbox" aria-label="Mẫu 3: 1–35, x4 hoặc 1x"
-                        title="1–35, x4 (4,14,24,34), 1x (10–19)"></span>
-                    <span id="filterPopupHeader2Num3"
-                        class="filter-popup-position-input filter-popup-header2-num is-empty" data-slot="3" tabindex="0"
-                        role="textbox" aria-label="Mẫu 4: 1–35, x4 hoặc 1x"
-                        title="1–35, x4 (4,14,24,34), 1x (10–19)"></span>
-                    <span id="filterPopupHeader2Num4"
-                        class="filter-popup-position-input filter-popup-header2-num is-empty" data-slot="4" tabindex="0"
-                        role="textbox" aria-label="Mẫu 5: 1–35, x4 hoặc 1x"
-                        title="1–35, x4 (4,14,24,34), 1x (10–19)"></span>
+                    <span class="filter-popup-header2-num-wrap" data-slot="0">
+                        <span id="filterPopupHeader2Num0"
+                            class="filter-popup-position-input filter-popup-header2-num is-empty" data-slot="0"
+                            tabindex="0" role="textbox" aria-label="Mẫu 1: 1–35, x4 hoặc 1x"
+                            title="1–35, x4 (4,14,24,34), 1x (10–19)"></span>
+                        <span id="filterPopupHeader2Suffix0" class="filter-popup-header2-num-suffix" hidden
+                            aria-hidden="true"></span>
+                    </span>
+                    <span class="filter-popup-header2-num-wrap" data-slot="1">
+                        <span id="filterPopupHeader2Num1"
+                            class="filter-popup-position-input filter-popup-header2-num is-empty" data-slot="1"
+                            tabindex="0" role="textbox" aria-label="Mẫu 2: 1–35, x4 hoặc 1x"
+                            title="1–35, x4 (4,14,24,34), 1x (10–19)"></span>
+                        <span id="filterPopupHeader2Suffix1" class="filter-popup-header2-num-suffix" hidden
+                            aria-hidden="true"></span>
+                    </span>
+                    <span class="filter-popup-header2-num-wrap" data-slot="2">
+                        <span id="filterPopupHeader2Num2"
+                            class="filter-popup-position-input filter-popup-header2-num is-empty" data-slot="2"
+                            tabindex="0" role="textbox" aria-label="Mẫu 3: 1–35, x4 hoặc 1x"
+                            title="1–35, x4 (4,14,24,34), 1x (10–19)"></span>
+                        <span id="filterPopupHeader2Suffix2" class="filter-popup-header2-num-suffix" hidden
+                            aria-hidden="true"></span>
+                    </span>
+                    <span class="filter-popup-header2-num-wrap" data-slot="3">
+                        <span id="filterPopupHeader2Num3"
+                            class="filter-popup-position-input filter-popup-header2-num is-empty" data-slot="3"
+                            tabindex="0" role="textbox" aria-label="Mẫu 4: 1–35, x4 hoặc 1x"
+                            title="1–35, x4 (4,14,24,34), 1x (10–19)"></span>
+                        <span id="filterPopupHeader2Suffix3" class="filter-popup-header2-num-suffix" hidden
+                            aria-hidden="true"></span>
+                    </span>
+                    <span class="filter-popup-header2-num-wrap" data-slot="4">
+                        <span id="filterPopupHeader2Num4"
+                            class="filter-popup-position-input filter-popup-header2-num is-empty" data-slot="4"
+                            tabindex="0" role="textbox" aria-label="Mẫu 5: 1–35, x4 hoặc 1x"
+                            title="1–35, x4 (4,14,24,34), 1x (10–19)"></span>
+                        <span id="filterPopupHeader2Suffix4" class="filter-popup-header2-num-suffix" hidden
+                            aria-hidden="true"></span>
+                    </span>
                 </div>
             </div>
             <div class="filter-popup-body">
@@ -5210,6 +5356,20 @@
         const FILTER_NOTE_TAGS_KEY = 'filterNoteTags';
         const FILTER_HEADER2_NUMS_KEY = 'filterPopupHeader2Nums';
         const FILTER_HEADER2_ENABLED_KEY = 'filterPopupHeader2Enabled';
+        const FILTER_HEADER2_CANDIDATE_PATTERNS = (() => {
+            const out = [];
+            for (let n = 1; n <= 9; n++) {
+                out.push(`0${n}`);
+            }
+            for (let n = 10; n <= MAX_NUM; n++) {
+                out.push(String(n));
+            }
+            for (let d = 0; d <= 9; d++) {
+                out.push(`x${d}`);
+                out.push(`${d}x`);
+            }
+            return out;
+        })();
         const FILTER_CONNECTION_NOTE_TAGS_KEY = 'filterConnectionNoteTags';
         const FILTER_NOTE_TAG_ALL = 'all';
         const FILTER_NOTE_TAG_VALUES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
@@ -5312,6 +5472,9 @@
         let filterPopupRenderCacheKey = '';
         let filterPopupHtmlCache = '';
         let filterPopupIndicesCached = [];
+        let filterPopupBaseIndicesCached = [];
+        /** Cache tập mẫu header2 (mauByRow + rowsByNum) — tính trước khi mở popup / đổi mode. */
+        let filterHeader2MauCacheRef = null;
         /** posnfreq: chỉ hiện các kỳ có viền xanh (trùng result) khi bật từ nút % */
         let filterPopupPosnfreqGreenOnly = false;
         /** conn3: chỉ hiện kỳ cửa sổ 10 có 3-connection khi bật từ nút % */
@@ -5381,6 +5544,8 @@
         let filterConnectionNoteTagApplyTimer = null;
         /** Header2 popup: tối đa 5 ô số 1–35 — lọc thêm trong mẫu kỳ sau header1 */
         let filterPopupHeader2Slots = ['', '', '', '', ''];
+        let filterPopupHeader2Suggestions = ['', '', '', '', ''];
+        let filterPopupHeader2SuggestionLocked = ['', '', '', '', ''];
         let filterPopupHeader2Enabled = true;
         let keyboardFocusTarget = 'right-main';
 
@@ -9029,6 +9194,7 @@
                         invalidateFilterPopupRenderCache();
                         if (isPeriodFilterContextSheet()) {
                             filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
+                            prebuildFilterHeader2MauCache();
                             filterPopupIndicesCached = applyFilterHeader2ToIndices(filterPopupIndices).slice();
                         } else {
                             filterPopupIndices = [];
@@ -9094,6 +9260,7 @@
             posnfreqSourceRowIndex = refIdx;
             posnfreqSpecimenNum = n;
             posnfreqRefSignature = sheetManager.computePosnfreqSignature(rows, refIdx, n);
+            invalidateFilterHeader2MauCache();
             posnfreqSpecimenStrict = false;
             syncPosnfreqMetaText();
             schedulePosnfreqDeferredHeavyUi();
@@ -9430,6 +9597,8 @@
                     document.activeElement.blur();
                 } catch (e) { /* ignore */ }
             }
+            syncFilterHeader2SlotEnabledState();
+            syncFilterHeader2SuggestionUi();
             syncFilterPopupMatchCount2();
         }
 
@@ -9449,9 +9618,26 @@
             return String(text ?? '').trim().toLowerCase();
         }
 
+        /** Khi chốt ô: 1 chữ số 1–9 → 01–09 (tránh lẫn với gợi ý 2 ký tự / Nx). */
+        function canonicalizeFilterHeader2CommittedText(text) {
+            const t = normalizeFilterHeader2SlotText(text);
+            if (!t) {
+                return '';
+            }
+            if (/^[1-9]$/.test(t)) {
+                return `0${t}`;
+            }
+            return t;
+        }
+
+        function formatFilterHeader2ConcretePattern(n) {
+            return n >= 1 && n <= 9 ? `0${n}` : String(n);
+        }
+
         /**
          * Mở rộng ô header2 thành tập số 1–35:
-         * - số thường: 1–9, 10–35
+         * - số 1–9: 01–09 (bắt buộc 2 chữ số)
+         * - số 10–35: 10–35
          * - x4: hàng chục 0–3 → 4,14,24,34
          * - 1x: hàng đơn vị 0–9 → 10–19 (trong 1–35)
          */
@@ -9460,7 +9646,7 @@
             if (!t) {
                 return [];
             }
-            if (/^[1-9]$/.test(t)) {
+            if (/^0[1-9]$/.test(t)) {
                 return [parseInt(t, 10)];
             }
             if (/^\d{2}$/.test(t)) {
@@ -9494,7 +9680,7 @@
             return [];
         }
 
-        /** Cho phép gõ dở: 1–9, 10–35, x, x0–x9, 0x–9x (tối đa 2 ký tự). */
+        /** Cho phép gõ dở: 01–09, 10–35, 0 (đang gõ 0x), x, x0–x9, 0x–9x; 1–3 đơn lẻ = đang gõ 10–35. */
         function isValidFilterHeader2PartialText(text) {
             const t = normalizeFilterHeader2SlotText(text);
             if (!t) {
@@ -9503,10 +9689,16 @@
             if (t.length > 2) {
                 return false;
             }
-            if (t === 'x') {
+            if (t === 'x' || t === '0') {
                 return true;
             }
-            if (/^[1-9]$/.test(t)) {
+            if (/^0[1-9]$/.test(t)) {
+                return true;
+            }
+            if (/^[1-3]$/.test(t)) {
+                return true;
+            }
+            if (/^[4-9]$/.test(t)) {
                 return true;
             }
             if (/^\d{2}$/.test(t)) {
@@ -9527,24 +9719,742 @@
             const out = [];
             for (let i = 0; i < list.length; i++) {
                 const t = normalizeFilterHeader2SlotText(list[i]);
-                if (t && expandFilterHeader2Pattern(t).length > 0) {
-                    out.push(t);
+                if (!t) {
+                    break;
                 }
+                if (!isFilterHeader2SlotComplete(i)) {
+                    break;
+                }
+                out.push(t);
             }
             return out;
         }
 
-        function applyFilterHeader2Refresh() {
-            if (periodFilterEnabled) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true });
-            } else {
-                updateFilterPopupMatchCount();
+        /**
+         * Một kỳ khớp khi MỌI ô đã điền đều thỏa (AND), mỗi ô dùng một phần tử mẫu khác nhau.
+         */
+        function rowMatchesFilterHeader2SlotPatterns(rowIndex, slotPatterns) {
+            const patterns = Array.isArray(slotPatterns) ? slotPatterns : [];
+            if (!patterns.length) {
+                return true;
             }
+            const mau = getFilterRowMauNumberSet(rowIndex);
+            if (!mau.length) {
+                return false;
+            }
+            const usedMauIdx = new Set();
+            for (let s = 0; s < patterns.length; s++) {
+                const exp = expandFilterHeader2Pattern(patterns[s]);
+                if (!exp.length) {
+                    return false;
+                }
+                let slotHit = false;
+                for (let m = 0; m < mau.length; m++) {
+                    if (usedMauIdx.has(m)) {
+                        continue;
+                    }
+                    const n = mau[m];
+                    if (!exp.includes(n)) {
+                        continue;
+                    }
+                    usedMauIdx.add(m);
+                    slotHit = true;
+                    break;
+                }
+                if (!slotHit) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function countRowsMatchingFilterHeader2SlotPatterns(baseIndices, slotPatterns) {
+            const base = Array.isArray(baseIndices) ? baseIndices : [];
+            const patterns = Array.isArray(slotPatterns) ? slotPatterns : [];
+            if (!patterns.length) {
+                return base.length;
+            }
+            let count = 0;
+            for (let i = 0; i < base.length; i++) {
+                if (rowMatchesFilterHeader2SlotPatterns(base[i], patterns)) {
+                    count++;
+                }
+            }
+            return count;
+        }
+
+        function isFilterHeader2SlotCompleteUsingLocked(slotIdx, lockedArr) {
+            const t = normalizeFilterHeader2SlotText(filterPopupHeader2Slots[slotIdx]);
+            if (!t || expandFilterHeader2Pattern(t).length === 0) {
+                return false;
+            }
+            const locked = (lockedArr || filterPopupHeader2SuggestionLocked)[slotIdx] || '';
+            if (locked && locked.startsWith(t) && t.length < locked.length) {
+                return false;
+            }
+            return true;
+        }
+
+        function isFilterHeader2SlotComplete(slotIdx) {
+            return isFilterHeader2SlotCompleteUsingLocked(slotIdx, filterPopupHeader2SuggestionLocked);
+        }
+
+        /** Ô i chỉ sửa được khi mọi ô 0..i-1 đã có mẫu hợp lệ (điền từ trái sang phải). */
+        function isFilterHeader2SlotEditable(slotIdx) {
+            if (!isFilterHeader2Enabled()) {
+                return false;
+            }
+            if (slotIdx <= 0) {
+                return true;
+            }
+            for (let i = 0; i < slotIdx; i++) {
+                if (!isFilterHeader2SlotComplete(i)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function getFirstEditableFilterHeader2Slot() {
+            for (let i = 0; i < 5; i++) {
+                if (isFilterHeader2SlotEditable(i)) {
+                    return i;
+                }
+            }
+            return 0;
+        }
+
+        function enforceFilterHeader2SlotsChainFromStart() {
+            for (let i = 0; i < 5; i++) {
+                if (!isFilterHeader2SlotComplete(i)) {
+                    for (let j = i + 1; j < 5; j++) {
+                        filterPopupHeader2Slots[j] = '';
+                    }
+                    return;
+                }
+            }
+        }
+
+        function clearFilterHeader2SlotsAfter(slotIdx) {
+            for (let j = slotIdx + 1; j < 5; j++) {
+                filterPopupHeader2Slots[j] = '';
+            }
+        }
+
+        function syncFilterHeader2SlotEnabledState() {
+            for (let slot = 0; slot < 5; slot++) {
+                const input = el(`filterPopupHeader2Num${slot}`);
+                const wrap = input && input.parentElement
+                    && input.parentElement.classList.contains('filter-popup-header2-num-wrap')
+                    ? input.parentElement
+                    : null;
+                if (!input) {
+                    continue;
+                }
+                const editable = isFilterHeader2SlotEditable(slot);
+                input.classList.toggle('is-disabled', !editable);
+                input.setAttribute('aria-disabled', editable ? 'false' : 'true');
+                input.tabIndex = editable ? 0 : -1;
+                if (wrap) {
+                    wrap.classList.toggle('is-disabled', !editable);
+                }
+            }
+        }
+
+        function focusFilterHeader2Slot(slotIdx) {
+            const input = el(`filterPopupHeader2Num${slotIdx}`);
+            if (!input || !isFilterHeader2SlotEditable(slotIdx)) {
+                return;
+            }
+            try {
+                input.focus({ preventScroll: true });
+            } catch (e) { /* ignore */ }
+        }
+
+        /** Arrow trái/phải/trên/dưới: ô liền kề (xoay vòng); chấp nhận text ô hiện tại trước khi chuyển. */
+        function moveFilterHeader2SlotFocus(fromSlot, delta) {
+            if (!isFilterHeader2Enabled()) {
+                return;
+            }
+            if (!isFilterHeader2SlotEditable(fromSlot)) {
+                focusFilterHeader2Slot(getFirstEditableFilterHeader2Slot());
+                return;
+            }
+            acceptFilterHeader2SlotForNavigation(fromSlot);
+            const step = delta < 0 ? -1 : 1;
+            const next = (fromSlot + step + 5) % 5;
+            if (next === fromSlot) {
+                return;
+            }
+            if (step < 0) {
+                focusFilterHeader2Slot(next);
+                return;
+            }
+            if (isFilterHeader2SlotEditable(next)) {
+                focusFilterHeader2Slot(next);
+            }
+        }
+
+        function getFilterPopupBaseTableIndices() {
+            if (periodFilterEnabled && isConn3FilterMode(periodFilterMode)) {
+                return getConn3WindowExistIndicesFromSheet();
+            }
+            if (filterPopupIndices.length > 0) {
+                return filterPopupIndices.slice();
+            }
+            if (periodFilterEnabled && isPeriodFilterContextSheet()) {
+                return getFilterMatchingIndicesForMode(periodFilterMode);
+            }
+            return [];
+        }
+
+        function ensureFilterHeader2MauCache(baseIndices) {
+            const base = Array.isArray(baseIndices) ? baseIndices : getFilterPopupBaseTableIndices();
+            if (!sheetManager || typeof sheetManager.ensureFilterRowMauSetsCache !== 'function') {
+                filterHeader2MauCacheRef = null;
+                return null;
+            }
+            const refSig = posnfreqRefSignature || null;
+            filterHeader2MauCacheRef = sheetManager.ensureFilterRowMauSetsCache(base, refSig);
+            return filterHeader2MauCacheRef;
+        }
+
+        function prebuildFilterHeader2MauCache() {
+            if (!periodFilterEnabled || !isPeriodFilterContextSheet() || !sheetManager) {
+                return;
+            }
+            if (!filterPopupIndices.length) {
+                filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
+            }
+            ensureFilterHeader2MauCache(getFilterPopupBaseTableIndices());
+            recomputeFilterHeader2Suggestions();
+        }
+
+        function getFilterHeader2SlotPatternPrefix(slotIdx) {
+            const patterns = [];
+            for (let i = 0; i < slotIdx; i++) {
+                const t = normalizeFilterHeader2SlotText(filterPopupHeader2Slots[i]);
+                if (!t || expandFilterHeader2Pattern(t).length === 0) {
+                    return null;
+                }
+                patterns.push(t);
+            }
+            return patterns;
+        }
+
+        function getFilterHeader2BaseIndicesForSlot(slotIdx) {
+            const header1Pool = getFilterPopupHeader1PoolIndices();
+            const prefix = getFilterHeader2SlotPatternPrefix(slotIdx);
+            if (prefix === null) {
+                return [];
+            }
+            if (!prefix.length) {
+                return header1Pool.slice();
+            }
+            return computeFilterHeader2MatchingIndicesFromSlotPatterns(header1Pool, prefix);
+        }
+
+        function countRowsMatchingHeader2SlotPattern(baseIndices, pattern, prefixPatterns) {
+            const prefix = Array.isArray(prefixPatterns) ? prefixPatterns : [];
+            const patterns = prefix.concat([pattern]);
+            return countRowsMatchingFilterHeader2SlotPatterns(baseIndices, patterns);
+        }
+
+        function isBetterFilterHeader2SuggestionPattern(pattern, count, bestPattern, bestCount) {
+            if (count > bestCount) {
+                return true;
+            }
+            if (count < bestCount || !pattern) {
+                return false;
+            }
+            const pNum = /^\d+$/.test(pattern);
+            const bNum = /^\d+$/.test(bestPattern);
+            if (pNum !== bNum) {
+                return pNum;
+            }
+            return pattern.localeCompare(bestPattern, undefined, { numeric: true }) < 0;
+        }
+
+        function computeFilterHeader2SlotSuggestionForEmpty(slotIdx) {
+            if (!isFilterHeader2Enabled() || !isFilterHeader2SlotEditable(slotIdx)) {
+                return '';
+            }
+            const prefix = getFilterHeader2SlotPatternPrefix(slotIdx);
+            if (prefix === null) {
+                return '';
+            }
+            const header1Pool = getFilterPopupHeader1PoolIndices();
+            if (!header1Pool.length) {
+                return '';
+            }
+            let bestPattern = '';
+            let bestCount = -1;
+            const candidates = FILTER_HEADER2_CANDIDATE_PATTERNS;
+            for (let c = 0; c < candidates.length; c++) {
+                const pattern = candidates[c];
+                const count = countRowsMatchingHeader2SlotPattern(header1Pool, pattern, prefix);
+                if (isBetterFilterHeader2SuggestionPattern(pattern, count, bestPattern, bestCount)) {
+                    bestPattern = pattern;
+                    bestCount = count;
+                }
+            }
+            return bestCount > 0 ? bestPattern : '';
+        }
+
+        function isFilterHeader2PatternCompletionOfTemplate(completed, template) {
+            if (completed.length !== template.length) {
+                return false;
+            }
+            for (let i = 0; i < template.length; i++) {
+                if (template[i] === 'x') {
+                    continue;
+                }
+                if (completed[i] !== template[i]) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function enumerateConcretePatternsForTemplate(template) {
+            const t = normalizeFilterHeader2SlotText(template);
+            if (!t) {
+                return [];
+            }
+            const xTens = t.match(/^(\d)x$/);
+            if (xTens) {
+                const tens = parseInt(xTens[1], 10);
+                const out = [];
+                for (let ones = 0; ones <= 9; ones++) {
+                    out.push(`${tens}${ones}`);
+                }
+                return out;
+            }
+            const xOnes = t.match(/^x(\d)$/);
+            if (xOnes) {
+                const ones = parseInt(xOnes[1], 10);
+                const out = [];
+                for (let tens = 0; tens <= 3; tens++) {
+                    const n = tens * 10 + ones;
+                    if (n >= 1 && n <= MAX_NUM) {
+                        out.push(formatFilterHeader2ConcretePattern(n));
+                    }
+                }
+                return out;
+            }
+            return expandFilterHeader2Pattern(t).length > 0 ? [t] : [];
+        }
+
+        function listFilterHeader2TemplateCompletions(typed, template) {
+            if (!template || !template.startsWith(typed)) {
+                return [];
+            }
+            const out = [];
+            const candidates = enumerateConcretePatternsForTemplate(template);
+            for (let i = 0; i < candidates.length; i++) {
+                const p = candidates[i];
+                if (!p.startsWith(typed)) {
+                    continue;
+                }
+                if (!isFilterHeader2PatternCompletionOfTemplate(p, template)) {
+                    continue;
+                }
+                if (expandFilterHeader2Pattern(p).length === 0) {
+                    continue;
+                }
+                out.push(p);
+            }
+            return out;
+        }
+
+        function computeBestFilterHeader2CompletionPattern(slotIdx, typed, template) {
+            const header1Pool = getFilterPopupHeader1PoolIndices();
+            const slotPrefix = getFilterHeader2SlotPatternPrefix(slotIdx);
+            if (slotPrefix === null || !template.startsWith(typed)) {
+                return '';
+            }
+            const completions = listFilterHeader2TemplateCompletions(typed, template);
+            let bestPattern = '';
+            let bestCount = -1;
+            for (let i = 0; i < completions.length; i++) {
+                const pattern = completions[i];
+                const count = countRowsMatchingHeader2SlotPattern(header1Pool, pattern, slotPrefix);
+                if (isBetterFilterHeader2SuggestionPattern(pattern, count, bestPattern, bestCount)) {
+                    bestPattern = pattern;
+                    bestCount = count;
+                }
+            }
+            return bestPattern;
+        }
+
+        function findFilterHeader2BestTemplateForPartial(slotIdx, typed) {
+            const header1Pool = getFilterPopupHeader1PoolIndices();
+            const slotPrefix = getFilterHeader2SlotPatternPrefix(slotIdx);
+            if (slotPrefix === null || !typed) {
+                return '';
+            }
+            let bestTemplate = '';
+            let bestCount = -1;
+            let bestCompletion = '';
+            for (let c = 0; c < FILTER_HEADER2_CANDIDATE_PATTERNS.length; c++) {
+                const template = FILTER_HEADER2_CANDIDATE_PATTERNS[c];
+                if (!template.includes('x') || !template.startsWith(typed) || template.length <= typed.length) {
+                    continue;
+                }
+                const completion = computeBestFilterHeader2CompletionPattern(slotIdx, typed, template);
+                if (!completion) {
+                    continue;
+                }
+                const count = countRowsMatchingHeader2SlotPattern(header1Pool, completion, slotPrefix);
+                if (isBetterFilterHeader2SuggestionPattern(completion, count, bestCompletion, bestCount)) {
+                    bestTemplate = template;
+                    bestCompletion = completion;
+                    bestCount = count;
+                }
+            }
+            return bestCount > 0 ? bestTemplate : '';
+        }
+
+        function inferFilterHeader2WildcardTemplateForValue(slotIdx, typed) {
+            const header1Pool = getFilterPopupHeader1PoolIndices();
+            const slotPrefix = getFilterHeader2SlotPatternPrefix(slotIdx);
+            if (slotPrefix === null || !typed) {
+                return '';
+            }
+            let bestTemplate = '';
+            let bestCount = -1;
+            for (let c = 0; c < FILTER_HEADER2_CANDIDATE_PATTERNS.length; c++) {
+                const template = FILTER_HEADER2_CANDIDATE_PATTERNS[c];
+                if (!template.includes('x') || !isFilterHeader2PatternCompletionOfTemplate(typed, template)) {
+                    continue;
+                }
+                const count = countRowsMatchingHeader2SlotPattern(header1Pool, typed, slotPrefix);
+                if (isBetterFilterHeader2SuggestionPattern(typed, count, bestTemplate ? typed : '', bestCount)) {
+                    bestTemplate = template;
+                    bestCount = count;
+                }
+            }
+            return bestTemplate;
+        }
+
+        function preserveFilterHeader2SlotTemplateLocked(locked) {
+            for (let i = 0; i < 5; i++) {
+                const typed = normalizeFilterHeader2SlotText(filterPopupHeader2Slots[i]);
+                if (!typed) {
+                    locked[i] = '';
+                    continue;
+                }
+                const prev = locked[i] || '';
+                if (prev && (prev.startsWith(typed) || isFilterHeader2PatternCompletionOfTemplate(typed, prev))) {
+                    locked[i] = prev;
+                    continue;
+                }
+                const inferred = inferFilterHeader2WildcardTemplateForValue(i, typed);
+                if (inferred) {
+                    locked[i] = inferred;
+                }
+            }
+            return locked;
+        }
+
+        function getFilterHeader2PendingSlotIndexUsingLocked(lockedArr) {
+            if (!isFilterHeader2Enabled()) {
+                return -1;
+            }
+            for (let i = 0; i < 5; i++) {
+                if (!isFilterHeader2SlotEditable(i)) {
+                    break;
+                }
+                const t = normalizeFilterHeader2SlotText(filterPopupHeader2Slots[i]);
+                if (!t) {
+                    return i;
+                }
+                if (!isFilterHeader2SlotCompleteUsingLocked(i, lockedArr)) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        function computeFilterHeader2SlotSuggestion(slotIdx) {
+            return computeFilterHeader2SlotSuggestionForEmpty(slotIdx);
+        }
+
+        function getFilterHeader2BestConcreteForTemplate(slotIdx, template, typed) {
+            if (!template || !template.includes('x')) {
+                return '';
+            }
+            const prefix = typed == null ? '' : String(typed);
+            if (!template.startsWith(prefix)) {
+                return '';
+            }
+            return computeBestFilterHeader2CompletionPattern(slotIdx, prefix, template);
+        }
+
+        function getFilterHeader2PlaceholderDisplay(slotIdx) {
+            if (slotIdx !== getFilterHeader2PendingSlotIndex()) {
+                return { type: 'none' };
+            }
+            if (!isFilterHeader2SlotEditable(slotIdx)) {
+                return { type: 'none' };
+            }
+            const typed = normalizeFilterHeader2SlotText(filterPopupHeader2Slots[slotIdx]);
+            const base = filterPopupHeader2Suggestions[slotIdx] || '';
+            if (!base) {
+                return { type: 'none' };
+            }
+            if (!typed) {
+                // x4, x0…: x ở đầu → hiện luôn số cụ thể tốt nhất (vd. 14), không chỉ mẫu x4
+                if (/^x\d$/.test(base)) {
+                    const bestFull = getFilterHeader2BestConcreteForTemplate(slotIdx, base, '');
+                    if (bestFull) {
+                        return { type: 'full', text: bestFull, template: base };
+                    }
+                }
+                return { type: 'full', text: base };
+            }
+            if (isFilterHeader2SlotComplete(slotIdx)) {
+                return { type: 'none' };
+            }
+            if (!base.startsWith(typed)) {
+                return { type: 'none' };
+            }
+            const bestFull = computeBestFilterHeader2CompletionPattern(slotIdx, typed, base);
+            if (!bestFull || bestFull.length <= typed.length) {
+                return { type: 'none' };
+            }
+            return {
+                type: 'suffix',
+                suffix: bestFull.slice(typed.length),
+                full: bestFull
+            };
+        }
+
+        function getFilterHeader2PendingSlotIndex() {
+            return getFilterHeader2PendingSlotIndexUsingLocked(filterPopupHeader2SuggestionLocked);
+        }
+
+        function recomputeFilterHeader2Suggestions() {
+            if (!isFilterHeader2Enabled() || !periodFilterEnabled) {
+                filterPopupHeader2Suggestions = ['', '', '', '', ''];
+                filterPopupHeader2SuggestionLocked = ['', '', '', '', ''];
+                return;
+            }
+            ensureFilterHeader2MauCache(getFilterPopupBaseTableIndices());
+            const next = ['', '', '', '', ''];
+            let locked = preserveFilterHeader2SlotTemplateLocked(filterPopupHeader2SuggestionLocked.slice());
+            const pending = getFilterHeader2PendingSlotIndexUsingLocked(locked);
+
+            if (pending >= 0) {
+                const typed = normalizeFilterHeader2SlotText(filterPopupHeader2Slots[pending]);
+                let base = locked[pending] || '';
+                if (!typed) {
+                    base = computeFilterHeader2SlotSuggestionForEmpty(pending);
+                } else if (!isFilterHeader2SlotCompleteUsingLocked(pending, locked)) {
+                    if (!(base && base.startsWith(typed))) {
+                        base = findFilterHeader2BestTemplateForPartial(pending, typed) || base;
+                    }
+                }
+                if (base) {
+                    locked[pending] = base;
+                }
+                if (!typed) {
+                    next[pending] = base;
+                } else if (!isFilterHeader2SlotCompleteUsingLocked(pending, locked) && base && base.startsWith(typed)) {
+                    next[pending] = base;
+                }
+            }
+            filterPopupHeader2SuggestionLocked = locked;
+            filterPopupHeader2Suggestions = next;
+        }
+
+        function getFilterHeader2NumWrap(slotIdx) {
+            const input = el(`filterPopupHeader2Num${slotIdx}`);
+            if (!input || !input.parentElement) {
+                return null;
+            }
+            const wrap = input.parentElement;
+            return wrap.classList.contains('filter-popup-header2-num-wrap') ? wrap : null;
+        }
+
+        function getFilterHeader2SlotPlaceholder(slotIdx) {
+            const display = getFilterHeader2PlaceholderDisplay(slotIdx);
+            if (display.type === 'full') {
+                return display.text;
+            }
+            if (display.type === 'suffix') {
+                return display.full;
+            }
+            return '';
+        }
+
+        function syncFilterHeader2SuggestionUi() {
+            recomputeFilterHeader2Suggestions();
+            for (let slot = 0; slot < 5; slot++) {
+                const input = el(`filterPopupHeader2Num${slot}`);
+                const suffixEl = el(`filterPopupHeader2Suffix${slot}`);
+                const wrap = getFilterHeader2NumWrap(slot);
+                const display = getFilterHeader2PlaceholderDisplay(slot);
+                if (!input) {
+                    continue;
+                }
+                input.classList.remove('show-placeholder');
+                delete input.dataset.placeholder;
+                input.removeAttribute('aria-placeholder');
+                if (suffixEl) {
+                    suffixEl.textContent = '';
+                    suffixEl.hidden = true;
+                }
+                if (wrap) {
+                    wrap.classList.remove('has-partial-placeholder');
+                }
+                const baseTitle = '01–09, 10–35, x4 (4,14,24,34), 1x (10–19)';
+                if (display.type === 'full') {
+                    input.dataset.placeholder = display.text;
+                    input.classList.add('show-placeholder');
+                    input.title = `${baseTitle} — Enter nhận gợi ý ${display.text}`;
+                    input.setAttribute('aria-placeholder', display.text);
+                } else if (display.type === 'suffix') {
+                    if (suffixEl) {
+                        suffixEl.textContent = display.suffix;
+                        suffixEl.hidden = false;
+                    }
+                    if (wrap) {
+                        wrap.classList.add('has-partial-placeholder');
+                    }
+                    input.title = `${baseTitle} — Enter nhận gợi ý ${display.full}`;
+                    input.setAttribute('aria-placeholder', display.suffix);
+                } else {
+                    input.title = baseTitle;
+                }
+            }
+        }
+
+        function acceptFilterHeader2SlotSuggestion(slotIdx) {
+            const display = getFilterHeader2PlaceholderDisplay(slotIdx);
+            if (!isFilterHeader2SlotEditable(slotIdx)) {
+                return false;
+            }
+            if (display.type === 'full') {
+                syncFilterHeader2SlotLive(slotIdx, display.text);
+                return true;
+            }
+            if (display.type === 'suffix') {
+                syncFilterHeader2SlotLive(slotIdx, display.full);
+                return true;
+            }
+            return false;
+        }
+
+        function computeFilterHeader2MatchingIndicesFromSlotPatterns(baseIndices, slotPatterns) {
+            const base = Array.isArray(baseIndices) ? baseIndices : [];
+            const slots = Array.isArray(slotPatterns) ? slotPatterns : [];
+            if (!slots.length) {
+                return base.slice();
+            }
+            return base.filter((rowIndex) => rowMatchesFilterHeader2SlotPatterns(rowIndex, slots));
+        }
+
+        function computeFilterHeader2MatchingIndices(baseIndices) {
+            const base = Array.isArray(baseIndices) ? baseIndices : [];
+            if (!isFilterHeader2Enabled()) {
+                return base.slice();
+            }
+            const slots = getFilterHeader2ActiveSlotTexts();
+            if (!slots.length) {
+                return base.slice();
+            }
+            return computeFilterHeader2MatchingIndicesFromSlotPatterns(base, slots);
+        }
+
+        function applyFilterHeader2RowVisibility(wrap) {
+            if (!wrap) {
+                return;
+            }
+            const enabled = isFilterHeader2Enabled() && getFilterHeader2ActiveSlotTexts().length > 0;
+            const base = getFilterPopupBaseTableIndices();
+            const matching = enabled
+                ? new Set(computeFilterHeader2MatchingIndices(base))
+                : null;
+            const rows = wrap.querySelectorAll('tbody tr[data-idx]');
+            for (let i = 0; i < rows.length; i++) {
+                const tr = rows[i];
+                const idx = Number(tr.dataset.idx);
+                const show = !enabled || matching.has(idx);
+                tr.classList.toggle('filter-popup-header2-hidden', !show);
+            }
+            wrap.classList.toggle('filter-popup-header2-active', enabled);
+        }
+
+        function syncFilterHeader2EmptyOverlay(wrap) {
+            if (!wrap) {
+                return;
+            }
+            const enabled = isFilterHeader2Enabled() && getFilterHeader2ActiveSlotTexts().length > 0;
+            const visibleCount = enabled
+                ? computeFilterHeader2MatchingIndices(getFilterPopupBaseTableIndices()).length
+                : getFilterPopupBaseTableIndices().length;
+            let overlay = wrap.querySelector('.filter-popup-header2-empty-overlay');
+            if (enabled && visibleCount === 0) {
+                if (!overlay) {
+                    overlay = document.createElement('div');
+                    overlay.className = 'filter-popup-header2-empty-overlay filter-popup-empty';
+                    wrap.appendChild(overlay);
+                }
+                overlay.textContent = getFilterPopupHeader2EmptyMessage();
+                overlay.hidden = false;
+            } else if (overlay) {
+                overlay.hidden = true;
+            }
+        }
+
+        function applyFilterHeader2LiveFilter() {
+            const wrap = el('filterTableWrap');
+            if (!wrap || !wrap.querySelector('table.sheet-data-table')) {
+                applyFilterHeader2Refresh({ forceHeavy: true });
+                return;
+            }
+            const baseIndices = getFilterPopupBaseTableIndices();
+            ensureFilterHeader2MauCache(baseIndices);
+            applyFilterHeader2RowVisibility(wrap);
+            syncFilterHeader2EmptyOverlay(wrap);
+            filterPopupIndicesCached = getFilterPopupTableIndices();
+            reconcileFilterPopupFocusAfterListChange(getFilterPopupDisplayIndices(), {});
+            updateFilterPopupMatchCount();
+            syncPeriodFilterNavModeToIframe();
+            syncFilterHeader2SuggestionUi();
+            try {
+                if (typeof window.__syncFilterTableThumbTrackInsets === 'function') {
+                    window.__syncFilterTableThumbTrackInsets();
+                }
+            } catch (eThumb) { /* ignore */ }
+        }
+
+        function applyFilterHeader2Refresh(options = {}) {
+            if (!periodFilterEnabled) {
+                updateFilterPopupMatchCount();
+                return;
+            }
+            if (options.forceHeavy) {
+                refreshFilterPopup({ syncMain: false, immediateRender: true });
+                return;
+            }
+            const wrap = el('filterTableWrap');
+            const hasTable = wrap && wrap.querySelector('table.sheet-data-table');
+            if (hasTable && filterPopupHasLiveTable(wrap, getFilterPopupRenderCacheKey())) {
+                applyFilterHeader2LiveFilter();
+                return;
+            }
+            refreshFilterPopup({ syncMain: false, immediateRender: true });
         }
 
         function getFilterRowMauNumberSet(rowIndex) {
             if (!sheetManager || typeof sheetManager.getFilterRowMauNumbers !== 'function') {
                 return [];
+            }
+            const cache = filterHeader2MauCacheRef && filterHeader2MauCacheRef.mauByRow;
+            if (cache && cache.has(rowIndex)) {
+                return [...cache.get(rowIndex)];
             }
             const refSig = posnfreqRefSignature || null;
             return sheetManager.getFilterRowMauNumbers(rowIndex, refSig);
@@ -9555,29 +10465,11 @@
             if (!slots.length) {
                 return true;
             }
-            const mau = getFilterRowMauNumberSet(rowIndex);
-            if (!mau.length) {
-                return false;
-            }
-            const mauSet = new Set(mau);
-            for (let i = 0; i < slots.length; i++) {
-                const exp = expandFilterHeader2Pattern(slots[i]);
-                if (!exp.length) {
-                    continue;
-                }
-                if (!exp.some((n) => mauSet.has(n))) {
-                    return false;
-                }
-            }
-            return true;
+            return rowMatchesFilterHeader2SlotPatterns(rowIndex, slots);
         }
 
         function applyFilterHeader2ToIndices(baseIndices) {
-            const base = Array.isArray(baseIndices) ? baseIndices : [];
-            if (!isFilterHeader2Enabled() || !getFilterHeader2ActiveSlotTexts().length) {
-                return base.slice();
-            }
-            return base.filter((rowIndex) => rowMatchesFilterHeader2(rowIndex));
+            return computeFilterHeader2MatchingIndices(baseIndices);
         }
 
         function getFilterPopupDisplayIndices() {
@@ -9623,12 +10515,17 @@
                         return '';
                     }
                     if (typeof v === 'string') {
-                        const t = normalizeFilterHeader2SlotText(v);
+                        let t = canonicalizeFilterHeader2CommittedText(normalizeFilterHeader2SlotText(v));
                         return isValidFilterHeader2PartialText(t) && expandFilterHeader2Pattern(t).length > 0 ? t : '';
                     }
                     const n = parseInt(v, 10);
-                    return Number.isFinite(n) && n >= 1 && n <= MAX_NUM ? String(n) : '';
+                    if (!Number.isFinite(n) || n < 1 || n > MAX_NUM) {
+                        return '';
+                    }
+                    const t = n <= 9 ? `0${n}` : String(n);
+                    return expandFilterHeader2Pattern(t).length > 0 ? t : '';
                 });
+                enforceFilterHeader2SlotsChainFromStart();
             } catch (e) { /* ignore */ }
         }
 
@@ -9642,6 +10539,8 @@
                 setFilterPopupPositionText(input, text);
                 input.classList.toggle('is-empty', !text);
             }
+            syncFilterHeader2SlotEnabledState();
+            syncFilterHeader2SuggestionUi();
         }
 
         function syncFilterHeader2SlotLive(slotIdx, text) {
@@ -9649,19 +10548,29 @@
             if (t && !isValidFilterHeader2PartialText(t)) {
                 return;
             }
+            if (slotIdx > 0 && !isFilterHeader2SlotEditable(slotIdx)) {
+                return;
+            }
             const prev = normalizeFilterHeader2SlotText(filterPopupHeader2Slots[slotIdx]);
             if (prev === t) {
+                syncFilterHeader2SlotEnabledState();
+                syncFilterHeader2SuggestionUi();
                 updateFilterPopupMatchCount();
                 return;
             }
             filterPopupHeader2Slots[slotIdx] = t;
+            if (!isFilterHeader2SlotComplete(slotIdx)) {
+                clearFilterHeader2SlotsAfter(slotIdx);
+            }
+            enforceFilterHeader2SlotsChainFromStart();
             saveFilterHeader2Settings();
+            syncFilterHeader2InputsFromState();
             applyFilterHeader2Refresh();
         }
 
         function commitFilterHeader2NumFromSlot(slotIdx) {
             const input = el(`filterPopupHeader2Num${slotIdx}`);
-            if (!input || slotIdx < 0 || slotIdx > 4) {
+            if (!input || slotIdx < 0 || slotIdx > 4 || !isFilterHeader2SlotEditable(slotIdx)) {
                 return;
             }
             const raw = getFilterPopupPositionText(input).trim();
@@ -9670,7 +10579,7 @@
                 input.classList.add('is-empty');
                 return;
             }
-            const norm = normalizeFilterHeader2SlotText(raw);
+            const norm = canonicalizeFilterHeader2CommittedText(normalizeFilterHeader2SlotText(raw));
             if (!isValidFilterHeader2PartialText(norm) || expandFilterHeader2Pattern(norm).length === 0) {
                 const saved = normalizeFilterHeader2SlotText(filterPopupHeader2Slots[slotIdx]);
                 setFilterPopupPositionText(input, saved);
@@ -9682,7 +10591,37 @@
             input.classList.toggle('is-empty', !norm);
         }
 
+        /** Arrow / chuyển ô: chấp nhận text đang gõ (kể cả gõ dở), bỏ khóa gợi ý để ô coi là xong. */
+        function acceptFilterHeader2SlotForNavigation(slotIdx) {
+            const input = el(`filterPopupHeader2Num${slotIdx}`);
+            if (!input || slotIdx < 0 || slotIdx > 4 || !isFilterHeader2SlotEditable(slotIdx)) {
+                return false;
+            }
+            const raw = getFilterPopupPositionText(input).trim();
+            filterPopupHeader2SuggestionLocked[slotIdx] = '';
+            filterPopupHeader2Suggestions[slotIdx] = '';
+            if (!raw) {
+                syncFilterHeader2SlotLive(slotIdx, '');
+                input.classList.add('is-empty');
+                return true;
+            }
+            const norm = canonicalizeFilterHeader2CommittedText(normalizeFilterHeader2SlotText(raw));
+            if (!isValidFilterHeader2PartialText(norm) || expandFilterHeader2Pattern(norm).length === 0) {
+                const saved = normalizeFilterHeader2SlotText(filterPopupHeader2Slots[slotIdx]);
+                setFilterPopupPositionText(input, saved);
+                input.classList.toggle('is-empty', !saved);
+                return false;
+            }
+            syncFilterHeader2SlotLive(slotIdx, norm);
+            setFilterPopupPositionText(input, norm);
+            input.classList.toggle('is-empty', !norm);
+            return true;
+        }
+
         function tryAppendFilterHeader2Char(slotIdx, ch) {
+            if (!isFilterHeader2SlotEditable(slotIdx)) {
+                return false;
+            }
             const input = el(`filterPopupHeader2Num${slotIdx}`);
             if (!input) {
                 return false;
@@ -9706,6 +10645,9 @@
         }
 
         function tryBackspaceFilterHeader2Num(slotIdx) {
+            if (!isFilterHeader2SlotEditable(slotIdx)) {
+                return false;
+            }
             const input = el(`filterPopupHeader2Num${slotIdx}`);
             if (!input) {
                 return false;
@@ -9721,6 +10663,7 @@
             const box = el('filterPopupMatchCount2');
             const filteredEl = el('filterPopupHeader2FilteredCount');
             const parentEl = el('filterPopupHeader2ParentCount');
+            const pctEl = el('filterPopupHeader2Pct');
             if (!box || !filteredEl || !parentEl) {
                 return;
             }
@@ -9731,13 +10674,19 @@
             const header2Count = header2Filtering
                 ? applyFilterHeader2ToIndices(header1Pool).length
                 : header1Count;
+            const pct = header1Count > 0
+                ? Math.round((header2Count / header1Count) * 100)
+                : 0;
             filteredEl.textContent = String(header2Count);
             parentEl.textContent = String(header1Count);
+            if (pctEl) {
+                pctEl.textContent = header1Count > 0 ? `${pct}%` : '—';
+            }
             box.classList.toggle('enabled', periodFilterEnabled && header2Filtering);
             box.hidden = !periodFilterEnabled || !isFilterHeader2Enabled();
             const slotsLabel = active.length ? active.join(', ') : '';
             const title = active.length
-                ? `Header2: ${header2Count}/${header1Count} kỳ có mẫu ${slotsLabel}`
+                ? `Header2: ${header2Count}/${header1Count} (${pct}%) kỳ có mẫu ${slotsLabel}`
                 : 'Header2: số 1–35 hoặc x4/1x (x=hàng chục/đơn vị 0–9)';
             box.setAttribute('title', title);
         }
@@ -9781,12 +10730,25 @@
                 }
                 input.addEventListener('mousedown', (event) => {
                     event.stopPropagation();
+                    if (!isFilterHeader2SlotEditable(slot)) {
+                        event.preventDefault();
+                        focusFilterHeader2Slot(getFirstEditableFilterHeader2Slot());
+                    }
                 });
                 input.addEventListener('click', (event) => {
                     event.stopPropagation();
+                    if (!isFilterHeader2SlotEditable(slot)) {
+                        event.preventDefault();
+                        focusFilterHeader2Slot(getFirstEditableFilterHeader2Slot());
+                    }
                 });
                 input.addEventListener('focus', (event) => {
                     event.stopPropagation();
+                    if (!isFilterHeader2SlotEditable(slot)) {
+                        event.preventDefault();
+                        input.blur();
+                        focusFilterHeader2Slot(getFirstEditableFilterHeader2Slot());
+                    }
                 });
                 input.addEventListener('blur', () => {
                     commitFilterHeader2NumFromSlot(slot);
@@ -9794,19 +10756,25 @@
                 input.addEventListener('paste', (event) => {
                     event.preventDefault();
                     event.stopPropagation();
+                    if (!isFilterHeader2SlotEditable(slot)) {
+                        return;
+                    }
                     const pasted = normalizeFilterHeader2SlotText(
                         String((event.clipboardData || window.clipboardData).getData('text') || '')
                     );
                     if (!pasted || !isValidFilterHeader2PartialText(pasted)) {
                         return;
                     }
-                    let text = pasted;
-                    if (expandFilterHeader2Pattern(pasted).length === 0) {
+                    let text = canonicalizeFilterHeader2CommittedText(pasted);
+                    if (expandFilterHeader2Pattern(text).length === 0) {
                         const n = parseFilterHeader2NumInput(pasted);
                         if (n == null) {
                             return;
                         }
-                        text = String(n);
+                        text = canonicalizeFilterHeader2CommittedText(String(n));
+                    }
+                    if (!isValidFilterHeader2PartialText(text) || expandFilterHeader2Pattern(text).length === 0) {
+                        return;
                     }
                     setFilterPopupPositionText(input, text);
                     input.classList.toggle('is-empty', !text);
@@ -9814,6 +10782,11 @@
                 });
                 input.addEventListener('keydown', (event) => {
                     const key = String(event.key || '');
+                    if (!isFilterHeader2SlotEditable(slot) && key !== 'Tab') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        return;
+                    }
                     if ((key >= '0' && key <= '9') || key === 'x' || key === 'X') {
                         event.preventDefault();
                         event.stopPropagation();
@@ -9829,14 +10802,33 @@
                     if (key === 'Enter') {
                         event.preventDefault();
                         event.stopPropagation();
+                        const phDisplay = getFilterHeader2PlaceholderDisplay(slot);
+                        if (phDisplay.type === 'full' || phDisplay.type === 'suffix') {
+                            acceptFilterHeader2SlotSuggestion(slot);
+                            return;
+                        }
                         commitFilterHeader2NumFromSlot(slot);
                         input.blur();
+                        return;
+                    }
+                    if (key === 'ArrowLeft' || key === 'ArrowUp') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        event.stopImmediatePropagation();
+                        moveFilterHeader2SlotFocus(slot, -1);
+                        return;
+                    }
+                    if (key === 'ArrowRight' || key === 'ArrowDown') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        event.stopImmediatePropagation();
+                        moveFilterHeader2SlotFocus(slot, 1);
                         return;
                     }
                     if (key === 'Tab') {
                         commitFilterHeader2NumFromSlot(slot);
                     }
-                });
+                }, true);
             }
         }
 
@@ -12586,6 +13578,9 @@
                 }
 
                 if (isRightPaneArrowKey(event.key)) {
+                    if (isFilterPopupHeader2InputFocused()) {
+                        return;
+                    }
                     if (shouldRouteRightPaneArrowsToFilter() && handleFilterPopupNavKeydown(event)) {
                         return;
                     }
@@ -12616,6 +13611,9 @@
 
         function handleFilterPopupNavKeydown(event) {
             if (!isFilterPopupNavActive()) {
+                return false;
+            }
+            if (isFilterPopupHeader2InputFocused()) {
                 return false;
             }
             if (!isRightPaneFilterKeyboardTarget()) {
@@ -12705,7 +13703,7 @@
             const tailKey = isTailFilterMode(periodFilterMode)
                 ? `tail:c:${filterTailCount}:${opTok(filterTailOp)}`
                 : '';
-            const h2 = isFilterHeader2Enabled() ? getFilterHeader2ActiveSlotTexts().join(',') : '';
+            const h2on = `h2on:${isFilterHeader2Enabled() ? 1 : 0}`;
             return [
                 periodFilterMode,
                 tags,
@@ -12720,15 +13718,24 @@
                 ixKey,
                 dbKey,
                 tailKey,
-                `h2on:${isFilterHeader2Enabled() ? 1 : 0}`,
-                `h2:${h2}`
+                h2on
             ].join('|');
+        }
+
+        function invalidateFilterHeader2MauCache() {
+            filterHeader2MauCacheRef = null;
+            if (sheetManager) {
+                sheetManager._filterRowMauSetsCache = null;
+                sheetManager._filterRowMauSetsCacheKey = '';
+            }
         }
 
         function invalidateFilterPopupRenderCache() {
             filterPopupRenderCacheKey = '';
             filterPopupHtmlCache = '';
             filterPopupIndicesCached = [];
+            filterPopupBaseIndicesCached = [];
+            invalidateFilterHeader2MauCache();
         }
 
         function filterPopupHasLiveTable(wrap, cacheKey) {
@@ -12743,15 +13750,15 @@
                 return false;
             }
             const domCount = wrap.querySelectorAll('tbody tr[data-idx]').length;
-            const expected = filterPopupIndicesCached.length
-                || getFilterPopupTableIndices().length;
+            const expected = filterPopupBaseIndicesCached.length
+                || getFilterPopupBaseTableIndices().length;
             if (isAllFilterMode(periodFilterMode)) {
                 return domCount > 0 && domCount === expected;
             }
-            if (!filterPopupIndicesCached.length || !filterPopupHtmlCache) {
+            if (!filterPopupBaseIndicesCached.length || !filterPopupHtmlCache) {
                 return false;
             }
-            return domCount === filterPopupIndicesCached.length;
+            return domCount === expected;
         }
 
         function activateFilterPopupRow(idx, event) {
@@ -12865,12 +13872,12 @@
             wrap.style.setProperty('--right-table-zoom', String(rightPaneZoom));
             const freshHeader1 = getFilterMatchingIndicesForMode(periodFilterMode);
             filterPopupIndices = freshHeader1;
-            const freshIdx = getFilterPopupTableIndices();
+            const freshBase = getFilterPopupBaseTableIndices();
             const domIdx = [...wrap.querySelectorAll('tbody tr[data-idx]')].map((tr) => Number(tr.dataset.idx));
-            let domMatchesFresh = freshIdx.length === domIdx.length;
+            let domMatchesFresh = freshBase.length === domIdx.length;
             if (domMatchesFresh) {
-                for (let i = 0; i < freshIdx.length; i++) {
-                    if (freshIdx[i] !== domIdx[i]) {
+                for (let i = 0; i < freshBase.length; i++) {
+                    if (freshBase[i] !== domIdx[i]) {
                         domMatchesFresh = false;
                         break;
                     }
@@ -12897,7 +13904,11 @@
                 }
             }
             filterPopupIndices = freshHeader1;
-            filterPopupIndicesCached = freshIdx.slice();
+            filterPopupBaseIndicesCached = freshBase.slice();
+            ensureFilterHeader2MauCache(freshBase);
+            applyFilterHeader2RowVisibility(wrap);
+            syncFilterHeader2EmptyOverlay(wrap);
+            filterPopupIndicesCached = getFilterPopupTableIndices();
             applyFilterPopupNonexistIdGapBorders(wrap);
             updateFilterPopupPrevRecallFoldTooltips();
             syncFilterPopupPosnfreqSubmitOverlap();
@@ -12931,6 +13942,7 @@
             }
             syncFilterPopupAllModeFocusMask();
             syncPeriodFilterNavModeToIframe();
+            syncFilterHeader2SuggestionUi();
         }
 
         function syncFilterPopupHeaderUi() {
@@ -13113,16 +14125,20 @@
         function buildFilterPopupTable(wrap, options = {}) {
             const syncMain = options.syncMain === true;
             const cacheKey = options.cacheKey || getFilterPopupRenderCacheKey();
-            const displayIndices = getFilterPopupTableIndices();
+            const baseIndices = getFilterPopupBaseTableIndices();
+            ensureFilterHeader2MauCache(baseIndices);
 
             wrap.style.setProperty('--right-table-zoom', String(rightPaneZoom));
             sheetManager.renderSourceSheet(wrap, getFilterSourceSheetRows(), {
-                indices: displayIndices,
+                indices: baseIndices,
                 bindKeyboard: false,
                 applyWindowSelection: false,
                 skipRowClickBind: true
             });
-            filterPopupIndicesCached = displayIndices.slice();
+            filterPopupBaseIndicesCached = baseIndices.slice();
+            applyFilterHeader2RowVisibility(wrap);
+            syncFilterHeader2EmptyOverlay(wrap);
+            filterPopupIndicesCached = getFilterPopupTableIndices();
             applyFilterPopupNonexistIdGapBorders(wrap);
             syncFilterPopupPosnfreqSubmitOverlap();
             syncFilterPopupConn3WindowOverlap();
@@ -13169,6 +14185,7 @@
             }
 
             filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
+            ensureFilterHeader2MauCache(getFilterPopupBaseTableIndices());
             const displayIndices = getFilterPopupTableIndices();
             reconcileFilterPopupFocusAfterListChange(displayIndices, options);
             syncFilterPopupHeaderUi();
@@ -13183,16 +14200,6 @@
                 return;
             }
 
-            if (displayIndices.length === 0 && isFilterHeader2Enabled() && getFilterHeader2ActiveSlotTexts().length > 0) {
-                invalidateFilterPopupRenderCache();
-                filterPopupPosnfreqGreenOnly = false;
-                filterPopupConn3WindowOnly = false;
-                wrap.classList.remove('filter-popup-posnfreq-green-only');
-                wrap.innerHTML = '<div class="filter-popup-empty">' + getFilterPopupHeader2EmptyMessage() + '</div>';
-                finishFilterPopupOpen({ syncMain });
-                return;
-            }
-
             buildFilterPopupTable(wrap, {
                 syncMain,
                 cacheKey: getFilterPopupRenderCacheKey()
@@ -13203,6 +14210,7 @@
             if (!periodFilterEnabled || !isPeriodFilterContextSheet()) {
                 return;
             }
+            prebuildFilterHeader2MauCache();
             const wrap = el('filterTableWrap');
             if (!wrap) {
                 return;
@@ -14646,11 +15654,16 @@
                     scheduleComboH1ReplaceFromLeftCircled();
                 } else if (msg.type === 'leftCircledNumsReady') {
                     if (sheetManager && typeof sheetManager.setLeftBasicPreviewPickNums === 'function') {
-                        const ignoreEmptyStash = typeof sheetManager.shouldIgnoreEmptyLeftCircledNumsAfterStashRestore === 'function'
+                        const forceSync = !!msg.forceSync;
+                        const ignoreEmptyStash = !forceSync
+                            && typeof sheetManager.shouldIgnoreEmptyLeftCircledNumsAfterStashRestore === 'function'
                             && sheetManager.shouldIgnoreEmptyLeftCircledNumsAfterStashRestore(msg.nums);
                         if (!ignoreEmptyStash) {
+                            if (forceSync) {
+                                sheetManager._basicPreviewStashRestoredAt = 0;
+                            }
                             const changed = sheetManager.setLeftBasicPreviewPickNums(msg.nums || []);
-                            if (changed) {
+                            if (changed || forceSync) {
                                 window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
                             }
                         }

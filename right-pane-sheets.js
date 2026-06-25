@@ -445,6 +445,9 @@ class RightPaneSheetManager {
         this._conn3FilterIndicesCacheRowLen = 0;
         this._conn3WindowExistIndicesCache = null;
         this._conn3WindowExistIndicesCacheRowLen = 0;
+        /** Cache tập mẫu theo kỳ cho lọc header2 filter popup. */
+        this._filterRowMauSetsCache = null;
+        this._filterRowMauSetsCacheKey = '';
         this.frequencyMap = {};
         this.colorPalette = [
             'rgb(255, 192, 0)',    // Gold
@@ -585,6 +588,8 @@ class RightPaneSheetManager {
         this._conn3FilterIndicesCacheRowLen = 0;
         this._conn3WindowExistIndicesCache = null;
         this._conn3WindowExistIndicesCacheRowLen = 0;
+        this._filterRowMauSetsCache = null;
+        this._filterRowMauSetsCacheKey = '';
     }
 
     /** Rows used for sheet1 / nonexist filter (independent of active combo tab). */
@@ -1541,6 +1546,41 @@ class RightPaneSheetManager {
             return [];
         }
         return this.parseMainNums(row.result || row.Result || '');
+    }
+
+    /**
+     * Tập mẫu theo kỳ cho lọc header2 — tính trước (posnfreq: tối đa 35 chữ ký / kỳ).
+     * @param {number[]} indices
+     * @param {object|null} [refSignature]
+     * @returns {{ mauByRow: Map<number, Set<number>>, rowsByNum: Set<number>[] }}
+     */
+    ensureFilterRowMauSetsCache(indices, refSignature = null) {
+        const rows = this.getSourceSheetRows();
+        const list = Array.isArray(indices) ? indices : [];
+        const sigPart = refSignature && Number.isFinite(refSignature.frequency)
+            ? `pnf:${refSignature.frequency}:${this.posnfreqPositionsKey(refSignature)}`
+            : 'main';
+        const cacheKey = `${rows.length}|${sigPart}|${list.length}:${list[0] ?? ''}:${list[list.length - 1] ?? ''}`;
+        if (this._filterRowMauSetsCache && this._filterRowMauSetsCacheKey === cacheKey) {
+            return this._filterRowMauSetsCache;
+        }
+        const mauByRow = new Map();
+        const rowsByNum = Array.from({ length: 36 }, () => new Set());
+        for (let i = 0; i < list.length; i++) {
+            const rowIndex = list[i];
+            const nums = this.getFilterRowMauNumbers(rowIndex, refSignature);
+            const set = new Set(nums);
+            mauByRow.set(rowIndex, set);
+            for (let u = 0; u < nums.length; u++) {
+                const n = nums[u];
+                if (n >= 1 && n <= 35) {
+                    rowsByNum[n].add(rowIndex);
+                }
+            }
+        }
+        this._filterRowMauSetsCache = { mauByRow, rowsByNum };
+        this._filterRowMauSetsCacheKey = cacheKey;
+        return this._filterRowMauSetsCache;
     }
 
     /**
@@ -8864,6 +8904,23 @@ class RightPaneSheetManager {
         return (this.leftBasicPreviewPickNums || []).length > 0;
     }
 
+    /** Bar basic tracking → nửa trái: Submit OFF hoặc kỳ cuối trống khi Submit ON. */
+    shouldSyncBasicBarPickToLeftPane() {
+        if (!this.leftSubmitActive) {
+            return true;
+        }
+        const sheet = this.sheets[TRACKING_SHEET_ID] || this.sheets.specialtracking;
+        if (!sheet || this.getTrackingViewMode(sheet) !== 'basic') {
+            return false;
+        }
+        const ui = sheet.trackingUi;
+        const frameIndex = ui && typeof ui.frameIndex === 'number' ? ui.frameIndex : -1;
+        if (frameIndex < 0) {
+            return false;
+        }
+        return this.isBasicTrackingLastEmptyRowSyncActive(sheet, frameIndex);
+    }
+
     /** Basic tracking id cuối: toggle khoanh số trên nửa trái (tối đa 5), đồng bộ viền đen bar phải. */
     toggleBasicTrackingLastIdBarPick(n) {
         const num = parseInt(n, 10);
@@ -8883,7 +8940,7 @@ class RightPaneSheetManager {
             next = current.concat(num);
         }
         this.setLeftBasicPreviewPickNums(next);
-        if (!this.leftSubmitActive) {
+        if (this.shouldSyncBasicBarPickToLeftPane()) {
             this.syncLeftPickSelectionToIframe(next);
         }
         try {
@@ -10612,7 +10669,7 @@ class RightPaneSheetManager {
         const applyBasicLastIdBarNavPick = (n) => {
             basicLastIdBarNavNum = n;
             this.setLeftBasicPreviewPickNums([n]);
-            if (!this.leftSubmitActive) {
+            if (this.shouldSyncBasicBarPickToLeftPane()) {
                 this.syncLeftPickSelectionToIframe([n]);
             }
             try {

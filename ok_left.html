@@ -2843,10 +2843,10 @@
             pickOrder = next.slice(0, MAX_PICK_NUMBERS);
         }
 
-        function refreshLeftPickSelectionUi() {
+        function refreshLeftPickSelectionUi(options) {
             try { syncPickOrderFromSelected(); } catch (e) { /* ignore */ }
             try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { /* ignore */ }
-            try { notifyParentLeftCircledNums(); } catch (e) { /* ignore */ }
+            try { notifyParentLeftCircledNums(options); } catch (e) { /* ignore */ }
             try { syncPickPropertyBadges(); } catch (eBadges) { /* ignore */ }
             try { syncReferenceConn3PickHintRow(); } catch (eHint) { /* ignore */ }
         }
@@ -2934,12 +2934,14 @@
             applySubmitCircleOverlayInDOM();
         }
 
-        function notifyParentLeftCircledNums() {
+        function notifyParentLeftCircledNums(options) {
             try {
+                var opts = options || {};
                 window.parent.postMessage({
                     type: 'leftCircledNumsReady',
                     nums: getLeftPaneCircledNums(),
-                    submitActive: !!submitActive
+                    submitActive: !!submitActive,
+                    forceSync: !!opts.forceSync
                 }, '*');
             } catch (e) { }
         }
@@ -7984,7 +7986,7 @@
                     updateFloatingCopyButtons();
                     alignTableActionsAndCenter();
                     updateFocusIndicator();
-                    refreshLeftPickSelectionUi();
+                    refreshLeftPickSelectionUi({ forceSync: true });
                 } catch (eDom) { /* ignore */ }
             } catch (e) { console.error(e); }
         }
@@ -8150,7 +8152,7 @@
                     try { applySelectionAndBlockedInDOM(); updateFloatingCopyButtons(); alignTableActionsAndCenter(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); }
                 }
                 try { updateFocusIndicator(); } catch (e) { }
-                try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
+                try { refreshLeftPickSelectionUi({ forceSync: true }); } catch (e) { /* ignore */ }
                 try {
                     if (!submitLocked) persistSelectionMemoryForFocus();
                 } catch (eMemUndo) { /* ignore */ }
@@ -10079,11 +10081,16 @@
                     setAnswerTicketPreviewNums(msg.nums);
                     return;
                 } else if (msg.type === 'syncAnswerPickSelection') {
-                    if (submitActive) {
+                    const fromBasicBar = !!msg.basicTrackingPreview;
+                    if (submitActive && !fromBasicBar) {
                         return;
                     }
-                    if (hasPendingClearSelectionUndo()) {
+                    if (!fromBasicBar && hasPendingClearSelectionUndo()) {
                         return;
+                    }
+                    if (fromBasicBar && hasPendingClearSelectionUndo()) {
+                        invalidateClearSelectionToggleBackup();
+                        selectionCleared = false;
                     }
                     const pickNums = (msg.nums || [])
                         .map(function (x) { return parseInt(x, 10); })
@@ -10091,21 +10098,37 @@
                         .slice(0, MAX_PICK_NUMBERS);
                     // Parent gửi lại cùng bộ số sau Submit off (iframe đã khôi phục preSubmit):
                     // clear + add lại gây nháy khoanh — bỏ qua nếu đã khớp.
-                    if (!transientSelected.size && !simulatedSelected.size
+                    if (!fromBasicBar
+                        && !transientSelected.size && !simulatedSelected.size
+                        && pickNums.length === selected.size
+                        && pickNums.every(function (n) { return selected.has(n); })) {
+                        return;
+                    }
+                    if (fromBasicBar
+                        && !submitActive
+                        && !transientSelected.size && !simulatedSelected.size
                         && pickNums.length === selected.size
                         && pickNums.every(function (n) { return selected.has(n); })) {
                         return;
                     }
                     invalidateClearSelectionToggleBackup();
                     selected.clear();
-                    transientSelected.clear();
-                    simulatedSelected.clear();
+                    if (!(fromBasicBar && submitActive)) {
+                        transientSelected.clear();
+                        simulatedSelected.clear();
+                    }
                     pickOrder = pickNums.slice();
                     pickNums.forEach(function (n) { selected.add(n); });
                     try { recomputePairsFromSelected(); } catch (eR) { /* ignore */ }
                     try { updateBlocked(); } catch (eB) { /* ignore */ }
                     try {
-                        applySelectionAndBlockedInDOM();
+                        if (submitActive && fromBasicBar) {
+                            applySelectionAndBlockedInDOM();
+                            applySubmitState();
+                            applySubmitCircleOverlayInDOM();
+                        } else {
+                            applySelectionAndBlockedInDOM();
+                        }
                         updateFloatingCopyButtons();
                         alignTableActionsAndCenter();
                         updateFocusIndicator();
