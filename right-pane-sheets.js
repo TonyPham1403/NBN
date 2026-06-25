@@ -436,6 +436,8 @@ class RightPaneSheetManager {
         this.leftBasicPreviewPickNums = [];
         /** Nhớ pick giả lập khi bật Submit (khôi phục khi tắt Submit). */
         this.leftBasicPreviewPickNumsStash = [];
+        /** Tăng mỗi lần setLeftBasicPreviewPickNums đổi — chặn response requestLeftCircledNums cũ. */
+        this._leftBasicPreviewPickGeneration = 0;
         /** Cache filter mode connection (invalid khi refreshDerivedState). */
         this._connectionFilterIndicesCache = null;
         this._connectionFilterIndicesCacheRowLen = 0;
@@ -8909,6 +8911,7 @@ class RightPaneSheetManager {
         const same = prev.length === next.length && prev.every((v, i) => v === next[i]);
         if (!same) {
             this.leftBasicPreviewPickNums = next;
+            this._leftBasicPreviewPickGeneration += 1;
         }
         return !same;
     }
@@ -9103,10 +9106,15 @@ class RightPaneSheetManager {
         return this.isBasicTrackingLastEmptyRowSyncActive(sheet, frameIndex);
     }
 
-    /** Layout giả lập freq (+1 pick, trừ justDrawn) — chỉ khi Submit OFF. */
+    /** Layout giả lập freq (+1 pick, trừ justDrawn) — Submit OFF, hoặc kỳ cuối trống khi Submit ON. */
     isBasicTrackingFreqPreviewLayoutActive(sheet, frameIndex) {
-        return !this.leftSubmitActive
-            && this.isBasicTrackingFramePreviewEligible(sheet, frameIndex);
+        if (!this.isBasicTrackingFramePreviewEligible(sheet, frameIndex)) {
+            return false;
+        }
+        if (!this.leftSubmitActive) {
+            return true;
+        }
+        return this.isBasicTrackingLastEmptyRowSyncActive(sheet, frameIndex);
     }
 
     /**
@@ -11049,6 +11057,7 @@ class RightPaneSheetManager {
             if (!frame || !frame.contentWindow) {
                 return;
             }
+            const reqGen = this._leftBasicPreviewPickGeneration;
             const nonce = `trkPrev_${Date.now()}_${Math.random().toString(36).slice(2)}`;
             const onMessage = (ev) => {
                 const msg = ev.data || {};
@@ -11056,6 +11065,9 @@ class RightPaneSheetManager {
                     return;
                 }
                 window.removeEventListener('message', onMessage);
+                if (reqGen !== this._leftBasicPreviewPickGeneration) {
+                    return;
+                }
                 if (this.setLeftBasicPreviewPickNums(msg.nums || [])) {
                     paint();
                 }
