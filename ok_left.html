@@ -3455,7 +3455,59 @@
             };
         }
 
-        function restoreSelectionStateSnapshot(snap) {
+        /** Nhớ theo id: chỉ pick tay — không lưu khoanh autoring (tránh hiện lại khi autoring tắt). */
+        function stripAutoringFromSelectionSnapshot(snap) {
+            if (!snap) {
+                return snap;
+            }
+            var out = {
+                selected: (snap.selected || []).slice(),
+                pickOrder: (snap.pickOrder || []).slice(),
+                autoRingPicked: [],
+                selectionCleared: !!snap.selectionCleared,
+                pairNeonObserveNum: snap.pairNeonObserveNum,
+                pairNeonObserveContextBeyondLonePair: snap.pairNeonObserveContextBeyondLonePair,
+                currentPairIndex: snap.currentPairIndex,
+                currentTailIndex: snap.currentTailIndex,
+                currentPhaseNumber: snap.currentPhaseNumber,
+                currentPhaseRow: snap.currentPhaseRow,
+                lastClickedRegion: snap.lastClickedRegion,
+                leftKeyboardRegion: snap.leftKeyboardRegion,
+                lastClickedRow: snap.lastClickedRow,
+                lastClickedNumber: snap.lastClickedNumber,
+                phaseHistory: Array.isArray(snap.phaseHistory) ? snap.phaseHistory.slice() : []
+            };
+            var ringOnly = new Set();
+            (snap.autoRingPicked || []).forEach(function (n) {
+                if (!isNaN(n)) {
+                    ringOnly.add(n);
+                }
+            });
+            if (ringOnly.size) {
+                out.selected = out.selected.filter(function (n) {
+                    return !isNaN(n) && !ringOnly.has(n);
+                });
+                out.pickOrder = out.pickOrder.filter(function (n) {
+                    return !isNaN(n) && !ringOnly.has(n);
+                });
+            }
+            return out;
+        }
+
+        function snapshotSelectionStateForMemory() {
+            return stripAutoringFromSelectionSnapshot(snapshotSelectionState());
+        }
+
+        function sanitizeSelectionMemoryStripAutoring() {
+            try {
+                selectionMemoryByFocusId.forEach(function (snap, fk) {
+                    selectionMemoryByFocusId.set(fk, stripAutoringFromSelectionSnapshot(snap));
+                });
+            } catch (e) { /* ignore */ }
+        }
+
+        function restoreSelectionStateSnapshot(snap, options) {
+            options = options || {};
             if (!snap) return;
             try {
                 invalidateClearSelectionToggleBackup();
@@ -3463,17 +3515,36 @@
                 clearPairContributionTracking();
                 transientSelected.clear();
                 simulatedSelected.clear();
-                (snap.selected || []).forEach(function (n) { if (!isNaN(n)) selected.add(n); });
-                pickOrder = snap.pickOrder ? snap.pickOrder.slice() : [];
-                autoRingPicked.clear();
-                var ringRestore = Array.isArray(snap.autoRingPicked) && snap.autoRingPicked.length
-                    ? snap.autoRingPicked
-                    : (snap.selected || []);
-                ringRestore.forEach(function (n) {
-                    if (!isNaN(n)) {
-                        autoRingPicked.add(n);
-                    }
-                });
+                var stripAutoring = !!options.stripAutoring || !submitAutoCircleEnabled;
+                var ringOnly = new Set();
+                if (stripAutoring) {
+                    (snap.autoRingPicked || []).forEach(function (n) {
+                        if (!isNaN(n)) {
+                            ringOnly.add(n);
+                        }
+                    });
+                    (snap.selected || []).forEach(function (n) {
+                        if (!isNaN(n) && !ringOnly.has(n)) {
+                            selected.add(n);
+                        }
+                    });
+                    pickOrder = (snap.pickOrder || []).filter(function (n) {
+                        return !isNaN(n) && selected.has(n);
+                    });
+                    autoRingPicked.clear();
+                } else {
+                    (snap.selected || []).forEach(function (n) { if (!isNaN(n)) selected.add(n); });
+                    pickOrder = snap.pickOrder ? snap.pickOrder.slice() : [];
+                    autoRingPicked.clear();
+                    var ringRestore = Array.isArray(snap.autoRingPicked) && snap.autoRingPicked.length
+                        ? snap.autoRingPicked
+                        : (snap.selected || []);
+                    ringRestore.forEach(function (n) {
+                        if (!isNaN(n)) {
+                            autoRingPicked.add(n);
+                        }
+                    });
+                }
                 selectionCleared = !!snap.selectionCleared;
                 pairNeonObserveContextBeyondLonePair = snap.pairNeonObserveContextBeyondLonePair === true;
                 pairNeonObserveNum = null;
@@ -3514,7 +3585,7 @@
             try {
                 var fk = lastAutoRingFocusKey;
                 if (!fk || submitActive || disableSubmitForCurrentData) return;
-                selectionMemoryByFocusId.set(fk, snapshotSelectionState());
+                selectionMemoryByFocusId.set(fk, snapshotSelectionStateForMemory());
             } catch (e) { /* non-fatal */ }
         }
 
@@ -9868,7 +9939,7 @@
                     const skipFocusSwapForTrackingStep = trackingFrameStepProcess;
 
                     if (!skipFocusSwapForTrackingStep && prevFkAtStart && isFocusArrival) {
-                        try { selectionMemoryByFocusId.set(prevFkAtStart, snapshotSelectionState()); } catch (e) { }
+                        try { selectionMemoryByFocusId.set(prevFkAtStart, snapshotSelectionStateForMemory()); } catch (e) { }
                     }
 
                     if (!skipFocusSwapForTrackingStep && isFocusArrival) {
@@ -10114,11 +10185,16 @@
                     } else if (!submitAutoCircleEnabled && wasEnabled) {
                         var ringNumsOff = Array.from(autoRingPicked);
                         try { autoRingPicked.clear(); } catch (e) { }
-                        if (submitActive && ringNumsOff.length) {
+                        try { autoRingVisitedIds.clear(); } catch (eVis) { /* ignore */ }
+                        try { sanitizeSelectionMemoryStripAutoring(); } catch (eMem) { /* ignore */ }
+                        if (ringNumsOff.length) {
                             ringNumsOff.forEach(function (n) {
                                 selected.delete(n);
                                 transientSelected.delete(n);
                             });
+                            if (pickOrder && pickOrder.length) {
+                                pickOrder = pickOrder.filter(function (n) { return selected.has(n); });
+                            }
                             try { recomputePairsFromSelected(); } catch (ePairsOff) { }
                             try { updateBlocked(); } catch (eBlkOff) { }
                         }

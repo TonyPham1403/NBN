@@ -11851,9 +11851,59 @@
             }
         }
 
+        /** Focus id bảng chính có trong danh sách filter popup hiện tại (mode + subfilter). */
+        function isMainUserFocusInFilterPopupEffectiveList() {
+            if (!periodFilterEnabled) {
+                return true;
+            }
+            const mainIdx = getMainSourceSheetFocusRowIndex();
+            if (typeof mainIdx !== 'number' || mainIdx < 0) {
+                return true;
+            }
+            return getFilterPopupEffectiveListIndices().includes(mainIdx);
+        }
+
+        function clearFilterPopupHighlightsWhenMainFocusExcluded() {
+            const filterWrap = el('filterTableWrap');
+            if (!sheetManager || !filterWrap) {
+                return;
+            }
+            sheetManager.clearIdRefHighlightFromDom(filterWrap);
+            sheetManager.clearFocusNoteRefHighlightFromDom(filterWrap);
+            sheetManager.clearWindowBorderClassesOnWrap(filterWrap);
+        }
+
+        function reapplyFilterPopupWindowHighlightsIfAllowed() {
+            if (!sheetManager || typeof sheetManager.reapplyActiveWindowHighlightsToDom !== 'function') {
+                return;
+            }
+            const mainWrap = el('tableWrap');
+            const filterWrap = el('filterTableWrap');
+            sheetManager.reapplyActiveWindowHighlightsToDom(mainWrap);
+            if (isMainUserFocusInFilterPopupEffectiveList()) {
+                sheetManager.reapplyActiveWindowHighlightsToDom(filterWrap);
+            } else {
+                clearFilterPopupHighlightsWhenMainFocusExcluded();
+            }
+        }
+
         function applyFilterPopupRowFocus(idx) {
             const wrap = el('filterTableWrap');
             if (!wrap || typeof idx !== 'number' || idx < 0) {
+                clearFilterPopupRowFocus();
+                syncFilterPopupAllModeClass();
+                return;
+            }
+            if (!isMainUserFocusInFilterPopupEffectiveList()) {
+                filterPopupActiveIdx = -1;
+                clearFilterPopupRowFocus();
+                syncFilterPopupAllModeClass();
+                clearFilterPopupHighlightsWhenMainFocusExcluded();
+                return;
+            }
+            const list = getFilterPopupEffectiveListIndices();
+            if (!list.includes(idx)) {
+                clearFilterPopupRowFocus();
                 syncFilterPopupAllModeClass();
                 return;
             }
@@ -11906,8 +11956,11 @@
                 return -1;
             }
             const mainIdx = getMainSourceSheetFocusRowIndex();
-            if (typeof mainIdx === 'number' && mainIdx >= 0 && indices.includes(mainIdx)) {
-                return mainIdx;
+            if (typeof mainIdx === 'number' && mainIdx >= 0) {
+                if (indices.includes(mainIdx)) {
+                    return mainIdx;
+                }
+                return -1;
             }
             if (indices.includes(filterPopupActiveIdx)) {
                 return filterPopupActiveIdx;
@@ -12727,13 +12780,14 @@
             }
             const list = getFilterPopupEffectiveListIndices();
             if (!list.includes(focusRowIndex)) {
+                filterPopupActiveIdx = -1;
+                applyFilterPopupRowFocus(-1);
+                clearFilterPopupHighlightsWhenMainFocusExcluded();
                 return;
             }
             filterPopupActiveIdx = focusRowIndex;
             applyFilterPopupRowFocus(filterPopupActiveIdx);
-            if (sheetManager && typeof sheetManager.reapplyActiveWindowHighlightsToDom === 'function') {
-                sheetManager.reapplyActiveWindowHighlightsToDom();
-            }
+            reapplyFilterPopupWindowHighlightsIfAllowed();
             scrollFilterPopupRowIntoView();
             updateFilterPopupMatchCount();
             const positionInput = el('filterPopupPositionInput');
@@ -12760,8 +12814,8 @@
                     applyFilterPopupRowFocus(filterPopupActiveIdx);
                     if (isAllFilterMode(periodFilterMode) && filterPopupActiveIdx >= 0) {
                         syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly: true });
-                    } else if (sheetManager && typeof sheetManager.reapplyActiveWindowHighlightsToDom === 'function') {
-                        sheetManager.reapplyActiveWindowHighlightsToDom();
+                    } else {
+                        reapplyFilterPopupWindowHighlightsIfAllowed();
                     }
                 }
             } else if (options.clearPopupNav) {
@@ -12769,6 +12823,7 @@
                 resetFilterPopupPositionUi();
             } else {
                 applyFilterPopupRowFocus(-1);
+                clearFilterPopupHighlightsWhenMainFocusExcluded();
             }
             return filterPopupActiveIdx;
         }
@@ -12869,8 +12924,8 @@
                     syncMainRowFromFilter(filterPopupActiveIdx);
                 } else if (isAllFilterMode(periodFilterMode)) {
                     syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly: true });
-                } else if (sheetManager && typeof sheetManager.reapplyActiveWindowHighlightsToDom === 'function') {
-                    sheetManager.reapplyActiveWindowHighlightsToDom();
+                } else {
+                    reapplyFilterPopupWindowHighlightsIfAllowed();
                 }
                 scrollFilterPopupRowIntoView();
             }
@@ -14565,6 +14620,11 @@
                     if (sheetManager && typeof sheetManager.setLeftSubmitActive === 'function') {
                         sheetManager.setLeftSubmitActive(!!msg.submitActive);
                     }
+                    if (!msg.submitActive) {
+                        try {
+                            window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
+                        } catch (eTrk) { /* ignore */ }
+                    }
                     window.dispatchEvent(new CustomEvent('leftSubmitStateChanged', {
                         detail: { active: !!msg.submitActive }
                     }));
@@ -14586,9 +14646,13 @@
                     scheduleComboH1ReplaceFromLeftCircled();
                 } else if (msg.type === 'leftCircledNumsReady') {
                     if (sheetManager && typeof sheetManager.setLeftBasicPreviewPickNums === 'function') {
-                        const changed = sheetManager.setLeftBasicPreviewPickNums(msg.nums || []);
-                        if (changed) {
-                            window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
+                        const ignoreEmptyStash = typeof sheetManager.shouldIgnoreEmptyLeftCircledNumsAfterStashRestore === 'function'
+                            && sheetManager.shouldIgnoreEmptyLeftCircledNumsAfterStashRestore(msg.nums);
+                        if (!ignoreEmptyStash) {
+                            const changed = sheetManager.setLeftBasicPreviewPickNums(msg.nums || []);
+                            if (changed) {
+                                window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
+                            }
                         }
                     }
                     const ap = ensureAnswerPopup();
