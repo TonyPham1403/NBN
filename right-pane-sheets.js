@@ -4915,6 +4915,7 @@ class RightPaneSheetManager {
             idRefHighlightIndices,
             focusNoteRefHighlightIndices
         };
+        this._focusUncalledNonexistKey = null;
         if (previewOnly) {
             if (idRefHighlightIndices && idRefHighlightIndices.length) {
                 this.applyIdRefHighlightToDom(idRefHighlightIndices, tableWrap);
@@ -4922,6 +4923,17 @@ class RightPaneSheetManager {
             if (focusNoteRefHighlightIndices && focusNoteRefHighlightIndices.length) {
                 this.applyFocusNoteRefHighlightToDom(focusNoteRefHighlightIndices, tableWrap);
             }
+            this._focusUncalledNonexistKey = null;
+            const previewRefresh = new Set();
+            if (prevWindowRange) {
+                for (const i of this.collectNonexistBoostRefreshRowIndices(prevWindowRange)) {
+                    previewRefresh.add(i);
+                }
+            }
+            for (const i of this.collectNonexistBoostRefreshRowIndices(this.activeWindowRange)) {
+                previewRefresh.add(i);
+            }
+            this.refreshNonexistCellsForRowIndices(tableWrap, previewRefresh);
             return;
         }
         if (idRefHighlightIndices && idRefHighlightIndices.length) {
@@ -4932,16 +4944,61 @@ class RightPaneSheetManager {
         }
         // Refresh nonexist HTML first; renderWindowLabels after so innerHTML does not strip labels.
         const refreshIndices = new Set();
-        if (prevWindowRange && typeof prevWindowRange.start === 'number' && typeof prevWindowRange.end === 'number') {
-            for (let i = prevWindowRange.start; i <= prevWindowRange.end; i++) {
+        if (prevWindowRange) {
+            for (const i of this.collectNonexistBoostRefreshRowIndices(prevWindowRange)) {
                 refreshIndices.add(i);
             }
         }
-        for (let i = startIdx; i <= endIdx; i++) {
+        for (const i of this.collectNonexistBoostRefreshRowIndices({
+            start: startIdx,
+            end: endIdx,
+            target: targetIdx !== null ? targetIdx : endIdx
+        })) {
             refreshIndices.add(i);
         }
         this.refreshNonexistCellsForRowIndices(tableWrap, refreshIndices);
         this.renderWindowLabels(startIdx, endIdx, tableWrap);
+    }
+
+    /**
+     * Cập nhật activeWindowRange sheet1 trong bộ nhớ (không vẽ DOM).
+     * Dùng khi đang xem sheet khác (tracking/combo) nhưng cần giữ focus sheet1 đồng bộ.
+     */
+    commitSourceSheetWindowRangeForIndex(idx, options = {}) {
+        if (typeof idx !== 'number' || idx < 0) {
+            return false;
+        }
+        const rows = this.getSourceSheetRows();
+        if (idx >= rows.length) {
+            return false;
+        }
+        const start = Math.max(0, idx - 10);
+        const end = idx;
+        const preserveIdRefHighlights = options.preserveIdRefHighlights === true;
+        const prevWindowRange = this.activeWindowRange;
+        let idRefHighlightIndices = null;
+        if (Array.isArray(options.idRefHighlightIndices)) {
+            idRefHighlightIndices = options.idRefHighlightIndices.slice();
+        } else if (preserveIdRefHighlights && prevWindowRange
+            && Array.isArray(prevWindowRange.idRefHighlightIndices)) {
+            idRefHighlightIndices = prevWindowRange.idRefHighlightIndices.slice();
+        }
+        let focusNoteRefHighlightIndices = null;
+        if (Array.isArray(options.focusNoteRefHighlightIndices)) {
+            focusNoteRefHighlightIndices = options.focusNoteRefHighlightIndices.slice();
+        } else if (options.skipFocusNoteRef) {
+            focusNoteRefHighlightIndices = [];
+        } else {
+            focusNoteRefHighlightIndices = this.findWindowRowIndicesReferencedInFocusNote(idx);
+        }
+        this.activeWindowRange = {
+            start,
+            end,
+            target: idx,
+            idRefHighlightIndices,
+            focusNoteRefHighlightIndices
+        };
+        return true;
     }
 
     /**
@@ -5420,6 +5477,146 @@ class RightPaneSheetManager {
         return fullStreak > windowStreak;
     }
 
+    /** Hàng đầu streak nonexist liên tiếp của `num` tính ngược từ fromRowIndex. */
+    getNonexistStreakStartRow(fromRowIndex, num) {
+        if (!this.nonexistCache || fromRowIndex < 0) {
+            return -1;
+        }
+        const streak = this.countNonexistStreak(fromRowIndex, num, 0);
+        if (streak <= 0) {
+            return -1;
+        }
+        return fromRowIndex - streak + 1;
+    }
+
+    numInNonexistCacheRow(rowIdx, num) {
+        const meta = this.nonexistCache && this.nonexistCache[rowIdx];
+        if (!meta) {
+            return false;
+        }
+        const text = String(meta.text || '').trim();
+        if (!text || text === 'N/A') {
+            return false;
+        }
+        return this.parseNums(text).indexOf(num) !== -1;
+    }
+
+    isNonexistNumYellowAtRow(rowIndex, num) {
+        const rows = this.getSourceSheetRows();
+        if (rowIndex < 0 || rowIndex >= rows.length) {
+            return false;
+        }
+        if (!this.numInNonexistCacheRow(rowIndex, num)) {
+            return false;
+        }
+        const row = rows[rowIndex];
+        const nonexistMeta = this.getNonexistMetaForSourceRow(rowIndex, row);
+        const nx = String(nonexistMeta.text || '').trim();
+        if (!nx || nx === 'N/A') {
+            return false;
+        }
+        const res = row.result || row.Result || '';
+        return this.getNonexistDisplayKindForNumber(rowIndex, num, nx, res) === 'yellow';
+    }
+
+    /** Số trên nonexist hàng focus chưa trúng 5 số chính (đỏ / vàng / tím…). */
+    getFocusRowUncalledNonexistNums(focusRowIndex) {
+        const rows = this.getSourceSheetRows();
+        if (focusRowIndex < 0 || focusRowIndex >= rows.length) {
+            return new Set();
+        }
+        if (!this.nonexistCache || this.nonexistCache.length !== rows.length) {
+            this.refreshDerivedState();
+        }
+        const row = rows[focusRowIndex];
+        const nonexistMeta = this.getNonexistMetaForSourceRow(focusRowIndex, row);
+        const nx = String(nonexistMeta.text || '').trim();
+        if (!nx || nx === 'N/A') {
+            return new Set();
+        }
+        const res = row.result || row.Result || '';
+        const state = this.computeNonexistVisualState(focusRowIndex, nx, res);
+        const out = new Set();
+        const candidates = this.parseNums(nx);
+        for (let i = 0; i < candidates.length; i++) {
+            const num = candidates[i];
+            if (!state.currentNums.has(num)) {
+                out.add(num);
+            }
+        }
+        return out;
+    }
+
+    _getFocusUncalledNonexistCache() {
+        const win = this.activeWindowRange;
+        if (!win || typeof win.end !== 'number') {
+            return new Set();
+        }
+        const targetIdx = typeof win.target === 'number' ? win.target : win.end;
+        const key = `${targetIdx}|${win.end}|${win.start}`;
+        if (this._focusUncalledNonexistKey === key && this._focusUncalledNonexistSet) {
+            return this._focusUncalledNonexistSet;
+        }
+        this._focusUncalledNonexistKey = key;
+        this._focusUncalledNonexistSet = this.getFocusRowUncalledNonexistNums(targetIdx);
+        return this._focusUncalledNonexistSet;
+    }
+
+    /**
+     * Boost tạm ngoài cửa sổ 10: số chưa gọi trên focus (vd đỏ 30 @724) → hàng ngoài cửa sổ
+     * mà số đó đang vàng (vd 709).
+     */
+    isOutsideWindowFocusTrailBoost(rowIndex, num) {
+        const win = this.activeWindowRange;
+        if (!win || typeof win.start !== 'number' || typeof win.end !== 'number') {
+            return false;
+        }
+        const start = win.start;
+        if (rowIndex >= start) {
+            return false;
+        }
+        if (!this._getFocusUncalledNonexistCache().has(num)) {
+            return false;
+        }
+        const targetIdx = typeof win.target === 'number' ? win.target : win.end;
+        const streakStart = this.getNonexistStreakStartRow(targetIdx, num);
+        if (streakStart >= 0 && rowIndex < streakStart) {
+            return false;
+        }
+        return this.isNonexistNumYellowAtRow(rowIndex, num);
+    }
+
+    /** Các hàng cần refresh nonexist khi đổi cửa sổ / focus (gồm streak ngoài cửa sổ 10). */
+    collectNonexistBoostRefreshRowIndices(win) {
+        const indices = new Set();
+        if (!win || typeof win.start !== 'number' || typeof win.end !== 'number') {
+            return indices;
+        }
+        const start = win.start;
+        const end = win.end;
+        const targetIdx = typeof win.target === 'number' ? win.target : end;
+        for (let i = start; i <= end; i++) {
+            indices.add(i);
+        }
+        if (targetIdx >= 0) {
+            indices.add(targetIdx);
+        }
+        if (!this.nonexistCache || this.nonexistCache.length !== this.getSourceSheetRows().length) {
+            this.refreshDerivedState();
+        }
+        const uncalledOnFocus = this.getFocusRowUncalledNonexistNums(targetIdx);
+        for (const num of uncalledOnFocus) {
+            const streakStart = this.getNonexistStreakStartRow(targetIdx, num);
+            const scanFrom = streakStart >= 0 ? streakStart : 0;
+            for (let i = start - 1; i >= scanFrom; i--) {
+                if (this.isNonexistNumYellowAtRow(i, num)) {
+                    indices.add(i);
+                }
+            }
+        }
+        return indices;
+    }
+
     shouldBoostYellowNonexistForWindow(rowIndex, num) {
         const win = this.activeWindowRange;
         if (!win || typeof win.start !== 'number' || typeof win.end !== 'number') {
@@ -5430,21 +5627,19 @@ class RightPaneSheetManager {
         if (end < start) {
             return false;
         }
+        if (this.isOutsideWindowFocusTrailBoost(rowIndex, num)) {
+            return true;
+        }
+
+        if (!this.numInNonexistCacheRow(end, num)) {
+            return false;
+        }
         const maxLabels = Math.min(10, Math.max(0, end - start + 1));
         const lastLabeledRow = start + maxLabels - 1;
         if (rowIndex < start || rowIndex > lastLabeledRow) {
             return false;
         }
-        const bottomMeta = this.nonexistCache && this.nonexistCache[end];
-        if (!bottomMeta) {
-            return false;
-        }
-        const bottomText = String(bottomMeta.text || '').trim();
-        if (!bottomText || bottomText === 'N/A') {
-            return false;
-        }
-        const bottomNums = this.parseNums(bottomText);
-        return bottomNums.indexOf(num) !== -1;
+        return true;
     }
 
     /**
@@ -5503,14 +5698,8 @@ class RightPaneSheetManager {
      * Re-render nonexist column for the active sliding window (and previous window when it moves).
      */
     refreshNonexistCellsForActiveWindow(tableWrap) {
-        const refreshIndices = new Set();
         const win = this.activeWindowRange;
-        if (win && typeof win.start === 'number' && typeof win.end === 'number') {
-            for (let i = win.start; i <= win.end; i++) {
-                refreshIndices.add(i);
-            }
-        }
-        this.refreshNonexistCellsForRowIndices(tableWrap, refreshIndices);
+        this.refreshNonexistCellsForRowIndices(tableWrap, this.collectNonexistBoostRefreshRowIndices(win));
     }
 
     /**
@@ -6965,6 +7154,10 @@ class RightPaneSheetManager {
             this.applyWindowSelection(windowTop, windowEnd, targetIdx, null, {
                 idRefHighlightIndices: options.idRefHighlightIndices || null
             });
+        } else if (options.asSheet1) {
+            this.commitSourceSheetWindowRangeForIndex(idx, {
+                idRefHighlightIndices: options.idRefHighlightIndices || null
+            });
         }
 
         const tableWrap = document.getElementById('tableWrap');
@@ -7039,21 +7232,9 @@ class RightPaneSheetManager {
             }
         }
         if (this.activeSheet === 'tracking') {
-            const start = Math.max(0, idx - 10);
-            const end = idx;
-            const previewOnly = options.previewOnly !== false;
-            const prevWindowRange = this.activeWindowRange;
-            let idRefHighlightIndices = null;
-            if (previewOnly && prevWindowRange && Array.isArray(prevWindowRange.idRefHighlightIndices)) {
-                idRefHighlightIndices = prevWindowRange.idRefHighlightIndices.slice();
-            }
-            this.activeWindowRange = {
-                start,
-                end,
-                target: idx,
-                idRefHighlightIndices,
-                focusNoteRefHighlightIndices: this.findWindowRowIndicesReferencedInFocusNote(idx)
-            };
+            this.commitSourceSheetWindowRangeForIndex(idx, {
+                preserveIdRefHighlights: options.previewOnly !== false
+            });
             return true;
         }
         const tableWrap = options.tableWrapEl || document.getElementById('tableWrap');
