@@ -68,7 +68,7 @@
         }
 
         .zoom-toolbar input[type=range] {
-            width: 112px;
+            width: 72px;
             accent-color: #38ef7d;
             cursor: pointer;
         }
@@ -222,22 +222,14 @@
         .sheet-tabs-container {
             background: #f5f5f5;
             border-top: 1px solid #d0d0d0;
-            overflow-x: auto;
             padding: 0;
             margin-top: auto;
             flex-shrink: 0;
             height: 36px;
             display: flex;
             align-items: center;
-            /* Ẩn thanh cuộn ngang; vẫn cuộn bằng wheel / kéo (xem initSheetTabsHorizontalScroll) */
-            scrollbar-width: none;
-            -ms-overflow-style: none;
-        }
-
-        .sheet-tabs-container::-webkit-scrollbar {
-            display: none;
-            width: 0;
-            height: 0;
+            flex-direction: row;
+            overflow: hidden;
         }
 
         .sheet-tabs-bar {
@@ -245,6 +237,24 @@
             gap: 4px;
             padding: 2px 4px;
             align-items: center;
+            height: 100%;
+            flex: 1 1 auto;
+            min-width: 0;
+            overflow-x: auto;
+            /* Ẩn thanh cuộn ngang; vẫn cuộn bằng wheel / kéo (xem initSheetTabsHorizontalScroll) */
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .sheet-tabs-bar::-webkit-scrollbar {
+            display: none;
+            width: 0;
+            height: 0;
+        }
+
+        .sheet-tabs-container .zoom-toolbar {
+            flex-shrink: 0;
+            padding: 0 6px 0 4px;
             height: 100%;
         }
 
@@ -696,8 +706,8 @@
             flex: 0 0 auto;
             display: flex;
             flex-direction: column;
-            gap: 4px;
-            padding: clamp(4px, 1vh, 8px) 10px 8px;
+            gap: 2px;
+            padding: 2px 6px 4px;
             border-top: 1px solid var(--st-border);
             background: var(--st-panel);
         }
@@ -706,15 +716,15 @@
             display: flex;
             flex-wrap: wrap;
             align-items: center;
-            gap: clamp(3px, 0.6vh, 6px) 6px;
+            gap: 5px 6px;
         }
 
         .special-tracking-controls-row--timeline {
             flex-direction: column;
             align-items: stretch;
             border-bottom: 1px solid var(--st-border);
-            padding-bottom: 6px;
-            margin-bottom: 2px;
+            padding-bottom: 3px;
+            margin-bottom: 0;
         }
 
         .special-tracking-timeline-head {
@@ -742,8 +752,8 @@
             align-items: center;
             width: 100%;
             min-width: 0;
-            margin-top: 2px;
-            column-gap: 6px;
+            margin-top: 1px;
+            column-gap: 4px;
         }
 
         .special-tracking-meta-spacer {
@@ -757,7 +767,7 @@
             margin: 0;
             text-align: center;
             white-space: nowrap;
-            font-size: clamp(10px, 1.25vh, 12px);
+            font-size: clamp(9px, 1.05vh, 10px);
             line-height: 1.25;
         }
 
@@ -767,7 +777,7 @@
             display: inline-flex;
             flex-direction: row;
             align-items: center;
-            gap: 6px;
+            gap: 4px;
             min-width: 0;
             max-width: 100%;
         }
@@ -788,15 +798,15 @@
 
         .special-tracking-predict-toggle {
             flex: 0 0 auto;
-            padding: 2px 7px;
-            border-radius: 6px;
+            padding: 1px 5px;
+            border-radius: 5px;
             border: 1px solid var(--st-border);
             background: linear-gradient(180deg, #fff 0%, #f3eae4 100%);
             color: var(--st-text);
-            font-size: clamp(9px, 1.1vh, 10.5px);
+            font-size: clamp(8px, 1vh, 10px);
             font-weight: 800;
             letter-spacing: 0.03em;
-            line-height: 1.2;
+            line-height: 1.15;
             cursor: pointer;
             transition: box-shadow 0.2s, border-color 0.15s, background 0.15s, color 0.15s, filter 0.15s;
         }
@@ -821,27 +831,27 @@
         }
 
         .special-tracking-rank-stats {
-            font-size: clamp(9.5px, 1.2vh, 11.5px);
+            font-size: clamp(8px, 1vh, 10px);
             font-weight: 700;
             color: var(--st-muted);
-            line-height: 1.25;
+            line-height: 1.15;
             font-variant-numeric: tabular-nums;
         }
 
 
         .special-tracking-controls-row--transport {
             align-items: center;
-            gap: 10px;
-            padding: 10px 12px;
-            border-radius: 12px;
+            gap: 5px;
+            padding: 4px 6px;
+            border-radius: 8px;
             background: #212121;
             border: 1px solid #303030;
         }
 
         .special-tracking-icon-btn {
             flex: 0 0 auto;
-            width: 40px;
-            height: 40px;
+            width: 30px;
+            height: 30px;
             padding: 0;
             display: inline-flex;
             align-items: center;
@@ -873,8 +883,8 @@
         }
 
         .special-tracking-icon-btn--play {
-            width: 48px;
-            height: 48px;
+            width: 34px;
+            height: 34px;
             background: #ff0000;
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
         }
@@ -913,18 +923,24 @@
             height: 1.15em;
             margin: 0;
             padding: 0;
-            font-size: 1.22rem;
+            font-size: 0.95rem;
             line-height: 1;
             font-variant-emoji: text;
         }
 
+        .special-tracking-svg-play,
+        .special-tracking-svg-pause {
+            width: 22px;
+            height: 22px;
+        }
+
         .special-tracking-speed-slider-wrap {
             display: flex;
-            flex: 1 1 220px;
-            min-width: 160px;
-            max-width: 420px;
+            flex: 1 1 140px;
+            min-width: 100px;
+            max-width: 320px;
             align-items: center;
-            gap: 8px;
+            gap: 5px;
             margin-left: auto;
         }
 
@@ -933,7 +949,7 @@
             flex: 1 1 0;
             min-width: 0;
             align-items: center;
-            gap: 2px;
+            gap: 1px;
         }
 
         .special-tracking-speed-slider-inner .special-tracking-speed-slider {
@@ -942,7 +958,7 @@
         }
 
         .special-tracking-speed-hint {
-            font-size: clamp(11px, 1.25vh, 12px);
+            font-size: clamp(9px, 1.05vh, 11px);
             color: #aaa;
             white-space: nowrap;
         }
@@ -951,7 +967,7 @@
             flex: 0 0 auto;
             min-width: 0;
             padding-left: 1px;
-            font-size: clamp(11px, 1.3vh, 13px);
+            font-size: clamp(9px, 1.05vh, 11px);
             font-weight: 800;
             font-variant-numeric: tabular-nums;
             color: #f1f1f1;
@@ -962,7 +978,7 @@
         .special-tracking-speed-slider {
             flex: 1 1 0;
             min-width: 80px;
-            height: 22px;
+            height: 14px;
             margin: 0;
             accent-color: #ff0000;
             cursor: pointer;
@@ -974,12 +990,12 @@
 
         .special-tracking-view-toggle {
             flex: 0 0 auto;
-            min-width: 4.5rem;
-            font-size: clamp(11px, 1.25vh, 12px);
+            min-width: 3.8rem;
+            font-size: clamp(9px, 1.05vh, 11px);
             font-weight: 800;
             text-transform: lowercase;
             letter-spacing: 0.02em;
-            padding: 4px 10px;
+            padding: 2px 8px;
             border-radius: 6px;
             border: 1px solid #64748b;
             background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
@@ -1001,12 +1017,12 @@
 
         .special-tracking-label-toggle {
             flex: 0 0 auto;
-            min-width: 2.6rem;
-            font-size: clamp(11px, 1.25vh, 12px);
+            min-width: 3.2rem;
+            font-size: clamp(9px, 1.05vh, 11px);
             font-weight: 800;
             text-transform: lowercase;
             letter-spacing: 0.02em;
-            padding: 4px 10px;
+            padding: 2px 8px;
             border-radius: 6px;
             border: 1px solid #64748b;
             background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
@@ -1248,101 +1264,15 @@
             box-shadow: inset 0 0 0 3px rgba(0, 125, 68, 0.95);
         }
 
-        /* Basic: thanh điều hướng gọn hơn — nhường chiều cao cho 35 bar */
-        .special-tracking-root--basic .special-tracking-controls {
-            gap: 2px;
-            padding: 2px 6px 4px;
-        }
-
-        .special-tracking-root--basic .special-tracking-controls-row--timeline {
-            padding-bottom: 3px;
-            margin-bottom: 0;
-        }
-
-        .special-tracking-root--basic .special-tracking-timeline {
-            height: clamp(14px, 1.8vh, 20px);
-        }
-
-        .special-tracking-root--basic .special-tracking-timeline-thumb {
-            width: clamp(8px, 1.4vh, 11px);
-            height: clamp(8px, 1.4vh, 11px);
-        }
-
-        .special-tracking-root--basic .special-tracking-timeline-meta-row {
-            margin-top: 1px;
-            column-gap: 4px;
-        }
-
-        .special-tracking-root--basic .special-tracking-timeline-meta-row .special-tracking-step-label {
-            font-size: clamp(9px, 1.05vh, 10px);
-        }
-
-        .special-tracking-root--basic .special-tracking-controls-row--transport {
-            gap: 5px;
-            padding: 4px 6px;
-            border-radius: 8px;
-        }
-
-        .special-tracking-root--basic .special-tracking-icon-btn {
-            width: 30px;
-            height: 30px;
-        }
-
-        .special-tracking-root--basic .special-tracking-icon-btn--play {
-            width: 34px;
-            height: 34px;
-        }
-
-        .special-tracking-root--basic .special-tracking-icon-btn--glyph span {
-            font-size: 0.95rem;
-        }
-
-        .special-tracking-root--basic .special-tracking-svg-play,
-        .special-tracking-root--basic .special-tracking-svg-pause {
-            width: 22px;
-            height: 22px;
-        }
-
-        .special-tracking-root--basic .special-tracking-speed-slider-wrap {
-            flex: 1 1 140px;
-            min-width: 100px;
-            max-width: 320px;
-            gap: 5px;
-        }
-
-        .special-tracking-root--basic .special-tracking-speed-hint,
-        .special-tracking-root--basic .special-tracking-speed-readout {
-            font-size: clamp(9px, 1.05vh, 11px);
-        }
-
-        .special-tracking-root--basic .special-tracking-speed-slider {
-            height: 14px;
-        }
-
-        .special-tracking-root--basic .special-tracking-speed-slider-inner {
-            gap: 1px;
-        }
-
-        .special-tracking-root--basic .special-tracking-view-toggle,
-        .special-tracking-root--basic .special-tracking-label-toggle {
-            min-width: 3.2rem;
-            padding: 2px 8px;
-            font-size: clamp(9px, 1.05vh, 11px);
-        }
-
-        .special-tracking-root--basic .special-tracking-view-toggle {
-            min-width: 3.8rem;
-        }
-
         .special-tracking-timeline-wrap {
             flex: 0 0 auto;
-            padding: 0 10px clamp(4px, 1vh, 8px);
+            padding: 0 6px 2px;
             background: var(--st-panel);
         }
 
         .special-tracking-timeline {
             position: relative;
-            height: clamp(22px, 3.2vh, 32px);
+            height: clamp(14px, 1.8vh, 20px);
             border-radius: 6px;
             background: #e8e8e8;
             border: 1px solid #ccc;
@@ -1367,8 +1297,8 @@
             position: absolute;
             top: 50%;
             left: 0%;
-            width: clamp(10px, 1.8vh, 14px);
-            height: clamp(10px, 1.8vh, 14px);
+            width: clamp(8px, 1.4vh, 11px);
+            height: clamp(8px, 1.4vh, 11px);
             border-radius: 50%;
             background: #fff;
             border: 2px solid #ff0000;
@@ -1386,9 +1316,9 @@
         }
 
         .special-tracking-step-label {
-            font-size: clamp(10px, 1.2vh, 11px);
+            font-size: clamp(9px, 1.05vh, 10px);
             color: var(--st-muted);
-            margin-top: 4px;
+            margin-top: 0;
             text-align: center;
             line-height: 1.2;
         }
@@ -1420,18 +1350,6 @@
             height: 100%;
             min-height: 0;
             overflow: hidden;
-        }
-
-        .sheet-zoom-bar {
-            display: flex;
-            align-items: center;
-            justify-content: flex-end;
-            gap: 6px;
-            padding: 2px 8px 4px;
-            background: #f8fafc;
-            border-top: 1px solid #d7dde5;
-            border-bottom: 1px solid #d7dde5;
-            flex-shrink: 0;
         }
 
         .sheet-tools-bar {
@@ -4096,10 +4014,10 @@
         }
 
         #tableWrap {
-            /* Ensure the final table row can scroll above the tabs/zoom bar */
-            padding-bottom: 80px;
+            /* Ensure the final table row can scroll above the sheet tabs row */
+            padding-bottom: 48px;
             /* help programmatic scrollIntoView honor bottom offset */
-            scroll-padding-bottom: 72px;
+            scroll-padding-bottom: 44px;
         }
 
         #filterTableWrap {
@@ -4893,8 +4811,7 @@
                             title="Xuống cuối bảng (smooth)" aria-label="Xuống cuối bảng">⏮</button>
                     </div>
                 </div>
-                <div id="sheetTabsContainer" class="sheet-tabs-container"></div>
-                <div class="sheet-zoom-bar">
+                <div id="sheetTabsContainer" class="sheet-tabs-container">
                     <div class="zoom-toolbar" aria-label="Zoom controls">
                         <button type="button" id="zoomOutBtn" title="Zoom out">−</button>
                         <input id="zoomSlider" type="range" min="50" max="150" step="5" value="100"
@@ -5832,14 +5749,15 @@
             }
             tabs.dataset.sheetTabsWheelBound = '1';
             tabs.addEventListener('wheel', (e) => {
-                if (!tabs || tabs.scrollWidth <= tabs.clientWidth + 1) {
+                const bar = tabs.querySelector('.sheet-tabs-bar');
+                if (!bar || bar.scrollWidth <= bar.clientWidth + 1) {
                     return;
                 }
                 if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) {
                     return;
                 }
                 e.preventDefault();
-                tabs.scrollLeft += e.deltaY;
+                bar.scrollLeft += e.deltaY;
             }, { passive: false });
         }
 
