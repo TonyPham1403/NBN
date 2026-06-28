@@ -5722,6 +5722,8 @@
         let submitRingChainCombineAnd = false;
         /** Giá trị x (1–35) khi autoring chế độ custom */
         let submitRingCustomX = 15;
+        /** Chỉ số hàng sheet1 đang focus (để tính nhãn C/Uflip autoring). */
+        let mainSheet1FocusRowIndex = -1;
         let periodFilterEnabled = false;
         let periodFilterMode = 'pair1';
         let periodFilterMenuAnchor = 'toolbar';
@@ -6629,6 +6631,7 @@
         }
 
         function selectSubmitRingFreqMode(mode) {
+            const prevEffectiveMode = getEffectiveSubmitRingMode();
             const next = normalizeSubmitRingFreqMode(mode);
             if (next !== SUBMIT_RING_CUFLIP_MODE) {
                 submitRingLabelConn = false;
@@ -6638,7 +6641,10 @@
             syncSubmitRingModeFromUi();
             persistSubmitRingSettings();
             syncSubmitRingToolbarUi();
-            sendSubmitRingConfigToIframe();
+            const nextEffectiveMode = getEffectiveSubmitRingMode();
+            sendSubmitRingConfigToIframe({
+                forceReapplyAutoring: !!submitRingEnabled && prevEffectiveMode !== nextEffectiveMode
+            });
             closeSubmitRingModeMenu();
             requestAnimationFrame(() => restoreKeyboardFocusTarget());
         }
@@ -6650,6 +6656,42 @@
                 datebandFreqOpA: normalizeIntersectionFreqOp(filterDatebandOpX),
                 datebandFreqOpB: normalizeIntersectionFreqOp(filterDatebandOpY)
             };
+        }
+
+        function getSubmitRingLabelCircleNumsForFocusRow(rowIndex) {
+            if (!sheetManager || typeof rowIndex !== 'number' || rowIndex < 0) {
+                return null;
+            }
+            const rows = sheetManager.getSourceSheetRows();
+            if (!rows.length || rowIndex >= rows.length) {
+                return null;
+            }
+            const row = rows[rowIndex];
+            if (!row || (typeof sheetManager.isEmptyResultRow === 'function' && sheetManager.isEmptyResultRow(row))) {
+                return [];
+            }
+            const pickNums = typeof sheetManager.parseMainNums === 'function'
+                ? sheetManager.parseMainNums(row.result || row.Result || '')
+                : [];
+            const mode = getEffectiveSubmitRingMode();
+            const out = new Set();
+            if ((mode === 'conn' || mode === 'conn_ix')
+                && typeof sheetManager.getConnectionCircleNumsFromPickSet === 'function') {
+                sheetManager.getConnectionCircleNumsFromPickSet(rows, rowIndex, pickNums).forEach((n) => {
+                    if (Number.isFinite(n)) {
+                        out.add(n);
+                    }
+                });
+            }
+            if ((mode === 'ix' || mode === 'conn_ix')
+                && typeof sheetManager.getIntersectCircleNumsFromPickSet === 'function') {
+                sheetManager.getIntersectCircleNumsFromPickSet(rows, rowIndex, pickNums).forEach((n) => {
+                    if (Number.isFinite(n)) {
+                        out.add(n);
+                    }
+                });
+            }
+            return Array.from(out).sort((a, b) => a - b);
         }
 
         function notifyLeftAutoringStateToTracking() {
@@ -6677,6 +6719,13 @@
             return m + 1;
         }
 
+        function resolveSubmitRingLabelFocusRowIndex() {
+            if (typeof mainSheet1FocusRowIndex === 'number' && mainSheet1FocusRowIndex >= 0) {
+                return mainSheet1FocusRowIndex;
+            }
+            return getMainSourceSheetFocusRowIndex();
+        }
+
         function sendSubmitRingConfigToIframe(options) {
             options = options || {};
             const frame = el('okFrame');
@@ -6685,16 +6734,22 @@
             }
             syncSubmitRingModeFromUi();
             const contextSync = !!options.contextSync;
+            const mode = normalizeSubmitRingMode(submitRingMode);
+            const labelCircleNums = isSubmitRingLabelMode(mode)
+                ? getSubmitRingLabelCircleNumsForFocusRow(resolveSubmitRingLabelFocusRowIndex())
+                : null;
             frame.contentWindow.postMessage({
                 type: 'submitAutoCircleChanged',
                 enabled: !!submitRingEnabled,
-                mode: normalizeSubmitRingMode(submitRingMode),
+                mode,
                 customX: clampRingCustomX(submitRingCustomX),
                 chainLabels: getSubmitRingChainSelectedLabels(),
                 chainCombineAnd: !!submitRingChainCombineAnd,
                 ...getSubmitRingDatebandPayload(),
                 preserveManualPicks: !!(options.preserveManualPicks || contextSync),
-                contextSync
+                contextSync,
+                forceReapplyAutoring: !!options.forceReapplyAutoring,
+                labelCircleNums: Array.isArray(labelCircleNums) ? labelCircleNums : undefined
             }, '*');
             notifyLeftAutoringStateToTracking();
         }
@@ -6990,7 +7045,7 @@
                 syncSubmitRingModeFromUi();
                 persistSubmitRingSettings();
                 syncSubmitRingToolbarUi();
-                sendSubmitRingConfigToIframe();
+                sendSubmitRingConfigToIframe({ forceReapplyAutoring: true });
                 requestAnimationFrame(() => restoreKeyboardFocusTarget());
             };
             if (labelConnBtn) {
@@ -14156,6 +14211,10 @@
                 submitAutoCircleMode: getEffectiveSubmitRingMode(),
                 submitAutoCircleCustomX: clampRingCustomX(submitRingCustomX),
                 ...getSubmitRingDatebandPayload(),
+                labelCircleNums: (() => {
+                    const nums = getSubmitRingLabelCircleNumsForFocusRow(detail.focusRowIndex);
+                    return Array.isArray(nums) ? nums : undefined;
+                })(),
                 referenceConn3HeaderLines: detail.skipReferenceMeta ? [] : (detail.referenceConn3HeaderLines || []),
                 referenceConn3Triplets: detail.skipReferenceMeta ? [] : (detail.referenceConn3Triplets || []),
                 referenceConn3FooterLine: detail.skipReferenceMeta ? '' : (detail.referenceConn3FooterLine || ''),
@@ -16314,6 +16373,9 @@
                 if (!fromFilterNav) {
                     rememberKeyboardFocusTarget('main');
                 }
+                if (detail.sheetName === 'sheet1' && typeof detail.focusRowIndex === 'number') {
+                    mainSheet1FocusRowIndex = detail.focusRowIndex;
+                }
                 if (periodFilterEnabled && !fromFilterNav && typeof detail.focusRowIndex === 'number') {
                     syncFilterPopupFocusFromMainRow(detail.focusRowIndex);
                 }
@@ -16390,6 +16452,10 @@
                         submitAutoCircleMode: getEffectiveSubmitRingMode(),
                         submitAutoCircleCustomX: clampRingCustomX(submitRingCustomX),
                         ...getSubmitRingDatebandPayload(),
+                        labelCircleNums: (() => {
+                            const nums = getSubmitRingLabelCircleNumsForFocusRow(detail.focusRowIndex);
+                            return Array.isArray(nums) ? nums : undefined;
+                        })(),
                         referenceConn3HeaderLines: referenceConn3HeaderLines,
                         referenceConn3Triplets: referenceConn3Triplets,
                         referenceConn3FooterLine: referenceConn3FooterLine,

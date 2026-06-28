@@ -2062,6 +2062,8 @@
         /** Remember selection per focus id so revisiting a row restores user state */
         let selectionMemoryByFocusId = new Map();
         let lastAutoRingFocusKey = '';
+        /** Nhãn C/Uflip: số khoanh do parent tính (khớp cột label sheet1). */
+        let lastSubmitAutoCircleLabelNums = null;
         /** Khi parent gửi setLines: số dòng chuỗi 12/11 đứng trước cửa sổ 10 trong chuỗi paste (0–2). */
         let pendingContextPrefixCount = 0;
 
@@ -2090,12 +2092,50 @@
             }
         }
 
+        function shouldPreserveLeftKeyboardRightRegion() {
+            return leftKeyboardRegion === 'right' || lastClickedRegion === 'right';
+        }
+
+        function syncAutoringNavRegionDefaultLeft() {
+            if (shouldPreserveLeftKeyboardRightRegion()) {
+                return;
+            }
+            lastClickedRegion = 'left';
+            syncLeftKeyboardRegion('left');
+        }
+
+        function resolveTable2RowFocusPickNum(preferredNums) {
+            var rowIdx = currentPhaseRow != null ? currentPhaseRow : (lastClickedRow != null ? lastClickedRow : 0);
+            var rowNums = getRawDisplayLineNumsAt(rowIdx);
+            if (!rowNums || !rowNums.length) {
+                return null;
+            }
+            if (currentPhaseNumber != null && selected.has(currentPhaseNumber) && rowNums.indexOf(currentPhaseNumber) !== -1) {
+                return currentPhaseNumber;
+            }
+            if (lastClickedNumber != null && selected.has(lastClickedNumber) && rowNums.indexOf(lastClickedNumber) !== -1) {
+                return lastClickedNumber;
+            }
+            var pref = preferredNums || [];
+            for (var pi = 0; pi < pref.length; pi++) {
+                var pn = pref[pi];
+                if (!isNaN(pn) && selected.has(pn) && rowNums.indexOf(pn) !== -1) {
+                    return pn;
+                }
+            }
+            for (var ri = 0; ri < rowNums.length; ri++) {
+                if (selected.has(rowNums[ri])) {
+                    return rowNums[ri];
+                }
+            }
+            return null;
+        }
+
         function getLeftKeyboardNavRegion() {
             try {
-                // Prefer explicit pair/tail region from last click (leftKeyboardRegion) over
-                // document.activeElement — a stale applyPairByIndex focus timeout can move focus
-                // to #pairList after the user clicked tail, which wrongly routed A/D to pair nav.
-                if (leftKeyboardRegion === 'pairList' || leftKeyboardRegion === 'tailList') {
+                // Prefer explicit region from last click over document.activeElement — stale
+                // focus timeouts can move focus to #pairList after the user clicked tail/table 2.
+                if (leftKeyboardRegion === 'pairList' || leftKeyboardRegion === 'tailList' || leftKeyboardRegion === 'right') {
                     return leftKeyboardRegion;
                 }
                 var el = document.activeElement;
@@ -3274,6 +3314,12 @@
                     const pair = resolveAutoringPairNumsForNav(mode);
                     if (pair) return pair.b;
                 } else {
+                    if (currentPhaseNumber != null && effective.has(currentPhaseNumber)) {
+                        return currentPhaseNumber;
+                    }
+                    if (lastClickedNumber != null && effective.has(lastClickedNumber)) {
+                        return lastClickedNumber;
+                    }
                     const maxFreqNum = getMaxFreqAutoringNumForNav();
                     if (maxFreqNum != null) return maxFreqNum;
                 }
@@ -3418,11 +3464,35 @@
                 }
 
                 const focusNum = getMaxFreqAutoringNumForNav();
+                if (currentPhaseNumber != null && selected.has(currentPhaseNumber)) {
+                    lastClickedNumber = currentPhaseNumber;
+                    syncAutoringNavRegionDefaultLeft();
+                    currentPairIndex = -1;
+                    currentTailIndex = -1;
+                    return;
+                }
+                if (lastClickedNumber != null && selected.has(lastClickedNumber)) {
+                    currentPhaseNumber = lastClickedNumber;
+                    syncAutoringNavRegionDefaultLeft();
+                    currentPairIndex = -1;
+                    currentTailIndex = -1;
+                    return;
+                }
                 if (focusNum != null) {
-                    currentPhaseNumber = focusNum;
-                    lastClickedNumber = focusNum;
-                    lastClickedRegion = 'left';
-                    syncLeftKeyboardRegion('left');
+                    if (shouldPreserveLeftKeyboardRightRegion()) {
+                        var rowPick = resolveTable2RowFocusPickNum([focusNum]);
+                        if (rowPick != null) {
+                            currentPhaseNumber = rowPick;
+                            lastClickedNumber = rowPick;
+                        } else {
+                            currentPhaseNumber = focusNum;
+                            lastClickedNumber = focusNum;
+                        }
+                    } else {
+                        currentPhaseNumber = focusNum;
+                        lastClickedNumber = focusNum;
+                        syncAutoringNavRegionDefaultLeft();
+                    }
                     currentPairIndex = -1;
                     currentTailIndex = -1;
                     return;
@@ -3438,8 +3508,12 @@
             }
 
             const navRegion = getLeftKeyboardNavRegion();
-            if (navRegion === 'pairList' || navRegion === 'tailList') {
+            if (navRegion === 'pairList' || navRegion === 'tailList' || navRegion === 'right') {
                 lastClickedNumber = focusNum;
+                if (navRegion === 'right') {
+                    var table2Pick = resolveTable2RowFocusPickNum([focusNum, lastClickedNumber, currentPhaseNumber]);
+                    currentPhaseNumber = table2Pick != null ? table2Pick : focusNum;
+                }
                 return;
             }
 
@@ -3499,9 +3573,15 @@
         }
 
         function needsLeftTable1Bootstrap() {
-            if (leftKeyboardRegion === 'right') return false;
-            if (!hasCircledNumbersForNav()) return currentPhaseNumber == null;
-            if (isFocusedOnPairOrTail()) return false;
+            if (!hasCircledNumbersForNav()) {
+                return true;
+            }
+            if (leftKeyboardRegion === 'right') {
+                return false;
+            }
+            if (isFocusedOnPairOrTail()) {
+                return false;
+            }
             return currentPhaseNumber == null;
         }
 
@@ -3712,6 +3792,103 @@
             } catch (e) { /* non-fatal */ }
         }
 
+        function normalizeSubmitAutoCircleNumList(rawList) {
+            var out = [];
+            (rawList || []).forEach(function (n) {
+                n = parseInt(n, 10);
+                if (!isNaN(n) && out.indexOf(n) === -1) {
+                    out.push(n);
+                }
+            });
+            return out.slice(0, MAX_PICK_NUMBERS);
+        }
+
+        function getSubmitAutoCircleNumsForApply(msg) {
+            if (msg && Array.isArray(msg.labelCircleNums) && isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
+                return normalizeSubmitAutoCircleNumList(msg.labelCircleNums);
+            }
+            if (lastSubmitAutoCircleLabelNums && isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
+                return lastSubmitAutoCircleLabelNums.slice();
+            }
+            return Array.from(getSubmitAutoCircleSet()).filter(function (n) { return !isNaN(n); });
+        }
+
+        function applySubmitAutoCircleFreshFromMsg(msg) {
+            if (!submitAutoCircleEnabled || !raw) {
+                return;
+            }
+            if (disableSubmitForCurrentData) {
+                clearAutoRingSelectionVisuals();
+                return;
+            }
+            if (submitAutoCircleMode !== 'custom' && !hasCurrentLine11Result()) {
+                clearAutoRingSelectionVisuals();
+                return;
+            }
+            autoRingVisitedIds.clear();
+            selectionMemoryByFocusId.clear();
+            lastAutoRingFocusKey = '';
+            selected.clear();
+            clearPairContributionTracking();
+            transientSelected.clear();
+            simulatedSelected.clear();
+            pickOrder = [];
+            pairNeonObserveNum = null;
+            currentPairIndex = -1;
+            currentTailIndex = -1;
+            selectionCleared = false;
+
+            var circleNums = getSubmitAutoCircleNumsForApply(msg);
+            if (circleNums.length > 0) {
+                var ans = [];
+                var ansLineObj = getRawAnswerLineObj();
+                if (ansLineObj) {
+                    var ansLine = (ansLineObj.result || '').split('|')[0].trim();
+                    if (ansLine.length) {
+                        ans = ansLine.split(',').map(function (x) { return parseInt(x, 10); }).filter(function (n) { return !isNaN(n); });
+                    }
+                }
+                var cfgMode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
+                if ((cfgMode === 'max' || cfgMode === 'min') && ans.length >= 5) {
+                    try { syncModeFromAnswerNums(ans); } catch (e) { }
+                }
+                applyAutoRingSelection(circleNums);
+            } else {
+                clearAutoRingSelectionVisuals();
+            }
+            applyAutoringDomAfterSelection();
+        }
+
+        function reapplySubmitAutoCircleForCurrentFocus(msg) {
+            if (!submitAutoCircleEnabled || !raw) {
+                return;
+            }
+            if (disableSubmitForCurrentData) {
+                clearAutoRingSelectionVisuals();
+                return;
+            }
+            if (submitAutoCircleMode !== 'custom' && !hasCurrentLine11Result()) {
+                clearAutoRingSelectionVisuals();
+                return;
+            }
+            if (msg && msg.forceReapplyAutoring) {
+                applySubmitAutoCircleFreshFromMsg(msg);
+                return;
+            }
+            var ansCfg = getAnswerNumsFromCurrentLine11();
+            var cfgMode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
+            if ((cfgMode === 'max' || cfgMode === 'min') && ansCfg.length >= 5) {
+                try { syncModeFromAnswerNums(ansCfg); } catch (e) { }
+            }
+            var circleNumsCfg = getSubmitAutoCircleNumsForApply(msg);
+            if (circleNumsCfg.length > 0) {
+                applyAutoRingSelection(circleNumsCfg);
+            } else {
+                clearAutoRingSelectionVisuals();
+            }
+            applyAutoringDomAfterSelection();
+        }
+
         function maybeApplySubmitAutoRingAfterProcess(focusRowIdRaw, options) {
             options = options || {};
             try {
@@ -3735,7 +3912,7 @@
                     syncModeFromAnswerNums(ans);
                 }
 
-                var circleNums = Array.from(getSubmitAutoCircleSet()).filter(function (n) { return !isNaN(n); });
+                var circleNums = getSubmitAutoCircleNumsForApply(null);
 
                 if (!circleNums.length) {
                     clearAutoRingSelectionVisuals();
@@ -5795,6 +5972,117 @@
          * Sau W/A/S/D trên bảng: nếu đã có số quan sát (còn khoanh, freq>=2) thì giữ — không ghi đè theo phase/hint.
          * Chưa có thì thử gán từ currentPhaseNumber khi hợp lệ (freq>=2, có neon pair theo hint).
          */
+        function removeNumFromWasdPickSets(n) {
+            if (n == null || isNaN(n)) {
+                return;
+            }
+            selected.delete(n);
+            transientSelected.delete(n);
+            simulatedSelected.delete(n);
+            autoRingPicked.delete(n);
+            if (pickOrder) {
+                var ri;
+                while ((ri = pickOrder.indexOf(n)) !== -1) {
+                    pickOrder.splice(ri, 1);
+                }
+            }
+        }
+
+        function syncAutoRingPickedFromSelectedAfterWasd() {
+            if (!submitAutoCircleEnabled || submitActive) {
+                return;
+            }
+            autoRingPicked.clear();
+            var count = 0;
+            (pickOrder || []).forEach(function (n) {
+                if (!isNaN(n) && selected.has(n) && count < MAX_PICK_NUMBERS) {
+                    autoRingPicked.add(n);
+                    count += 1;
+                }
+            });
+            if (!autoRingPicked.size) {
+                selected.forEach(function (n) {
+                    if (!isNaN(n) && autoRingPicked.size < MAX_PICK_NUMBERS) {
+                        autoRingPicked.add(n);
+                    }
+                });
+            }
+        }
+
+        function applyWasdPickReplace(fromNum, toNum) {
+            if (toNum == null || isNaN(toNum)) {
+                return false;
+            }
+            if (fromNum != null && !isNaN(fromNum)) {
+                removeNumFromWasdPickSets(fromNum);
+            }
+            removeNumFromWasdPickSets(toNum);
+            selected.add(toNum);
+            transientSelected.add(toNum);
+            if (!pickOrder) {
+                pickOrder = [];
+            }
+            pickOrder.push(toNum);
+            while (pickOrder.length > MAX_PICK_NUMBERS) {
+                var drop = pickOrder.shift();
+                if (drop != null && drop !== toNum) {
+                    selected.delete(drop);
+                    transientSelected.delete(drop);
+                    autoRingPicked.delete(drop);
+                }
+            }
+            while (selected.size > MAX_PICK_NUMBERS) {
+                var dropSel = pickOrder.length ? pickOrder[0] : null;
+                if (dropSel == null) {
+                    break;
+                }
+                removeNumFromWasdPickSets(dropSel);
+            }
+            syncAutoRingPickedFromSelectedAfterWasd();
+            currentPhaseNumber = toNum;
+            lastClickedNumber = toNum;
+            return true;
+        }
+
+        function resolveWasdNavFocusPickNum(preferredNums) {
+            function inPreferred(n) {
+                return !preferredNums || preferredNums.indexOf(n) !== -1;
+            }
+            if (currentPhaseNumber != null && inPreferred(currentPhaseNumber)
+                && (selected.has(currentPhaseNumber) || transientSelected.has(currentPhaseNumber))) {
+                return currentPhaseNumber;
+            }
+            if (lastClickedNumber != null && inPreferred(lastClickedNumber)
+                && (selected.has(lastClickedNumber) || transientSelected.has(lastClickedNumber))) {
+                return lastClickedNumber;
+            }
+            if (pickOrder && pickOrder.length) {
+                for (var pi = pickOrder.length - 1; pi >= 0; pi--) {
+                    var pn = pickOrder[pi];
+                    if (inPreferred(pn) && selected.has(pn)) {
+                        return pn;
+                    }
+                }
+            }
+            if (currentPhaseNumber != null && inPreferred(currentPhaseNumber)) {
+                return currentPhaseNumber;
+            }
+            if (lastClickedNumber != null && inPreferred(lastClickedNumber)) {
+                return lastClickedNumber;
+            }
+            if (pickOrder && pickOrder.length) {
+                for (var pj = pickOrder.length - 1; pj >= 0; pj--) {
+                    if (inPreferred(pickOrder[pj])) {
+                        return pickOrder[pj];
+                    }
+                }
+            }
+            if (preferredNums && preferredNums.length) {
+                return preferredNums[0];
+            }
+            return null;
+        }
+
         function syncPairNeonObserveNumFromPhaseAfterWasd() {
             if (submitActive || !raw || !raw.freq) {
                 return;
@@ -8854,28 +9142,13 @@
                         }
                         if (cand === null) return;
 
-                        if (currentPhaseNumber != null) {
-                            var oldN = currentPhaseNumber;
-                            if (selected.has(oldN)) selected.delete(oldN);
-                            if (transientSelected.has(oldN)) transientSelected.delete(oldN);
-                            var oidx = pickOrder.indexOf(oldN);
-                            if (oidx !== -1) pickOrder.splice(oidx, 1);
-                            currentPhaseNumber = null;
+                        var fromNumW = resolveWasdNavFocusPickNum(getRawDisplayLineNumsAt(finalTargetRow));
+                        if (currentPhaseNumber != null && selected.has(currentPhaseNumber)) {
+                            fromNumW = currentPhaseNumber;
                         }
-
-                        var numsFinal = getRawDisplayLineNumsAt(finalTargetRow);
-                        for (var nf = 0; nf < numsFinal.length; nf++) {
-                            var pidx = pickOrder.indexOf(numsFinal[nf]);
-                            if (pidx !== -1) pickOrder.splice(pidx, 1);
-                        }
-
-                        selected.add(cand);
-                        transientSelected.add(cand);
-                        pickOrder.push(cand);
-                        currentPhaseNumber = cand;
+                        applyWasdPickReplace(fromNumW, cand);
                         currentPhaseRow = finalTargetRow;
                         lastClickedRow = finalTargetRow;
-                        lastClickedNumber = cand;
                         lastClickedRegion = 'right';
                         syncLeftKeyboardRegion('right');
                         recomputePairsFromSelected();
@@ -8925,18 +9198,12 @@
                         }
                         if (candL === null) return;
 
-                        if (currentPhaseNumber != null) {
-                            var oldL = currentPhaseNumber;
-                            if (selected.has(oldL)) { selected.delete(oldL); if (transientSelected.has(oldL)) transientSelected.delete(oldL); }
-                            var oldPos = pickOrder.indexOf(oldL); if (oldPos !== -1) pickOrder.splice(oldPos, 1);
-                            currentPhaseNumber = null;
+                        var fromNumL = resolveWasdNavFocusPickNum(rows[finalIdx]);
+                        if (currentPhaseNumber != null && selected.has(currentPhaseNumber)) {
+                            fromNumL = currentPhaseNumber;
                         }
-                        for (var nr = 0; nr < rows[finalIdx].length; nr++) {
-                            var pPos = pickOrder.indexOf(rows[finalIdx][nr]);
-                            if (pPos !== -1) pickOrder.splice(pPos, 1);
-                        }
-                        selected.add(candL); transientSelected.add(candL); pickOrder.push(candL);
-                        currentPhaseNumber = candL; lastClickedNumber = candL; lastClickedRegion = 'left';
+                        applyWasdPickReplace(fromNumL, candL);
+                        lastClickedRegion = 'left';
                         syncLeftKeyboardRegion('left');
                         recomputePairsFromSelected(); updateBlocked();
                         syncPairNeonObserveNumFromPhaseAfterWasd();
@@ -8954,13 +9221,12 @@
                     }
 
                     if (region === 'left') {
-                        var last = null;
-                        if (currentPhaseNumber != null) last = currentPhaseNumber;
-                        else if (pickOrder && pickOrder.length) last = pickOrder[pickOrder.length - 1];
+                        var last = resolveWasdNavFocusPickNum(null);
                         if (!last) return;
                         var group = [];
                         for (var n = 1; n <= 35; n++) if (raw.freq[n] === raw.freq[last]) group.push(n);
                         if (group.length <= 1) return;
+                        last = resolveWasdNavFocusPickNum(group) || last;
                         var idxG = group.indexOf(last); if (idxG === -1) return;
                         var found = null;
                         for (var offG = 1; offG <= group.length; offG++) {
@@ -8975,14 +9241,8 @@
                             found = candG; break;
                         }
                         if (found === null) return;
-                        selected.delete(last); if (transientSelected.has(last)) transientSelected.delete(last);
-                        var prior = pickOrder.indexOf(found); if (prior !== -1) pickOrder.splice(prior, 1);
-                        if (pickOrder.length && pickOrder[pickOrder.length - 1] === last) pickOrder[pickOrder.length - 1] = found;
-                        else {
-                            var li = pickOrder.indexOf(last); if (li !== -1) pickOrder.splice(li, 1);
-                            pickOrder.push(found);
-                        }
-                        selected.add(found); transientSelected.add(found); currentPhaseNumber = found; lastClickedNumber = found; lastClickedRegion = 'left';
+                        applyWasdPickReplace(last, found);
+                        lastClickedRegion = 'left';
                         syncLeftKeyboardRegion('left');
                         recomputePairsFromSelected(); updateBlocked();
                         syncPairNeonObserveNumFromPhaseAfterWasd();
@@ -8992,12 +9252,8 @@
                     if (region === 'right') {
                         var row = (lastClickedRow != null) ? lastClickedRow : 0;
                         var numsR = getRawDisplayLineNumsAt(row); if (!numsR || numsR.length === 0) return;
-                        var lastR = lastClickedNumber;
-                        if (!lastR || numsR.indexOf(lastR) === -1) {
-                            lastR = null;
-                            for (var pr = pickOrder.length - 1; pr >= 0; pr--) { if (numsR.indexOf(pickOrder[pr]) !== -1) { lastR = pickOrder[pr]; break; } }
-                            if (!lastR) lastR = numsR[0];
-                        }
+                        var lastR = resolveWasdNavFocusPickNum(numsR);
+                        if (!lastR) return;
                         var idxR = numsR.indexOf(lastR); if (idxR === -1) return;
                         var foundR = null;
                         for (var offR = 1; offR <= numsR.length; offR++) {
@@ -9012,10 +9268,8 @@
                             foundR = candR; break;
                         }
                         if (foundR === null) return;
-                        if (selected.has(lastR)) { selected.delete(lastR); if (transientSelected.has(lastR)) transientSelected.delete(lastR); }
-                        var priorR = pickOrder.indexOf(foundR); if (priorR !== -1) pickOrder.splice(priorR, 1);
-                        var liR = pickOrder.indexOf(lastR); if (liR !== -1) pickOrder[liR] = foundR; else pickOrder.push(foundR);
-                        selected.add(foundR); lastClickedNumber = foundR; transientSelected.add(foundR); currentPhaseNumber = foundR; currentPhaseRow = row; lastClickedRow = row; lastClickedRegion = 'right';
+                        applyWasdPickReplace(lastR, foundR);
+                        currentPhaseRow = row; lastClickedRow = row; lastClickedRegion = 'right';
                         syncLeftKeyboardRegion('right');
                         recomputePairsFromSelected(); updateBlocked();
                         syncPairNeonObserveNumFromPhaseAfterWasd();
@@ -10019,6 +10273,11 @@
                             submitAutoCircleEnabled = msg.submitAutoCircleEnabled;
                         }
                         submitAutoCircleMode = normalizeSubmitAutoCircleMode(msg.submitAutoCircleMode);
+                        if (Array.isArray(msg.labelCircleNums) && isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
+                            lastSubmitAutoCircleLabelNums = normalizeSubmitAutoCircleNumList(msg.labelCircleNums);
+                        } else {
+                            lastSubmitAutoCircleLabelNums = null;
+                        }
                         if (msg.submitAutoCircleCustomX !== undefined && msg.submitAutoCircleCustomX !== null && msg.submitAutoCircleCustomX !== '') {
                             submitAutoCircleCustomX = clampSubmitAutoCircleCustomX(msg.submitAutoCircleCustomX);
                         }
@@ -10292,6 +10551,11 @@
                     }
                     applySubmitAutoCircleDatebandFromMsg(msg);
                     applySubmitAutoCircleChainFromMsg(msg);
+                    if (Array.isArray(msg.labelCircleNums) && isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
+                        lastSubmitAutoCircleLabelNums = normalizeSubmitAutoCircleNumList(msg.labelCircleNums);
+                    } else if (!isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
+                        lastSubmitAutoCircleLabelNums = null;
+                    }
 
                     if (preserveManualPicks) {
                         try { applySubmitState(); } catch (e) { }
@@ -10304,54 +10568,9 @@
                     }
 
                     if (submitAutoCircleEnabled && !wasEnabled && raw) {
-                        // When autoring is turned ON, clear current selections and apply autoring immediately
-                        autoRingVisitedIds.clear();
-                        selectionMemoryByFocusId.clear();
-                        lastAutoRingFocusKey = '';
-                        selected.clear();
-                        clearPairContributionTracking();
-                        transientSelected.clear();
-                        simulatedSelected.clear();
-                        pickOrder = [];
-                        pairNeonObserveNum = null;
-                        currentPairIndex = -1;
-                        currentTailIndex = -1;
-                        selectionCleared = false;
-
-                        var circleNums = Array.from(getSubmitAutoCircleSet()).filter(function (n) { return !isNaN(n); });
-                        if (circleNums.length > 0) {
-                            var ans = [];
-                            var ansLineObj = getRawAnswerLineObj();
-                            if (ansLineObj) {
-                                var ansLine = (ansLineObj.result || '').split('|')[0].trim();
-                                if (ansLine.length) {
-                                    ans = ansLine.split(',').map(function (x) { return parseInt(x, 10); }).filter(function (n) { return !isNaN(n); });
-                                }
-                            }
-                            if (normalizeSubmitAutoCircleMode(submitAutoCircleMode) === 'max'
-                                || normalizeSubmitAutoCircleMode(submitAutoCircleMode) === 'min') {
-                                if (ans.length >= 5) {
-                                    try { syncModeFromAnswerNums(ans); } catch (e) { }
-                                }
-                            }
-                            applyAutoRingSelection(circleNums);
-                        }
-
-                        applyAutoringDomAfterSelection();
+                        applySubmitAutoCircleFreshFromMsg(msg);
                     } else if (submitAutoCircleEnabled && wasEnabled && raw) {
-                        // Đổi max/min/x hoặc giá trị x khi autoring vẫn bật: cập nhật khoanh ngay
-                        var circleNumsCfg = Array.from(getSubmitAutoCircleSet()).filter(function (n) { return !isNaN(n); });
-                        if (circleNumsCfg.length > 0) {
-                            var ansCfg = getAnswerNumsFromCurrentLine11();
-                            var cfgMode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
-                            if ((cfgMode === 'max' || cfgMode === 'min') && ansCfg.length >= 5) {
-                                try { syncModeFromAnswerNums(ansCfg); } catch (e) { }
-                            }
-                            applyAutoRingSelection(circleNumsCfg);
-                        } else {
-                            try { clearAutoRingSelectionVisuals(); } catch (e) { }
-                        }
-                        applyAutoringDomAfterSelection();
+                        reapplySubmitAutoCircleForCurrentFocus(msg);
                     } else if (!submitAutoCircleEnabled && wasEnabled) {
                         var ringNumsOff = Array.from(autoRingPicked);
                         try { autoRingPicked.clear(); } catch (e) { }
@@ -10519,6 +10738,7 @@
                                 lastClickedRegion = 'right';
                                 syncLeftKeyboardRegion('right');
                                 lastClickedNumber = n;
+                                currentPhaseNumber = n;
                                 if (rowIndex != null && rowIndex >= 0) { lastClickedRow = rowIndex; currentPhaseRow = rowIndex; }
                             } catch (e2) { }
                             toggleNumber(n);
