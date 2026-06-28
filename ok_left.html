@@ -2053,6 +2053,9 @@
         let submitAutoCircleDatebandMinFreqB = 2;
         let submitAutoCircleDatebandFreqOpA = '>=';
         let submitAutoCircleDatebandFreqOpB = '>=';
+        /** Chuỗi [] autoring: nhãn 1..10 đã chọn */
+        let submitAutoCircleChainLabels = [];
+        let submitAutoCircleChainCombineAnd = false;
         /** Track draw ids (right-pane focus row) that already received one-shot auto ring */
         let autoRingVisitedIds = new Set();
         let autoRingPicked = new Set();
@@ -2347,10 +2350,85 @@
 
         function normalizeSubmitAutoCircleMode(mode) {
             var m = String(mode || '').trim();
-            if (m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist' || m === 'dateband') {
+            if (m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist' || m === 'dateband' || m === 'chain') {
                 return m;
             }
             return 'max';
+        }
+
+        function normalizeSubmitAutoCircleChainLabels(raw) {
+            if (!Array.isArray(raw)) {
+                return [];
+            }
+            var out = [];
+            for (var i = 0; i < raw.length; i++) {
+                var n = parseInt(raw[i], 10);
+                if (!isNaN(n) && n >= 1 && n <= 10 && out.indexOf(n) === -1) {
+                    out.push(n);
+                }
+            }
+            return out.sort(function (a, b) { return a - b; });
+        }
+
+        function applySubmitAutoCircleChainFromMsg(msg) {
+            if (!msg || typeof msg !== 'object') {
+                return;
+            }
+            if (Array.isArray(msg.chainLabels)) {
+                submitAutoCircleChainLabels = normalizeSubmitAutoCircleChainLabels(msg.chainLabels);
+            }
+            if (typeof msg.chainCombineAnd === 'boolean') {
+                submitAutoCircleChainCombineAnd = msg.chainCombineAnd;
+            }
+        }
+
+        function getChainCircleNumsFromAnswer(ans) {
+            var out = [];
+            var labels = normalizeSubmitAutoCircleChainLabels(submitAutoCircleChainLabels);
+            if (!labels.length) {
+                return out;
+            }
+            var answerNums = (ans || []).map(function (n) { return parseInt(n, 10); }).filter(function (n) { return !isNaN(n); });
+            if (!answerNums.length) {
+                return out;
+            }
+            var lines = getPickChainLinesForAutoring();
+            var lineByLabel = {};
+            for (var li = 0; li < lines.length; li++) {
+                lineByLabel[lines[li].label] = lines[li];
+            }
+            var numOnLabel = function (num, label) {
+                var line = lineByLabel[label];
+                return !!(line && line.nums.indexOf(num) !== -1);
+            };
+            if (submitAutoCircleChainCombineAnd) {
+                for (var si = 0; si < labels.length; si++) {
+                    var label = labels[si];
+                    if (!lineByLabel[label]) {
+                        return [];
+                    }
+                    var hasOnChain = false;
+                    for (var ai = 0; ai < answerNums.length; ai++) {
+                        if (numOnLabel(answerNums[ai], label)) {
+                            hasOnChain = true;
+                            break;
+                        }
+                    }
+                    if (!hasOnChain) {
+                        return [];
+                    }
+                }
+            }
+            for (var ai2 = 0; ai2 < answerNums.length; ai2++) {
+                var num = answerNums[ai2];
+                for (var sk = 0; sk < labels.length; sk++) {
+                    if (numOnLabel(num, labels[sk])) {
+                        out.push(num);
+                        break;
+                    }
+                }
+            }
+            return out;
         }
 
         function clampSubmitAutoCircleDatebandFreq(v) {
@@ -2760,6 +2838,12 @@
                         out.add(nx);
                     }
                 }
+                return out;
+            }
+            if (mode === 'chain') {
+                getChainCircleNumsFromAnswer(getAnswerNumsForAutoring()).forEach(function (n) {
+                    out.add(n);
+                });
                 return out;
             }
             if (isLabelSubmitAutoCircleMode(mode)) {
@@ -10143,14 +10227,14 @@
                     setAnswerTicketPreviewNums(msg.nums);
                     return;
                 } else if (msg.type === 'syncAnswerPickSelection') {
-                    const fromBasicBar = !!msg.basicTrackingPreview;
-                    if (submitActive && !fromBasicBar) {
+                    const forcedPickSync = !!(msg.basicTrackingPreview || msg.comboHPickSync);
+                    if (submitActive && !forcedPickSync) {
                         return;
                     }
-                    if (!fromBasicBar && hasPendingClearSelectionUndo()) {
+                    if (!forcedPickSync && hasPendingClearSelectionUndo()) {
                         return;
                     }
-                    if (fromBasicBar && hasPendingClearSelectionUndo()) {
+                    if (forcedPickSync && hasPendingClearSelectionUndo()) {
                         invalidateClearSelectionToggleBackup();
                         selectionCleared = false;
                     }
@@ -10160,13 +10244,13 @@
                         .slice(0, MAX_PICK_NUMBERS);
                     // Parent gửi lại cùng bộ số sau Submit off (iframe đã khôi phục preSubmit):
                     // clear + add lại gây nháy khoanh — bỏ qua nếu đã khớp.
-                    if (!fromBasicBar
+                    if (!forcedPickSync
                         && !transientSelected.size && !simulatedSelected.size
                         && pickNums.length === selected.size
                         && pickNums.every(function (n) { return selected.has(n); })) {
                         return;
                     }
-                    if (fromBasicBar
+                    if (forcedPickSync
                         && !submitActive
                         && !transientSelected.size && !simulatedSelected.size
                         && pickNums.length === selected.size
@@ -10175,7 +10259,7 @@
                     }
                     invalidateClearSelectionToggleBackup();
                     selected.clear();
-                    if (!(fromBasicBar && submitActive)) {
+                    if (!(forcedPickSync && submitActive)) {
                         transientSelected.clear();
                         simulatedSelected.clear();
                     }
@@ -10184,7 +10268,7 @@
                     try { recomputePairsFromSelected(); } catch (eR) { /* ignore */ }
                     try { updateBlocked(); } catch (eB) { /* ignore */ }
                     try {
-                        if (submitActive && fromBasicBar) {
+                        if (submitActive && forcedPickSync) {
                             applySelectionAndBlockedInDOM();
                             applySubmitState();
                             applySubmitCircleOverlayInDOM();
@@ -10207,6 +10291,7 @@
                         submitAutoCircleCustomX = clampSubmitAutoCircleCustomX(msg.customX);
                     }
                     applySubmitAutoCircleDatebandFromMsg(msg);
+                    applySubmitAutoCircleChainFromMsg(msg);
 
                     if (preserveManualPicks) {
                         try { applySubmitState(); } catch (e) { }

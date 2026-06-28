@@ -1429,6 +1429,19 @@
             background: #d1fae5;
         }
 
+        #autoringToggleBtn.active {
+            background: #047857;
+        }
+
+        #autoringToggleBtn.active::before {
+            border-color: #a7f3d0;
+            background: #065f46;
+        }
+
+        #autoringToggleBtn.active::after {
+            background: #6ee7b7;
+        }
+
         .sheet-tools-toggle.active::before {
             border-color: #047857;
         }
@@ -1501,22 +1514,65 @@
             font-weight: 800;
         }
 
-        #submitRingModeSelect {
+        .submit-ring-uflip-char {
+            display: inline-block;
+            transform: rotate(180deg);
+            transform-origin: 50% 50%;
+            line-height: 1;
+            vertical-align: baseline;
+            font-weight: inherit;
+            font-size: 1em;
+            font-family: inherit;
+        }
+
+        /* Uflip trong CUflip trên toolbar autoring (10px) */
+        .sheet-tools-mode-value .submit-ring-uflip-char {
+            font-weight: 800;
+            font-size: 1.08em;
+            line-height: 0.85;
+            vertical-align: -0.10em;
+            transform: rotate(180deg) translateY(0.055em);
+            transform-origin: 50% 52%;
+        }
+
+        /* Uflip trong menu dropdown autoring (12px, line-height 1.2) */
+        #submitRingModeMenu .period-filter-mode-item-label .submit-ring-cuflip-c-char,
+        #submitRingModeMenu .period-filter-mode-item-label .submit-ring-uflip-char {
+            font-weight: 800;
+        }
+
+        #submitRingModeMenu .period-filter-mode-item-label .submit-ring-uflip-char {
+            font-size: 1.08em;
+            line-height: 1;
+            vertical-align: -0.07em;
+            transform: rotate(180deg) translateY(0.038em);
+            transform-origin: 50% 52%;
+        }
+
+        .submit-ring-label-btn--ix .submit-ring-uflip-char {
+            font-size: 11px;
+            line-height: 1;
+            vertical-align: middle;
+            transform: rotate(180deg);
+        }
+
+        #submitRingModeSelect,
+        #submitRingModeSelect:disabled {
             position: absolute;
             inset: 0;
             width: 100%;
             height: 100%;
-            opacity: 0;
+            opacity: 0 !important;
             cursor: pointer;
             padding: 0;
             border: 0;
             border-radius: 0;
-            background: #ffffff;
+            background: transparent !important;
             color: #0f172a;
             appearance: none;
             -webkit-appearance: none;
             -moz-appearance: none;
-            pointer-events: none;
+            pointer-events: none !important;
         }
 
         #submitRingModeSelect option {
@@ -1536,8 +1592,7 @@
         }
 
         #submitRingModeSelect:disabled {
-            cursor: not-allowed;
-            opacity: 1 !important;
+            cursor: inherit;
             filter: none !important;
             -webkit-text-fill-color: inherit !important;
         }
@@ -1658,6 +1713,23 @@
             border-right: 1px solid #cbd5e1;
             width: 92px;
             min-width: 92px;
+            cursor: pointer;
+        }
+
+        .submit-ring-mode-btn {
+            position: absolute;
+            inset: 0;
+            z-index: 4;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        .submit-ring-mode-btn:focus-visible {
+            outline: 2px solid #006400;
+            outline-offset: -2px;
         }
 
         .submit-ring-controls .sheet-tools-mode-value {
@@ -1680,6 +1752,10 @@
             gap: 4px;
             padding: 0 4px;
             flex: 0 0 auto;
+        }
+
+        .submit-ring-label-wrap.hidden {
+            display: none !important;
         }
 
         .submit-ring-label-wrap.disabled {
@@ -1733,6 +1809,116 @@
 
         .submit-ring-controls.submit-ring-controls--tracking .submit-ring-label-wrap {
             display: none !important;
+        }
+
+        .submit-ring-chain-combine-toggle.hidden,
+        .submit-ring-chain-filter-picker.hidden {
+            display: none !important;
+        }
+
+        .submit-ring-chain-combine-toggle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            align-self: stretch;
+            min-width: 22px;
+            height: 100%;
+            padding: 0 5px;
+            margin: 0;
+            font: 800 10px/1 Inter, Segoe UI, Arial, sans-serif;
+            border: 0;
+            border-right: 1px solid #cbd5e1;
+            border-radius: 0;
+            background: #ffffff;
+            color: #334155;
+            cursor: pointer;
+            user-select: none;
+            flex: 0 0 auto;
+        }
+
+        .submit-ring-chain-combine-toggle[aria-pressed="true"] {
+            border-color: #004d00;
+            background: #006400;
+            color: #ffffff;
+        }
+
+        .submit-ring-chain-combine-toggle[aria-pressed="true"]:hover {
+            background: #005200;
+        }
+
+        .submit-ring-chain-combine-toggle .submit-ring-chain-uflip-char {
+            display: inline-block;
+            transform: rotate(180deg);
+            transform-origin: 50% 50%;
+            line-height: 1;
+            vertical-align: baseline;
+            font-weight: inherit;
+            font-size: 1em;
+        }
+
+        .submit-ring-chain-combine-toggle[aria-pressed="true"] .submit-ring-chain-uflip-char {
+            vertical-align: -0.06em;
+        }
+
+        .submit-ring-chain-filter-picker {
+            display: inline-flex;
+            align-items: center;
+            align-self: stretch;
+            gap: 2px;
+            padding: 0 4px;
+            flex: 0 0 auto;
+            border-right: 1px solid #cbd5e1;
+        }
+
+        .submit-ring-chain-filter-picker.disabled {
+            opacity: 0.45;
+            pointer-events: none;
+        }
+
+        .submit-ring-chain-slot-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 17px;
+            width: 17px;
+            height: 17px;
+            padding: 0;
+            margin: 0;
+            font: 700 9px/1 Inter, Segoe UI, Arial, sans-serif;
+            font-variant-numeric: tabular-nums;
+            border: 1px solid #cbd5e1;
+            border-radius: 3px;
+            background: #ffffff;
+            color: #64748b;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .submit-ring-chain-slot-btn:hover {
+            border-color: #94a3b8;
+            color: #334155;
+        }
+
+        .submit-ring-chain-slot-btn[aria-pressed="true"] {
+            border-color: #004d00;
+            background: #006400;
+            color: #ffffff;
+        }
+
+        .submit-ring-chain-slot-btn[aria-pressed="true"]:hover {
+            border-color: #003300;
+            background: #005200;
+        }
+
+        .submit-ring-controls.freq-mode-disabled .submit-ring-chain-combine-toggle,
+        .submit-ring-controls.freq-mode-disabled .submit-ring-chain-filter-picker {
+            opacity: 0.45;
+            pointer-events: none;
+        }
+
+        .submit-ring-chain-combine-toggle:disabled {
+            opacity: 0.45;
+            pointer-events: none;
         }
 
         .submit-ring-controls.submit-ring-controls--tracking.freq-mode-disabled .sheet-tools-mode-wrap {
@@ -1961,6 +2147,12 @@
 
         .period-filter-mode-menu.hidden {
             display: none;
+        }
+
+        /* Toolbar dropdowns: z-index mặc định; khi mở sẽ bump động (cái mở/nhấn sau nằm trên popup) */
+        #submitRingModeMenu,
+        #periodFilterModeMenu {
+            z-index: 1150;
         }
 
         /* Mode chính (14 mục): hiện đủ, không scroll dọc */
@@ -2623,6 +2815,100 @@
             border-color: #003300;
             background: #005200;
             color: #ffffff;
+        }
+
+        .filter-popup-chain-filter-toggle.hidden,
+        .filter-popup-chain-filter-picker.hidden,
+        .filter-popup-chain-combine-toggle.hidden {
+            display: none !important;
+        }
+
+        .filter-popup-chain-filter-picker {
+            display: inline-flex;
+            align-items: center;
+            align-self: center;
+            gap: 2px;
+            flex: 0 0 auto;
+            flex-shrink: 0;
+            margin: 0 0 0 4px;
+            padding: 0;
+        }
+
+        .filter-popup-chain-filter-toggle:not(.hidden):has(+ .filter-popup-chain-combine-toggle:not(.hidden)) {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+
+        .filter-popup-chain-filter-toggle:not(.hidden) + .filter-popup-chain-combine-toggle:not(.hidden) {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            margin-left: -1px;
+        }
+
+        .filter-popup-chain-combine-toggle {
+            min-width: 22px;
+            padding: 0 5px;
+        }
+
+        .filter-popup-chain-uflip-char {
+            display: inline-block;
+            transform: rotate(180deg);
+            transform-origin: 50% 50%;
+            line-height: 1;
+            vertical-align: baseline;
+            font-weight: inherit;
+            font-size: 1em;
+        }
+
+        .filter-popup-chain-combine-toggle[aria-pressed="true"] .filter-popup-chain-uflip-char {
+            vertical-align: -0.06em;
+        }
+
+        .filter-popup-chain-slot-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 17px;
+            width: 17px;
+            height: 17px;
+            padding: 0;
+            margin: 0;
+            font: 700 9px/1 Inter, Segoe UI, Arial, sans-serif;
+            font-variant-numeric: tabular-nums;
+            border: 1px solid #cbd5e1;
+            border-radius: 3px;
+            background: #ffffff;
+            color: #64748b;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .filter-popup-chain-slot-btn:hover {
+            border-color: #94a3b8;
+            color: #334155;
+        }
+
+        .filter-popup-chain-slot-btn[aria-pressed="true"] {
+            border-color: #004d00;
+            background: #006400;
+            color: #ffffff;
+        }
+
+        .filter-popup-chain-slot-btn[aria-pressed="true"]:hover {
+            border-color: #003300;
+            background: #005200;
+        }
+
+        .filter-popup-chain-slot-btn.is-chain-count-max:not([aria-pressed="true"]) {
+            border-color: #ca8a04;
+            background: #fef9c3;
+            color: #713f12;
+        }
+
+        .filter-popup-chain-slot-btn.is-chain-count-max:not([aria-pressed="true"]):hover {
+            border-color: #a16207;
+            background: #fef08a;
+            color: #422006;
         }
 
         .filter-popup-header2.hidden {
@@ -4740,16 +5026,21 @@
                             <div id="submitRingModeWrap" class="sheet-tools-mode-wrap"
                                 title="Chọn kiểu khoanh: max, min, x, 3-connection, tail">
                                 <span id="submitRingModeValue" class="sheet-tools-mode-value">MAX</span>
+                                <button type="button" id="submitRingModeBtn" class="submit-ring-mode-btn"
+                                    aria-haspopup="listbox" aria-expanded="false"
+                                    title="Chọn kiểu khoanh: max, min, x, 3-connection, tail"></button>
                                 <select id="submitRingModeSelect"
-                                    title="max / min / x (1–35) / 3-connection / tail — tắt khi bật C hoặc ∩"
+                                    title="max / min / x (1–35) / CUflip / 3-connection / tail"
                                     aria-label="Submit auto circle mode">
                                     <option value="max">max</option>
                                     <option value="min">min</option>
                                     <option value="custom">x</option>
+                                    <option value="cuflip">CUflip</option>
                                     <option value="conn3">3-connection</option>
                                     <option value="tail">tail</option>
                                     <option value="nonexist">nonexist</option>
                                     <option value="dateband"> </option>
+                                    <option value="chain">Chuỗi []</option>
                                 </select>
                                 <ul id="submitRingModeMenu" class="period-filter-mode-menu submit-ring-mode-menu hidden"
                                     role="listbox" aria-label="Chế độ autoring"></ul>
@@ -4768,15 +5059,21 @@
                                         title="Giảm x (1→35)" aria-label="Giảm x">▾</button>
                                 </div>
                             </div>
-                            <div id="submitRingLabelWrap" class="submit-ring-label-wrap"
-                                title="Nhãn pick: C (connection), ∩ (intersection) — loại trừ max/min/x/3-connection/tail">
+                            <div id="submitRingLabelWrap" class="submit-ring-label-wrap hidden"
+                                title="CUflip: bật C (connection) hoặc Uflip (intersection)">
                                 <button type="button" id="submitRingLabelConnBtn"
                                     class="submit-ring-label-btn submit-ring-label-btn--conn" aria-pressed="false"
                                     title="Khoanh theo Connection (C)">C</button>
                                 <button type="button" id="submitRingLabelIxBtn"
                                     class="submit-ring-label-btn submit-ring-label-btn--ix" aria-pressed="false"
-                                    title="Khoanh theo Intersection (∩)">∩</button>
+                                    title="Khoanh theo Intersection (Uflip)" aria-label="Intersection Uflip"><span
+                                        class="submit-ring-uflip-char" aria-hidden="true">U</span></button>
                             </div>
+                            <button type="button" id="submitRingChainCombineToggle"
+                                class="submit-ring-chain-combine-toggle hidden" aria-pressed="false"
+                                title="U thuận (∪): OR — đáp án trên bất kỳ chuỗi đã chọn">U</button>
+                            <div id="submitRingChainFilterPicker" class="submit-ring-chain-filter-picker hidden"
+                                role="group" aria-label="Chọn nhãn chuỗi 1–10 autoring"></div>
                         </div>
                     </div>
                     <div class="sheet-tools-group filter-tools-group">
@@ -4838,6 +5135,14 @@
                     </div>
                     <button type="button" id="filterPopupHeader2Toggle" class="filter-popup-header2-toggle"
                         aria-pressed="true" title="Tắt lọc thêm 5 ô mẫu (header2)">Mẫu</button>
+                    <button type="button" id="filterPopupChainFilterToggle"
+                        class="filter-popup-header2-toggle filter-popup-chain-filter-toggle hidden"
+                        aria-pressed="false" title="Bật lọc theo nhãn chuỗi cửa sổ 10 (ALL)">Chuỗi []</button>
+                    <button type="button" id="filterPopupChainCombineToggle"
+                        class="filter-popup-header2-toggle filter-popup-chain-combine-toggle hidden" aria-pressed="false"
+                        title="U thuận (∪): OR — đáp án trên bất kỳ chuỗi đã chọn">U</button>
+                    <div id="filterPopupChainFilterPicker" class="filter-popup-chain-filter-picker hidden"
+                        role="group" aria-label="Chọn nhãn chuỗi 1–10"></div>
                     <div id="filterPopupConnectionNoteTagPicker" class="filter-popup-note-tag-picker hidden"
                         aria-hidden="true">
                         <button type="button" id="filterPopupConnectionNoteTagBtn" class="filter-popup-note-tag-btn"
@@ -4983,13 +5288,13 @@
                             </label>
                         </div>
                     </div>
-                    <div id="filterPopupTailCountPicker" class="filter-popup-tail-count hidden"
-                        aria-hidden="true">
+                    <div id="filterPopupTailCountPicker" class="filter-popup-tail-count hidden" aria-hidden="true">
                         <div class="filter-popup-intersection-freq" role="group"
                             title="Tail cửa sổ 10: số lần xuất hiện rời (count) khớp ngưỡng [tail] (2–5)."
                             aria-label="Tail count: toán tử và ngưỡng 2–5">
                             <label class="filter-popup-intersection-freq-item">
-                                <span class="filter-popup-intersection-freq-key filter-popup-intersection-freq-key--tail">[tail]</span>
+                                <span
+                                    class="filter-popup-intersection-freq-key filter-popup-intersection-freq-key--tail">[tail]</span>
                                 <select id="filterPopupTailOp" class="filter-popup-intersection-freq-op"
                                     aria-label="Dấu so sánh tail count với ngưỡng">
                                     <option value=">=">&gt;=</option>
@@ -5255,8 +5560,24 @@
         const SUBMIT_RING_ENABLED_KEY = 'submitRingEnabled';
         const SUBMIT_RING_MODE_KEY = 'submitRingMode';
         const SUBMIT_RING_CUSTOM_X_KEY = 'submitRingCustomX';
-        const SUBMIT_RING_VALID_MODES = ['max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist', 'dateband'];
-        const SUBMIT_RING_FREQ_MODES = ['max', 'min', 'custom', 'conn3', 'tail', 'nonexist', 'dateband'];
+        const SUBMIT_RING_VALID_MODES = ['max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist', 'dateband', 'cuflip', 'cn', 'chain'];
+        const SUBMIT_RING_FREQ_MODES = ['max', 'min', 'custom', 'cuflip', 'conn3', 'tail', 'nonexist', 'dateband', 'chain'];
+        const SUBMIT_RING_CHAIN_MODE = 'chain';
+        const SUBMIT_RING_CHAIN_LABEL = 'Chuỗi []';
+        const SUBMIT_RING_CHAIN_SELECTED_KEY = 'submitRingChainSelected';
+        const SUBMIT_RING_CHAIN_COMBINE_AND_KEY = 'submitRingChainCombineAnd';
+        /** Uflip: chữ U xoay 180° — intersection, cùng cap-height với C */
+        const SUBMIT_RING_CUFLIP_MODE = 'cuflip';
+        const SUBMIT_RING_CUFLIP_LABEL = 'CUflip';
+        const SUBMIT_RING_UFLIP_PLAIN = 'Uflip';
+
+        function getSubmitRingUflipHtml() {
+            return '<span class="submit-ring-uflip-char" aria-hidden="true">U</span>';
+        }
+
+        function getSubmitRingCuflipLabelHtml() {
+            return '<span class="submit-ring-cuflip-c-char">C</span>' + getSubmitRingUflipHtml();
+        }
         const SUBMIT_RING_LABEL_CONN_KEY = 'submitRingLabelConn';
         const SUBMIT_RING_LABEL_IX_KEY = 'submitRingLabelIx';
         const PERIOD_FILTER_ENABLED_KEY = 'periodFilterEnabled';
@@ -5287,6 +5608,9 @@
         const FILTER_NOTE_TAGS_KEY = 'filterNoteTags';
         const FILTER_HEADER2_NUMS_KEY = 'filterPopupHeader2Nums';
         const FILTER_HEADER2_ENABLED_KEY = 'filterPopupHeader2Enabled';
+        const FILTER_CHAIN_FILTER_ENABLED_KEY = 'filterPopupChainFilterEnabled';
+        const FILTER_CHAIN_SELECTED_KEY = 'filterPopupChainSelected';
+        const FILTER_CHAIN_COMBINE_AND_KEY = 'filterPopupChainCombineAnd';
         const FILTER_HEADER2_CANDIDATE_PATTERNS = (() => {
             const out = [];
             for (let n = 1; n <= 9; n++) {
@@ -5347,7 +5671,7 @@
         let sheetManager = null;
         let answerPopup = null;
         /** Tăng dần khi click filter / answer dock để popup nào click sau nổi trên. */
-        let floatingPopupDockZCounter = 0;
+        let floatingOverlayZCounter = 0;
 
         /** Filter popup: sheet1 + tracking. Answer popup thêm các sheet combo_x. */
         function isSourceDataContextSheet(sheet) {
@@ -5389,10 +5713,13 @@
         let rightPaneZoom = 1;
         let submitRingEnabled = false;
         let submitRingMode = 'max';
-        /** max | min | custom — dùng khi không bật nhãn C/∩ */
+        /** max | min | custom — dùng khi không bật nhãn C/Uflip trong CUflip */
         let submitRingFreqMode = 'max';
         let submitRingLabelConn = false;
         let submitRingLabelIx = false;
+        /** @type {boolean[]} nhãn chuỗi 1..10 autoring */
+        let submitRingChainSelected = [false, false, false, false, false, false, false, false, false, false];
+        let submitRingChainCombineAnd = false;
         /** Giá trị x (1–35) khi autoring chế độ custom */
         let submitRingCustomX = 15;
         let periodFilterEnabled = false;
@@ -5478,6 +5805,12 @@
         let filterPopupHeader2Suggestions = ['', '', '', '', ''];
         let filterPopupHeader2SuggestionLocked = ['', '', '', '', ''];
         let filterPopupHeader2Enabled = true;
+        let filterPopupChainFilterEnabled = false;
+        /** @type {boolean[]} nhãn chuỗi 1..10 (index 0 = chuỗi 1) */
+        let filterPopupChainSelected = [false, false, false, false, false, false, false, false, false, false];
+        /** false = U thuận (OR); true = U flip (AND) */
+        let filterPopupChainCombineAnd = false;
+        let filterChainBestLabelTimer = 0;
         let keyboardFocusTarget = 'right-main';
 
         function rememberKeyboardFocusTarget(target) {
@@ -5921,20 +6254,27 @@
 
         function normalizeSubmitRingFreqMode(mode) {
             const m = String(mode || '').trim();
+            if (m === 'cn') {
+                return SUBMIT_RING_CUFLIP_MODE;
+            }
             return SUBMIT_RING_FREQ_MODES.includes(m) ? m : 'max';
         }
 
         function getEffectiveSubmitRingMode() {
-            if (submitRingLabelConn && submitRingLabelIx) {
-                return 'conn_ix';
+            const freq = normalizeSubmitRingFreqMode(submitRingFreqMode);
+            if (freq === SUBMIT_RING_CUFLIP_MODE) {
+                if (submitRingLabelConn && submitRingLabelIx) {
+                    return 'conn_ix';
+                }
+                if (submitRingLabelConn) {
+                    return 'conn';
+                }
+                if (submitRingLabelIx) {
+                    return 'ix';
+                }
+                return 'max';
             }
-            if (submitRingLabelConn) {
-                return 'conn';
-            }
-            if (submitRingLabelIx) {
-                return 'ix';
-            }
-            return normalizeSubmitRingFreqMode(submitRingFreqMode);
+            return freq;
         }
 
         function syncSubmitRingModeFromUi() {
@@ -5961,22 +6301,34 @@
                 submitRingFreqMode = 'dateband';
                 return;
             }
+            if (m === SUBMIT_RING_CHAIN_MODE) {
+                submitRingLabelConn = false;
+                submitRingLabelIx = false;
+                submitRingFreqMode = SUBMIT_RING_CHAIN_MODE;
+                return;
+            }
+            if (m === 'cn' || m === SUBMIT_RING_CUFLIP_MODE) {
+                submitRingLabelConn = false;
+                submitRingLabelIx = false;
+                submitRingFreqMode = SUBMIT_RING_CUFLIP_MODE;
+                return;
+            }
             if (m === 'conn_ix') {
                 submitRingLabelConn = true;
                 submitRingLabelIx = true;
-                submitRingFreqMode = 'max';
+                submitRingFreqMode = SUBMIT_RING_CUFLIP_MODE;
                 return;
             }
             if (m === 'conn') {
                 submitRingLabelConn = true;
                 submitRingLabelIx = false;
-                submitRingFreqMode = 'max';
+                submitRingFreqMode = SUBMIT_RING_CUFLIP_MODE;
                 return;
             }
             if (m === 'ix') {
                 submitRingLabelConn = false;
                 submitRingLabelIx = true;
-                submitRingFreqMode = 'max';
+                submitRingFreqMode = SUBMIT_RING_CUFLIP_MODE;
                 return;
             }
             submitRingLabelConn = false;
@@ -5993,13 +6345,16 @@
                 return 'C';
             }
             if (m === 'ix') {
-                return '∩';
+                return SUBMIT_RING_UFLIP_PLAIN;
             }
             if (m === 'conn_ix') {
-                return 'C∩';
+                return SUBMIT_RING_CUFLIP_LABEL;
             }
             if (m === 'conn3') {
                 return '3-connection';
+            }
+            if (m === SUBMIT_RING_CUFLIP_MODE || m === 'cn') {
+                return SUBMIT_RING_CUFLIP_LABEL;
             }
             if (m === 'tail') {
                 return 'tail';
@@ -6010,7 +6365,145 @@
             if (m === 'dateband') {
                 return 'dateband';
             }
+            if (m === SUBMIT_RING_CHAIN_MODE) {
+                return SUBMIT_RING_CHAIN_LABEL;
+            }
             return m.toUpperCase();
+        }
+
+        function getSubmitRingChainSelectedLabels() {
+            const out = [];
+            const sel = Array.isArray(submitRingChainSelected) ? submitRingChainSelected : [];
+            for (let i = 0; i < 10; i++) {
+                if (sel[i]) {
+                    out.push(i + 1);
+                }
+            }
+            return out;
+        }
+
+        function saveSubmitRingChainSettings() {
+            try {
+                localStorage.setItem(SUBMIT_RING_CHAIN_SELECTED_KEY, JSON.stringify(submitRingChainSelected));
+                localStorage.setItem(SUBMIT_RING_CHAIN_COMBINE_AND_KEY, submitRingChainCombineAnd ? '1' : '0');
+            } catch (e) { /* ignore */ }
+        }
+
+        function loadSubmitRingChainSettings() {
+            try {
+                const savedSel = localStorage.getItem(SUBMIT_RING_CHAIN_SELECTED_KEY);
+                if (savedSel) {
+                    const parsed = JSON.parse(savedSel);
+                    if (Array.isArray(parsed) && parsed.length === 10) {
+                        submitRingChainSelected = parsed.map((v) => !!v);
+                    }
+                }
+                const savedCombine = localStorage.getItem(SUBMIT_RING_CHAIN_COMBINE_AND_KEY);
+                if (savedCombine === '1') {
+                    submitRingChainCombineAnd = true;
+                } else if (savedCombine === '0') {
+                    submitRingChainCombineAnd = false;
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        function syncSubmitRingChainCombineToggleVisual(combineBtn) {
+            if (!combineBtn) {
+                return;
+            }
+            const andMode = !!submitRingChainCombineAnd;
+            combineBtn.setAttribute('aria-pressed', andMode ? 'true' : 'false');
+            if (andMode) {
+                combineBtn.innerHTML = '<span class="submit-ring-chain-uflip-char" aria-hidden="true">U</span>';
+                combineBtn.title = 'U flip (∩): AND — mỗi chuỗi đã chọn đều có ít nhất một số đáp án. Bấm → U thuận';
+            } else {
+                combineBtn.textContent = 'U';
+                combineBtn.title = 'U thuận (∪): OR — đáp án trên bất kỳ chuỗi đã chọn. Bấm → U flip';
+            }
+        }
+
+        function syncSubmitRingChainUi() {
+            const showChain = normalizeSubmitRingFreqMode(submitRingFreqMode) === SUBMIT_RING_CHAIN_MODE;
+            const combineBtn = el('submitRingChainCombineToggle');
+            const picker = el('submitRingChainFilterPicker');
+            if (combineBtn) {
+                combineBtn.classList.toggle('hidden', !showChain);
+                combineBtn.setAttribute('aria-hidden', showChain ? 'false' : 'true');
+                combineBtn.disabled = !submitRingEnabled;
+                syncSubmitRingChainCombineToggleVisual(combineBtn);
+            }
+            if (picker) {
+                picker.classList.toggle('hidden', !showChain);
+                picker.setAttribute('aria-hidden', showChain ? 'false' : 'true');
+                picker.classList.toggle('disabled', !submitRingEnabled);
+                picker.querySelectorAll('.submit-ring-chain-slot-btn').forEach((btn) => {
+                    const label = parseInt(btn.dataset.chainLabel || '0', 10);
+                    const pressed = label >= 1 && label <= 10 && !!submitRingChainSelected[label - 1];
+                    btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+                    btn.title = `Chuỗi ${label} (1 = sát kỳ)`;
+                });
+            }
+        }
+
+        function toggleSubmitRingChainLabel(label) {
+            const n = parseInt(label, 10);
+            if (!Number.isFinite(n) || n < 1 || n > 10) {
+                return;
+            }
+            submitRingChainSelected[n - 1] = !submitRingChainSelected[n - 1];
+            saveSubmitRingChainSettings();
+            syncSubmitRingChainUi();
+            sendSubmitRingConfigToIframe();
+        }
+
+        function toggleSubmitRingChainCombineMode() {
+            submitRingChainCombineAnd = !submitRingChainCombineAnd;
+            saveSubmitRingChainSettings();
+            syncSubmitRingChainUi();
+            sendSubmitRingConfigToIframe();
+        }
+
+        function buildSubmitRingChainToggleButtons() {
+            const picker = el('submitRingChainFilterPicker');
+            if (!picker || picker.dataset.chainPickerBuilt === '1') {
+                return;
+            }
+            picker.dataset.chainPickerBuilt = '1';
+            picker.innerHTML = '';
+            for (let n = 1; n <= 10; n++) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'submit-ring-chain-slot-btn';
+                btn.dataset.chainLabel = String(n);
+                btn.textContent = String(n);
+                btn.setAttribute('aria-pressed', 'false');
+                btn.setAttribute('aria-label', `Chuỗi ${n}`);
+                btn.title = `Chuỗi ${n} (1 = sát kỳ)`;
+                btn.addEventListener('mousedown', (event) => event.stopPropagation());
+                btn.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    toggleSubmitRingChainLabel(n);
+                });
+                picker.appendChild(btn);
+            }
+        }
+
+        function initSubmitRingChainControls() {
+            loadSubmitRingChainSettings();
+            buildSubmitRingChainToggleButtons();
+            syncSubmitRingChainUi();
+            const combineBtn = el('submitRingChainCombineToggle');
+            if (combineBtn && combineBtn.dataset.chainCombineBound !== '1') {
+                combineBtn.dataset.chainCombineBound = '1';
+                combineBtn.addEventListener('mousedown', (event) => event.stopPropagation());
+                combineBtn.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    if (!submitRingEnabled || submitRingFreqMode !== SUBMIT_RING_CHAIN_MODE) {
+                        return;
+                    }
+                    toggleSubmitRingChainCombineMode();
+                });
+            }
         }
 
         function applySubmitRingModeMenuVisual(targetEl, mode) {
@@ -6019,13 +6512,28 @@
             }
             const m = normalizeSubmitRingMode(mode);
             const isDateband = m === 'dateband';
-            targetEl.textContent = isDateband ? '' : getSubmitRingModeDisplayLabel(m);
             targetEl.classList.toggle('period-filter-dateband-swatch', isDateband);
-            if (isDateband) {
+            if (m === 'dateband') {
+                targetEl.textContent = '';
                 targetEl.setAttribute('aria-label', 'Date nền #00b0f0');
-            } else {
-                targetEl.removeAttribute('aria-label');
+                return;
             }
+            if (m === SUBMIT_RING_CHAIN_MODE) {
+                targetEl.textContent = SUBMIT_RING_CHAIN_LABEL;
+                return;
+            }
+            targetEl.removeAttribute('aria-label');
+            if (m === SUBMIT_RING_CUFLIP_MODE || m === 'cn' || m === 'conn_ix') {
+                targetEl.innerHTML = getSubmitRingCuflipLabelHtml();
+                targetEl.setAttribute('aria-label', SUBMIT_RING_CUFLIP_LABEL);
+                return;
+            }
+            if (m === 'ix') {
+                targetEl.innerHTML = getSubmitRingUflipHtml();
+                targetEl.setAttribute('aria-label', SUBMIT_RING_UFLIP_PLAIN);
+                return;
+            }
+            targetEl.textContent = getSubmitRingModeDisplayLabel(m);
         }
 
         let submitRingModeMenuOpen = false;
@@ -6080,21 +6588,26 @@
 
         function closeSubmitRingModeMenu() {
             const menu = el('submitRingModeMenu');
+            const modeBtn = el('submitRingModeBtn');
             if (!menu) {
                 submitRingModeMenuOpen = false;
+                if (modeBtn) {
+                    modeBtn.setAttribute('aria-expanded', 'false');
+                }
                 return;
             }
             menu.classList.add('hidden');
             submitRingModeMenuOpen = false;
+            if (modeBtn) {
+                modeBtn.setAttribute('aria-expanded', 'false');
+            }
         }
 
         function openSubmitRingModeMenu() {
-            if (!submitRingEnabled) {
-                return;
-            }
             closePeriodFilterModeMenu();
             const menu = el('submitRingModeMenu');
             const modeWrap = el('submitRingModeWrap');
+            const modeBtn = el('submitRingModeBtn');
             if (!menu || !modeWrap) {
                 return;
             }
@@ -6108,13 +6621,20 @@
             }
             positionSubmitRingModeMenu();
             menu.classList.remove('hidden');
+            bumpFloatingOverlayZIndex(menu);
             submitRingModeMenuOpen = true;
+            if (modeBtn) {
+                modeBtn.setAttribute('aria-expanded', 'true');
+            }
         }
 
         function selectSubmitRingFreqMode(mode) {
-            submitRingFreqMode = normalizeSubmitRingFreqMode(mode);
-            submitRingLabelConn = false;
-            submitRingLabelIx = false;
+            const next = normalizeSubmitRingFreqMode(mode);
+            if (next !== SUBMIT_RING_CUFLIP_MODE) {
+                submitRingLabelConn = false;
+                submitRingLabelIx = false;
+            }
+            submitRingFreqMode = next;
             syncSubmitRingModeFromUi();
             persistSubmitRingSettings();
             syncSubmitRingToolbarUi();
@@ -6170,6 +6690,8 @@
                 enabled: !!submitRingEnabled,
                 mode: normalizeSubmitRingMode(submitRingMode),
                 customX: clampRingCustomX(submitRingCustomX),
+                chainLabels: getSubmitRingChainSelectedLabels(),
+                chainCombineAnd: !!submitRingChainCombineAnd,
                 ...getSubmitRingDatebandPayload(),
                 preserveManualPicks: !!(options.preserveManualPicks || contextSync),
                 contextSync
@@ -6180,7 +6702,10 @@
         function persistSubmitRingSettings() {
             syncSubmitRingModeFromUi();
             try {
-                localStorage.setItem(SUBMIT_RING_MODE_KEY, submitRingMode);
+                const storedMode = submitRingFreqMode === SUBMIT_RING_CUFLIP_MODE
+                    ? SUBMIT_RING_CUFLIP_MODE
+                    : submitRingMode;
+                localStorage.setItem(SUBMIT_RING_MODE_KEY, storedMode);
                 localStorage.setItem(SUBMIT_RING_LABEL_CONN_KEY, submitRingLabelConn ? '1' : '0');
                 localStorage.setItem(SUBMIT_RING_LABEL_IX_KEY, submitRingLabelIx ? '1' : '0');
             } catch (e) { /* ignore */ }
@@ -6190,6 +6715,7 @@
             const toggleBtn = el('autoringToggleBtn');
             const controls = el('submitRingControls');
             const modeSelect = el('submitRingModeSelect');
+            const modeBtn = el('submitRingModeBtn');
             const modeWrap = el('submitRingModeWrap');
             const modeValue = el('submitRingModeValue');
             const customWrap = el('submitRingCustomXWrap');
@@ -6203,13 +6729,15 @@
             submitRingFreqMode = normalizeSubmitRingFreqMode(submitRingFreqMode);
             submitRingCustomX = clampRingCustomX(submitRingCustomX);
             syncSubmitRingModeFromUi();
-            const labelActive = submitRingLabelConn || submitRingLabelIx;
-            const effectiveMode = submitRingMode;
             const dropdownMode = submitRingFreqMode;
+            const showCuflipToggles = dropdownMode === SUBMIT_RING_CUFLIP_MODE;
+            const labelActive = showCuflipToggles && (submitRingLabelConn || submitRingLabelIx);
+            const effectiveMode = submitRingMode;
             const xControlsDisabled = !submitRingEnabled || labelActive || dropdownMode !== 'custom';
             const modeLabel = getSubmitRingModeDisplayLabel(effectiveMode);
             const dropdownLabel = getSubmitRingModeDisplayLabel(dropdownMode);
             const dropdownHint = dropdownMode === 'dateband' ? 'date nền #00b0f0' : dropdownLabel;
+            const modeValueMode = labelActive ? effectiveMode : dropdownMode;
             if (toggleBtn) {
                 toggleBtn.classList.toggle('active', submitRingEnabled);
                 toggleBtn.setAttribute(
@@ -6225,20 +6753,32 @@
             }
             if (modeSelect) {
                 modeSelect.value = dropdownMode;
-                modeSelect.disabled = !submitRingEnabled;
-                modeSelect.setAttribute('title', labelActive
-                    ? `Chọn chế độ khác để tắt C/∩ (${dropdownLabel})`
-                    : `Chế độ khoanh: ${dropdownHint}`);
+                modeSelect.disabled = false;
+                modeSelect.removeAttribute('disabled');
+                const modePickerTitle = dropdownMode === SUBMIT_RING_CUFLIP_MODE
+                    ? (labelActive
+                        ? `${SUBMIT_RING_CUFLIP_LABEL} — đang dùng ${modeLabel}`
+                        : `${SUBMIT_RING_CUFLIP_LABEL} — chọn C hoặc ${SUBMIT_RING_UFLIP_PLAIN} bên phải`)
+                    : `Chế độ khoanh: ${dropdownHint}`;
+                modeSelect.setAttribute('title', modePickerTitle);
+                if (modeBtn) {
+                    modeBtn.disabled = false;
+                    modeBtn.removeAttribute('disabled');
+                    modeBtn.setAttribute('title', modePickerTitle);
+                    modeBtn.setAttribute('aria-expanded', submitRingModeMenuOpen ? 'true' : 'false');
+                }
             }
             if (modeValue) {
-                applySubmitRingModeMenuVisual(modeValue, labelActive ? effectiveMode : dropdownMode);
-                modeValue.style.textTransform = (dropdownMode === 'custom' || dropdownMode === 'conn3' || dropdownMode === 'tail' || dropdownMode === 'dateband') ? 'none' : 'uppercase';
+                applySubmitRingModeMenuVisual(modeValue, modeValueMode);
+                modeValue.style.textTransform = (modeValueMode === 'custom' || modeValueMode === 'conn3' || modeValueMode === 'tail' || modeValueMode === 'dateband' || modeValueMode === SUBMIT_RING_CHAIN_MODE || modeValueMode === SUBMIT_RING_CUFLIP_MODE) ? 'none' : 'uppercase';
             }
             if (modeWrap) {
-                modeWrap.classList.toggle('disabled', !submitRingEnabled);
-                modeWrap.classList.toggle('enabled', modeHighlighted && !labelActive);
-                modeWrap.setAttribute('title', labelActive
-                    ? `Đang dùng nhãn ${modeLabel}`
+                modeWrap.classList.remove('disabled');
+                modeWrap.classList.toggle('enabled', modeHighlighted && !(showCuflipToggles && labelActive));
+                modeWrap.setAttribute('title', dropdownMode === SUBMIT_RING_CUFLIP_MODE
+                    ? (labelActive
+                        ? `${SUBMIT_RING_CUFLIP_LABEL} — đang dùng ${modeLabel}`
+                        : `${SUBMIT_RING_CUFLIP_LABEL} — chọn C hoặc ${SUBMIT_RING_UFLIP_PLAIN}`)
                     : `Chế độ khoanh: ${dropdownHint}`);
             }
             if (customWrap) {
@@ -6255,6 +6795,7 @@
                 customInc.disabled = xControlsDisabled;
             }
             if (labelWrap) {
+                labelWrap.classList.toggle('hidden', !showCuflipToggles);
                 labelWrap.classList.toggle('disabled', !submitRingEnabled);
             }
             if (labelConnBtn) {
@@ -6265,11 +6806,10 @@
                 labelIxBtn.disabled = !submitRingEnabled;
                 labelIxBtn.setAttribute('aria-pressed', submitRingLabelIx ? 'true' : 'false');
             }
-            if (!submitRingEnabled) {
-                closeSubmitRingModeMenu();
-            } else {
+            if (submitRingModeMenuOpen) {
                 highlightSubmitRingModeMenu(dropdownMode);
             }
+            syncSubmitRingChainUi();
         }
 
         function bumpSubmitRingCustomXBy(delta) {
@@ -6304,6 +6844,14 @@
                 } else {
                     applyLoadedSubmitRingMode('max');
                 }
+                if (submitRingFreqMode === SUBMIT_RING_CUFLIP_MODE
+                    && (savedMode === SUBMIT_RING_CUFLIP_MODE || savedMode === 'cn')) {
+                    submitRingLabelConn = savedLabelConn === '1';
+                    submitRingLabelIx = savedLabelIx === '1';
+                } else if (submitRingFreqMode !== SUBMIT_RING_CUFLIP_MODE) {
+                    submitRingLabelConn = false;
+                    submitRingLabelIx = false;
+                }
                 if (savedX != null && savedX !== '') {
                     submitRingCustomX = clampRingCustomX(savedX);
                 } else {
@@ -6321,6 +6869,7 @@
 
             const toggleBtn = el('autoringToggleBtn');
             const modeSelect = el('submitRingModeSelect');
+            const modeBtn = el('submitRingModeBtn');
             const customInput = el('submitRingCustomXInput');
             const customDec = el('submitRingCustomXDec');
             const customInc = el('submitRingCustomXInc');
@@ -6339,14 +6888,14 @@
                     selectSubmitRingFreqMode(modeSelect.value);
                 });
             }
-            const modeWrap = el('submitRingModeWrap');
-            if (modeWrap && modeWrap.dataset.submitRingMenuBound !== '1') {
-                modeWrap.dataset.submitRingMenuBound = '1';
-                modeWrap.addEventListener('mousedown', (event) => {
+            if (modeBtn && modeBtn.dataset.submitRingMenuBound !== '1') {
+                modeBtn.dataset.submitRingMenuBound = '1';
+                modeBtn.addEventListener('mousedown', (event) => {
+                    event.stopPropagation();
+                });
+                modeBtn.addEventListener('click', (event) => {
                     event.preventDefault();
-                    if (!submitRingEnabled) {
-                        return;
-                    }
+                    event.stopPropagation();
                     if (submitRingModeMenuOpen) {
                         closeSubmitRingModeMenu();
                     } else {
@@ -6356,20 +6905,30 @@
             }
             if (!document.documentElement.dataset.submitRingModeMenuDismissBound) {
                 document.documentElement.dataset.submitRingModeMenuDismissBound = '1';
-                document.addEventListener('mousedown', (event) => {
-                    if (!submitRingModeMenuOpen) {
+                const dismissSubmitRingModeMenuUnlessControl = (event) => {
+                    if (isFloatingPopupInteractionTarget(event.target)) {
+                        closeSubmitRingModeMenu();
                         return;
                     }
                     const menu = el('submitRingModeMenu');
+                    if (!submitRingModeMenuOpen && menu && menu.classList.contains('hidden')) {
+                        return;
+                    }
                     const wrap = el('submitRingModeWrap');
+                    const btn = el('submitRingModeBtn');
                     if (menu && menu.contains(event.target)) {
+                        return;
+                    }
+                    if (btn && btn.contains(event.target)) {
                         return;
                     }
                     if (wrap && wrap.contains(event.target)) {
                         return;
                     }
                     closeSubmitRingModeMenu();
-                });
+                };
+                document.addEventListener('pointerdown', dismissSubmitRingModeMenuUnlessControl, true);
+                document.addEventListener('mousedown', dismissSubmitRingModeMenuUnlessControl, true);
             }
             buildSubmitRingModeMenu();
             const bumpRingCustomX = bumpSubmitRingCustomXBy;
@@ -6420,21 +6979,13 @@
                 });
             }
             const toggleSubmitRingLabel = (which) => {
-                if (!submitRingEnabled) {
+                if (!submitRingEnabled || submitRingFreqMode !== SUBMIT_RING_CUFLIP_MODE) {
                     return;
                 }
                 if (which === 'conn') {
                     submitRingLabelConn = !submitRingLabelConn;
                 } else if (which === 'ix') {
                     submitRingLabelIx = !submitRingLabelIx;
-                }
-                if (submitRingLabelConn || submitRingLabelIx) {
-                    if (submitRingFreqMode === 'conn3' || submitRingFreqMode === 'tail') {
-                        submitRingFreqMode = 'max';
-                    }
-                }
-                if (!submitRingLabelConn && !submitRingLabelIx) {
-                    /* giữ submitRingFreqMode */
                 }
                 syncSubmitRingModeFromUi();
                 persistSubmitRingSettings();
@@ -6458,6 +7009,7 @@
                     toggleSubmitRingLabel('ix');
                 });
             }
+            initSubmitRingChainControls();
 
             const frame = el('okFrame');
             if (frame) {
@@ -8516,6 +9068,33 @@
             menu.style.minWidth = `${Math.max(rect.width, 148)}px`;
         }
 
+        function repositionOpenFilterPopupFloatingMenus() {
+            const periodMenu = getPeriodFilterMenu();
+            if (periodMenu && !periodMenu.classList.contains('hidden') && periodFilterMenuAnchor === 'popup') {
+                positionPeriodFilterModeMenu();
+            }
+            const noteTagMenu = el('filterPopupNoteTagMenu');
+            if (noteTagMenu && !noteTagMenu.classList.contains('hidden')) {
+                positionFilterPopupNoteTagMenu();
+            }
+            const connectionNoteTagMenu = el('filterPopupConnectionNoteTagMenu');
+            if (connectionNoteTagMenu && !connectionNoteTagMenu.classList.contains('hidden')) {
+                positionFilterPopupConnectionNoteTagMenu();
+            }
+            const intersectionKindMenu = el('filterPopupIntersectionKindMenu');
+            if (intersectionKindMenu && !intersectionKindMenu.classList.contains('hidden')) {
+                positionFilterPopupIntersectionKindMenu();
+            }
+            const nonexistColorMenu = el('filterPopupNonexistColorMenu');
+            if (nonexistColorMenu && !nonexistColorMenu.classList.contains('hidden')) {
+                positionFilterPopupNonexistColorMenu();
+            }
+            const nonexistGreen005Menu = el('filterPopupNonexistGreen005Menu');
+            if (nonexistGreen005Menu && !nonexistGreen005Menu.classList.contains('hidden')) {
+                positionFilterPopupNonexistGreen005Menu();
+            }
+        }
+
         function buildFilterPopupNonexistGreen005Menu() {
             const menu = el('filterPopupNonexistGreen005Menu');
             if (!menu || menu.dataset.built === '1') {
@@ -9542,6 +10121,278 @@
             applyFilterHeader2Refresh();
         }
 
+        function isFilterChainPickerVisibleMode() {
+            return periodFilterEnabled && isAllFilterMode(periodFilterMode);
+        }
+
+        function isFilterChainPickerEnabled() {
+            return !!filterPopupChainFilterEnabled;
+        }
+
+        function getFilterChainSelectedLabels() {
+            const out = [];
+            const sel = Array.isArray(filterPopupChainSelected) ? filterPopupChainSelected : [];
+            for (let i = 0; i < 10; i++) {
+                if (sel[i]) {
+                    out.push(i + 1);
+                }
+            }
+            return out;
+        }
+
+        function isFilterChainSubfilterActive() {
+            return isFilterChainPickerVisibleMode()
+                && isFilterChainPickerEnabled()
+                && getFilterChainSelectedLabels().length > 0;
+        }
+
+        function isFilterChainCombineAnd() {
+            return !!filterPopupChainCombineAnd;
+        }
+
+        function getFilterChainCombineMode() {
+            return isFilterChainCombineAnd() ? 'and' : 'or';
+        }
+
+        function saveFilterChainFilterSettings() {
+            try {
+                localStorage.setItem(FILTER_CHAIN_FILTER_ENABLED_KEY, filterPopupChainFilterEnabled ? '1' : '0');
+                localStorage.setItem(FILTER_CHAIN_SELECTED_KEY, JSON.stringify(filterPopupChainSelected));
+                localStorage.setItem(FILTER_CHAIN_COMBINE_AND_KEY, filterPopupChainCombineAnd ? '1' : '0');
+            } catch (e) { /* ignore */ }
+        }
+
+        function loadFilterChainFilterSettings() {
+            try {
+                const savedEnabled = localStorage.getItem(FILTER_CHAIN_FILTER_ENABLED_KEY);
+                if (savedEnabled === '1') {
+                    filterPopupChainFilterEnabled = true;
+                } else if (savedEnabled === '0') {
+                    filterPopupChainFilterEnabled = false;
+                }
+                const savedSel = localStorage.getItem(FILTER_CHAIN_SELECTED_KEY);
+                if (savedSel) {
+                    const parsed = JSON.parse(savedSel);
+                    if (Array.isArray(parsed) && parsed.length === 10) {
+                        filterPopupChainSelected = parsed.map((v) => !!v);
+                    }
+                }
+                const savedCombine = localStorage.getItem(FILTER_CHAIN_COMBINE_AND_KEY);
+                if (savedCombine === '1') {
+                    filterPopupChainCombineAnd = true;
+                } else if (savedCombine === '0') {
+                    filterPopupChainCombineAnd = false;
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        function syncFilterPopupChainCombineToggleVisual(combineBtn) {
+            if (!combineBtn) {
+                return;
+            }
+            const andMode = isFilterChainCombineAnd();
+            combineBtn.setAttribute('aria-pressed', andMode ? 'true' : 'false');
+            if (andMode) {
+                combineBtn.innerHTML = '<span class="filter-popup-chain-uflip-char" aria-hidden="true">U</span>';
+                combineBtn.title = 'U flip (∩): AND — mỗi chuỗi đã chọn đều có ít nhất một số đáp án. Bấm → U thuận';
+            } else {
+                combineBtn.textContent = 'U';
+                combineBtn.title = 'U thuận (∪): OR — đáp án trên bất kỳ chuỗi đã chọn. Bấm → U flip';
+            }
+        }
+
+        function syncFilterPopupChainFilterUi(options = {}) {
+            const skipBestLabel = options.skipBestLabel === true;
+            const showMode = isFilterChainPickerVisibleMode();
+            const toggleBtn = el('filterPopupChainFilterToggle');
+            const picker = el('filterPopupChainFilterPicker');
+            const combineBtn = el('filterPopupChainCombineToggle');
+            const on = isFilterChainPickerEnabled();
+            const showBar = showMode && on;
+            if (toggleBtn) {
+                toggleBtn.classList.toggle('hidden', !showMode);
+                toggleBtn.setAttribute('aria-hidden', showMode ? 'false' : 'true');
+                toggleBtn.setAttribute('aria-pressed', on ? 'true' : 'false');
+                toggleBtn.title = on
+                    ? 'Tắt lọc theo nhãn chuỗi cửa sổ 10'
+                    : 'Bật lọc theo nhãn chuỗi cửa sổ 10 (ALL)';
+            }
+            if (picker) {
+                picker.classList.toggle('hidden', !showBar);
+                picker.setAttribute('aria-hidden', showBar ? 'false' : 'true');
+            }
+            if (combineBtn) {
+                combineBtn.classList.toggle('hidden', !showBar);
+                combineBtn.setAttribute('aria-hidden', showBar ? 'false' : 'true');
+                syncFilterPopupChainCombineToggleVisual(combineBtn);
+            }
+            if (picker) {
+                const maxLabel = !skipBestLabel && on && showMode ? getFilterChainBestToggleOnLabel() : 0;
+                picker.querySelectorAll('.filter-popup-chain-slot-btn').forEach((btn) => {
+                    const label = parseInt(btn.dataset.chainLabel || '0', 10);
+                    const pressed = label >= 1 && label <= 10 && !!filterPopupChainSelected[label - 1];
+                    btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+                    btn.classList.toggle('is-chain-count-max', label === maxLabel && maxLabel > 0);
+                    if (label === maxLabel && maxLabel > 0 && !pressed) {
+                        btn.title = `Chuỗi ${label}: bật → count cao nhất (1 = sát kỳ)`;
+                    } else {
+                        btn.title = `Chuỗi ${label} (1 = sát kỳ)`;
+                    }
+                });
+            }
+        }
+
+        function scheduleFilterChainBestLabelHighlight() {
+            clearTimeout(filterChainBestLabelTimer);
+            filterChainBestLabelTimer = setTimeout(() => {
+                filterChainBestLabelTimer = 0;
+                syncFilterPopupChainFilterUi();
+            }, 150);
+        }
+
+        function setFilterChainPickerEnabled(on) {
+            const next = !!on;
+            if (!next) {
+                filterPopupChainSelected = [false, false, false, false, false, false, false, false, false, false];
+            }
+            const stateChanged = filterPopupChainFilterEnabled !== next;
+            filterPopupChainFilterEnabled = next;
+            saveFilterChainFilterSettings();
+            syncFilterPopupChainFilterUi();
+            if (stateChanged || !next) {
+                applyFilterHeader2Refresh();
+            }
+        }
+
+        function toggleFilterChainCombineMode() {
+            filterPopupChainCombineAnd = !filterPopupChainCombineAnd;
+            saveFilterChainFilterSettings();
+            syncFilterPopupChainFilterUi({ skipBestLabel: true });
+            applyFilterHeader2Refresh({ chainOnly: true });
+            scheduleFilterChainBestLabelHighlight();
+        }
+
+        function toggleFilterChainLabel(label) {
+            const n = parseInt(label, 10);
+            if (!Number.isFinite(n) || n < 1 || n > 10) {
+                return;
+            }
+            filterPopupChainSelected[n - 1] = !filterPopupChainSelected[n - 1];
+            if (filterPopupChainSelected[n - 1]) {
+                filterPopupChainFilterEnabled = true;
+            }
+            saveFilterChainFilterSettings();
+            syncFilterPopupChainFilterUi({ skipBestLabel: true });
+            applyFilterHeader2Refresh({ chainOnly: true });
+            scheduleFilterChainBestLabelHighlight();
+        }
+
+        function buildFilterPopupChainToggleButtons() {
+            const picker = el('filterPopupChainFilterPicker');
+            if (!picker || picker.dataset.chainPickerBuilt === '1') {
+                return;
+            }
+            picker.dataset.chainPickerBuilt = '1';
+            picker.innerHTML = '';
+            for (let n = 1; n <= 10; n++) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'filter-popup-chain-slot-btn';
+                btn.dataset.chainLabel = String(n);
+                btn.textContent = String(n);
+                btn.setAttribute('aria-pressed', 'false');
+                btn.setAttribute('aria-label', `Chuỗi ${n}`);
+                btn.title = `Chuỗi ${n} (1 = sát kỳ)`;
+                btn.addEventListener('mousedown', (event) => event.stopPropagation());
+                btn.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    toggleFilterChainLabel(n);
+                });
+                picker.appendChild(btn);
+            }
+        }
+
+        function initFilterPopupChainFilterControls() {
+            loadFilterChainFilterSettings();
+            buildFilterPopupChainToggleButtons();
+            syncFilterPopupChainFilterUi();
+            const toggleBtn = el('filterPopupChainFilterToggle');
+            if (toggleBtn && toggleBtn.dataset.chainFilterToggleBound !== '1') {
+                toggleBtn.dataset.chainFilterToggleBound = '1';
+                toggleBtn.addEventListener('mousedown', (event) => event.stopPropagation());
+                toggleBtn.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    setFilterChainPickerEnabled(!isFilterChainPickerEnabled());
+                });
+            }
+            const combineBtn = el('filterPopupChainCombineToggle');
+            if (combineBtn && combineBtn.dataset.chainCombineBound !== '1') {
+                combineBtn.dataset.chainCombineBound = '1';
+                combineBtn.addEventListener('mousedown', (event) => event.stopPropagation());
+                combineBtn.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    toggleFilterChainCombineMode();
+                });
+            }
+        }
+
+        function computeFilterChainMatchingIndices(baseIndices, selectedLabels) {
+            const base = Array.isArray(baseIndices) ? baseIndices : [];
+            const labels = Array.isArray(selectedLabels) ? selectedLabels : [];
+            const combineMode = getFilterChainCombineMode();
+            if (!labels.length || !sheetManager) {
+                return base.slice();
+            }
+            if (typeof sheetManager.filterIndicesByChainLabels === 'function') {
+                return sheetManager.filterIndicesByChainLabels(base, labels, combineMode);
+            }
+            if (typeof sheetManager.rowMatchesFilterChainLabels !== 'function') {
+                return base.slice();
+            }
+            return base.filter((rowIndex) => sheetManager.rowMatchesFilterChainLabels(rowIndex, labels, combineMode));
+        }
+
+        /** Chuỗi OFF: bật ô nào cho count cao nhất (trên pool sau header2). */
+        function getFilterChainBestToggleOnLabel() {
+            if (!isFilterChainPickerVisibleMode() || !sheetManager) {
+                return 0;
+            }
+            const header2Base = computeFilterHeader2MatchingIndices(getFilterPopupBaseTableIndices());
+            const selected = getFilterChainSelectedLabels();
+            let bestLabel = 0;
+            let bestCount = -1;
+            for (let n = 1; n <= 10; n++) {
+                if (selected.includes(n)) {
+                    continue;
+                }
+                const trial = selected.concat([n]);
+                const count = computeFilterChainMatchingIndices(header2Base, trial).length;
+                if (count > bestCount || (count === bestCount && (bestLabel === 0 || n < bestLabel))) {
+                    bestCount = count;
+                    bestLabel = n;
+                }
+            }
+            if (bestLabel > 0) {
+                return bestLabel;
+            }
+            for (let n = 1; n <= 10; n++) {
+                const count = computeFilterChainMatchingIndices(header2Base, [n]).length;
+                if (count > bestCount || (count === bestCount && (bestLabel === 0 || n < bestLabel))) {
+                    bestCount = count;
+                    bestLabel = n;
+                }
+            }
+            return bestLabel;
+        }
+
+        function applyFilterPopupSecondaryFiltersToIndices(baseIndices) {
+            let indices = computeFilterHeader2MatchingIndices(baseIndices);
+            if (isFilterChainSubfilterActive()) {
+                indices = computeFilterChainMatchingIndices(indices, getFilterChainSelectedLabels());
+            }
+            return indices;
+        }
+
         function normalizeFilterHeader2SlotText(text) {
             return String(text ?? '').trim().toLowerCase();
         }
@@ -10299,10 +11150,12 @@
             if (!wrap) {
                 return;
             }
-            const enabled = isFilterHeader2Enabled() && getFilterHeader2ActiveSlotTexts().length > 0;
+            const header2Active = isFilterHeader2Enabled() && getFilterHeader2ActiveSlotTexts().length > 0;
+            const chainActive = isFilterChainSubfilterActive();
+            const enabled = header2Active || chainActive;
             const base = getFilterPopupBaseTableIndices();
             const matching = enabled
-                ? new Set(computeFilterHeader2MatchingIndices(base))
+                ? new Set(applyFilterPopupSecondaryFiltersToIndices(base))
                 : null;
             const rows = wrap.querySelectorAll('tbody tr[data-idx]');
             for (let i = 0; i < rows.length; i++) {
@@ -10318,9 +11171,11 @@
             if (!wrap) {
                 return;
             }
-            const enabled = isFilterHeader2Enabled() && getFilterHeader2ActiveSlotTexts().length > 0;
+            const header2Active = isFilterHeader2Enabled() && getFilterHeader2ActiveSlotTexts().length > 0;
+            const chainActive = isFilterChainSubfilterActive();
+            const enabled = header2Active || chainActive;
             const visibleCount = enabled
-                ? computeFilterHeader2MatchingIndices(getFilterPopupBaseTableIndices()).length
+                ? applyFilterPopupSecondaryFiltersToIndices(getFilterPopupBaseTableIndices()).length
                 : getFilterPopupBaseTableIndices().length;
             let overlay = wrap.querySelector('.filter-popup-header2-empty-overlay');
             if (enabled && visibleCount === 0) {
@@ -10336,21 +11191,31 @@
             }
         }
 
-        function applyFilterHeader2LiveFilter() {
+        function applyFilterHeader2LiveFilter(options = {}) {
+            const chainOnly = options.chainOnly === true;
             const wrap = el('filterTableWrap');
             if (!wrap || !wrap.querySelector('table.sheet-data-table')) {
                 applyFilterHeader2Refresh({ forceHeavy: true });
                 return;
             }
             const baseIndices = getFilterPopupBaseTableIndices();
-            ensureFilterHeader2MauCache(baseIndices);
+            if (!chainOnly) {
+                ensureFilterHeader2MauCache(baseIndices);
+            }
             applyFilterHeader2RowVisibility(wrap);
             syncFilterHeader2EmptyOverlay(wrap);
             filterPopupIndicesCached = getFilterPopupTableIndices();
-            reconcileFilterPopupFocusAfterListChange(getFilterPopupDisplayIndices(), {});
+            if (!chainOnly) {
+                reconcileFilterPopupFocusAfterListChange(getFilterPopupDisplayIndices(), {});
+            }
             updateFilterPopupMatchCount();
-            syncPeriodFilterNavModeToIframe();
-            syncFilterHeader2SuggestionUi();
+            if (chainOnly) {
+                syncFilterPopupChainFilterUi({ skipBestLabel: true });
+            } else {
+                syncFilterPopupChainFilterUi();
+                syncPeriodFilterNavModeToIframe();
+                syncFilterHeader2SuggestionUi();
+            }
             try {
                 if (typeof window.__syncFilterTableThumbTrackInsets === 'function') {
                     window.__syncFilterTableThumbTrackInsets();
@@ -10370,7 +11235,7 @@
             const wrap = el('filterTableWrap');
             const hasTable = wrap && wrap.querySelector('table.sheet-data-table');
             if (hasTable && filterPopupHasLiveTable(wrap, getFilterPopupRenderCacheKey())) {
-                applyFilterHeader2LiveFilter();
+                applyFilterHeader2LiveFilter(options);
                 return;
             }
             refreshFilterPopup({ syncMain: false, immediateRender: true });
@@ -10397,7 +11262,7 @@
         }
 
         function applyFilterHeader2ToIndices(baseIndices) {
-            return computeFilterHeader2MatchingIndices(baseIndices);
+            return applyFilterPopupSecondaryFiltersToIndices(baseIndices);
         }
 
         function getFilterPopupDisplayIndices() {
@@ -10406,6 +11271,14 @@
 
         function getFilterPopupHeader2EmptyMessage() {
             const slots = getFilterHeader2ActiveSlotTexts();
+            const chains = getFilterChainSelectedLabels();
+            if (chains.length && isFilterChainSubfilterActive()) {
+                const chainLabel = chains.join(', ');
+                if (slots.length && isFilterHeader2Enabled()) {
+                    return `Không có kỳ nào khớp mẫu ${slots.join(', ')} và chuỗi ${chainLabel}.`;
+                }
+                return `Không có kỳ nào có đáp án trên chuỗi ${chainLabel}.`;
+            }
             const label = slots.length ? slots.join(', ') : '';
             return `Không có kỳ nào có đủ mẫu ${label} (sau lọc header).`;
         }
@@ -11214,6 +12087,7 @@
 
             positionPeriodFilterModeMenu();
             menu.classList.remove('hidden');
+            bumpFloatingOverlayZIndex(menu);
             modeBtn.setAttribute('aria-expanded', 'true');
             highlightPeriodFilterModeMenu(null);
         }
@@ -11235,6 +12109,28 @@
             }
             highlightPeriodFilterModeMenu(null);
             updatePeriodFilterMatchCount();
+        }
+
+        function isFloatingPopupInteractionTarget(target) {
+            if (!target || !(target instanceof Element)) {
+                return false;
+            }
+            const filterDock = el('filterPopupDock');
+            if (filterDock && !filterDock.classList.contains('hidden')
+                && target.closest('#filterPopupPanel, #filterTableWrap, #filterPopupHeader')) {
+                return true;
+            }
+            const answerDock = el('answerPopupDock');
+            if (answerDock && !answerDock.classList.contains('hidden')
+                && target.closest('#answerPopupPanel, #answerTableWrap, #answerPopupHeader')) {
+                return true;
+            }
+            return false;
+        }
+
+        function closeToolbarModeDropdownMenus() {
+            closeSubmitRingModeMenu();
+            closePeriodFilterModeMenu();
         }
 
         function selectPeriodFilterMode(mode) {
@@ -11420,13 +12316,7 @@
             if (filterPopupConn3WindowOnly && isConn3FilterMode(periodFilterMode)) {
                 return getFilterPopupNavListLength();
             }
-            if (isConn3FilterMode(periodFilterMode)) {
-                return getFilterPopupTableIndices().length;
-            }
-            if (filterPopupIndices.length > 0) {
-                return filterPopupIndices.length;
-            }
-            return getFilterMatchingIndicesForMode(periodFilterMode).length;
+            return getFilterPopupTableIndices().length;
         }
 
         function getFilterPopupHeader1PoolIndices() {
@@ -11582,7 +12472,7 @@
             if (filterPopupConn3WindowOnly && periodFilterEnabled && isConn3FilterMode(periodFilterMode)) {
                 return getFilterPopupNavListLength();
             }
-            if (periodFilterEnabled && isConn3FilterMode(periodFilterMode)) {
+            if (periodFilterEnabled && isPeriodFilterContextSheet()) {
                 return getFilterPopupTableIndices().length;
             }
             if (filterPopupIndices.length > 0) {
@@ -12117,11 +13007,15 @@
                 event.stopPropagation();
             });
 
-            document.addEventListener('mousedown', (event) => {
+            const dismissPeriodFilterModeMenuUnlessControl = (event) => {
                 if (menu.classList.contains('hidden')) {
                     return;
                 }
                 const target = event.target;
+                if (isFloatingPopupInteractionTarget(target)) {
+                    closePeriodFilterModeMenu();
+                    return;
+                }
                 const toolbar = getPeriodFilterPicker('toolbar');
                 const popup = getPeriodFilterPicker('popup');
                 const ixPicker = el('filterPopupIntersectionPicker');
@@ -12134,7 +13028,9 @@
                     return;
                 }
                 closePeriodFilterModeMenu();
-            });
+            };
+            document.addEventListener('pointerdown', dismissPeriodFilterModeMenuUnlessControl, true);
+            document.addEventListener('mousedown', dismissPeriodFilterModeMenuUnlessControl, true);
 
             window.addEventListener('resize', () => {
                 if (!menu.classList.contains('hidden')) {
@@ -12189,6 +13085,7 @@
             syncFilterPopupConnectionNoteTagUi();
             syncFilterPopupIntersectionToolsUi();
             syncFilterPopupTailCountUi();
+            syncFilterPopupChainFilterUi();
 
             if (light) {
                 return;
@@ -12452,12 +13349,21 @@
 
         const FLOATING_POPUP_DOCK_Z_BASE = 1200;
 
+        /** Cái overlay (popup / menu toolbar) mở hoặc click sau thì z-index cao hơn. */
+        function bumpFloatingOverlayZIndex(node) {
+            if (!node) {
+                return;
+            }
+            floatingOverlayZCounter += 1;
+            node.style.zIndex = String(FLOATING_POPUP_DOCK_Z_BASE + floatingOverlayZCounter);
+        }
+
         function raiseFloatingPopupDock(dock) {
             if (!dock || dock.classList.contains('hidden')) {
                 return;
             }
-            floatingPopupDockZCounter += 1;
-            dock.style.zIndex = String(FLOATING_POPUP_DOCK_Z_BASE + floatingPopupDockZCounter);
+            closeToolbarModeDropdownMenus();
+            bumpFloatingOverlayZIndex(dock);
         }
 
         /** Popup nào được click (chuột trái) gần nhất thì z-index cao hơn popup kia. */
@@ -12466,29 +13372,29 @@
                 return;
             }
             document.documentElement.dataset.floatingPopupDockStackBound = '1';
-            const bind = (dock) => {
+            const bindDockInteraction = (dock) => {
                 if (!dock) {
                     return;
                 }
-                const raise = (event) => {
+                const onPopupInteraction = (event) => {
                     if (event.button !== 0) {
                         return;
                     }
+                    closeToolbarModeDropdownMenus();
                     raiseFloatingPopupDock(dock);
                 };
                 const panel = dock.querySelector('.filter-popup-panel');
-                if (panel) {
-                    panel.addEventListener('pointerdown', raise, true);
-                } else {
-                    dock.addEventListener('pointerdown', raise, true);
-                }
+                const tableWrap = dock.querySelector('.right-table-viewport');
                 const header = dock.querySelector('.filter-popup-header');
-                if (header) {
-                    header.addEventListener('pointerdown', raise, true);
+                for (const node of [panel, tableWrap, header]) {
+                    if (node) {
+                        node.addEventListener('pointerdown', onPopupInteraction, true);
+                        node.addEventListener('mousedown', onPopupInteraction, true);
+                    }
                 }
             };
-            bind(el('filterPopupDock'));
-            bind(el('answerPopupDock'));
+            bindDockInteraction(el('filterPopupDock'));
+            bindDockInteraction(el('answerPopupDock'));
         }
 
         function openFilterPopup() {
@@ -13632,6 +14538,8 @@
                 ? `tail:c:${filterTailCount}:${opTok(filterTailOp)}`
                 : '';
             const h2on = `h2on:${isFilterHeader2Enabled() ? 1 : 0}`;
+            const chainSel = filterPopupChainSelected.map((v) => (v ? '1' : '0')).join('');
+            const chainOn = `chain:${isFilterChainPickerEnabled() ? 1 : 0}:${chainSel}:${isFilterChainCombineAnd() ? 'and' : 'or'}`;
             return [
                 periodFilterMode,
                 tags,
@@ -13646,7 +14554,8 @@
                 ixKey,
                 dbKey,
                 tailKey,
-                h2on
+                h2on,
+                chainOn
             ].join('|');
         }
 
@@ -13888,6 +14797,7 @@
             syncFilterPopupNoteTagUi();
             syncFilterPopupConnectionNoteTagUi();
             syncFilterPopupIntersectionToolsUi();
+            syncFilterPopupChainFilterUi();
         }
 
         function syncFilterPopupPosnfreqSubmitOverlap() {
@@ -14241,6 +15151,7 @@
                 dragClass: 'is-filter-popup-header-dragging',
                 onLayoutSave: scheduleSaveFilterPopupLayout,
                 onResize: scheduleSaveFilterPopupLayout,
+                onDragMove: repositionOpenFilterPopupFloatingMenus,
                 onRaise: () => raiseFloatingPopupDock(dock),
                 shouldSkipDragStart: (event) => {
                     return !!event.target.closest('#filterPopupClose')
@@ -14274,6 +15185,7 @@
                 header,
                 dragClass,
                 onLayoutSave,
+                onDragMove,
                 onRaise,
                 shouldSkipDragStart
             } = config;
@@ -14295,6 +15207,9 @@
                 const dx = clientX - startX;
                 const ty = Math.max(8 - startTop, clientY - startY);
                 dock.style.transform = `translate3d(${dx}px, ${ty}px, 0)`;
+                if (typeof onDragMove === 'function') {
+                    onDragMove();
+                }
             }
 
             function finishDrag(event) {
@@ -14320,6 +15235,9 @@
                 pointerId = -1;
                 if (typeof onLayoutSave === 'function') {
                     onLayoutSave();
+                }
+                if (typeof onDragMove === 'function') {
+                    onDragMove();
                 }
             }
 
@@ -14440,6 +15358,7 @@
                     dock,
                     panel
                 );
+                repositionOpenFilterPopupFloatingMenus();
                 scheduleFilterPopupResizeThumbSync();
             }
 
@@ -14476,6 +15395,7 @@
                         panel
                     );
                 }
+                repositionOpenFilterPopupFloatingMenus();
                 setFilterPopupResizeActive(false);
                 finishFilterPopupResizeSync();
                 start = null;
@@ -14586,6 +15506,7 @@
                 return false;
             }
             return target.id === 'submitRingModeSelect'
+                || target.id === 'submitRingModeBtn'
                 || !!target.closest('#submitRingModeWrap')
                 || !!target.closest('#submitRingModeMenu');
         }
@@ -15021,6 +15942,7 @@
             initFilterPopupConn3OverlapPctToggle();
             initFilterPopupPositionInput();
             initFilterPopupHeader2Controls();
+            initFilterPopupChainFilterControls();
             initGlobalPlusMinusShortcuts();
             initPeriodFilterCtrlShortcut();
             syncPeriodFilterToolbarUi();

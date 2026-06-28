@@ -2272,6 +2272,113 @@ class RightPaneSheetManager {
     }
 
     /**
+     * ALL + Chuỗi []: đáp án có ≥1 số trùng kỳ ở nhãn chuỗi đã chọn (1 = sát kỳ, 10 = xa nhất).
+     * Cùng định nghĩa với recallsAtLeastOneFromPrevPeriodAtOffset / tooltip fold theo chuỗi.
+     * @param {number} rowIndex
+     * @param {number[]} selectedLabels — 1..10
+     * @param {'or'|'and'} [combineMode='or'] — or: ∪ (U thuận); and: ∩ (U flip)
+     */
+    rowMatchesFilterChainLabels(rowIndex, selectedLabels, combineMode = 'or') {
+        const labels = Array.isArray(selectedLabels)
+            ? selectedLabels.filter((n) => Number.isFinite(n) && n >= 1 && n <= 10)
+            : [];
+        if (!labels.length) {
+            return true;
+        }
+        return this.rowMatchesFilterChainLabelsFromRows(
+            this.getSourceSheetRows(),
+            rowIndex,
+            labels,
+            combineMode
+        );
+    }
+
+    /**
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {number[]} labels — 1..10
+     * @param {'or'|'and'} [combineMode='or']
+     */
+    rowMatchesFilterChainLabelsFromRows(rows, rowIndex, labels, combineMode = 'or') {
+        if (!labels.length) {
+            return true;
+        }
+        const list = rows || [];
+        const idx = Number(rowIndex);
+        if (!Number.isFinite(idx) || idx < 0 || idx >= list.length) {
+            return false;
+        }
+        const curRow = list[idx];
+        if (!curRow || this.isEmptyResultRow(curRow)) {
+            return false;
+        }
+        const cur = this.parseMainNums(curRow.result || curRow.Result || '');
+        if (cur.length !== 5) {
+            return false;
+        }
+        const curSet = new Set(cur);
+        const matchesOffset = (off) => {
+            const prevIdx = idx - off;
+            if (prevIdx < 0 || prevIdx >= list.length) {
+                return false;
+            }
+            const prevRow = list[prevIdx];
+            if (!prevRow || this.isEmptyResultRow(prevRow)) {
+                return false;
+            }
+            const prev = this.parseMainNums(prevRow.result || prevRow.Result || '');
+            if (prev.length !== 5) {
+                return false;
+            }
+            for (let pi = 0; pi < prev.length; pi++) {
+                if (curSet.has(prev[pi])) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        if (combineMode === 'and') {
+            for (let li = 0; li < labels.length; li++) {
+                if (!matchesOffset(labels[li])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        for (let li = 0; li < labels.length; li++) {
+            if (matchesOffset(labels[li])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Lọc indices theo nhãn chuỗi — một lần load rows, tránh gọi lặp getSourceSheetRows().
+     * @param {number[]} indices
+     * @param {number[]} selectedLabels
+     * @param {'or'|'and'} [combineMode='or']
+     * @returns {number[]}
+     */
+    filterIndicesByChainLabels(indices, selectedLabels, combineMode = 'or') {
+        const base = Array.isArray(indices) ? indices : [];
+        const labels = Array.isArray(selectedLabels)
+            ? selectedLabels.filter((n) => Number.isFinite(n) && n >= 1 && n <= 10)
+            : [];
+        if (!labels.length) {
+            return base.slice();
+        }
+        const rows = this.getSourceSheetRows();
+        const out = [];
+        for (let i = 0; i < base.length; i++) {
+            if (this.rowMatchesFilterChainLabelsFromRows(rows, base[i], labels, combineMode)) {
+                out.push(base[i]);
+            }
+        }
+        return out;
+    }
+
+    /**
      * Cặp [a,b] theo từng chuỗi: hai số pick đầu tiên trên dòng (giống computeChainPairsFromEffectiveSelection).
      * @param {object[]} rows
      * @param {number} rowIndex
@@ -3864,7 +3971,7 @@ class RightPaneSheetManager {
                 html += '<td class="cell-col-f"></td>';
                 html += '<td class="cell-col-g"></td>';
                 const hComment = (this.comboHComments && this.comboHComments[String(rowIndex)]) || '';
-                html += `<td class="cell-col-h blank-cell combo-h-comment-cell"><input type="text" class="combo-cell-input combo-h-comment-input" data-combo-h-row="${rowIndex}" value="${this.escapeHtml(hComment)}" aria-label="H${rowIndex}" title="Enter: đặt pick trái theo chuỗi này (2–5 số 1–35, phân tách bằng dấu phẩy hoặc khoảng trắng, không trùng)" spellcheck="false" /></td>`;
+                html += `<td class="cell-col-h blank-cell combo-h-comment-cell"><input type="text" class="combo-cell-input combo-h-comment-input" data-combo-h-row="${rowIndex}" value="${this.escapeHtml(hComment)}" aria-label="H${rowIndex}" title="Enter: khoanh trái theo phần trước | (2–5 số 1–35, phân tách bằng dấu phẩy; phần sau | không khoanh)" spellcheck="false" /></td>`;
             }
             html += `<td class="cell-col-i">${isHeaderRow ? 'special' : (specialRow ? this.escapeHtml(specialRow.special || '') : '')}</td>`;
             html += `<td class="cell-col-j">${isHeaderRow ? 'count' : (specialRow ? this.escapeHtml(String(specialRow.count ?? '')) : '')}</td>`;
@@ -4230,7 +4337,8 @@ class RightPaneSheetManager {
 
     /**
      * Parse nội dung ô H2+ (combo_1) thành thứ tự pick trái: 2–5 số nguyên 1..35, không trùng.
-     * Dấu phân tách: dấu phẩy, chấm phẩy, | hoặc khoảng trắng.
+     * Chỉ phần trước dấu | dùng để khoanh; phần sau | là ghi chú (vd. số đặc biệt), bỏ qua.
+     * Dấu phân tách số khoanh: dấu phẩy, chấm phẩy hoặc khoảng trắng.
      * @param {string} raw
      * @returns {number[]|null}
      */
@@ -4241,7 +4349,12 @@ class RightPaneSheetManager {
         if (!t) {
             return null;
         }
-        const parts = t.split(/[\s,;|]+/).map((x) => x.trim()).filter(Boolean);
+        const pipeIdx = t.indexOf('|');
+        const pickSegment = pipeIdx >= 0 ? t.slice(0, pipeIdx).trim() : t;
+        if (!pickSegment) {
+            return null;
+        }
+        const parts = pickSegment.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean);
         if (parts.length < MIN_PICK || parts.length > MAX_PICK) {
             return null;
         }
@@ -4273,7 +4386,11 @@ class RightPaneSheetManager {
             return;
         }
         try {
-            frame.contentWindow.postMessage({ type: 'syncAnswerPickSelection', nums }, '*');
+            frame.contentWindow.postMessage({
+                type: 'syncAnswerPickSelection',
+                nums,
+                comboHPickSync: true
+            }, '*');
         } catch (e) {
             /* ignore */
         }
