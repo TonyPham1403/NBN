@@ -3044,21 +3044,7 @@
 
         /** Numbers currently circled/selected on the left pane (max 5). */
         function getLeftPaneCircledNums() {
-            const nums = [];
-            const effective = getCircledEffectiveSetForNav();
-            if (pickOrder && pickOrder.length) {
-                pickOrder.forEach(function (n) {
-                    if (!isNaN(n) && effective.has(n) && nums.indexOf(n) === -1) {
-                        nums.push(n);
-                    }
-                });
-            }
-            Array.from(effective).sort(function (a, b) { return a - b; }).forEach(function (n) {
-                if (nums.indexOf(n) === -1) {
-                    nums.push(n);
-                }
-            });
-            return nums.slice(0, MAX_PICK_NUMBERS);
+            return getPickDisplayNums();
         }
 
         /** Giữ pickOrder khớp selected (submit off): tránh thiếu số trong preview/search. */
@@ -3321,6 +3307,7 @@
                 try { applySelectionAndBlockedInDOM(); } catch (e) { }
                 try { restartNeonAnimationsInDOM(); } catch (e) { }
                 try { notifyParentLeftCircledNums(); } catch (eN) { /* ignore */ }
+                try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (ePick) { /* ignore */ }
                 return true;
             }
 
@@ -3379,6 +3366,7 @@
             selected.forEach(function (n) { out.add(n); });
             simulatedSelected.forEach(function (n) { out.add(n); });
             transientSelected.forEach(function (n) { out.add(n); });
+            autoRingPicked.forEach(function (n) { out.add(n); });
             return out;
         }
 
@@ -3408,6 +3396,11 @@
                 }
                 return next.slice(0, MAX_PICK_NUMBERS);
             }
+            if (autoRingPicked.size) {
+                Array.from(autoRingPicked).forEach(function (n) {
+                    if (!isNaN(n) && effective.has(n) && next.indexOf(n) === -1) next.push(n);
+                });
+            }
             (pickOrder || []).forEach(function (n) {
                 if (!isNaN(n) && effective.has(n) && next.indexOf(n) === -1) next.push(n);
             });
@@ -3415,6 +3408,20 @@
                 if (next.indexOf(n) === -1) next.push(n);
             });
             return next.slice(0, MAX_PICK_NUMBERS);
+        }
+
+        /** Chuỗi pick hiển thị/copy — khớp số khoanh đỏ, không lấy answerNums Submit khi đang autoring/khoanh tay. */
+        function getPickDisplayNums() {
+            var circled = getCircledPickOrderForNav();
+            if (circled.length > 0) {
+                return circled;
+            }
+            if (submitActive && answerNums && answerNums.length) {
+                return answerNums.slice(0, MAX_PICK_NUMBERS);
+            }
+            return (pickOrder && pickOrder.length)
+                ? pickOrder.slice(0, MAX_PICK_NUMBERS)
+                : [];
         }
 
         function getFocusPhaseNumberForNav() {
@@ -4859,11 +4866,7 @@
             (relatedNums || []).forEach(function (n) { patch.push(n); });
             patchWasdPickCellsInDOM(patch);
             try { updateFocusIndicator(); } catch (e) { /* ignore */ }
-            try {
-                if (submitActive && window.updatePickButtonUI) {
-                    window.updatePickButtonUI();
-                }
-            } catch (e) { /* ignore */ }
+            try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { /* ignore */ }
         }
 
         function scheduleWasdNavParentNotify() {
@@ -4894,6 +4897,7 @@
                     }
                 } catch (e) { /* ignore */ }
                 try { updatePairListNeonHints(); } catch (e) { /* ignore */ }
+                try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
                 scheduleWasdNavParentNotify();
             });
         }
@@ -4938,7 +4942,7 @@
                 showChecknoteTooltip: false,
                 anchor: document.body,
                 resultPart: resultPart,
-                highlightedNums: (pickOrder && pickOrder.length) ? pickOrder.slice() : [],
+                highlightedNums: getPickDisplayNums(),
                 rowIdx: 0,
                 timer: null
             };
@@ -4946,7 +4950,7 @@
                 window.parent.postMessage({
                     type: 'requestChecknotePopup',
                     resultPart: resultPart,
-                    highlightedNums: pickOrder ? pickOrder.slice() : [],
+                    highlightedNums: getPickDisplayNums(),
                     nonce: nonce
                 }, '*');
             } catch (e) { }
@@ -8434,7 +8438,7 @@
             const table = content.querySelector('table.checknote-table'); if (!table) return;
             table.innerHTML = '';
             const rows = (precomputedPickRows && precomputedPickRows.length >= 1) ? precomputedPickRows : (function () {
-                const nums = (typeof pickOrder !== 'undefined' && pickOrder) ? pickOrder.slice() : []; const out = [];
+                const nums = getPickDisplayNums(); const out = [];
                 for (let i = 0; i < nums.length; i++) { for (let j = i + 1; j < nums.length; j++) { const a = Math.min(nums[i], nums[j]); const b = Math.max(nums[i], nums[j]); const info = generatePickPairsHtmlFragment(a, b); out.push({ a: a, b: b, count: info.count, content: info.content }); } }
                 return out;
             })();
@@ -9652,22 +9656,23 @@
                 if (!pb) return;
 
                 function updatePickButton() {
+                    var displayNums = getPickDisplayNums();
                     pb.style.display = '';
-                    if (pickOrder && pickOrder.length >= 1) {
-                        pp.textContent = pickOrder.join(',');
+                    if (displayNums.length >= 1) {
+                        pp.textContent = displayNums.join(',');
                         pb.disabled = false;
                     } else {
                         pp.textContent = '';
                         pb.disabled = true;
                     }
                     try {
-                        if (pickOrder && pickOrder.length >= 2 && !window.__checknote_lastData) {
+                        if (displayNums.length >= 2 && !window.__checknote_lastData) {
                             requestChecknoteDataIfNeeded();
                         }
                     } catch (e) { }
                     try {
-                        if (pickOrder && pickOrder.length >= 2) {
-                            var nums = pickOrder.slice();
+                        if (displayNums.length >= 2) {
+                            var nums = displayNums.slice();
                             var out = [];
                             for (var i = 0; i < nums.length; i++) {
                                 for (var j = i + 1; j < nums.length; j++) {
@@ -9689,8 +9694,9 @@
                 }
 
                 pb.addEventListener('click', async function (ev) {
-                    if (!pickOrder || pickOrder.length < 1) return;
-                    var txt = pickOrder.join(',') + '\n';
+                    var displayNums = getPickDisplayNums();
+                    if (displayNums.length < 1) return;
+                    var txt = displayNums.join(',') + '\n';
                     try {
                         await navigator.clipboard.writeText(txt);
                         var old = pb.textContent;
@@ -9715,7 +9721,7 @@
                             hidePickTooltip(true);
                             if (pickTooltipDocListener) { document.removeEventListener('mousedown', pickTooltipDocListener); pickTooltipDocListener = null; }
                         } else {
-                            showPickTooltip(pb, pickOrder);
+                            showPickTooltip(pb, getPickDisplayNums());
                             pickTooltipPinned = true;
                             pickTooltipDocListener = function (ev) {
                                 try {
@@ -9737,10 +9743,11 @@
 
                 pb.addEventListener('mouseenter', function (e) {
                     try {
-                        if (!pickOrder || pickOrder.length < 2) return;
+                        var displayNums = getPickDisplayNums();
+                        if (displayNums.length < 2) return;
                         if (pickTooltipHideTimer) { clearTimeout(pickTooltipHideTimer); pickTooltipHideTimer = null; }
                         if (pickTooltipPinned) { refreshPickTooltip(); }
-                        else { showPickTooltip(pb, pickOrder); }
+                        else { showPickTooltip(pb, displayNums); }
                     } catch (ex) { }
                 });
                 pb.addEventListener('mouseleave', function (e) {
