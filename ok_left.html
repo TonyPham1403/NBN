@@ -2204,6 +2204,43 @@
             return null;
         }
 
+        function snapshotPreSubmitPickState() {
+            preSubmitSelected = new Set(selected);
+            preSubmitOrder = (pickOrder || []).filter(function (n) {
+                return !isNaN(n) && selected.has(n);
+            });
+        }
+
+        function restorePreSubmitPickState() {
+            if (preSubmitSelected && preSubmitSelected.size > 0) {
+                selected = new Set(preSubmitSelected);
+                clearPairContributionTracking();
+                pickOrder = (preSubmitOrder || []).filter(function (n) {
+                    return !isNaN(n) && preSubmitSelected.has(n);
+                });
+            } else if (submitAutoCircleEnabled && autoRingPicked.size > 0
+                && !(selectionCleared && clearedSelectionBackup)) {
+                selected.clear();
+                clearPairContributionTracking();
+                autoRingPicked.forEach(function (n) {
+                    if (!isNaN(n)) selected.add(n);
+                });
+                pickOrder = Array.from(autoRingPicked)
+                    .filter(function (n) { return !isNaN(n); })
+                    .slice(0, MAX_PICK_NUMBERS);
+                try { syncAutoRingPickedFromSelectedAfterWasd(); } catch (eRing0) { /* ignore */ }
+                return 'autoring';
+            } else if (preSubmitSelected) {
+                selected = new Set(preSubmitSelected);
+                clearPairContributionTracking();
+                pickOrder = (preSubmitOrder || []).filter(function (n) {
+                    return !isNaN(n) && preSubmitSelected.has(n);
+                });
+            }
+            try { syncAutoRingPickedFromSelectedAfterWasd(); } catch (eRing) { /* ignore */ }
+            return 'manual';
+        }
+
         function snapshotPreSubmitFocusState() {
             preSubmitFocusSnapshot = {
                 currentPhaseNumber: currentPhaseNumber,
@@ -4469,6 +4506,7 @@
                 selected.delete(n);
                 // ensure any transient or simulated state for this number is cleared
                 try { transientSelected.delete(n); simulatedSelected.delete(n); } catch (e) { }
+                try { autoRingPicked.delete(n); } catch (eRing) { /* ignore */ }
                 if (currentPhaseNumber === n) {
                     // restore arrow to previous phase selection if available
                     restorePreviousPhase(n);
@@ -8871,9 +8909,7 @@
                     // Luôn gỡ overlay khoanh preview phiếu trước khi chuyển sang 5 số submit
                     try { markSubmitCircleOverlayCleared(); } catch (eClrOv) { /* ignore */ }
                     snapshotPreSubmitFocusState();
-                    // Lưu selection hiện tại (tay / Answer) để khôi phục khi tắt Submit
-                    preSubmitSelected = new Set(selected);
-                    preSubmitOrder = pickOrder ? pickOrder.slice() : [];
+                    snapshotPreSubmitPickState();
                     // Gỡ toàn bộ khoanh thủ công trên bảng — chỉ còn style 5 số submit
                     selected.clear();
                     transientSelected.clear();
@@ -8938,40 +8974,16 @@
                         answerPopupTicketPreviewOnly = false;
                         markSubmitCircleOverlayCleared();
                         simulatedSelected.clear();
-                        var restoreUsedAutoring = false;
+                        var restoreMode = 'manual';
                         try {
-                            var hadPreSubmitSelection = !!(preSubmitSelected && preSubmitSelected.size > 0);
-                            if (hadPreSubmitSelection) {
-                                selected = new Set(preSubmitSelected);
-                                clearPairContributionTracking();
-                                if (preSubmitOrder && preSubmitOrder.length) {
-                                    pickOrder = preSubmitOrder.slice();
-                                }
-                            } else if (submitAutoCircleEnabled && autoRingPicked.size > 0
-                                && !(selectionCleared && clearedSelectionBackup)) {
-                                restoreUsedAutoring = true;
-                                selected.clear();
-                                clearPairContributionTracking();
-                                autoRingPicked.forEach(function (n) {
-                                    if (!isNaN(n)) selected.add(n);
-                                });
-                                pickOrder = Array.from(autoRingPicked)
-                                    .filter(function (n) { return !isNaN(n); })
-                                    .slice(0, MAX_PICK_NUMBERS);
-                            } else if (preSubmitSelected) {
-                                selected = new Set(preSubmitSelected);
-                                clearPairContributionTracking();
-                                if (preSubmitOrder && preSubmitOrder.length) {
-                                    pickOrder = preSubmitOrder.slice();
-                                }
-                            }
+                            restoreMode = restorePreSubmitPickState() || 'manual';
                             syncPickOrderForSubmitState();
                         } catch (e) { /* ignore */ }
                         try {
                             notePairNeonObserveContextFromEffectiveSize();
                         } catch (eNoteCtx) { /* ignore */ }
                         try {
-                            if (restoreUsedAutoring) {
+                            if (restoreMode === 'autoring') {
                                 assignPairNeonObserveNumFromAutoRingCircleNums(Array.from(autoRingPicked));
                             } else if (selected && selected.size > 0) {
                                 assignPairNeonObserveNumFromCurrentSelected();
@@ -9001,7 +9013,7 @@
                         try { applySelectionAndBlockedInDOM(); } catch (e) { }
                         try { updatePairList(); } catch (e) { }
                         refreshPairTailSelectionState();
-                        try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
+                        try { refreshLeftPickSelectionUi({ forceSync: true }); } catch (e) { /* ignore */ }
                         try { postSubmitStateChangedToParent(); } catch (e) { }
                         return;
                     }
@@ -9100,8 +9112,7 @@
                 (answerNums || []).forEach(function (n) { simulatedSelected.add(n); });
 
                 if (!preSubmitSelected || preSubmitSelected.size === 0) {
-                    preSubmitSelected = new Set(selected);
-                    preSubmitOrder = pickOrder ? pickOrder.slice() : [];
+                    snapshotPreSubmitPickState();
                 }
                 syncPickOrderForSubmitState();
 
@@ -10709,6 +10720,13 @@
                         && pickNums.length === selected.size
                         && pickNums.every(function (n) { return selected.has(n); })) {
                         return;
+                    }
+                    // Submit vừa tắt: iframe đã khôi phục preSubmit — không ghi đè bằng stash tracking cũ.
+                    if (forcedPickSync && msg.basicTrackingPreview && !submitActive && selected.size > 0) {
+                        var staleTrackingExtra = pickNums.some(function (n) { return !selected.has(n); });
+                        if (staleTrackingExtra) {
+                            return;
+                        }
                     }
                     invalidateClearSelectionToggleBackup();
                     selected.clear();

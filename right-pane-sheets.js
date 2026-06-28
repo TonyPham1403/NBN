@@ -9210,10 +9210,9 @@ class RightPaneSheetManager {
         this.leftSubmitActive = next;
         if (!next && Array.isArray(this.leftBasicPreviewPickNumsStash)
             && this.leftBasicPreviewPickNumsStash.length) {
-            this.leftBasicPreviewPickNums = this.leftBasicPreviewPickNumsStash.slice();
+            // Iframe khôi phục preSubmit khi Submit OFF — không đẩy stash cũ (có thể chứa số đã bỏ khoanh).
             this.leftBasicPreviewPickNumsStash = [];
             this._basicPreviewStashRestoredAt = Date.now();
-            this.syncLeftPickSelectionToIframe(this.leftBasicPreviewPickNums);
             try {
                 window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
             } catch (eEv) { /* ignore */ }
