@@ -8203,7 +8203,64 @@ class RightPaneSheetManager {
             max_id = Math.max(...ids);
         }
 
-        return { id_to_result, pair_to_ids, max_id };
+        return { id_to_result, pair_to_ids, max_id, combo2_pair_stats: this.buildCombo2PairStatsForChecknote() };
+    }
+
+    /**
+     * Map "a,b" -> { appear, groupRank, totalGroups } for checknote 📑 popup.
+     * groupRank = thứ hạng nhóm theo appear tích lũy (combo_2, appear≥2, cùng appear = cùng nhóm).
+     */
+    buildCombo2PairStatsForChecknote() {
+        const rows = this.sourceRows || [];
+        const dicts = [null, new Map(), new Map(), new Map(), new Map(), new Map()];
+        const dictSpecial = new Map();
+        this._accumulateComboDictsFromRows(rows, dicts, dictSpecial);
+
+        const ranked = [];
+        for (const [combo, appear] of dicts[2].entries()) {
+            if (appear >= 2) {
+                ranked.push({ combo, appear });
+            }
+        }
+
+        const appearToGroupRank = new Map();
+        let totalGroups = 0;
+        if (ranked.length) {
+            const keysAppear2 = new Set(ranked.map((row) => row.combo));
+            const comboReachRow = this.buildComboReachRowMapOnePass(rows, rows.length, 2, dicts[2], keysAppear2);
+            ranked.sort((left, right) => {
+                if (right.appear !== left.appear) {
+                    return right.appear - left.appear;
+                }
+                const ta = comboReachRow.get(left.combo);
+                const tb = comboReachRow.get(right.combo);
+                if (ta !== tb) {
+                    return ta - tb;
+                }
+                return String(left.combo).localeCompare(String(right.combo));
+            });
+
+            let groupRank = 0;
+            let lastAppear = null;
+            for (const row of ranked) {
+                if (row.appear !== lastAppear) {
+                    groupRank += 1;
+                    appearToGroupRank.set(row.appear, groupRank);
+                    lastAppear = row.appear;
+                }
+            }
+            totalGroups = groupRank;
+        }
+
+        const stats = {};
+        for (const [combo, appear] of dicts[2].entries()) {
+            stats[combo] = {
+                appear,
+                groupRank: appear >= 2 ? (appearToGroupRank.get(appear) || null) : null,
+                totalGroups: totalGroups > 0 ? totalGroups : null
+            };
+        }
+        return stats;
     }
 
     /**

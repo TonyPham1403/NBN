@@ -1706,7 +1706,7 @@
         window.addEventListener('message', function (ev) {
             var d = ev.data || {};
             if (d.type !== 'checknotePopupData') return;
-            window.__checknote_lastData = d.data || { id_to_result: {}, pair_to_ids: {}, max_id: null };
+            window.__checknote_lastData = d.data || { id_to_result: {}, pair_to_ids: {}, max_id: null, combo2_pair_stats: {} };
             var pend = window.__checknotePending;
             if (pend && pend.nonce === d.nonce) {
                 clearTimeout(pend.timer);
@@ -7822,6 +7822,45 @@
         });
 
         // --- checknote popup (📑) + pick pair tooltip: ported from ok.py ---
+        const CHECKNOTE_TABLE_STYLE = `<style>
+            .checknote-table{border-collapse:collapse;font-family:monospace;font-size:13px;line-height:1.35;max-width:100%;width:auto;table-layout:auto}
+            .checknote-table td{vertical-align:top;padding:2px 6px}
+            .checknote-table .pair{white-space:nowrap;padding-right:8px;font-weight:600}
+            .checknote-table .sep{white-space:nowrap;padding-right:8px;font-weight:700}
+            .checknote-table .content{text-align:left}
+            .checknote-table .combo2-rank{white-space:nowrap;padding-right:8px;font-weight:600;color:#333}
+            .checknote-table .combo2-appear{white-space:nowrap;padding-right:8px;font-weight:600;color:#555}
+            .checknote-table .idlabel{display:inline-block;white-space:nowrap;margin-right:8px}
+            .checknote-table .idlabel .dist{background:yellow;color:black;padding:1px 3px;border-radius:3px}
+            .checknote-table .idlabel.present{background:#008000;color:white;padding:2px 4px;border-radius:3px}
+            .checknote-table .idlabel.past{background:#ff0000;color:white;padding:2px 4px;border-radius:3px}
+            .checknote-table .idlabel.future{background:#00ffff;color:#003;padding:2px 4px;border-radius:3px}
+            .checknote-table .idlabel.match{padding:2px 4px;border-radius:3px;border:1px solid #ddd}
+            .checknote-table tr.row-neon td{background:linear-gradient(90deg, rgba(0,255,102,0.18), rgba(0,255,102,0.10));box-shadow:0 0 12px rgba(0,255,102,0.16) inset}
+        </style>`;
+
+        function getCombo2PairStatDisplay(pairKey, cnData) {
+            const statsMap = cnData && cnData.combo2_pair_stats ? cnData.combo2_pair_stats : null;
+            const stats = statsMap && pairKey ? statsMap[pairKey] : null;
+            if (!stats || stats.appear == null) {
+                return { rankText: '—', appearText: '—' };
+            }
+            const appearText = String(stats.appear);
+            const rankText = (stats.groupRank != null && stats.totalGroups != null)
+                ? ('#' + stats.groupRank + '/' + stats.totalGroups)
+                : '—';
+            return { rankText: rankText, appearText: appearText };
+        }
+
+        function getPickChecknoteData() {
+            return window.__checknote_lastData || window.__checknote_data || null;
+        }
+
+        function buildPickPairRowInnerHtml(a, b, count, content) {
+            const combo2 = getCombo2PairStatDisplay(`${a},${b}`, getPickChecknoteData());
+            return `<td class="pair">{${a},${b}}</td><td class="sep">${count}</td><td class="content">${content || ''}</td><td class="combo2-rank">${combo2.rankText}</td><td class="combo2-appear">${combo2.appearText}</td>`;
+        }
+
         function generateChecknoteHtml(inputStr, highlightedNums, cnData) {
             try {
                 const data = cnData !== undefined ? cnData : window.__checknote_data;
@@ -7881,40 +7920,23 @@
                             for (let ii = 0; ii < 3 && !rowClass; ii++) { for (let jj = ii + 1; jj < 3; jj++) { const x = Math.min(uniq[ii], uniq[jj]); const y = Math.max(uniq[ii], uniq[jj]); if (a === x && b === y) { rowClass = 'row-neon'; break; } } }
                         } else { if (uniq.some(n => n === a || n === b)) rowClass = 'row-neon'; }
                     } catch (e) { }
-                    rows.push({ pair: `{${a},${b}}`, count: count, content: rendered, rowClass: rowClass });
+                    rows.push({ pair: `{${a},${b}}`, pairKey: key, count: count, content: rendered, rowClass: rowClass });
                 });
-                const style = `<style>
-            .checknote-table{border-collapse:collapse;font-family:monospace;font-size:13px;line-height:1.35;max-width:100%;width:auto;table-layout:auto}
-            .checknote-table td{vertical-align:top;padding:2px 6px}
-            .checknote-table .pair{white-space:nowrap;padding-right:8px;font-weight:600}
-            .checknote-table .sep{white-space:nowrap;padding-right:8px;font-weight:700}
-            .checknote-table .content{text-align:left}
-            .checknote-table .idlabel{display:inline-block;white-space:nowrap;margin-right:8px}
-            .checknote-table .idlabel .dist{background:yellow;color:black;padding:1px 3px;border-radius:3px}
-            .checknote-table .idlabel.present{background:#008000;color:white;padding:2px 4px;border-radius:3px}
-            .checknote-table .idlabel.past{background:#ff0000;color:white;padding:2px 4px;border-radius:3px}
-            .checknote-table .idlabel.future{background:#00ffff;color:#003;padding:2px 4px;border-radius:3px}
-            .checknote-table .idlabel.match{padding:2px 4px;border-radius:3px;border:1px solid #ddd}
-            .checknote-table tr.row-neon td{background:linear-gradient(90deg, rgba(0,255,102,0.18), rgba(0,255,102,0.10));box-shadow:0 0 12px rgba(0,255,102,0.16) inset}
-        </style>`;
                 let table = '<table class="checknote-table">';
-                rows.forEach(r => { const rc = r.rowClass ? ` class="${r.rowClass}"` : ''; table += `<tr${rc}><td class="pair">${r.pair}</td><td class="sep">${r.count}</td><td class="content">${r.content ? r.content : ''}</td></tr>`; });
+                rows.forEach(r => {
+                    const rc = r.rowClass ? ` class="${r.rowClass}"` : '';
+                    const combo2 = getCombo2PairStatDisplay(r.pairKey, data);
+                    table += `<tr${rc}><td class="pair">${r.pair}</td><td class="sep">${r.count}</td><td class="content">${r.content ? r.content : ''}</td><td class="combo2-rank">${combo2.rankText}</td><td class="combo2-appear">${combo2.appearText}</td></tr>`;
+                });
                 table += '</table>';
-                return style + table;
+                return CHECKNOTE_TABLE_STYLE + table;
             } catch (err) { console.error(err); return ''; }
         }
 
         function generateFallbackHtml(inputStr) {
             const s = (inputStr || '').toString();
-            const style = `<style>
-        .checknote-table{border-collapse:collapse;font-family:monospace;font-size:13px;line-height:1.35;max-width:100%;width:auto;table-layout:auto}
-        .checknote-table td{vertical-align:top;padding:2px 6px}
-        .checknote-table .pair{white-space:nowrap;padding-right:8px;font-weight:600}
-        .checknote-table .sep{white-space:nowrap;padding-right:8px;font-weight:700}
-        .checknote-table .content{text-align:left}
-    </style>`;
-            const table = `<table class='checknote-table'><tr><td class='pair'>Chuỗi</td><td class='sep'></td><td class='content'>${s}</td></tr></table>`;
-            return style + table;
+            const table = `<table class='checknote-table'><tr><td class='pair'>Chuỗi</td><td class='sep'></td><td class='content'>${s}</td><td class='combo2-rank'>—</td><td class='combo2-appear'>—</td></tr></table>`;
+            return CHECKNOTE_TABLE_STYLE + table;
         }
 
         function parseCopyBtnRowIndex(btnOrId) {
@@ -8047,7 +8069,7 @@
             tip.id = 'checknoteTooltip';
             tip.style.position = 'fixed';
             tip.style.zIndex = '999999';
-            tip.style.maxWidth = '420px';
+            tip.style.maxWidth = '560px';
             tip.style.background = 'white';
             tip.style.border = '1px solid #ccc';
             tip.style.padding = '8px';
@@ -8295,7 +8317,7 @@
             content.style.position = 'relative';
             content.style.padding = '0px';
             const style = document.createElement('style');
-            style.textContent = '.checknote-table{border-collapse:collapse;font-family:monospace;font-size:13px;line-height:1.35;max-width:100%;width:auto;table-layout:auto}.checknote-table td{vertical-align:top;padding:2px 6px}.checknote-table .pair{white-space:nowrap;padding-right:8px;font-weight:600}.checknote-table .sep{white-space:nowrap;padding-right:8px;font-weight:700}.checknote-table .content{text-align:left}.checknote-table .idlabel{display:inline-block;white-space:nowrap;margin-right:8px}.checknote-table .idlabel .dist{background:yellow;color:black;padding:1px 3px;border-radius:3px}.checknote-table .idlabel.present{background:#008000;color:white;padding:2px 4px;border-radius:3px}.checknote-table .idlabel.past{background:#ff0000;color:white;padding:2px 4px;border-radius:3px}.checknote-table .idlabel.future{background:#00ffff;color:#003;padding:2px 4px;border-radius:3px}.checknote-table .idlabel.match{padding:2px 4px;border-radius:3px;border:1px solid #ddd}';
+            style.textContent = '.checknote-table{border-collapse:collapse;font-family:monospace;font-size:13px;line-height:1.35;max-width:100%;width:auto;table-layout:auto}.checknote-table td{vertical-align:top;padding:2px 6px}.checknote-table .pair{white-space:nowrap;padding-right:8px;font-weight:600}.checknote-table .sep{white-space:nowrap;padding-right:8px;font-weight:700}.checknote-table .content{text-align:left}.checknote-table .combo2-rank{white-space:nowrap;padding-right:8px;font-weight:600;color:#333}.checknote-table .combo2-appear{white-space:nowrap;padding-right:8px;font-weight:600;color:#555}.checknote-table .idlabel{display:inline-block;white-space:nowrap;margin-right:8px}.checknote-table .idlabel .dist{background:yellow;color:black;padding:1px 3px;border-radius:3px}.checknote-table .idlabel.present{background:#008000;color:white;padding:2px 4px;border-radius:3px}.checknote-table .idlabel.past{background:#ff0000;color:white;padding:2px 4px;border-radius:3px}.checknote-table .idlabel.future{background:#00ffff;color:#003;padding:2px 4px;border-radius:3px}.checknote-table .idlabel.match{padding:2px 4px;border-radius:3px;border:1px solid #ddd}';
             tip.appendChild(style);
             const table = document.createElement('table'); table.className = 'checknote-table';
             content.appendChild(table);
@@ -8362,7 +8384,7 @@
             if (precomputedPickRows && precomputedPickRows.length >= 1) {
                 precomputedPickRows.forEach(r => {
                     const tr = document.createElement('tr');
-                    tr.innerHTML = `<td class="pair">{${r.a},${r.b}}</td><td class="sep">${r.count}</td><td class="content">${r.content}</td>`;
+                    tr.innerHTML = buildPickPairRowInnerHtml(r.a, r.b, r.count, r.content);
                     table.appendChild(tr);
                 });
             } else {
@@ -8376,7 +8398,7 @@
                 pairs.forEach(p => {
                     const tr = document.createElement('tr');
                     tr.setAttribute('data-a', p.a); tr.setAttribute('data-b', p.b);
-                    tr.innerHTML = `<td class="pair">{${p.a},${p.b}}</td><td class="sep">…</td><td class="content">...</td>`;
+                    tr.innerHTML = buildPickPairRowInnerHtml(p.a, p.b, '…', '...');
                     table.appendChild(tr);
                 });
                 setTimeout(function () {
@@ -8384,7 +8406,7 @@
                         try {
                             const info = generatePickPairsHtmlFragment(p.a, p.b);
                             const tr = table.rows[idx];
-                            if (tr) tr.innerHTML = `<td class="pair">{${p.a},${p.b}}</td><td class="sep">${info.count}</td><td class="content">${info.content}</td>`;
+                            if (tr) tr.innerHTML = buildPickPairRowInnerHtml(p.a, p.b, info.count, info.content);
                         } catch (err) { }
                     });
                     try { doPosition(); } catch (e) { }
@@ -8416,7 +8438,7 @@
                 for (let i = 0; i < nums.length; i++) { for (let j = i + 1; j < nums.length; j++) { const a = Math.min(nums[i], nums[j]); const b = Math.max(nums[i], nums[j]); const info = generatePickPairsHtmlFragment(a, b); out.push({ a: a, b: b, count: info.count, content: info.content }); } }
                 return out;
             })();
-            rows.forEach(function (r) { const tr = document.createElement('tr'); tr.innerHTML = `<td class="pair">{${r.a},${r.b}}</td><td class="sep">${r.count}</td><td class="content">${r.content}</td>`; table.appendChild(tr); });
+            rows.forEach(function (r) { const tr = document.createElement('tr'); tr.innerHTML = buildPickPairRowInnerHtml(r.a, r.b, r.count, r.content); table.appendChild(tr); });
             try {
                 const rectAnchor = document.getElementById('pickBtn').getBoundingClientRect();
                 const tipEl = document.getElementById('pickTooltip');

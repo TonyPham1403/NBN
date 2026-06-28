@@ -5682,7 +5682,7 @@
             if (!sheetManager) {
                 return false;
             }
-            return isSourceDataContextSheet(sheetManager.activeSheet);
+            return isSourceDataContextSheet(sheetManager.activeSheet) || isComboContextSheet();
         }
 
         function isComboContextSheet() {
@@ -16497,7 +16497,7 @@
                     if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
                         return;
                     }
-                    let data = { id_to_result: {}, pair_to_ids: {}, max_id: null };
+                    let data = { id_to_result: {}, pair_to_ids: {}, max_id: null, combo2_pair_stats: {} };
                     try {
                         if (sheetManager && typeof sheetManager.buildChecknoteDataFromSourceRows === 'function') {
                             data = sheetManager.buildChecknoteDataFromSourceRows();
