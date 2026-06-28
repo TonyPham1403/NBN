@@ -2070,6 +2070,7 @@
         // pair/triple tracking (ported from ok.py)
         let firstPair = null, secondPair = null, thirdPair = null, fourthPair = null, fifthPair = null, firstTriple = null;
         let preSubmitSelected = null, preSubmitOrder = null;
+        let preSubmitFocusSnapshot = null;
         let userModeBeforeSubmit = null, modeSynced = false;
 
         // navigation / transient selection state
@@ -2169,6 +2170,84 @@
                 phaseHistory.push({ region: region || 'left', number: number, row: (typeof row === 'number') ? row : null });
                 if (phaseHistory.length > 5) phaseHistory.shift();
             } catch (e) { }
+        }
+
+        function numberInNavPreferred(n, preferredNums) {
+            return !preferredNums || preferredNums.indexOf(n) !== -1;
+        }
+
+        /** Phase tay gần nhất còn trong tập khoanh — ưu tiên hơn số autoring max-freq. */
+        function getLatestManualPhaseNumberForNav(preferredNums) {
+            var effective = getCircledEffectiveSetForNav();
+            if (!effective.size) {
+                return null;
+            }
+            var order = (submitActive && preSubmitOrder && preSubmitOrder.length)
+                ? preSubmitOrder
+                : (pickOrder || []);
+            for (var j = order.length - 1; j >= 0; j--) {
+                var pn = order[j];
+                if (effective.has(pn) && numberInNavPreferred(pn, preferredNums)) {
+                    return pn;
+                }
+            }
+            for (var i = phaseHistory.length - 1; i >= 0; i--) {
+                var e = phaseHistory[i];
+                if (!e || e.number == null) {
+                    continue;
+                }
+                var n = e.number;
+                if (effective.has(n) && numberInNavPreferred(n, preferredNums)) {
+                    return n;
+                }
+            }
+            return null;
+        }
+
+        function snapshotPreSubmitFocusState() {
+            preSubmitFocusSnapshot = {
+                currentPhaseNumber: currentPhaseNumber,
+                lastClickedNumber: lastClickedNumber,
+                lastClickedRegion: lastClickedRegion,
+                currentPhaseRow: currentPhaseRow,
+                leftKeyboardRegion: leftKeyboardRegion,
+                lastClickedRow: lastClickedRow
+            };
+        }
+
+        function restorePreSubmitFocusState() {
+            if (!preSubmitFocusSnapshot) {
+                var latest = getLatestManualPhaseNumberForNav(null);
+                if (latest != null) {
+                    currentPhaseNumber = latest;
+                    lastClickedNumber = latest;
+                }
+                return;
+            }
+            var snap = preSubmitFocusSnapshot;
+            preSubmitFocusSnapshot = null;
+            var effective = getCircledEffectiveSetForNav();
+            var focusNum = snap.currentPhaseNumber != null && effective.has(snap.currentPhaseNumber)
+                ? snap.currentPhaseNumber
+                : (snap.lastClickedNumber != null && effective.has(snap.lastClickedNumber)
+                    ? snap.lastClickedNumber
+                    : getLatestManualPhaseNumberForNav(null));
+            if (focusNum != null) {
+                currentPhaseNumber = focusNum;
+                lastClickedNumber = focusNum;
+            }
+            if (snap.lastClickedRegion) {
+                lastClickedRegion = snap.lastClickedRegion;
+            }
+            if (snap.leftKeyboardRegion) {
+                syncLeftKeyboardRegion(snap.leftKeyboardRegion);
+            }
+            if (typeof snap.currentPhaseRow === 'number') {
+                currentPhaseRow = snap.currentPhaseRow;
+            }
+            if (typeof snap.lastClickedRow === 'number') {
+                lastClickedRow = snap.lastClickedRow;
+            }
         }
 
         function restorePreviousPhase(excludeNumber) {
@@ -3314,6 +3393,11 @@
                     const pair = resolveAutoringPairNumsForNav(mode);
                     if (pair) return pair.b;
                 } else {
+                    const effective = getCircledEffectiveSetForNav();
+                    var latestManualFocus = getLatestManualPhaseNumberForNav(null);
+                    if (latestManualFocus != null) {
+                        return latestManualFocus;
+                    }
                     if (currentPhaseNumber != null && effective.has(currentPhaseNumber)) {
                         return currentPhaseNumber;
                     }
@@ -3464,14 +3548,24 @@
                 }
 
                 const focusNum = getMaxFreqAutoringNumForNav();
-                if (currentPhaseNumber != null && selected.has(currentPhaseNumber)) {
+                const effectiveRing = getCircledEffectiveSetForNav();
+                var latestManualRing = getLatestManualPhaseNumberForNav(null);
+                if (latestManualRing != null) {
+                    currentPhaseNumber = latestManualRing;
+                    lastClickedNumber = latestManualRing;
+                    syncAutoringNavRegionDefaultLeft();
+                    currentPairIndex = -1;
+                    currentTailIndex = -1;
+                    return;
+                }
+                if (currentPhaseNumber != null && effectiveRing.has(currentPhaseNumber)) {
                     lastClickedNumber = currentPhaseNumber;
                     syncAutoringNavRegionDefaultLeft();
                     currentPairIndex = -1;
                     currentTailIndex = -1;
                     return;
                 }
-                if (lastClickedNumber != null && selected.has(lastClickedNumber)) {
+                if (lastClickedNumber != null && effectiveRing.has(lastClickedNumber)) {
                     currentPhaseNumber = lastClickedNumber;
                     syncAutoringNavRegionDefaultLeft();
                     currentPairIndex = -1;
@@ -6135,6 +6229,9 @@
             syncAutoRingPickedFromSelectedAfterWasd();
             currentPhaseNumber = toNum;
             lastClickedNumber = toNum;
+            try {
+                pushPhaseHistory(lastClickedRegion || leftKeyboardRegion || 'left', toNum, currentPhaseRow);
+            } catch (ePh) { /* ignore */ }
             return dropped;
         }
 
@@ -6142,12 +6239,18 @@
             function inPreferred(n) {
                 return !preferredNums || preferredNums.indexOf(n) !== -1;
             }
-            if (currentPhaseNumber != null && inPreferred(currentPhaseNumber)
-                && (selected.has(currentPhaseNumber) || transientSelected.has(currentPhaseNumber))) {
+            function inSelected(n) {
+                return selected.has(n) || transientSelected.has(n)
+                    || (submitActive && preSubmitSelected && preSubmitSelected.has(n));
+            }
+            var latestManual = getLatestManualPhaseNumberForNav(preferredNums);
+            if (latestManual != null && inSelected(latestManual)) {
+                return latestManual;
+            }
+            if (currentPhaseNumber != null && inPreferred(currentPhaseNumber) && inSelected(currentPhaseNumber)) {
                 return currentPhaseNumber;
             }
-            if (lastClickedNumber != null && inPreferred(lastClickedNumber)
-                && (selected.has(lastClickedNumber) || transientSelected.has(lastClickedNumber))) {
+            if (lastClickedNumber != null && inPreferred(lastClickedNumber) && inSelected(lastClickedNumber)) {
                 return lastClickedNumber;
             }
             if (pickOrder && pickOrder.length) {
@@ -8767,6 +8870,7 @@
                 if (submitActive) {
                     // Luôn gỡ overlay khoanh preview phiếu trước khi chuyển sang 5 số submit
                     try { markSubmitCircleOverlayCleared(); } catch (eClrOv) { /* ignore */ }
+                    snapshotPreSubmitFocusState();
                     // Lưu selection hiện tại (tay / Answer) để khôi phục khi tắt Submit
                     preSubmitSelected = new Set(selected);
                     preSubmitOrder = pickOrder ? pickOrder.slice() : [];
@@ -8877,6 +8981,7 @@
                         } catch (eNeonAs) { /* ignore */ }
                         preSubmitSelected = null;
                         preSubmitOrder = null;
+                        try { restorePreSubmitFocusState(); } catch (eFocusRestore) { /* ignore */ }
                         syncSubmitPreviewBodyClasses();
                     }
                     if (modeSynced && userModeBeforeSubmit !== null && modeEl) {
