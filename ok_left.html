@@ -4699,6 +4699,95 @@
             try { syncPickPropertyBadges(); } catch (eBadgesLw) { /* ignore */ }
         }
 
+        var wasdNavHeavyRefreshRaf = 0;
+        var wasdNavParentNotifyTimer = 0;
+        var wasdNavStepActive = false;
+
+        function patchWasdPickCellsInDOM(nums) {
+            var seen = new Set();
+            (nums || []).forEach(function (n) {
+                n = parseInt(n, 10);
+                if (isNaN(n) || seen.has(n)) {
+                    return;
+                }
+                seen.add(n);
+                document.querySelectorAll('.cell.num[data-num="' + n + '"]').forEach(function (el) {
+                    el.classList.toggle('selected', selected.has(n) && !isSubmitAutoringOverlayNum(n));
+                    el.classList.toggle('blocked', isBlocked(n));
+                });
+            });
+        }
+
+        /** Cập nhật khoanh ngay trên vài ô — không quét cả bảng mỗi phím spam. */
+        function updateWasdNavRenderImmediate(fromNum, toNum, relatedNums) {
+            try { syncPickOrderFromSelected(); } catch (e) { /* ignore */ }
+            var patch = [];
+            if (fromNum != null && !isNaN(fromNum)) patch.push(fromNum);
+            if (toNum != null && !isNaN(toNum)) patch.push(toNum);
+            (relatedNums || []).forEach(function (n) { patch.push(n); });
+            patchWasdPickCellsInDOM(patch);
+            try { updateFocusIndicator(); } catch (e) { /* ignore */ }
+            try {
+                if (submitActive && window.updatePickButtonUI) {
+                    window.updatePickButtonUI();
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        function scheduleWasdNavParentNotify() {
+            if (wasdNavParentNotifyTimer) {
+                clearTimeout(wasdNavParentNotifyTimer);
+            }
+            wasdNavParentNotifyTimer = setTimeout(function () {
+                wasdNavParentNotifyTimer = 0;
+                try { notifyParentLeftCircledNums(); } catch (e) { /* ignore */ }
+                try { syncPickPropertyBadges(); } catch (e) { /* ignore */ }
+                try { syncReferenceConn3PickHintRow(); } catch (e) { /* ignore */ }
+            }, 32);
+        }
+
+        /** Pair list / submit overlay / parent sync — gom theo frame, không chặn spam A/D. */
+        function scheduleWasdNavHeavyRefresh() {
+            if (wasdNavHeavyRefreshRaf) {
+                return;
+            }
+            wasdNavHeavyRefreshRaf = requestAnimationFrame(function () {
+                wasdNavHeavyRefreshRaf = 0;
+                try { applySelectionAndBlockedInDOM(); } catch (e) { /* ignore */ }
+                try { refreshPairTailSelectionState(); } catch (e) { /* ignore */ }
+                try { updatePairList(); } catch (e) { /* ignore */ }
+                try {
+                    if (submitActive) {
+                        applySubmitState();
+                    }
+                } catch (e) { /* ignore */ }
+                try { updatePairListNeonHints(); } catch (e) { /* ignore */ }
+                scheduleWasdNavParentNotify();
+            });
+        }
+
+        function finalizeWasdNavStep(fromNum, toNum, relatedNums) {
+            updateWasdNavRenderImmediate(fromNum, toNum, relatedNums);
+            scheduleWasdNavHeavyRefresh();
+        }
+
+        /** Sau applyWasdPickReplace: khoanh ngay trên DOM, rồi mới chạy logic nặng. */
+        function finishWasdPickReplace(fromNum, toNum, patchRelatedNums) {
+            var dropped = applyWasdPickReplace(fromNum, toNum);
+            if (dropped === null) {
+                return false;
+            }
+            patchWasdPickCellsInDOM([fromNum, toNum].concat(dropped));
+            recomputePairsFromSelected();
+            updateBlocked();
+            var related = (patchRelatedNums || []).concat(dropped);
+            patchWasdPickCellsInDOM(related);
+            syncPairNeonObserveNumFromPhaseAfterWasd();
+            try { updateFocusIndicator(); } catch (e) { /* ignore */ }
+            scheduleWasdNavHeavyRefresh();
+            return true;
+        }
+
         function requestChecknoteDataIfNeeded() {
             if (window.__checknote_lastData) return;
             if (!window.parent || window.parent === window || !raw || !raw.lines || !raw.lines.length) return;
@@ -6011,8 +6100,9 @@
 
         function applyWasdPickReplace(fromNum, toNum) {
             if (toNum == null || isNaN(toNum)) {
-                return false;
+                return null;
             }
+            var dropped = [];
             if (fromNum != null && !isNaN(fromNum)) {
                 removeNumFromWasdPickSets(fromNum);
             }
@@ -6029,6 +6119,7 @@
                     selected.delete(drop);
                     transientSelected.delete(drop);
                     autoRingPicked.delete(drop);
+                    dropped.push(drop);
                 }
             }
             while (selected.size > MAX_PICK_NUMBERS) {
@@ -6037,11 +6128,14 @@
                     break;
                 }
                 removeNumFromWasdPickSets(dropSel);
+                if (dropped.indexOf(dropSel) === -1) {
+                    dropped.push(dropSel);
+                }
             }
             syncAutoRingPickedFromSelectedAfterWasd();
             currentPhaseNumber = toNum;
             lastClickedNumber = toNum;
-            return true;
+            return dropped;
         }
 
         function resolveWasdNavFocusPickNum(preferredNums) {
@@ -9065,6 +9159,7 @@
         })();
 
         function handleLeftPaneNavKey(key) {
+            wasdNavStepActive = true;
             try {
                 if (!key) return;
                 if (!raw) return;
@@ -9146,15 +9241,11 @@
                         if (currentPhaseNumber != null && selected.has(currentPhaseNumber)) {
                             fromNumW = currentPhaseNumber;
                         }
-                        applyWasdPickReplace(fromNumW, cand);
                         currentPhaseRow = finalTargetRow;
                         lastClickedRow = finalTargetRow;
                         lastClickedRegion = 'right';
                         syncLeftKeyboardRegion('right');
-                        recomputePairsFromSelected();
-                        updateBlocked();
-                        syncPairNeonObserveNumFromPhaseAfterWasd();
-                        updateRenderLightweight();
+                        finishWasdPickReplace(fromNumW, cand, getRawDisplayLineNumsAt(finalTargetRow));
                         return;
                     } else if (regionWS === 'left') {
                         var groups = {};
@@ -9202,12 +9293,10 @@
                         if (currentPhaseNumber != null && selected.has(currentPhaseNumber)) {
                             fromNumL = currentPhaseNumber;
                         }
-                        applyWasdPickReplace(fromNumL, candL);
                         lastClickedRegion = 'left';
                         syncLeftKeyboardRegion('left');
-                        recomputePairsFromSelected(); updateBlocked();
-                        syncPairNeonObserveNumFromPhaseAfterWasd();
-                        updateRenderLightweight(); return;
+                        finishWasdPickReplace(fromNumL, candL, rows[finalIdx]);
+                        return;
                     } else { return; }
                 }
 
@@ -9241,12 +9330,10 @@
                             found = candG; break;
                         }
                         if (found === null) return;
-                        applyWasdPickReplace(last, found);
                         lastClickedRegion = 'left';
                         syncLeftKeyboardRegion('left');
-                        recomputePairsFromSelected(); updateBlocked();
-                        syncPairNeonObserveNumFromPhaseAfterWasd();
-                        updateRenderLightweight(); return;
+                        finishWasdPickReplace(last, found, group);
+                        return;
                     }
 
                     if (region === 'right') {
@@ -9268,12 +9355,10 @@
                             foundR = candR; break;
                         }
                         if (foundR === null) return;
-                        applyWasdPickReplace(lastR, foundR);
                         currentPhaseRow = row; lastClickedRow = row; lastClickedRegion = 'right';
                         syncLeftKeyboardRegion('right');
-                        recomputePairsFromSelected(); updateBlocked();
-                        syncPairNeonObserveNumFromPhaseAfterWasd();
-                        updateRenderLightweight(); return;
+                        finishWasdPickReplace(lastR, foundR, numsR);
+                        return;
                     }
 
                     if (region === 'pairList') {
@@ -9293,7 +9378,11 @@
                     }
                 }
             } catch (ee) { /* ignore */ }
+            finally {
+                wasdNavStepActive = false;
+            }
         }
+        window.handleLeftPaneNavKey = handleLeftPaneNavKey;
 
         document.addEventListener('keydown', function (e) {
             try {
@@ -9893,7 +9982,7 @@
                 ind.style.opacity = 0;
                 return;
             }
-            if (isAutoringCircledNavActive()) {
+            if (isAutoringCircledNavActive() && !wasdNavStepActive) {
                 try { syncCircledFocusForNav(); } catch (eSync) { /* ignore */ }
             }
 

@@ -14047,11 +14047,20 @@
             if (!frame || !frame.contentWindow) {
                 return false;
             }
+            const k = String(key || '');
             try {
-                frame.contentWindow.postMessage({ type: 'leftPaneNavKey', key: String(key || '') }, '*');
+                const win = frame.contentWindow;
+                if (typeof win.handleLeftPaneNavKey === 'function') {
+                    win.handleLeftPaneNavKey(k);
+                    rememberKeyboardFocusTarget('left');
+                    return true;
+                }
+            } catch (e) { /* fallback postMessage */ }
+            try {
+                frame.contentWindow.postMessage({ type: 'leftPaneNavKey', key: k }, '*');
                 rememberKeyboardFocusTarget('left');
                 return true;
-            } catch (e) {
+            } catch (e2) {
                 return false;
             }
         }
