@@ -3909,11 +3909,7 @@
         }
 
         function persistSelectionMemoryForFocus() {
-            try {
-                var fk = lastAutoRingFocusKey;
-                if (!fk || submitActive || disableSubmitForCurrentData) return;
-                selectionMemoryByFocusId.set(fk, snapshotSelectionStateForMemory());
-            } catch (e) { /* non-fatal */ }
+            /* Không lưu khoanh tay theo id — mỗi lần chuyển id bắt đầu sạch khoanh. */
         }
 
         function syncModeFromAnswerNums(answerNums) {
@@ -10652,15 +10648,10 @@
                     const newFk = normalizeAutoRingFocusKey(focusRowId);
                     const isFocusArrival = !!(newFk && newFk !== prevFkAtStart);
                     const focusIdChanged = !!(isFocusArrival && prevFkAtStart);
-                    var restoredFromMemory = false;
                     const skipFocusSwapForTrackingStep = trackingFrameStepProcess;
 
-                    if (!skipFocusSwapForTrackingStep && prevFkAtStart && isFocusArrival) {
-                        try { selectionMemoryByFocusId.set(prevFkAtStart, snapshotSelectionStateForMemory()); } catch (e) { }
-                    }
-
                     if (!skipFocusSwapForTrackingStep && isFocusArrival) {
-                        // Sang id mới: reset Q/Reset undo — autoring được khoanh lại cho kỳ này.
+                        // Sang id mới: xóa sạch khoanh tay (không khôi phục theo id cũ).
                         invalidateClearSelectionToggleBackup();
                         autoRingPicked.clear();
                         selected.clear();
@@ -10669,6 +10660,7 @@
                         simulatedSelected.clear();
                         pickOrder = [];
                         pairNeonObserveNum = null;
+                        resetPairNeonObserveContextBeyondLonePair();
                         currentPairIndex = -1;
                         currentTailIndex = -1;
                         currentPhaseNumber = null;
@@ -10676,20 +10668,18 @@
                         lastClickedNumber = null;
                         lastClickedRow = null;
                         phaseHistory = [];
+                        selectionCleared = false;
+                        if (newFk) {
+                            try { selectionMemoryByFocusId.delete(newFk); } catch (e) { /* ignore */ }
+                        }
                         if (wasSubmitActive) {
                             preSubmitSelected = null;
                             preSubmitOrder = null;
                         }
-                        if (newFk && selectionMemoryByFocusId.has(newFk) && !submitAutoCircleEnabled) {
-                            try {
-                                restoreSelectionStateSnapshot(selectionMemoryByFocusId.get(newFk));
-                                restoredFromMemory = true;
-                            } catch (eRestore) { /* ignore */ }
-                        }
                     }
 
                     preserveSubmitOnNextProcess = !!wasSubmitActive;
-                    preserveSelectionOnNextProcess = !!msg.preserveSelection || !isFocusArrival || restoredFromMemory;
+                    preserveSelectionOnNextProcess = !!msg.preserveSelection || !isFocusArrival;
                     if (wasSubmitActive) {
                         submitActive = true;
                         try {
