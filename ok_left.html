@@ -602,7 +602,7 @@
             display: none !important;
         }
 
-        .left-container > .controls {
+        .left-container>.controls {
             flex-shrink: 0;
         }
 
@@ -1634,7 +1634,8 @@
                 <div class="controls">
                     <div id="referenceHint" class="reference-hint-panel" role="region"
                         aria-label="3-connection của kỳ đang chọn (sheet1)">
-                        <div class="reference-hint-empty-note">Toàn bộ bộ 3-connection trong cửa sổ 10 chuỗi trước kỳ — hiện khi chọn dòng ở bảng phải…</div>
+                        <div class="reference-hint-empty-note">Toàn bộ bộ 3-connection trong cửa sổ 10 chuỗi trước kỳ —
+                            hiện khi chọn dòng ở bảng phải…</div>
                     </div>
                     <div class="mode-row">
                         <select id="mode">
@@ -5233,22 +5234,6 @@
                     let allMainsOk = true;
                     for (const mainIdx of mains) {
                         /* Không lọc adjAboveCrossCount===2: giữ khớp computePairsForRows (date nền #00b0f0 / cửa sổ 10 dòng). */
-
-                        let aboveFound = false;
-                        for (const p of adjPairs) {
-                            if (p.bottom < mainIdx) {
-                                if ((sets[p.top].has(a) && sets[p.bottom].has(b)) || (sets[p.top].has(b) && sets[p.bottom].has(a))) {
-                                    if (!((sets[p.top].has(a) && sets[p.top].has(b)) || (sets[p.bottom].has(a) && sets[p.bottom].has(b)))) {
-                                        const allowAboveIfFreq2 = (raw && raw.freq && (
-                                            (raw.freq[a] >= 2 && raw.freq[b] >= 2 && mainIdx === sets.length - 1) ||
-                                            ((raw.freq[a] === 3 && raw.freq[b] === 2) || (raw.freq[a] === 2 && raw.freq[b] === 3))
-                                        ));
-                                        if (!allowAboveIfFreq2) { aboveFound = true; break; }
-                                    }
-                                }
-                            }
-                        }
-                        if (aboveFound) { allMainsOk = false; break; }
 
                         let foundForThisMain = false;
                         for (const p of adjPairs) {

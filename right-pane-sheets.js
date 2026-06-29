@@ -6723,30 +6723,6 @@ class RightPaneSheetManager {
 
                 let allMainsOk = true;
                 for (const mainIdx of mains) {
-                    let aboveFound = false;
-                    for (const pair of adjPairs) {
-                        if (pair.bottom < mainIdx) {
-                            const topHasPair = sets[pair.top].has(a) && sets[pair.bottom].has(b);
-                            const flippedHasPair = sets[pair.top].has(b) && sets[pair.bottom].has(a);
-                            if (topHasPair || flippedHasPair) {
-                                if (!((sets[pair.top].has(a) && sets[pair.top].has(b)) || (sets[pair.bottom].has(a) && sets[pair.bottom].has(b)))) {
-                                    const allowAboveIfFreq2 = (
-                                        (windowFreq[a] >= 2 && windowFreq[b] >= 2 && mainIdx === sets.length - 1) ||
-                                        ((windowFreq[a] === 3 && windowFreq[b] === 2) || (windowFreq[a] === 2 && windowFreq[b] === 3))
-                                    );
-                                    if (!allowAboveIfFreq2) {
-                                        aboveFound = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    if (aboveFound) {
-                        allMainsOk = false;
-                        break;
-                    }
-
                     let foundForThisMain = false;
                     for (const pair of adjPairs) {
                         if (!(pair.top > mainIdx && pair.bottom > mainIdx)) {
