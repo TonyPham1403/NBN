@@ -3410,14 +3410,26 @@
             return next.slice(0, MAX_PICK_NUMBERS);
         }
 
-        /** Chuỗi pick hiển thị/copy — khớp số khoanh đỏ, không lấy answerNums Submit khi đang autoring/khoanh tay. */
+        /** Chuỗi pick hiển thị/copy — Submit ON: ưu tiên 5 số đáp án; Submit OFF: số khoanh đỏ. */
         function getPickDisplayNums() {
+            if (submitActive) {
+                if (answerNums && answerNums.length) {
+                    return answerNums.slice(0, MAX_PICK_NUMBERS);
+                }
+                if (simulatedSelected && simulatedSelected.size) {
+                    var sim = [];
+                    simulatedSelected.forEach(function (n) {
+                        if (!isNaN(n)) sim.push(n);
+                    });
+                    sim.sort(function (a, b) { return a - b; });
+                    if (sim.length) {
+                        return sim.slice(0, MAX_PICK_NUMBERS);
+                    }
+                }
+            }
             var circled = getCircledPickOrderForNav();
             if (circled.length > 0) {
                 return circled;
-            }
-            if (submitActive && answerNums && answerNums.length) {
-                return answerNums.slice(0, MAX_PICK_NUMBERS);
             }
             return (pickOrder && pickOrder.length)
                 ? pickOrder.slice(0, MAX_PICK_NUMBERS)
