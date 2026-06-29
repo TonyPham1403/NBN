@@ -266,22 +266,32 @@
             border-radius: 0;
         }
 
-        /* Preserve semantic submit-color mapping for blocked numbers:
-           - default blocked text -> white (submit answer color)
-           - blocked + note -> cyan (submit note color)
-           - blocked + nonexist -> yellow (submit nonexist color)
-        */
+        /* Blocked: Submit OFF = tông note/nonexist bình thường; Submit ON = tông submit */
         .cell.blocked.note-highlight {
-            color: var(--submit-note-color) !important;
+            color: #0097a7 !important;
             font-weight: bold !important;
         }
 
         .cell.blocked.nonexist-intersect {
-            color: var(--submit-nonexist-color) !important;
+            color: #e6b800 !important;
             font-weight: bold !important;
         }
 
         .cell.blocked:not(.note-highlight):not(.nonexist-intersect) {
+            color: var(--blocked-default) !important;
+        }
+
+        body.submit-preview-active .cell.blocked.note-highlight {
+            color: var(--submit-note-color) !important;
+            font-weight: bold !important;
+        }
+
+        body.submit-preview-active .cell.blocked.nonexist-intersect {
+            color: var(--submit-nonexist-color) !important;
+            font-weight: bold !important;
+        }
+
+        body.submit-preview-active .cell.blocked:not(.note-highlight):not(.nonexist-intersect) {
             color: var(--submit-answer-color) !important;
         }
 
@@ -4633,7 +4643,18 @@
                             // number cells: show selected ring and blocked state
                             el.classList.toggle('selected', selected.has(v) && !isSubmitAutoringOverlayNum(v));
                             el.classList.toggle('blocked', isBlocked(v));
-                            if (!submitActive) el.classList.remove('submit-highlight');
+                            if (!submitActive) {
+                                el.classList.remove('submit-highlight');
+                                el.classList.remove('answer-neon');
+                                el.classList.remove('animate');
+                                if (el.closest('#left') && answerNums && answerNums.indexOf(v) !== -1) {
+                                    stripLeftTableSubmitPreviewStyles(el);
+                                    try {
+                                        var aggSel = buildAggregatedNoteNonexistSets();
+                                        syncLeftTableNumSemanticClasses(el, v, aggSel.noteSet, aggSel.nonexistSet);
+                                    } catch (eSem) { /* ignore */ }
+                                }
+                            }
                         } else if (el.classList.contains('index')) {
                             // chân index: không blocked / không tô đỏ khi khoanh — màu sync từ bảng 1
                             el.classList.remove('blocked');
@@ -6749,6 +6770,48 @@
          * Table 1: one semantic color per number (table 2 may combine several).
          * Priority: yellow (nonexist) > cyan (note). Blocked (black) is applied separately via isBlocked().
          */
+        function stripLeftTableSubmitPreviewStyles(span) {
+            if (!span || !span.classList) {
+                return;
+            }
+            span.classList.remove('submit-highlight');
+            span.classList.remove('answer-neon');
+            span.classList.remove('animate');
+            try { span.style.removeProperty('color'); } catch (e) { }
+            try { span.style.removeProperty('font-weight'); } catch (e) { }
+            try { span.style.removeProperty('background-color'); } catch (e) { }
+        }
+
+        /** Khôi phục note/nonexist tông Submit OFF trên bảng 1 (sau khi gỡ submit-highlight). */
+        function syncLeftTableNumSemanticClasses(span, n, aggregatedNoteSet, aggregatedNonexistSet) {
+            if (!span || !span.classList || !raw || !raw.freq) {
+                return;
+            }
+            var num = parseInt(n, 10);
+            if (isNaN(num)) {
+                return;
+            }
+            span.classList.remove('note-highlight');
+            span.classList.remove('nonexist-intersect');
+            LEFT_NX_CLASS_NAMES.forEach(function (c) {
+                span.classList.remove(c);
+            });
+            var freqRow = parseInt(raw.freq[num], 10) || 0;
+            if (freqRow === 0) {
+                var kind = resolveLeftNonexistKind(
+                    focusNonexistHighlights[num] || focusNonexistHighlights[String(num)]
+                );
+                var nxCls = leftNonexistKindToClassName(kind);
+                if (nxCls) {
+                    span.classList.add(nxCls);
+                }
+            } else if (aggregatedNonexistSet.indexOf(num) !== -1) {
+                span.classList.add('nonexist-intersect');
+            } else if (aggregatedNoteSet.indexOf(num) !== -1) {
+                span.classList.add('note-highlight');
+            }
+        }
+
         function appendLeftTableSemanticHighlight(cls, n, aggregatedNoteSet, aggregatedNonexistSet) {
             if (aggregatedNonexistSet.indexOf(n) !== -1) {
                 return cls + ' nonexist-intersect';
@@ -6963,8 +7026,7 @@
                 html += "<td>" + f + "</td>";
                 html += "<td>" + arr.map(n => {
                     let cls = "";
-                    // do NOT apply red underline to submitted answer numbers
-                    if (!(submitActive && answerNums.includes(n)) && firstNums.includes(n)) cls += " red";
+                    if (firstNums.includes(n)) cls += " red";
                     if (selected.has(n)) cls += " selected";
                     if (isBlocked(n)) cls += " blocked";
                     if (isFreqZeroRow) {
@@ -10087,15 +10149,33 @@
                 }
 
                 // update left table cells (submit highlight, blocked and red underline)
+                var leftAgg = buildAggregatedNoteNonexistSets();
+                var leftNoteSet = leftAgg.noteSet;
+                var leftNonexistSet = leftAgg.nonexistSet;
                 var leftSpans = left.querySelectorAll('.cell[data-num]');
                 leftSpans.forEach(function (span) {
                     var val = parseInt(span.getAttribute('data-num'), 10);
                     var autoringOverlay = isSubmitAutoringOverlayNum(val);
                     var isSubmitAnswer = submitActive && answerSet.has(val);
-                    span.classList.toggle('submit-highlight', isSubmitAnswer);
-                    span.classList.toggle('auto-circled', false);
-                    span.classList.toggle('answer-neon', isSubmitAnswer);
-                    span.classList.toggle('animate', isSubmitAnswer);
+                    if (isSubmitAnswer) {
+                        span.classList.add('submit-highlight');
+                        span.classList.add('answer-neon');
+                        span.classList.add('animate');
+                        span.classList.remove('auto-circled');
+                        span.classList.toggle('nonexist-intersect', leftNonexistSet.indexOf(val) !== -1);
+                        span.classList.toggle(
+                            'note-highlight',
+                            leftNonexistSet.indexOf(val) === -1 && leftNoteSet.indexOf(val) !== -1
+                        );
+                        try { span.style.removeProperty('color'); } catch (e) { }
+                        try { span.style.removeProperty('font-weight'); } catch (e) { }
+                    } else {
+                        stripLeftTableSubmitPreviewStyles(span);
+                        span.classList.remove('auto-circled');
+                        if (span.classList.contains('num') && answerSet.has(val)) {
+                            syncLeftTableNumSemanticClasses(span, val, leftNoteSet, leftNonexistSet);
+                        }
+                    }
                     if (span.classList.contains('num')) {
                         span.classList.toggle('selected', selected.has(val) && !autoringOverlay);
                         span.classList.toggle('pre-submit-manual-pick', showPreSubmitManualPickRings && preSubmitSelected.has(val));
@@ -10103,12 +10183,11 @@
                     } else {
                         span.classList.remove('blocked');
                     }
-                    if (isSubmitAnswer) {
-                        try { span.style.removeProperty('color'); } catch (e) { }
-                        try { span.style.removeProperty('font-weight'); } catch (e) { }
+                    if (Array.isArray(raw.firstNums) && raw.firstNums.indexOf(val) !== -1) {
+                        span.classList.add('red');
+                    } else {
+                        span.classList.remove('red');
                     }
-                    // update red underline rule: show red when not submitActive and in firstNums
-                    if (!submitActive && Array.isArray(raw.firstNums) && raw.firstNums.indexOf(val) !== -1) span.classList.add('red'); else span.classList.remove('red');
                 });
 
                 syncLeftFreqZeroNonexistStylesInDOM();
