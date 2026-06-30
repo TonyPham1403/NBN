@@ -5035,7 +5035,7 @@ class RightPaneSheetManager {
             idRefHighlightIndices,
             focusNoteRefHighlightIndices
         };
-        this._focusUncalledNonexistKey = null;
+        this._focusNonexistTrailKey = null;
         if (previewOnly) {
             if (idRefHighlightIndices && idRefHighlightIndices.length) {
                 this.applyIdRefHighlightToDom(idRefHighlightIndices, tableWrap);
@@ -5043,7 +5043,7 @@ class RightPaneSheetManager {
             if (focusNoteRefHighlightIndices && focusNoteRefHighlightIndices.length) {
                 this.applyFocusNoteRefHighlightToDom(focusNoteRefHighlightIndices, tableWrap);
             }
-            this._focusUncalledNonexistKey = null;
+            this._focusNonexistTrailKey = null;
             const previewRefresh = new Set();
             if (prevWindowRange) {
                 for (const i of this.collectNonexistBoostRefreshRowIndices(prevWindowRange)) {
@@ -5639,6 +5639,23 @@ class RightPaneSheetManager {
         return this.getNonexistDisplayKindForNumber(rowIndex, num, nx, res) === 'yellow';
     }
 
+    /** Mọi số trong cột nonexist hàng focus (kể cả đã trúng — vd 30 @731). */
+    getFocusRowNonexistNums(focusRowIndex) {
+        const rows = this.getSourceSheetRows();
+        if (focusRowIndex < 0 || focusRowIndex >= rows.length) {
+            return new Set();
+        }
+        if (!this.nonexistCache || this.nonexistCache.length !== rows.length) {
+            this.refreshDerivedState();
+        }
+        const meta = this.nonexistCache[focusRowIndex];
+        const text = meta ? String(meta.text || '').trim() : '';
+        if (!text || text === 'N/A') {
+            return new Set();
+        }
+        return new Set(this.parseNums(text));
+    }
+
     /** Số trên nonexist hàng focus chưa trúng 5 số chính (đỏ / vàng / tím…). */
     getFocusRowUncalledNonexistNums(focusRowIndex) {
         const rows = this.getSourceSheetRows();
@@ -5667,23 +5684,23 @@ class RightPaneSheetManager {
         return out;
     }
 
-    _getFocusUncalledNonexistCache() {
+    _getFocusNonexistTrailNumsCache() {
         const win = this.activeWindowRange;
         if (!win || typeof win.end !== 'number') {
             return new Set();
         }
         const targetIdx = typeof win.target === 'number' ? win.target : win.end;
         const key = `${targetIdx}|${win.end}|${win.start}`;
-        if (this._focusUncalledNonexistKey === key && this._focusUncalledNonexistSet) {
-            return this._focusUncalledNonexistSet;
+        if (this._focusNonexistTrailKey === key && this._focusNonexistTrailSet) {
+            return this._focusNonexistTrailSet;
         }
-        this._focusUncalledNonexistKey = key;
-        this._focusUncalledNonexistSet = this.getFocusRowUncalledNonexistNums(targetIdx);
-        return this._focusUncalledNonexistSet;
+        this._focusNonexistTrailKey = key;
+        this._focusNonexistTrailSet = this.getFocusRowNonexistNums(targetIdx);
+        return this._focusNonexistTrailSet;
     }
 
     /**
-     * Boost tạm ngoài cửa sổ 10: số chưa gọi trên focus (vd đỏ 30 @724) → hàng ngoài cửa sổ
+     * Boost tạm ngoài cửa sổ 10: số trong nonexist hàng focus (vd 30 @731) → hàng ngoài cửa sổ
      * mà số đó đang vàng (vd 709).
      */
     isOutsideWindowFocusTrailBoost(rowIndex, num) {
@@ -5695,7 +5712,7 @@ class RightPaneSheetManager {
         if (rowIndex >= start) {
             return false;
         }
-        if (!this._getFocusUncalledNonexistCache().has(num)) {
+        if (!this._getFocusNonexistTrailNumsCache().has(num)) {
             return false;
         }
         const targetIdx = typeof win.target === 'number' ? win.target : win.end;
@@ -5724,8 +5741,8 @@ class RightPaneSheetManager {
         if (!this.nonexistCache || this.nonexistCache.length !== this.getSourceSheetRows().length) {
             this.refreshDerivedState();
         }
-        const uncalledOnFocus = this.getFocusRowUncalledNonexistNums(targetIdx);
-        for (const num of uncalledOnFocus) {
+        const trailNumsOnFocus = this.getFocusRowNonexistNums(targetIdx);
+        for (const num of trailNumsOnFocus) {
             const streakStart = this.getNonexistStreakStartRow(targetIdx, num);
             const scanFrom = streakStart >= 0 ? streakStart : 0;
             for (let i = start - 1; i >= scanFrom; i--) {
