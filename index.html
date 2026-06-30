@@ -1085,7 +1085,7 @@
             z-index: 4;
         }
 
-        /* Basic: cửa sổ trượt 10 — win10=0 đỏ; win10=1 gạch chân; win10=1+ch11/12 thêm in nghiêng */
+        /* Basic: cửa sổ trượt 10 — win10=0 đỏ; win10=1 gạch chân; win10=0|1 + chuỗi 11 → in nghiêng */
         .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-one .special-tracking-rank-num {
             text-decoration: underline solid 1.5px #000000 !important;
             text-decoration-color: #000000 !important;
@@ -1097,21 +1097,21 @@
             border-bottom: 1.5px solid #000000;
         }
 
-        .special-tracking-root--basic .special-tracking-rank-num--win10-freq-one-italic,
+        .special-tracking-root--basic .special-tracking-rank-num--win10-ch11-ch12-italic,
         .special-tracking-root--basic .special-tracking-rank-num--ch1-ch2-italic-left {
             font-style: italic !important;
             display: inline-block;
             transform-origin: center center;
         }
 
-        .special-tracking-root--basic .special-tracking-rank-count--win10-freq-one-italic {
+        .special-tracking-root--basic .special-tracking-rank-count--win10-ch11-ch12-italic {
             font-style: italic !important;
             display: inline-block;
             transform: skewX(-12deg);
             transform-origin: center center;
         }
 
-        /* Basic: số có trong chuỗi 1/2 (2 kỳ liền trước) — in nghiêng sang trái; ưu tiên hơn ch11/12 */
+        /* Basic: số có trong chuỗi 1/2 (2 kỳ liền trước) — in nghiêng sang trái; ưu tiên hơn chuỗi 11 */
         .special-tracking-root--basic .special-tracking-rank-count--ch1-ch2-italic-left {
             font-style: italic !important;
             display: inline-block;

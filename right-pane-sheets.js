@@ -2229,6 +2229,30 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Chuỗi 11 = hàng liền trên chuỗi 10 (windowTop − 1) — in nghiêng bar basic tracking.
+     * @returns {Set<number>}
+     */
+    getCh11NumsSetForSourceRow(rows, rowIndex) {
+        const set = new Set();
+        if (!Array.isArray(rows) || typeof rowIndex !== 'number' || rowIndex < 10) {
+            return set;
+        }
+        const windowTop = rowIndex - 10;
+        const i11 = windowTop - 1;
+        if (i11 < 0 || i11 >= rows.length) {
+            return set;
+        }
+        const nums = this.parseMainNums(rows[i11]?.result || rows[i11]?.Result || '');
+        for (let k = 0; k < nums.length; k++) {
+            const n = nums[k];
+            if (n >= 1 && n <= 35) {
+                set.add(n);
+            }
+        }
+        return set;
+    }
+
+    /**
      * Số xuất hiện ở chuỗi 1 hoặc chuỗi 2 (hai kỳ liền trước kỳ nguồn) — nghiêng trái trên bar basic tracking.
      * @returns {Set<number>}
      */
@@ -10912,7 +10936,7 @@ class RightPaneSheetManager {
                 : new Set();
             let basicDisplay = null;
             let basicWindow10Freq = null;
-            let basicCh11Ch12Set = null;
+            let basicCh11Set = null;
             let basicCh1Ch2Set = null;
             let freqTieGroups = [];
             let freqTieStreakByKey = new Map();
@@ -10931,7 +10955,7 @@ class RightPaneSheetManager {
                         this.sourceRows || [],
                         srcRow
                     );
-                    basicCh11Ch12Set = this.getCh11Ch12NumsSetForSourceRow(
+                    basicCh11Set = this.getCh11NumsSetForSourceRow(
                         this.sourceRows || [],
                         srcRow
                     );
@@ -10953,7 +10977,7 @@ class RightPaneSheetManager {
                     basicPaintCache = {
                         basicDisplay,
                         basicWindow10Freq,
-                        basicCh11Ch12Set,
+                        basicCh11Set,
                         basicCh1Ch2Set,
                         freqTieGroups,
                         freqTieStreakByKey
@@ -10961,7 +10985,7 @@ class RightPaneSheetManager {
                 } else {
                     basicDisplay = basicPaintCache.basicDisplay;
                     basicWindow10Freq = basicPaintCache.basicWindow10Freq;
-                    basicCh11Ch12Set = basicPaintCache.basicCh11Ch12Set;
+                    basicCh11Set = basicPaintCache.basicCh11Set;
                     basicCh1Ch2Set = basicPaintCache.basicCh1Ch2Set;
                     freqTieGroups = basicPaintCache.freqTieGroups;
                     freqTieStreakByKey = basicPaintCache.freqTieStreakByKey || new Map();
@@ -11012,17 +11036,19 @@ class RightPaneSheetManager {
                     fillEl.style.width = `${wPct}%`;
                 }
                 const win10Freq = isBasic && basicWindow10Freq ? (basicWindow10Freq[n] || 0) : null;
+                const win10FreqZero = isBasic && win10Freq === 0;
                 const win10FreqOne = isBasic && win10Freq === 1;
                 const win10Ch1Ch2ItalicLeft = isBasic
                     && basicCh1Ch2Set
                     && basicCh1Ch2Set.has(n);
-                const win10FreqOneItalicRight = win10FreqOne
-                    && basicCh11Ch12Set
-                    && basicCh11Ch12Set.has(n);
-                const win10FreqOneItalic = win10Ch1Ch2ItalicLeft ? false : win10FreqOneItalicRight;
+                const win10Ch11ItalicRight = isBasic
+                    && (win10FreqOne || win10FreqZero)
+                    && basicCh11Set
+                    && basicCh11Set.has(n);
+                const win10Ch11Italic = win10Ch1Ch2ItalicLeft ? false : win10Ch11ItalicRight;
                 const numItalicSkew = win10Ch1Ch2ItalicLeft
                     ? 'skewX(20deg)'
-                    : (win10FreqOneItalic ? 'skewX(-12deg)' : '');
+                    : (win10Ch11Italic ? 'skewX(-12deg)' : '');
                 const isJust = effectiveJustSet.has(n);
                 const leftPickPreviewLabel = leftPickSyncSet.has(n);
                 const actualAnswer = isBasic
@@ -11072,7 +11098,7 @@ class RightPaneSheetManager {
                         }
                         numEl.classList.remove('special-tracking-rank-num--submit-win10-zero-transition');
                     }
-                    numEl.classList.toggle('special-tracking-rank-num--win10-freq-one-italic', win10FreqOneItalic);
+                    numEl.classList.toggle('special-tracking-rank-num--win10-ch11-ch12-italic', win10Ch11Italic);
                     numEl.classList.toggle('special-tracking-rank-num--ch1-ch2-italic-left', win10Ch1Ch2ItalicLeft);
                 }
                 const autoringBarLabel = isBasic
@@ -11094,7 +11120,7 @@ class RightPaneSheetManager {
                     showWin10ZeroTransition
                 );
                 if (countEl) {
-                    countEl.classList.toggle('special-tracking-rank-count--win10-freq-one-italic', win10FreqOneItalic);
+                    countEl.classList.toggle('special-tracking-rank-count--win10-ch11-ch12-italic', win10Ch11Italic);
                     countEl.classList.toggle('special-tracking-rank-count--ch1-ch2-italic-left', win10Ch1Ch2ItalicLeft);
                 }
                 if (isBasic) {
