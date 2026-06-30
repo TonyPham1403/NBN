@@ -7216,10 +7216,12 @@ class RightPaneSheetManager {
         if (this.activeSheet === 'sheet1' || options.asSheet1) {
             const focusRow = this.dataRows[idx] || rowAtClick;
             const nextFocusId = String(focusRow.id || focusRow.ID || clickedRowId || '').trim();
+            const prevFocusId = String(this.comboFocusRowId || '').trim();
             const hadG1 = this.comboG1Enabled;
             const comboStateChanged = this.comboFocusRowId !== nextFocusId
                 || this.comboFocusRowIndex !== idx
                 || (this.isEmptyResultRow(focusRow) && hadG1);
+            this.onComboFocusIdChanged(prevFocusId, nextFocusId);
             this.comboFocusRowId = nextFocusId;
             this.comboFocusRowIndex = idx;
             if (this.isEmptyResultRow(focusRow)) {
@@ -7297,10 +7299,12 @@ class RightPaneSheetManager {
             return false;
         }
         const nextFocusId = String(row.id || row.ID || '').trim();
+        const prevFocusId = String(this.comboFocusRowId || '').trim();
         const hadG1 = this.comboG1Enabled;
         const comboStateChanged = this.comboFocusRowId !== nextFocusId
             || this.comboFocusRowIndex !== idx
             || (this.isEmptyResultRow(row) && hadG1);
+        this.onComboFocusIdChanged(prevFocusId, nextFocusId);
         this.comboFocusRowId = nextFocusId;
         this.comboFocusRowIndex = idx;
         if (this.isEmptyResultRow(row)) {
@@ -8424,10 +8428,12 @@ class RightPaneSheetManager {
         if (this.activeSheet === 'sheet1' || options.asSheet1) {
             const focusRow = rows[idx] || {};
             const nextFocusId = String(focusRow.id || focusRow.ID || data.clickedRowId || '').trim();
+            const prevFocusId = String(this.comboFocusRowId || '').trim();
             const hadG1 = this.comboG1Enabled;
             const comboStateChanged = this.comboFocusRowId !== nextFocusId
                 || this.comboFocusRowIndex !== idx
                 || (this.isEmptyResultRow(focusRow) && hadG1);
+            this.onComboFocusIdChanged(prevFocusId, nextFocusId);
             this.comboFocusRowId = nextFocusId;
             this.comboFocusRowIndex = idx;
             if (this.isEmptyResultRow(focusRow)) {
@@ -9297,6 +9303,30 @@ class RightPaneSheetManager {
             return false;
         }
         return (this.leftBasicPreviewPickNums || []).length > 0;
+    }
+
+    /** Đổi id focus: xóa giả lập bar phải và đồng bộ sạch sang nửa trái (tránh viền đen còn mà khoanh trái đã mất). */
+    clearLeftBasicBarPreviewPicksOnFocusChange() {
+        const had = Array.isArray(this.leftBasicPreviewPickNums) && this.leftBasicPreviewPickNums.length > 0;
+        this.leftBasicPreviewPickNums = [];
+        this._leftBasicPreviewPickGeneration += 1;
+        if (this.shouldSyncBasicBarPickToLeftPane()) {
+            this.syncLeftPickSelectionToIframe([]);
+        }
+        if (had) {
+            try {
+                window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
+            } catch (ePaint) { /* ignore */ }
+        }
+    }
+
+    onComboFocusIdChanged(prevFocusId, nextFocusId) {
+        const prev = String(prevFocusId || '').trim();
+        const next = String(nextFocusId || '').trim();
+        if (!next || prev === next) {
+            return;
+        }
+        this.clearLeftBasicBarPreviewPicksOnFocusChange();
     }
 
     /** Bar basic tracking → nửa trái: Submit OFF hoặc kỳ cuối trống khi Submit ON. */

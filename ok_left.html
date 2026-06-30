@@ -10816,13 +10816,6 @@
                         && pickNums.every(function (n) { return selected.has(n); })) {
                         return;
                     }
-                    // Submit vừa tắt: iframe đã khôi phục preSubmit — không ghi đè bằng stash tracking cũ.
-                    if (forcedPickSync && msg.basicTrackingPreview && !submitActive && selected.size > 0) {
-                        var staleTrackingExtra = pickNums.some(function (n) { return !selected.has(n); });
-                        if (staleTrackingExtra) {
-                            return;
-                        }
-                    }
                     invalidateClearSelectionToggleBackup();
                     selected.clear();
                     if (!(forcedPickSync && submitActive)) {
