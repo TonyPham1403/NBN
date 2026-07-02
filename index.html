@@ -5062,7 +5062,7 @@
 <body>
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20250702tab" style="width:100%;height:100%;border:0"></iframe>
+            <iframe id="okFrame" src="ok_left.html?v=20250703chain1" style="width:100%;height:100%;border:0"></iframe>
         </section>
 
         <section class="pane right">
@@ -5091,6 +5091,7 @@
                                     <option value="nonexist">nonexist</option>
                                     <option value="dateband"> </option>
                                     <option value="chain">Chuỗi []</option>
+                                    <option value="chain1">CHUỖI 1</option>
                                 </select>
                                 <ul id="submitRingModeMenu" class="period-filter-mode-menu submit-ring-mode-menu hidden"
                                     role="listbox" aria-label="Chế độ autoring"></ul>
@@ -5642,10 +5643,12 @@
         const SUBMIT_RING_ENABLED_KEY = 'submitRingEnabled';
         const SUBMIT_RING_MODE_KEY = 'submitRingMode';
         const SUBMIT_RING_CUSTOM_X_KEY = 'submitRingCustomX';
-        const SUBMIT_RING_VALID_MODES = ['max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist', 'dateband', 'cuflip', 'cn', 'chain'];
-        const SUBMIT_RING_FREQ_MODES = ['max', 'min', 'custom', 'cuflip', 'conn3', 'tail', 'nonexist', 'dateband', 'chain'];
+        const SUBMIT_RING_VALID_MODES = ['max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist', 'dateband', 'cuflip', 'cn', 'chain', 'chain1'];
+        const SUBMIT_RING_FREQ_MODES = ['max', 'min', 'custom', 'cuflip', 'conn3', 'tail', 'nonexist', 'dateband', 'chain', 'chain1'];
         const SUBMIT_RING_CHAIN_MODE = 'chain';
         const SUBMIT_RING_CHAIN_LABEL = 'Chuỗi []';
+        const SUBMIT_RING_CHAIN1_MODE = 'chain1';
+        const SUBMIT_RING_CHAIN1_LABEL = 'CHUỖI 1';
         const SUBMIT_RING_CHAIN_SELECTED_KEY = 'submitRingChainSelected';
         const SUBMIT_RING_CHAIN_COMBINE_AND_KEY = 'submitRingChainCombineAnd';
         /** Uflip: chữ U xoay 180° — intersection, cùng cap-height với C */
@@ -6397,6 +6400,12 @@
                 submitRingFreqMode = SUBMIT_RING_CHAIN_MODE;
                 return;
             }
+            if (m === SUBMIT_RING_CHAIN1_MODE) {
+                submitRingLabelConn = false;
+                submitRingLabelIx = false;
+                submitRingFreqMode = SUBMIT_RING_CHAIN1_MODE;
+                return;
+            }
             if (m === 'cn' || m === SUBMIT_RING_CUFLIP_MODE) {
                 submitRingLabelConn = false;
                 submitRingLabelIx = false;
@@ -6457,6 +6466,9 @@
             }
             if (m === SUBMIT_RING_CHAIN_MODE) {
                 return SUBMIT_RING_CHAIN_LABEL;
+            }
+            if (m === SUBMIT_RING_CHAIN1_MODE) {
+                return SUBMIT_RING_CHAIN1_LABEL;
             }
             return m.toUpperCase();
         }
@@ -6610,6 +6622,10 @@
             }
             if (m === SUBMIT_RING_CHAIN_MODE) {
                 targetEl.textContent = SUBMIT_RING_CHAIN_LABEL;
+                return;
+            }
+            if (m === SUBMIT_RING_CHAIN1_MODE) {
+                targetEl.textContent = SUBMIT_RING_CHAIN1_LABEL;
                 return;
             }
             targetEl.removeAttribute('aria-label');
@@ -6913,7 +6929,7 @@
             }
             if (modeValue) {
                 applySubmitRingModeMenuVisual(modeValue, modeValueMode);
-                modeValue.style.textTransform = (modeValueMode === 'custom' || modeValueMode === 'conn3' || modeValueMode === 'tail' || modeValueMode === 'dateband' || modeValueMode === SUBMIT_RING_CHAIN_MODE || modeValueMode === SUBMIT_RING_CUFLIP_MODE) ? 'none' : 'uppercase';
+                modeValue.style.textTransform = (modeValueMode === 'custom' || modeValueMode === 'conn3' || modeValueMode === 'tail' || modeValueMode === 'dateband' || modeValueMode === SUBMIT_RING_CHAIN_MODE || modeValueMode === SUBMIT_RING_CHAIN1_MODE || modeValueMode === SUBMIT_RING_CUFLIP_MODE) ? 'none' : 'uppercase';
             }
             if (modeWrap) {
                 modeWrap.classList.remove('disabled');

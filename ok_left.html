@@ -2517,10 +2517,15 @@
 
         function normalizeSubmitAutoCircleMode(mode) {
             var m = String(mode || '').trim();
-            if (m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist' || m === 'dateband' || m === 'chain') {
+            if (m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist' || m === 'dateband' || m === 'chain' || m === 'chain1') {
                 return m;
             }
             return 'max';
+        }
+
+        function submitAutoCircleSkipsLine11Requirement(mode) {
+            var m = normalizeSubmitAutoCircleMode(mode);
+            return m === 'custom' || m === 'chain1';
         }
 
         function normalizeSubmitAutoCircleChainLabels(raw) {
@@ -2596,6 +2601,30 @@
                 }
             }
             return out;
+        }
+
+        /** 5 số đáp án ở chuỗi 1 (sát kỳ focus) trong cửa sổ trượt 10 hiện tại. */
+        function getChain1CircleNumsForAutoring() {
+            var lines = getPickChainLinesForAutoring();
+            if (!lines.length) {
+                return [];
+            }
+            var chain1Line = null;
+            for (var i = 0; i < lines.length; i++) {
+                if (lines[i].label === 1) {
+                    chain1Line = lines[i];
+                    break;
+                }
+            }
+            if (!chain1Line) {
+                chain1Line = lines[lines.length - 1];
+            }
+            var nums = (chain1Line.nums || []).map(function (n) {
+                return parseInt(n, 10);
+            }).filter(function (n) {
+                return !isNaN(n) && n >= 1 && n <= 35;
+            });
+            return nums.slice(0, 5);
         }
 
         function clampSubmitAutoCircleDatebandFreq(v) {
@@ -3013,6 +3042,12 @@
                 });
                 return out;
             }
+            if (mode === 'chain1') {
+                getChain1CircleNumsForAutoring().forEach(function (n) {
+                    out.add(n);
+                });
+                return out;
+            }
             if (isLabelSubmitAutoCircleMode(mode)) {
                 var ansLabel = getAnswerNumsForAutoring();
                 if (mode === 'conn' || mode === 'conn_ix') {
@@ -3289,7 +3324,8 @@
             }
 
             /* Khoanh trước số có tần suất cao — tránh đủ 5 slot toàn số freq thấp, bỏ lỡ số quan sát freq>=2 */
-            if (!submitActive && raw && raw.freq) {
+            var ringModeForSort = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
+            if (!submitActive && raw && raw.freq && ringModeForSort !== 'chain1') {
                 circleNums.sort(function (a, b) {
                     var fa = parseInt(raw.freq[a], 10) || 0;
                     var fb = parseInt(raw.freq[b], 10) || 0;
@@ -3978,7 +4014,7 @@
                 clearAutoRingSelectionVisuals();
                 return;
             }
-            if (submitAutoCircleMode !== 'custom' && !hasCurrentLine11Result()) {
+            if (!submitAutoCircleSkipsLine11Requirement(submitAutoCircleMode) && !hasCurrentLine11Result()) {
                 clearAutoRingSelectionVisuals();
                 return;
             }
@@ -4024,7 +4060,7 @@
                 clearAutoRingSelectionVisuals();
                 return;
             }
-            if (submitAutoCircleMode !== 'custom' && !hasCurrentLine11Result()) {
+            if (!submitAutoCircleSkipsLine11Requirement(submitAutoCircleMode) && !hasCurrentLine11Result()) {
                 clearAutoRingSelectionVisuals();
                 return;
             }
@@ -4054,7 +4090,7 @@
                     clearAutoRingSelectionVisuals();
                     return;
                 }
-                if (submitAutoCircleMode !== 'custom' && !hasCurrentLine11Result()) {
+                if (!submitAutoCircleSkipsLine11Requirement(submitAutoCircleMode) && !hasCurrentLine11Result()) {
                     clearAutoRingSelectionVisuals();
                     return;
                 }
