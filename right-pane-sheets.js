@@ -7222,6 +7222,20 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Viền cyan chuột phải ô id: mọi kỳ có note tham chiếu id vừa click (không giới hạn cửa sổ 10).
+     * @returns {number[]}
+     */
+    buildAllIdRefContextmenuHighlightIndices(clickedIdx, clickedIdNum) {
+        if (!Number.isFinite(clickedIdNum)) {
+            return [];
+        }
+        const indices = this.findRowIndicesReferencingIdInNotes(clickedIdNum)
+            .filter((rowIdx) => rowIdx !== clickedIdx);
+        indices.sort((a, b) => a - b);
+        return indices;
+    }
+
+    /**
      * Hàng sheet1 có nằm trong cửa sổ trượt 10 đang hiển thị không.
      * @param {number} rowIdx
      * @returns {boolean}
@@ -7267,7 +7281,7 @@ class RightPaneSheetManager {
         const win = this.activeWindowRange;
         if (this.isSourceSheetRowInActiveWindow(idx)) {
             const windowTarget = typeof win.target === 'number' ? win.target : win.end;
-            const refRowIndices = this.buildIdRefContextmenuHighlightIndices(idx, clickedIdNum, windowTarget);
+            const refRowIndices = this.buildAllIdRefContextmenuHighlightIndices(idx, clickedIdNum);
             this.applyWindowSelection(win.start, win.end, windowTarget, tableWrap, {
                 idRefHighlightIndices: refRowIndices,
                 focusNoteRefHighlightIndices: Array.isArray(win.focusNoteRefHighlightIndices)
