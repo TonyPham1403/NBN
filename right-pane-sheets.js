@@ -7222,6 +7222,22 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Hàng sheet1 có nằm trong cửa sổ trượt 10 đang hiển thị không.
+     * @param {number} rowIdx
+     * @returns {boolean}
+     */
+    isSourceSheetRowInActiveWindow(rowIdx) {
+        const win = this.activeWindowRange;
+        if (!win || typeof win.start !== 'number' || typeof win.end !== 'number') {
+            return false;
+        }
+        if (!Number.isFinite(rowIdx) || rowIdx < 0) {
+            return false;
+        }
+        return rowIdx >= win.start && rowIdx <= win.end;
+    }
+
+    /**
      * Chuột phải trên ô id: focus id+delta + viền cyan n ô note + result tham chiếu id vừa click.
      * @returns {boolean}
      */
@@ -7246,6 +7262,23 @@ class RightPaneSheetManager {
         event.stopPropagation();
         const clickedIdNum = this.parseRowId(row.id || row.ID || '');
         if (clickedIdNum === null) {
+            return true;
+        }
+        const win = this.activeWindowRange;
+        if (this.isSourceSheetRowInActiveWindow(idx)) {
+            const windowTarget = typeof win.target === 'number' ? win.target : win.end;
+            const refRowIndices = this.buildIdRefContextmenuHighlightIndices(idx, clickedIdNum, windowTarget);
+            this.applyWindowSelection(win.start, win.end, windowTarget, tableWrap, {
+                idRefHighlightIndices: refRowIndices,
+                focusNoteRefHighlightIndices: Array.isArray(win.focusNoteRefHighlightIndices)
+                    ? win.focusNoteRefHighlightIndices.slice()
+                    : null
+            });
+            try {
+                tableWrap.focus({ preventScroll: true });
+            } catch (err) {
+                /* ignore */
+            }
             return true;
         }
         const focusIdx = this.resolveContextMenuTargetRowIndex(idx, NONEXIST_CONTEXTMENU_ID_DELTA);
