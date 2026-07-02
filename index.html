@@ -3485,6 +3485,10 @@
             flex-shrink: 0;
         }
 
+        .filter-popup-nonexist-style-wrap.hidden {
+            display: none;
+        }
+
         .filter-popup-nonexist-style-toggle {
             display: inline-flex;
             align-items: center;
@@ -5183,11 +5187,11 @@
                         aria-pressed="true" title="Tắt lọc thêm 5 ô mẫu (header2)">Mẫu</button>
                     <div id="filterPopupNonexistBracketPicker"
                         class="filter-popup-nonexist-bracket filter-popup-intersection-freq hidden" role="group"
-                        title="Lọc nonexist: [] (số gọi xanh lá) AND số 1–35; ví dụ []&gt;=1 AND số 7"
-                        aria-label="Nonexist bracket: toán tử và ngưỡng số gọi 0–5" aria-hidden="true">
+                        title="Lọc nonexist: [] đếm số theo màu đã chọn AND số 1–35; ví dụ đỏ []&gt;=1 AND số 7"
+                        aria-label="Nonexist bracket: toán tử và ngưỡng đếm theo màu (0–5)" aria-hidden="true">
                         <div class="filter-popup-intersection-freq-item">
                             <select id="filterPopupNonexistBracketOp" class="filter-popup-intersection-freq-op"
-                                aria-label="Dấu so sánh số gọi nonexist với ngưỡng">
+                                aria-label="Dấu so sánh số đếm theo màu với ngưỡng">
                                 <option value=">=" selected>&gt;=</option>
                                 <option value="=">=</option>
                                 <option value="<=">&lt;=</option>
@@ -5195,8 +5199,8 @@
                             <span class="filter-popup-bracket-char" aria-hidden="true">[</span>
                             <span id="filterPopupNonexistBracketCount"
                                 class="filter-popup-position-input filter-popup-intersection-freq-num" tabindex="0"
-                                role="textbox" aria-label="Ngưỡng số gọi nonexist (0–5)"
-                                title="Ngưỡng 0–5; gõ số hoặc ▴▾">0</span>
+                                role="textbox" aria-label="Ngưỡng đếm theo màu (0–5)"
+                                title="Ngưỡng 0–5 theo màu đã chọn; gõ số hoặc ▴▾">0</span>
                             <span class="filter-popup-bracket-char" aria-hidden="true">]</span>
                             <div id="filterPopupNonexistBracketCountSpin" class="filter-popup-intersection-freq-spin"
                                 role="group" aria-label="Tăng giảm ngưỡng số gọi nonexist (0–5)">
@@ -5830,7 +5834,7 @@
         let filterNonexistColors = ['green'];
         /** Chỉ mode nonexist: dropdown phụ #005000 — boost cửa 10 + gọi lại trong 10 kỳ sau dòng. */
         let filterNonexistGreen005000 = false;
-        /** Chỉ mode nonexist: [] — lọc theo số lượng số gọi (xanh lá) trong nonexist (0–30). */
+        /** Chỉ mode nonexist: [] — lọc theo số lượng số nonexist khớp màu đã chọn (0–5). */
         let filterNonexistBracketCount = 0;
         let filterNonexistBracketOp = '>=';
         let filterNonexistBracketApplyTimer = null;
@@ -9508,6 +9512,7 @@
             }
             saveFilterNonexistSettings();
             syncFilterPopupNonexistColorBtn();
+            syncFilterPopupNonexistStyleToggles();
             highlightFilterPopupNonexistColorMenu();
             applyNonexistFilterSettingsFromUi();
         }
@@ -10522,9 +10527,11 @@
                 return;
             }
             const greenOn = isNonexistGreenFilterSelected();
-            wrap.classList.toggle('disabled', !greenOn);
+            const show = periodFilterEnabled && isNonexistFilterMode(periodFilterMode) && greenOn;
+            wrap.classList.toggle('hidden', !show);
+            wrap.classList.remove('disabled');
             wrap.querySelectorAll('.filter-popup-nonexist-style-toggle').forEach((btn) => {
-                btn.disabled = !greenOn;
+                btn.disabled = !show;
                 const style = btn.dataset.style || '';
                 if (!style) {
                     return;

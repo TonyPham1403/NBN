@@ -1795,11 +1795,15 @@ class RightPaneSheetManager {
             const rawBracketOp = String(opts.nonexistBracketOp || '').trim();
             const bracketOp = rawBracketOp === '=' || rawBracketOp === '<=' || rawBracketOp === '>=' ? rawBracketOp : '>=';
 
+            if (colors.length === 0) {
+                return indices;
+            }
+
             for (let i = 0; i < rows.length; i++) {
                 if (this.isEmptyResultRow(rows[i])) {
                     continue;
                 }
-                if (!this.rowMatchesNonexistBracketFilter(i, bracketTh, bracketOp)) {
+                if (!this.rowMatchesNonexistBracketFilter(i, bracketTh, bracketOp, colors, styles)) {
                     continue;
                 }
                 if (hasSpecificNum) {
@@ -3237,18 +3241,49 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Count green (gọi) numbers in one row's nonexist column.
+     * Count nonexist numbers matching selected colors (green respects optional B/I/U/S styles).
      */
-    countGreenNonexistNumbersForRow(rowIndex) {
-        const entries = this.ensureNonexistGreenFilterCache()[rowIndex];
-        return Array.isArray(entries) ? entries.length : 0;
+    countNonexistNumbersForColorFilter(rowIndex, colors, styles) {
+        const colorList = Array.isArray(colors) ? colors : [];
+        if (colorList.length === 0) {
+            return 0;
+        }
+        const styleList = Array.isArray(styles) ? styles : [];
+        const entries = this.ensureNonexistDisplayEntriesCache()[rowIndex] || [];
+        let count = 0;
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            if (!colorList.includes(entry.color)) {
+                continue;
+            }
+            if (entry.color === 'green') {
+                if (styleList.length === 0) {
+                    count++;
+                    continue;
+                }
+                for (let j = 0; j < styleList.length; j++) {
+                    if (this.nonexistGreenKindMatchesStyle(entry.kind, styleList[j])) {
+                        count++;
+                        break;
+                    }
+                }
+                continue;
+            }
+            count++;
+        }
+        return count;
     }
 
     /**
-     * [] filter: row matches when green nonexist count satisfies op vs threshold (0–30).
+     * [] filter: row matches when count of numbers in selected color(s) satisfies op vs threshold.
      */
-    rowMatchesNonexistBracketFilter(rowIndex, threshold, op = '>=') {
-        const count = this.countGreenNonexistNumbersForRow(rowIndex);
+    rowMatchesNonexistBracketFilter(rowIndex, threshold, op = '>=', colors = null, styles = null) {
+        const colorList = Array.isArray(colors)
+            ? colors.filter((c) => ['green', 'red', 'purple', 'yellow'].includes(c))
+            : [];
+        const count = colorList.length > 0
+            ? this.countNonexistNumbersForColorFilter(rowIndex, colorList, styles)
+            : 0;
         return this.freqMatchesComparison(count, threshold, op);
     }
 
