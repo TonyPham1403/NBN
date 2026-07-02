@@ -1785,25 +1785,33 @@ class RightPaneSheetManager {
                 ? opts.colors.filter((c) => ['green', 'red', 'purple', 'yellow'].includes(c))
                 : [];
             const styles = Array.isArray(opts.styles) ? opts.styles : [];
-
-            if (colors.length === 0) {
-                return indices;
+            const applyColorFilter = opts.applyColorStyleFilter === true;
+            const hasSpecificNum = num !== null && Number.isFinite(num) && num >= 1 && num <= 35;
+            let bracketTh = parseInt(opts.nonexistBracketCount, 10);
+            if (!Number.isFinite(bracketTh)) {
+                bracketTh = 0;
             }
-
-            if (num === null || !Number.isFinite(num) || num < 1 || num > 35) {
-                for (let i = 0; i < rows.length; i++) {
-                    if (!this.isEmptyResultRow(rows[i])
-                        && this.rowMatchesNonexistColorFilter(i, colors, styles, null)) {
-                        indices.push(i);
-                    }
-                }
-                return indices;
-            }
+            bracketTh = Math.min(5, Math.max(0, bracketTh));
+            const rawBracketOp = String(opts.nonexistBracketOp || '').trim();
+            const bracketOp = rawBracketOp === '=' || rawBracketOp === '<=' || rawBracketOp === '>=' ? rawBracketOp : '>=';
 
             for (let i = 0; i < rows.length; i++) {
-                if (this.rowMatchesNonexistColorFilter(i, colors, styles, num)) {
-                    indices.push(i);
+                if (this.isEmptyResultRow(rows[i])) {
+                    continue;
                 }
+                if (!this.rowMatchesNonexistBracketFilter(i, bracketTh, bracketOp)) {
+                    continue;
+                }
+                if (hasSpecificNum) {
+                    if (!this.rowMatchesNonexistSpecificNumFilter(i, num, colors, styles)) {
+                        continue;
+                    }
+                } else if (applyColorFilter) {
+                    if (colors.length === 0 || !this.rowMatchesNonexistColorFilter(i, colors, styles, null)) {
+                        continue;
+                    }
+                }
+                indices.push(i);
             }
             return indices;
         }
@@ -3226,6 +3234,51 @@ class RightPaneSheetManager {
     rowHasAnyGreenNonexistNumber(rowIndex) {
         const entries = this.ensureNonexistGreenFilterCache()[rowIndex];
         return Array.isArray(entries) && entries.length > 0;
+    }
+
+    /**
+     * Count green (gọi) numbers in one row's nonexist column.
+     */
+    countGreenNonexistNumbersForRow(rowIndex) {
+        const entries = this.ensureNonexistGreenFilterCache()[rowIndex];
+        return Array.isArray(entries) ? entries.length : 0;
+    }
+
+    /**
+     * [] filter: row matches when green nonexist count satisfies op vs threshold (0–30).
+     */
+    rowMatchesNonexistBracketFilter(rowIndex, threshold, op = '>=') {
+        const count = this.countGreenNonexistNumbersForRow(rowIndex);
+        return this.freqMatchesComparison(count, threshold, op);
+    }
+
+    /**
+     * Specific nonexist number (1–35) with selected colors; green uses styles when provided.
+     */
+    rowMatchesNonexistSpecificNumFilter(rowIndex, num, colors, styles) {
+        const targetNum = parseInt(num, 10);
+        if (!Number.isFinite(targetNum) || targetNum < 1 || targetNum > 35) {
+            return false;
+        }
+        const colorList = Array.isArray(colors) ? colors : [];
+        if (colorList.length === 0) {
+            return false;
+        }
+        const styleList = Array.isArray(styles) ? styles : [];
+        if (styleList.length > 0) {
+            return this.rowMatchesNonexistColorFilter(rowIndex, colorList, styleList, targetNum);
+        }
+        const entries = this.ensureNonexistDisplayEntriesCache()[rowIndex] || [];
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            if (entry.num !== targetNum) {
+                continue;
+            }
+            if (colorList.includes(entry.color)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

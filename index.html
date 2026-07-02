@@ -1948,7 +1948,8 @@
         #filterPopupIntersectionFreqYSpin,
         #filterPopupDatebandFreqXSpin,
         #filterPopupDatebandFreqYSpin,
-        #filterPopupTailCountSpin {
+        #filterPopupTailCountSpin,
+        #filterPopupNonexistBracketCountSpin {
             display: flex;
             flex-direction: column;
             flex: 0 0 auto;
@@ -1968,7 +1969,8 @@
         #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn,
-        #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn {
+        #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn,
+        #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn {
             flex: 1 1 50%;
             min-height: 0;
             margin: 0;
@@ -1991,7 +1993,8 @@
         #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
-        #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn {
+        #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
+        #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn {
             border-top: 1px solid rgba(255, 255, 255, 0.35);
         }
 
@@ -2000,7 +2003,8 @@
         #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
-        #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled) {
+        #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
+        #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled) {
             background: #047857 !important;
         }
 
@@ -2009,7 +2013,8 @@
         #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
-        #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled) {
+        #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
+        #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled) {
             background: #065f46 !important;
         }
 
@@ -2018,7 +2023,8 @@
         #filterPopupIntersectionFreqYSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn:disabled,
-        #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn:disabled {
+        #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn:disabled,
+        #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:disabled {
             opacity: 0.45;
             cursor: not-allowed;
         }
@@ -2233,6 +2239,46 @@
         .filter-popup-intersection-freq-key--tail {
             min-width: auto;
             font-size: 10px;
+        }
+
+        .filter-popup-intersection-freq-key--bracket {
+            min-width: auto;
+            font-size: 10px;
+        }
+
+        .filter-popup-bracket-char {
+            color: #64748b;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
+        .filter-popup-nonexist-bracket {
+            display: inline-flex;
+            align-items: center;
+            flex-shrink: 0;
+            height: 100%;
+            min-height: 24px;
+            max-height: 24px;
+            padding: 0 4px 0 2px;
+            border-left: 1px solid #cbd5e1;
+            background: #f8fafc;
+            box-sizing: border-box;
+        }
+
+        .filter-popup-nonexist-bracket.hidden {
+            display: none;
+        }
+
+        .filter-popup-nonexist-bracket-num {
+            display: inline-flex;
+            align-items: center;
+            flex-shrink: 0;
+            border-left: 1px solid #cbd5e1;
+            padding-left: 4px;
+            gap: 2px;
         }
 
         .filter-popup-intersection-picker .filter-popup-intersection-toolbar {
@@ -5135,6 +5181,50 @@
                     </div>
                     <button type="button" id="filterPopupHeader2Toggle" class="filter-popup-header2-toggle"
                         aria-pressed="true" title="Tắt lọc thêm 5 ô mẫu (header2)">Mẫu</button>
+                    <div id="filterPopupNonexistBracketPicker"
+                        class="filter-popup-nonexist-bracket filter-popup-intersection-freq hidden" role="group"
+                        title="Lọc nonexist: [] (số gọi xanh lá) AND số 1–35; ví dụ []&gt;=1 AND số 7"
+                        aria-label="Nonexist bracket: toán tử và ngưỡng số gọi 0–5" aria-hidden="true">
+                        <div class="filter-popup-intersection-freq-item">
+                            <select id="filterPopupNonexistBracketOp" class="filter-popup-intersection-freq-op"
+                                aria-label="Dấu so sánh số gọi nonexist với ngưỡng">
+                                <option value=">=" selected>&gt;=</option>
+                                <option value="=">=</option>
+                                <option value="<=">&lt;=</option>
+                            </select>
+                            <span class="filter-popup-bracket-char" aria-hidden="true">[</span>
+                            <span id="filterPopupNonexistBracketCount"
+                                class="filter-popup-position-input filter-popup-intersection-freq-num" tabindex="0"
+                                role="textbox" aria-label="Ngưỡng số gọi nonexist (0–5)"
+                                title="Ngưỡng 0–5; gõ số hoặc ▴▾">0</span>
+                            <span class="filter-popup-bracket-char" aria-hidden="true">]</span>
+                            <div id="filterPopupNonexistBracketCountSpin" class="filter-popup-intersection-freq-spin"
+                                role="group" aria-label="Tăng giảm ngưỡng số gọi nonexist (0–5)">
+                                <button type="button" id="filterPopupNonexistBracketCountInc"
+                                    class="filter-popup-nonexist-num-spin-btn" title="Tăng ngưỡng (tối đa 5)"
+                                    aria-label="Tăng ngưỡng số gọi">▴</button>
+                                <button type="button" id="filterPopupNonexistBracketCountDec"
+                                    class="filter-popup-nonexist-num-spin-btn" title="Giảm ngưỡng (tối thiểu 0)"
+                                    aria-label="Giảm ngưỡng số gọi">▾</button>
+                            </div>
+                        </div>
+                        <div class="filter-popup-nonexist-bracket-num" role="group"
+                            title="Số 1–35 trong nonexist — AND với []"
+                            aria-label="Số nonexist 1–35 (AND với [])">
+                            <span id="filterPopupNonexistNum" class="filter-popup-position-input filter-popup-nonexist-num"
+                                tabindex="0" role="textbox" aria-label="Số nonexist 1-35"
+                                title="Số 1-35 trong cột nonexist; AND với []; gõ số hoặc ▴▾"></span>
+                            <div id="filterPopupNonexistNumSpin" role="group"
+                                aria-label="Tăng giảm số nonexist (xoay vòng 1–35)">
+                                <button type="button" id="filterPopupNonexistNumInc"
+                                    class="filter-popup-nonexist-num-spin-btn" title="Tăng số (35→1)"
+                                    aria-label="Tăng số nonexist">▴</button>
+                                <button type="button" id="filterPopupNonexistNumDec"
+                                    class="filter-popup-nonexist-num-spin-btn" title="Giảm số (1→35)"
+                                    aria-label="Giảm số nonexist">▾</button>
+                            </div>
+                        </div>
+                    </div>
                     <button type="button" id="filterPopupChainFilterToggle"
                         class="filter-popup-header2-toggle filter-popup-chain-filter-toggle hidden"
                         aria-pressed="false" title="Bật lọc theo nhãn chuỗi cửa sổ 10 (ALL)">Chuỗi []</button>
@@ -5318,18 +5408,6 @@
                         </div>
                     </div>
                     <div id="filterPopupNonexistTools" class="filter-popup-nonexist-tools hidden">
-                        <span id="filterPopupNonexistNum" class="filter-popup-position-input filter-popup-nonexist-num"
-                            tabindex="0" role="textbox" aria-label="Số nonexist 1-35"
-                            title="Số 1-35 trong cột nonexist; +/− hoặc ▴▾ xoay vòng (1↔35)"></span>
-                        <div id="filterPopupNonexistNumSpin" role="group"
-                            aria-label="Tăng giảm số nonexist (xoay vòng 1–35)">
-                            <button type="button" id="filterPopupNonexistNumInc"
-                                class="filter-popup-nonexist-num-spin-btn" title="Tăng số (35→1)"
-                                aria-label="Tăng số nonexist">▴</button>
-                            <button type="button" id="filterPopupNonexistNumDec"
-                                class="filter-popup-nonexist-num-spin-btn" title="Giảm số (1→35)"
-                                aria-label="Giảm số nonexist">▾</button>
-                        </div>
                         <div id="filterPopupNonexistColorPicker" class="filter-popup-nonexist-color-picker">
                             <button type="button" id="filterPopupNonexistColorBtn"
                                 class="filter-popup-nonexist-color-btn" aria-haspopup="listbox" aria-expanded="false"
@@ -5592,6 +5670,8 @@
         const FILTER_NONEXIST_STYLES_KEY = 'filterNonexistStyles';
         const FILTER_NONEXIST_COLORS_KEY = 'filterNonexistColors';
         const FILTER_NONEXIST_GREEN005_KEY = 'filterNonexistGreen005';
+        const FILTER_NONEXIST_BRACKET_KEY = 'filterNonexistBracket';
+        const NONEXIST_BRACKET_COUNT_MAX = 5;
         const NONEXIST_FILTER_COLORS = ['green', 'red', 'purple', 'yellow'];
         const NONEXIST_FILTER_COLOR_TITLES = {
             green: 'Xanh lá',
@@ -5750,6 +5830,10 @@
         let filterNonexistColors = ['green'];
         /** Chỉ mode nonexist: dropdown phụ #005000 — boost cửa 10 + gọi lại trong 10 kỳ sau dòng. */
         let filterNonexistGreen005000 = false;
+        /** Chỉ mode nonexist: [] — lọc theo số lượng số gọi (xanh lá) trong nonexist (0–30). */
+        let filterNonexistBracketCount = 0;
+        let filterNonexistBracketOp = '>=';
+        let filterNonexistBracketApplyTimer = null;
         /** posnfreq: specimen 1–35, chữ ký { frequency, positions } theo kỳ nguồn */
         let posnfreqSpecimenNum = null;
         let posnfreqRefSignature = null;
@@ -7271,8 +7355,37 @@
             return {
                 num: filterNonexistNum,
                 colors,
-                styles: colors.includes('green') ? filterNonexistStyles.slice() : []
+                styles: colors.includes('green') ? filterNonexistStyles.slice() : [],
+                nonexistBracketCount: filterNonexistBracketCount,
+                nonexistBracketOp: normalizeIntersectionFreqOp(filterNonexistBracketOp),
+                applyColorStyleFilter: hasNonexistColorStyleSubFilter()
             };
+        }
+
+        function isNonexistBracketFilterActive() {
+            return Number.isFinite(filterNonexistBracketCount)
+                && filterNonexistBracketCount >= 0
+                && filterNonexistBracketCount <= NONEXIST_BRACKET_COUNT_MAX;
+        }
+
+        function isFilterPopupNonexistBracketInputFocused() {
+            const input = el('filterPopupNonexistBracketCount');
+            return !!(input && document.activeElement === input);
+        }
+
+        function hasNonexistColorStyleSubFilter() {
+            const colors = filterNonexistColors.filter((c) => NONEXIST_FILTER_COLORS.includes(c));
+            if (colors.length === 0) {
+                return false;
+            }
+            const onlyGreen = colors.length === 1 && colors[0] === 'green';
+            if (onlyGreen) {
+                return filterNonexistStyles.length > 0;
+            }
+            if (colors.includes('green')) {
+                return filterNonexistStyles.length > 0 || colors.some((c) => c !== 'green');
+            }
+            return true;
         }
 
         function isNonexistGreenFilterSelected() {
@@ -7330,18 +7443,9 @@
         }
 
         function hasActiveNonexistFilterCriteria() {
-            const colors = filterNonexistColors.filter((c) => NONEXIST_FILTER_COLORS.includes(c));
-            if (colors.length === 0) {
-                return false;
-            }
-            const onlyGreen = colors.length === 1 && colors[0] === 'green';
-            if (onlyGreen) {
-                return filterNonexistStyles.length > 0;
-            }
-            if (colors.includes('green')) {
-                return filterNonexistStyles.length > 0 || colors.some((c) => c !== 'green');
-            }
-            return true;
+            return hasNonexistColorStyleSubFilter()
+                || isNonexistBracketFilterActive()
+                || !isNonexistFilterNumEmpty();
         }
 
         function getNonexistFilterColorLabelList() {
@@ -8468,6 +8572,352 @@
             }
         }
 
+        function parseFilterNonexistBracketCountInput(text) {
+            const raw = String(text || '').trim();
+            if (!raw) {
+                return null;
+            }
+            const value = parseInt(raw, 10);
+            if (!Number.isFinite(value) || value < 0 || value > NONEXIST_BRACKET_COUNT_MAX) {
+                return null;
+            }
+            return value;
+        }
+
+        function loadFilterNonexistBracketSettings() {
+            try {
+                const raw = localStorage.getItem(FILTER_NONEXIST_BRACKET_KEY);
+                if (!raw) {
+                    filterNonexistBracketCount = 0;
+                    filterNonexistBracketOp = '>=';
+                    return;
+                }
+                const p = JSON.parse(raw);
+                if (p && p.count !== null && p.count !== undefined && p.count !== '') {
+                    const c = parseInt(p.count, 10);
+                    filterNonexistBracketCount = Number.isFinite(c) ? Math.min(NONEXIST_BRACKET_COUNT_MAX, Math.max(0, c)) : 0;
+                } else {
+                    filterNonexistBracketCount = 0;
+                }
+                filterNonexistBracketOp = normalizeIntersectionFreqOp(p && p.op);
+            } catch (e) {
+                filterNonexistBracketCount = 0;
+                filterNonexistBracketOp = '>=';
+            }
+        }
+
+        function saveFilterNonexistBracketSettings() {
+            try {
+                localStorage.setItem(
+                    FILTER_NONEXIST_BRACKET_KEY,
+                    JSON.stringify({
+                        count: filterNonexistBracketCount,
+                        op: normalizeIntersectionFreqOp(filterNonexistBracketOp)
+                    })
+                );
+            } catch (e) { /* ignore */ }
+        }
+
+        function scheduleApplyNonexistBracketFromUi() {
+            clearTimeout(filterNonexistBracketApplyTimer);
+            filterNonexistBracketApplyTimer = setTimeout(() => {
+                filterNonexistBracketApplyTimer = null;
+                applyNonexistBracketFromUi();
+            }, 120);
+        }
+
+        function syncFilterPopupNonexistBracketSpinButtons() {
+            const active = periodFilterEnabled && isNonexistFilterMode(periodFilterMode);
+            const inc = el('filterPopupNonexistBracketCountInc');
+            const dec = el('filterPopupNonexistBracketCountDec');
+            const count = Number.isFinite(filterNonexistBracketCount) ? filterNonexistBracketCount : 0;
+            if (inc && dec) {
+                inc.disabled = !active || count >= NONEXIST_BRACKET_COUNT_MAX;
+                dec.disabled = !active || count <= 0;
+            }
+        }
+
+        function bumpFilterPopupNonexistBracketCount(delta) {
+            if (!periodFilterEnabled || !isNonexistFilterMode(periodFilterMode)) {
+                return false;
+            }
+            let base = Number.isFinite(filterNonexistBracketCount) ? filterNonexistBracketCount : 0;
+            const next = Math.min(NONEXIST_BRACKET_COUNT_MAX, Math.max(0, base + (Number(delta) || 0)));
+            if (next === filterNonexistBracketCount) {
+                return false;
+            }
+            filterNonexistBracketCount = next;
+            const span = el('filterPopupNonexistBracketCount');
+            if (span) {
+                setFilterPopupPositionText(span, String(next));
+            }
+            saveFilterNonexistBracketSettings();
+            invalidateFilterPopupRenderCache();
+            syncFilterPopupNonexistBracketSpinButtons();
+            if (isPeriodFilterContextSheet()) {
+                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
+            } else {
+                rebuildFilterModeCounts();
+                updatePeriodFilterMatchCount();
+            }
+            return true;
+        }
+
+        function applyNonexistBracketFromUi() {
+            const countEl = el('filterPopupNonexistBracketCount');
+            const opEl = el('filterPopupNonexistBracketOp');
+            if (!countEl) {
+                return;
+            }
+            const parsed = parseFilterNonexistBracketCountInput(getFilterPopupPositionText(countEl));
+            filterNonexistBracketCount = parsed == null ? 0 : parsed;
+            setFilterPopupPositionText(countEl, String(filterNonexistBracketCount));
+            if (opEl) {
+                filterNonexistBracketOp = normalizeIntersectionFreqOp(opEl.value);
+                opEl.value = filterNonexistBracketOp;
+            }
+            saveFilterNonexistBracketSettings();
+            invalidateFilterPopupRenderCache();
+            syncFilterPopupNonexistBracketSpinButtons();
+            if (periodFilterEnabled && isPeriodFilterContextSheet()
+                && isNonexistFilterMode(periodFilterMode)) {
+                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
+            } else {
+                rebuildFilterModeCounts();
+                updatePeriodFilterMatchCount();
+            }
+        }
+
+        function syncFilterPopupNonexistBracketUi() {
+            const show = periodFilterEnabled && isNonexistFilterMode(periodFilterMode);
+            const picker = el('filterPopupNonexistBracketPicker');
+            const countEl = el('filterPopupNonexistBracketCount');
+            const opEl = el('filterPopupNonexistBracketOp');
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+                picker.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+            if (countEl) {
+                const text = Number.isFinite(filterNonexistBracketCount) ? String(filterNonexistBracketCount) : '0';
+                setFilterPopupPositionText(countEl, text);
+                setFilterPopupPositionInputWidth(countEl, text);
+                countEl.tabIndex = show ? 0 : -1;
+            }
+            const numInput = el('filterPopupNonexistNum');
+            if (numInput) {
+                const numText = filterNonexistNum != null ? String(filterNonexistNum) : '';
+                setFilterPopupPositionText(numInput, numText);
+                numInput.tabIndex = show ? 0 : -1;
+            }
+            syncFilterPopupNonexistSpinButtons();
+            if (opEl) {
+                opEl.value = normalizeIntersectionFreqOp(filterNonexistBracketOp);
+                opEl.disabled = !show;
+            }
+            syncFilterPopupNonexistBracketSpinButtons();
+        }
+
+        function commitFilterPopupNonexistBracketFromUi() {
+            const countEl = el('filterPopupNonexistBracketCount');
+            if (!countEl) {
+                return;
+            }
+            const parsed = parseFilterNonexistBracketCountInput(getFilterPopupPositionText(countEl));
+            filterNonexistBracketCount = parsed == null ? 0 : parsed;
+            setFilterPopupPositionText(countEl, String(filterNonexistBracketCount));
+            syncFilterPopupNonexistBracketSpinButtons();
+        }
+
+        function tryAppendFilterPopupNonexistBracketDigit(digit) {
+            const input = el('filterPopupNonexistBracketCount');
+            if (!input) {
+                return false;
+            }
+            const nextNum = parseInt(String(digit), 10);
+            if (!Number.isFinite(nextNum) || nextNum < 0 || nextNum > NONEXIST_BRACKET_COUNT_MAX) {
+                return false;
+            }
+            setFilterPopupPositionText(input, String(nextNum));
+            setFilterPopupPositionInputWidth(input, String(nextNum));
+            filterNonexistBracketCount = nextNum;
+            saveFilterNonexistBracketSettings();
+            if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
+                refreshFilterPopup({ syncMain: false, immediateRender: true });
+            } else {
+                rebuildNonexistFilterModeCountOnly();
+                updatePeriodFilterMatchCount();
+            }
+            syncFilterPopupNonexistBracketSpinButtons();
+            return true;
+        }
+
+        function tryBackspaceFilterPopupNonexistBracketCount() {
+            const input = el('filterPopupNonexistBracketCount');
+            if (!input) {
+                return false;
+            }
+            setFilterPopupPositionText(input, '0');
+            setFilterPopupPositionInputWidth(input, '0');
+            filterNonexistBracketCount = 0;
+            saveFilterNonexistBracketSettings();
+            if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
+                refreshFilterPopup({ syncMain: false, immediateRender: true });
+            } else {
+                rebuildNonexistFilterModeCountOnly();
+                updatePeriodFilterMatchCount();
+            }
+            syncFilterPopupNonexistBracketSpinButtons();
+            return true;
+        }
+
+        function initFilterPopupNonexistBracketControls() {
+            loadFilterNonexistBracketSettings();
+            syncFilterPopupNonexistBracketUi();
+            const picker = el('filterPopupNonexistBracketPicker');
+            const opEl = el('filterPopupNonexistBracketOp');
+            const countEl = el('filterPopupNonexistBracketCount');
+            if (picker && picker.dataset.bound !== '1') {
+                picker.dataset.bound = '1';
+                picker.addEventListener('mousedown', (event) => event.stopPropagation());
+                picker.addEventListener('click', (event) => event.stopPropagation());
+                const inc = el('filterPopupNonexistBracketCountInc');
+                const dec = el('filterPopupNonexistBracketCountDec');
+                if (inc) {
+                    inc.addEventListener('mousedown', (event) => event.stopPropagation());
+                    inc.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        bumpFilterPopupNonexistBracketCount(1);
+                    });
+                }
+                if (dec) {
+                    dec.addEventListener('mousedown', (event) => event.stopPropagation());
+                    dec.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        bumpFilterPopupNonexistBracketCount(-1);
+                    });
+                }
+                if (opEl) {
+                    opEl.addEventListener('change', () => scheduleApplyNonexistBracketFromUi());
+                }
+            }
+            if (countEl && countEl.dataset.bound !== '1') {
+                countEl.dataset.bound = '1';
+                countEl.addEventListener('mousedown', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    countEl.focus({ preventScroll: true });
+                });
+                countEl.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                });
+                countEl.addEventListener('blur', () => {
+                    applyNonexistBracketFromUi();
+                });
+                countEl.addEventListener('keydown', (event) => {
+                    if (!periodFilterEnabled || !isNonexistFilterMode(periodFilterMode)) {
+                        return;
+                    }
+                    const key = String(event.key || '');
+                    if (key >= '0' && key <= '9') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        tryAppendFilterPopupNonexistBracketDigit(key);
+                        return;
+                    }
+                    if (key === 'Backspace') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        tryBackspaceFilterPopupNonexistBracketCount();
+                        return;
+                    }
+                    const code = String(event.code || '');
+                    const isPlus = key === '+' || code === 'NumpadAdd' || (code === 'Equal' && event.shiftKey);
+                    const isMinus = key === '-' || code === 'NumpadSubtract' || code === 'Minus';
+                    if (isPlus || isMinus) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        bumpFilterPopupNonexistBracketCount(isPlus ? 1 : -1);
+                    }
+                });
+            }
+            const numInput = el('filterPopupNonexistNum');
+            if (numInput && numInput.dataset.bound !== '1') {
+                numInput.dataset.bound = '1';
+                numInput.addEventListener('mousedown', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    numInput.focus({ preventScroll: true });
+                });
+                numInput.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                });
+                numInput.addEventListener('blur', () => {
+                    commitFilterPopupNonexistNumFromUi();
+                    saveFilterNonexistSettings();
+                });
+                numInput.addEventListener('keydown', (event) => {
+                    if (!periodFilterEnabled || !isNonexistFilterMode(periodFilterMode)) {
+                        return;
+                    }
+                    const key = String(event.key || '');
+                    if (key >= '0' && key <= '9') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        tryAppendFilterPopupNonexistDigit(key);
+                        return;
+                    }
+                    if (key === 'Backspace') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        tryBackspaceFilterPopupNonexistNum();
+                        return;
+                    }
+                    const code = String(event.code || '');
+                    const isPlus = key === '+' || code === 'NumpadAdd' || (code === 'Equal' && event.shiftKey);
+                    const isMinus = key === '-' || code === 'NumpadSubtract' || code === 'Minus';
+                    if (isPlus || isMinus) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        bumpFilterPopupNonexistNum(isPlus ? 1 : -1);
+                    }
+                });
+            }
+            const spinMount = el('filterPopupNonexistNumSpin');
+            const incBtn = el('filterPopupNonexistNumInc');
+            const decBtn = el('filterPopupNonexistNumDec');
+            if (spinMount && spinMount.dataset.spinBound !== '1') {
+                spinMount.dataset.spinBound = '1';
+                if (incBtn) {
+                    incBtn.addEventListener('mousedown', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    });
+                    incBtn.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (!incBtn.disabled) {
+                            bumpFilterPopupNonexistNum(1);
+                        }
+                    });
+                }
+                if (decBtn) {
+                    decBtn.addEventListener('mousedown', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    });
+                    decBtn.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        if (!decBtn.disabled) {
+                            bumpFilterPopupNonexistNum(-1);
+                        }
+                    });
+                }
+            }
+        }
+
         function getFilterIntersectionKindButtonLabel() {
             return filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
         }
@@ -9508,20 +9958,16 @@
 
         function syncFilterPopupNonexistToolsUi() {
             const tools = el('filterPopupNonexistTools');
-            const numInput = el('filterPopupNonexistNum');
             const show = periodFilterEnabled && isNonexistFilterMode(periodFilterMode);
             if (tools) {
                 tools.classList.toggle('hidden', !show);
-            }
-            if (numInput) {
-                const text = filterNonexistNum != null ? String(filterNonexistNum) : '';
-                setFilterPopupPositionText(numInput, text);
             }
             syncFilterPopupNonexistColorBtn();
             syncFilterPopupNonexistStyleToggles();
             syncFilterPopupDropdownCounts();
             syncFilterPopupNonexistGreen005PickerUi();
             syncFilterPopupNonexistSpinButtons();
+            syncFilterPopupNonexistBracketUi();
         }
 
         function clearPosnfreqMarkersInIframe() {
@@ -11693,7 +12139,14 @@
             const normalized = normalizeFilterMode(mode);
             if (isNonexistFilterMode(normalized)) {
                 const colors = filterNonexistColors.filter((c) => NONEXIST_FILTER_COLORS.includes(c));
-                return { colors, styles: [], num: null };
+                return {
+                    colors,
+                    styles: [],
+                    num: null,
+                    nonexistBracketCount: 0,
+                    nonexistBracketOp: '>=',
+                    applyColorStyleFilter: false
+                };
             }
             if (isPosnfreqFilterMode(normalized)) {
                 return getPosnfreqFilterOptionsForMatching();
@@ -11931,8 +12384,11 @@
 
         function applyNonexistFilterSettingsFromUi() {
             commitFilterPopupNonexistNumFromUi();
+            commitFilterPopupNonexistBracketFromUi();
             saveFilterNonexistSettings();
+            saveFilterNonexistBracketSettings();
             syncFilterPopupNonexistSpinButtons();
+            syncFilterPopupNonexistBracketSpinButtons();
             if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
                 refreshFilterPopup({ syncMain: false, immediateRender: true });
             } else {
@@ -11947,19 +12403,22 @@
                 return 'Không có dữ liệu kỳ.';
             }
             if (isNonexistFilterMode(normalized)) {
-                if (!filterNonexistColors.length) {
-                    return 'Chọn ít nhất một màu nonexist.';
-                }
                 if (!hasActiveNonexistFilterCriteria()) {
-                    return 'Chọn màu và ít nhất một kiểu chữ (B, I, U, S) khi lọc xanh lá.';
+                    return 'Chọn tiêu chí lọc nonexist (màu/kiểu hoặc []).';
                 }
                 const colorLabel = getNonexistFilterColorLabelList();
                 const styles = getNonexistFilterStyleLabelList();
-                const styleHint = isNonexistGreenFilterSelected() && styles ? ` (${styles})` : '';
+                const styleHint = hasNonexistColorStyleSubFilter() && isNonexistGreenFilterSelected() && styles
+                    ? ` (${styles})`
+                    : '';
+                const colorHint = hasNonexistColorStyleSubFilter() ? `màu ${colorLabel}` : '';
+                const bracketHint = `[]${normalizeIntersectionFreqOp(filterNonexistBracketOp)}${filterNonexistBracketCount}`;
+                const numHint = isNonexistFilterNumEmpty() ? '' : ` AND số ${filterNonexistNum}`;
+                const criteriaHint = [colorHint, bracketHint].filter(Boolean).join(', ');
                 if (isNonexistFilterNumEmpty()) {
-                    return `Không có kỳ nào có màu ${colorLabel}${styleHint} trong nonexist.`;
+                    return `Không có kỳ nào khớp ${criteriaHint}${styleHint} trong nonexist.`;
                 }
-                return `Không có kỳ nào có số ${filterNonexistNum} màu ${colorLabel}${styleHint} trong nonexist.`;
+                return `Không có kỳ nào khớp ${criteriaHint}${styleHint}${numHint} trong nonexist.`;
             }
             if (isPosnfreqFilterMode(normalized)) {
                 if (posnfreqSpecimenNum == null || !Number.isFinite(posnfreqSpecimenNum)) {
@@ -12651,8 +13110,11 @@
                 const colorLabel = getNonexistFilterColorLabelList();
                 const styles = getNonexistFilterStyleLabelList();
                 const styleHint = isNonexistGreenFilterSelected() && styles ? `, kiểu ${styles}` : '';
-                const numHint = isNonexistFilterNumEmpty() ? '' : `, số ${filterNonexistNum}`;
-                title = `Có ${filteredTotal} / ${parentTotal} kỳ nonexist (màu ${colorLabel}${styleHint}${numHint})`;
+                const numHint = isNonexistFilterNumEmpty() ? '' : ` AND số ${filterNonexistNum}`;
+                const bracketHint = `[]${normalizeIntersectionFreqOp(filterNonexistBracketOp)}${filterNonexistBracketCount}`;
+                const colorHint = hasNonexistColorStyleSubFilter() ? `màu ${colorLabel}` : '';
+                const criteriaHint = [colorHint, bracketHint].filter(Boolean).join(', ');
+                title = `Có ${filteredTotal} / ${parentTotal} kỳ nonexist (${criteriaHint}${styleHint}${numHint})`;
             }
             if (!periodFilterEnabled) {
                 title = 'Số kỳ: vị trí / đã lọc / mode (All)';
@@ -12741,7 +13203,6 @@
             loadFilterNonexistSettings();
 
             const tools = el('filterPopupNonexistTools');
-            const numInput = el('filterPopupNonexistNum');
             const styleWrap = el('filterPopupNonexistStyleWrap');
 
             if (tools && tools.dataset.bound !== '1') {
@@ -12752,75 +13213,6 @@
                 tools.addEventListener('click', (event) => {
                     event.stopPropagation();
                 });
-            }
-
-            if (numInput && numInput.dataset.bound !== '1') {
-                numInput.dataset.bound = '1';
-                numInput.addEventListener('mousedown', (event) => {
-                    event.stopPropagation();
-                });
-                numInput.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                });
-                numInput.addEventListener('keydown', (event) => {
-                    if (!periodFilterEnabled || !isNonexistFilterMode(periodFilterMode)) {
-                        return;
-                    }
-                    const key = String(event.key || '');
-                    if (key >= '0' && key <= '9') {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        tryAppendFilterPopupNonexistDigit(key);
-                        return;
-                    }
-                    if (key === 'Backspace') {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        tryBackspaceFilterPopupNonexistNum();
-                        return;
-                    }
-                    const code = String(event.code || '');
-                    const isPlus = key === '+' || code === 'NumpadAdd' || (code === 'Equal' && event.shiftKey);
-                    const isMinus = key === '-' || code === 'NumpadSubtract' || code === 'Minus';
-                    if (isPlus || isMinus) {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        bumpFilterPopupNonexistNum(isPlus ? 1 : -1);
-                    }
-                });
-            }
-
-            const spinMount = el('filterPopupNonexistNumSpin');
-            const incBtn = el('filterPopupNonexistNumInc');
-            const decBtn = el('filterPopupNonexistNumDec');
-            if (spinMount && spinMount.dataset.spinBound !== '1') {
-                spinMount.dataset.spinBound = '1';
-                if (incBtn) {
-                    incBtn.addEventListener('mousedown', (event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                    });
-                    incBtn.addEventListener('click', (event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        if (!incBtn.disabled) {
-                            bumpFilterPopupNonexistNum(1);
-                        }
-                    });
-                }
-                if (decBtn) {
-                    decBtn.addEventListener('mousedown', (event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                    });
-                    decBtn.addEventListener('click', (event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        if (!decBtn.disabled) {
-                            bumpFilterPopupNonexistNum(-1);
-                        }
-                    });
-                }
             }
 
             if (styleWrap && styleWrap.dataset.bound !== '1') {
@@ -12845,6 +13237,7 @@
             syncFilterPopupNonexistToolsUi();
             initFilterPopupNonexistColorControls();
             initFilterPopupNonexistGreen005Controls();
+            initFilterPopupNonexistBracketControls();
             initFilterPopupNonexist005PctTooltip();
         }
 
@@ -12870,10 +13263,11 @@
                 const popupOpen = !!(dock && !dock.classList.contains('hidden'));
                 const positionInput = el('filterPopupPositionInput');
                 const nonexistNumEl = el('filterPopupNonexistNum');
+                const bracketCountEl = el('filterPopupNonexistBracketCount');
                 const ae = document.activeElement;
 
                 if (popupOpen && periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
-                    if (ae === nonexistNumEl) {
+                    if (ae === nonexistNumEl || ae === bracketCountEl) {
                         return;
                     }
                     if (ae === positionInput) {
@@ -12961,7 +13355,9 @@
                     return;
                 }
                 const nonexistNumInput = el('filterPopupNonexistNum');
+                const bracketCountInput = el('filterPopupNonexistBracketCount');
                 if (document.activeElement === input || document.activeElement === nonexistNumInput
+                    || document.activeElement === bracketCountInput
                     || isFilterPopupHeader2InputFocused()) {
                     return;
                 }
@@ -14605,6 +15001,9 @@
             const tailKey = isTailFilterMode(periodFilterMode)
                 ? `tail:c:${filterTailCount}:${opTok(filterTailOp)}`
                 : '';
+            const nxBracketKey = isNonexistFilterMode(periodFilterMode)
+                ? `nxb:${filterNonexistBracketCount}:${opTok(filterNonexistBracketOp)}`
+                : '';
             const h2on = `h2on:${isFilterHeader2Enabled() ? 1 : 0}`;
             const chainSel = filterPopupChainSelected.map((v) => (v ? '1' : '0')).join('');
             const chainOn = `chain:${isFilterChainPickerEnabled() ? 1 : 0}:${chainSel}:${isFilterChainCombineAnd() ? 'and' : 'or'}`;
@@ -14622,6 +15021,7 @@
                 ixKey,
                 dbKey,
                 tailKey,
+                nxBracketKey,
                 h2on,
                 chainOn
             ].join('|');
