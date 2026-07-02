@@ -9582,6 +9582,21 @@
         window.handleLeftPaneNavKey = handleLeftPaneNavKey;
 
         document.addEventListener('keydown', function (e) {
+            if (e.key !== 'Tab') {
+                return;
+            }
+            if (e.shiftKey || e.ctrlKey || e.metaKey || e.altKey || e.repeat) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            e.stopImmediatePropagation();
+            try {
+                window.parent.postMessage({ type: 'toggleSheetTab' }, '*');
+            } catch (err) { /* ignore */ }
+        }, true);
+
+        document.addEventListener('keydown', function (e) {
             try {
                 var active = document.activeElement;
                 var activeTag = active ? active.tagName : '';
