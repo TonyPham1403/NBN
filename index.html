@@ -13869,9 +13869,18 @@
             raiseFloatingPopupDock(dock);
         }
 
+        function closeAllFilterPopupFloatingMenus() {
+            closePeriodFilterModeMenu();
+            closeFilterPopupNoteTagMenu();
+            closeFilterPopupConnectionNoteTagMenu();
+            closeFilterPopupNonexistColorMenu();
+            closeFilterPopupNonexistGreen005Menu();
+            closeFilterPopupIntersectionKindMenu();
+        }
+
         function closeFilterPopup() {
             hideFilterPopupNonexist005PctTooltip();
-            closeFilterPopupIntersectionKindMenu();
+            closeAllFilterPopupFloatingMenus();
             const dock = el('filterPopupDock');
             if (!dock) {
                 return;
