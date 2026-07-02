@@ -214,6 +214,31 @@
             opacity: 1;
         }
 
+        /* Autoring CHUỖI 1: viền vuông tím — chỉ style, độc lập khoanh tay (không dùng .selected) */
+        body.autoring-chain1-active .cell.num.autoring-chain1-square {
+            position: relative;
+        }
+
+        body.autoring-chain1-active .cell.num.autoring-chain1-square::before {
+            content: "";
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: var(--selected-ring-size);
+            height: var(--selected-ring-size);
+            border-radius: 3px;
+            border: var(--selected-ring-border) solid #9333ea;
+            box-shadow: 0 0 6px rgba(147, 51, 234, 0.38);
+            pointer-events: none;
+            opacity: 1;
+            z-index: 2;
+        }
+
+        body.submit-preview-active.autoring-chain1-active .cell.num.autoring-chain1-square::before {
+            z-index: 3;
+        }
+
         /* Submitted numbers highlight (used when Space toggles submit preview).
            The submit state applies a green background; text color is mapped
            by semantic classes so submitted numbers keep their semantic hue.
@@ -2070,6 +2095,8 @@
         /** Track draw ids (right-pane focus row) that already received one-shot auto ring */
         let autoRingVisitedIds = new Set();
         let autoRingPicked = new Set();
+        /** CHUỖI 1 autoring: chỉ viền vuông tím — không vào selected / autoRingPicked. */
+        let autoRingChain1Marked = new Set();
         /** Remember selection per focus id so revisiting a row restores user state */
         let selectionMemoryByFocusId = new Map();
         let lastAutoRingFocusKey = '';
@@ -2479,6 +2506,7 @@
         }
 
         function clearAutoRingSelectionVisuals() {
+            clearChain1AutoringVisualOnly();
             var ringNums = Array.from(autoRingPicked);
             autoRingPicked.clear();
             if (submitActive && submitCircleOverlaySource === 'autoring') {
@@ -2486,22 +2514,24 @@
                 applySubmitCircleOverlayInDOM();
             }
             if (!submitActive) {
-                selected.clear();
-                clearPairContributionTracking();
-                transientSelected.clear();
-                simulatedSelected.clear();
-                pickOrder = [];
-                pairNeonObserveNum = null;
-                resetPairNeonObserveContextBeyondLonePair();
-                currentPairIndex = -1;
-                currentTailIndex = -1;
-                selectionCleared = false;
-                recomputePairsFromSelected();
-                updateBlocked();
-                try { updatePairList(); } catch (e) { }
-                try { refreshPairTailSelectionState(); } catch (e) { }
-                try { applySelectionAndBlockedInDOM(); } catch (e) { }
-                try { updateFocusIndicator(); } catch (e) { }
+                if (ringNums.length > 0) {
+                    selected.clear();
+                    clearPairContributionTracking();
+                    transientSelected.clear();
+                    simulatedSelected.clear();
+                    pickOrder = [];
+                    pairNeonObserveNum = null;
+                    resetPairNeonObserveContextBeyondLonePair();
+                    currentPairIndex = -1;
+                    currentTailIndex = -1;
+                    selectionCleared = false;
+                    recomputePairsFromSelected();
+                    updateBlocked();
+                    try { updatePairList(); } catch (e) { }
+                    try { refreshPairTailSelectionState(); } catch (e) { }
+                    try { applySelectionAndBlockedInDOM(); } catch (e) { }
+                    try { updateFocusIndicator(); } catch (e) { }
+                }
             } else {
                 if (ringNums.length) {
                     ringNums.forEach(function (n) {
@@ -2526,6 +2556,67 @@
         function submitAutoCircleSkipsLine11Requirement(mode) {
             var m = normalizeSubmitAutoCircleMode(mode);
             return m === 'custom' || m === 'chain1';
+        }
+
+        function isChain1AutoringActive() {
+            return !!(submitAutoCircleEnabled && normalizeSubmitAutoCircleMode(submitAutoCircleMode) === 'chain1');
+        }
+
+        function isChain1AutoringMode(mode) {
+            return normalizeSubmitAutoCircleMode(mode != null ? mode : submitAutoCircleMode) === 'chain1';
+        }
+
+        function clearChain1AutoringVisualOnly() {
+            autoRingChain1Marked.clear();
+            syncChain1AutoringBodyClass();
+            applyChain1AutoringVisualInDOM();
+        }
+
+        function refreshChain1AutoringFromMsg(msg) {
+            autoRingVisitedIds.clear();
+            lastAutoRingFocusKey = '';
+            var chain1Nums = getSubmitAutoCircleNumsForApply(msg);
+            applyAutoRingChain1VisualOnly(chain1Nums);
+            try { applySelectionAndBlockedInDOM(); } catch (eDom) { /* ignore */ }
+            try { refreshLeftPickSelectionUi(); } catch (eUi) { /* ignore */ }
+        }
+
+        function syncChain1AutoringBodyClass() {
+            try {
+                document.body.classList.toggle('autoring-chain1-active', isChain1AutoringActive());
+            } catch (e) { /* ignore */ }
+        }
+
+        function applyChain1AutoringVisualInDOM() {
+            var show = isChain1AutoringActive();
+            try {
+                document.querySelectorAll('.cell.num[data-num]').forEach(function (span) {
+                    var val = parseInt(span.getAttribute('data-num'), 10);
+                    if (isNaN(val)) {
+                        return;
+                    }
+                    span.classList.toggle('autoring-chain1-square', show && autoRingChain1Marked.has(val));
+                });
+            } catch (e) { /* ignore */ }
+        }
+
+        function applyAutoRingChain1VisualOnly(circleNums) {
+            if (hasPendingClearSelectionUndo()) {
+                return false;
+            }
+            circleNums = (circleNums || []).filter(function (n) { return !isNaN(n); }).slice(0, MAX_PICK_NUMBERS);
+            autoRingPicked.clear();
+            autoRingChain1Marked.clear();
+            circleNums.forEach(function (n) {
+                autoRingChain1Marked.add(n);
+            });
+            if (submitActive && submitCircleOverlaySource === 'autoring') {
+                try { markSubmitCircleOverlayCleared(); } catch (eOv) { /* ignore */ }
+            }
+            syncChain1AutoringBodyClass();
+            applyChain1AutoringVisualInDOM();
+            try { applySubmitCircleOverlayInDOM(); } catch (eDom) { /* ignore */ }
+            return circleNums.length > 0;
         }
 
         function normalizeSubmitAutoCircleChainLabels(raw) {
@@ -3313,7 +3404,16 @@
                 return false;
             }
             circleNums = (circleNums || []).filter(function (n) { return !isNaN(n); });
+
+            if (normalizeSubmitAutoCircleMode(submitAutoCircleMode) === 'chain1') {
+                return applyAutoRingChain1VisualOnly(circleNums);
+            }
+
             if (!circleNums.length) return false;
+
+            autoRingChain1Marked.clear();
+            syncChain1AutoringBodyClass();
+            applyChain1AutoringVisualInDOM();
 
             if (submitActive) {
                 if (answerPopupTicketPreviewOnly) {
@@ -4011,13 +4111,27 @@
                 return;
             }
             if (disableSubmitForCurrentData) {
-                clearAutoRingSelectionVisuals();
+                if (isChain1AutoringMode()) {
+                    clearChain1AutoringVisualOnly();
+                } else {
+                    clearAutoRingSelectionVisuals();
+                }
                 return;
             }
             if (!submitAutoCircleSkipsLine11Requirement(submitAutoCircleMode) && !hasCurrentLine11Result()) {
-                clearAutoRingSelectionVisuals();
+                if (isChain1AutoringMode()) {
+                    clearChain1AutoringVisualOnly();
+                } else {
+                    clearAutoRingSelectionVisuals();
+                }
                 return;
             }
+
+            if (isChain1AutoringMode()) {
+                refreshChain1AutoringFromMsg(msg);
+                return;
+            }
+
             autoRingVisitedIds.clear();
             selectionMemoryByFocusId.clear();
             lastAutoRingFocusKey = '';
@@ -4057,15 +4171,31 @@
                 return;
             }
             if (disableSubmitForCurrentData) {
-                clearAutoRingSelectionVisuals();
+                if (isChain1AutoringMode()) {
+                    clearChain1AutoringVisualOnly();
+                } else {
+                    clearAutoRingSelectionVisuals();
+                }
                 return;
             }
             if (!submitAutoCircleSkipsLine11Requirement(submitAutoCircleMode) && !hasCurrentLine11Result()) {
-                clearAutoRingSelectionVisuals();
+                if (isChain1AutoringMode()) {
+                    clearChain1AutoringVisualOnly();
+                } else {
+                    clearAutoRingSelectionVisuals();
+                }
                 return;
             }
             if (msg && msg.forceReapplyAutoring) {
-                applySubmitAutoCircleFreshFromMsg(msg);
+                if (isChain1AutoringMode()) {
+                    refreshChain1AutoringFromMsg(msg);
+                } else {
+                    applySubmitAutoCircleFreshFromMsg(msg);
+                }
+                return;
+            }
+            if (isChain1AutoringMode()) {
+                refreshChain1AutoringFromMsg(msg);
                 return;
             }
             var ansCfg = getAnswerNumsFromCurrentLine11();
@@ -4076,6 +4206,8 @@
             var circleNumsCfg = getSubmitAutoCircleNumsForApply(msg);
             if (circleNumsCfg.length > 0) {
                 applyAutoRingSelection(circleNumsCfg);
+            } else if (isChain1AutoringMode()) {
+                clearChain1AutoringVisualOnly();
             } else {
                 clearAutoRingSelectionVisuals();
             }
@@ -4087,17 +4219,38 @@
             try {
                 if (!submitAutoCircleEnabled || !raw) return;
                 if (disableSubmitForCurrentData) {
-                    clearAutoRingSelectionVisuals();
+                    if (isChain1AutoringMode()) {
+                        clearChain1AutoringVisualOnly();
+                    } else {
+                        clearAutoRingSelectionVisuals();
+                    }
                     return;
                 }
                 if (!submitAutoCircleSkipsLine11Requirement(submitAutoCircleMode) && !hasCurrentLine11Result()) {
-                    clearAutoRingSelectionVisuals();
+                    if (isChain1AutoringMode()) {
+                        clearChain1AutoringVisualOnly();
+                    } else {
+                        clearAutoRingSelectionVisuals();
+                    }
                     return;
                 }
 
                 var fk = normalizeAutoRingFocusKey(focusRowIdRaw);
                 if (!fk) return;
                 if (!options.focusArrival && autoRingVisitedIds.has(fk)) return;
+
+                if (isChain1AutoringMode()) {
+                    var chain1Nums = getSubmitAutoCircleNumsForApply(null);
+                    if (!chain1Nums.length) {
+                        clearChain1AutoringVisualOnly();
+                        return;
+                    }
+                    if (!applyAutoRingChain1VisualOnly(chain1Nums)) return;
+                    autoRingVisitedIds.add(fk);
+                    lastAutoRingFocusKey = fk;
+                    try { applySelectionAndBlockedInDOM(); } catch (eDom) { /* ignore */ }
+                    return;
+                }
 
                 var ans = getAnswerNumsFromCurrentLine11();
                 var ringMode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
@@ -4704,6 +4857,7 @@
                 try { refreshPairTailSelectionState(); } catch (e) { }
                 try { syncChuoiPairTrackedSoloInDOM(); } catch (eCh) { /* ignore */ }
                 try { syncChuoiIndexSemanticStylesInDOM(); } catch (eIdx) { /* ignore */ }
+                try { applyChain1AutoringVisualInDOM(); } catch (eCh1) { /* ignore */ }
             } catch (e) { console.error(e); }
         }
 
@@ -10230,6 +10384,7 @@
 
                 try { applySubmitCircleOverlayInDOM(); } catch (ePrev) { /* ignore */ }
                 try { syncSubmitPreviewBodyClasses(); } catch (eBodyCls) { /* ignore */ }
+                try { applyChain1AutoringVisualInDOM(); } catch (eCh1) { /* ignore */ }
 
                 // blocked classes already handled per-number above
                 if (submitActive && hasCircledNumbersForNav()) {
@@ -10902,6 +11057,7 @@
                     }
                     applySubmitAutoCircleDatebandFromMsg(msg);
                     applySubmitAutoCircleChainFromMsg(msg);
+                    try { syncChain1AutoringBodyClass(); } catch (eCh1Body) { /* ignore */ }
                     if (Array.isArray(msg.labelCircleNums) && isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
                         lastSubmitAutoCircleLabelNums = normalizeSubmitAutoCircleNumList(msg.labelCircleNums);
                     } else if (!isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
@@ -10923,10 +11079,16 @@
                     } else if (submitAutoCircleEnabled && wasEnabled && raw) {
                         reapplySubmitAutoCircleForCurrentFocus(msg);
                     } else if (!submitAutoCircleEnabled && wasEnabled) {
-                        var ringNumsOff = Array.from(autoRingPicked);
+                        var wasChain1Mode = normalizeSubmitAutoCircleMode(submitAutoCircleMode) === 'chain1';
+                        var ringNumsOff = wasChain1Mode ? [] : Array.from(autoRingPicked);
                         try { autoRingPicked.clear(); } catch (e) { }
+                        try { autoRingChain1Marked.clear(); } catch (eCh1) { /* ignore */ }
                         try { autoRingVisitedIds.clear(); } catch (eVis) { /* ignore */ }
-                        try { sanitizeSelectionMemoryStripAutoring(); } catch (eMem) { /* ignore */ }
+                        if (!wasChain1Mode) {
+                            try { sanitizeSelectionMemoryStripAutoring(); } catch (eMem) { /* ignore */ }
+                        }
+                        try { syncChain1AutoringBodyClass(); } catch (eBodyCh1) { /* ignore */ }
+                        try { applyChain1AutoringVisualInDOM(); } catch (eCh1Dom) { /* ignore */ }
                         if (ringNumsOff.length) {
                             ringNumsOff.forEach(function (n) {
                                 selected.delete(n);
