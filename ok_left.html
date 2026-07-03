@@ -2097,6 +2097,8 @@
         let autoRingPicked = new Set();
         /** CHUỖI 1 autoring: chỉ viền vuông tím — không vào selected / autoRingPicked. */
         let autoRingChain1Marked = new Set();
+        let chain1AutoringVisualRefreshRaf = 0;
+        let pendingChain1AutoringRefresh = false;
         /** Remember selection per focus id so revisiting a row restores user state */
         let selectionMemoryByFocusId = new Map();
         let lastAutoRingFocusKey = '';
@@ -2573,12 +2575,52 @@
         }
 
         function refreshChain1AutoringFromMsg(msg) {
+            if (!isChain1AutoringMode()) {
+                return;
+            }
             autoRingVisitedIds.clear();
             lastAutoRingFocusKey = '';
-            var chain1Nums = getSubmitAutoCircleNumsForApply(msg);
-            applyAutoRingChain1VisualOnly(chain1Nums);
+            scheduleChain1AutoringVisualRefresh(msg, { forceRefreshData: true });
             try { applySelectionAndBlockedInDOM(); } catch (eDom) { /* ignore */ }
             try { refreshLeftPickSelectionUi(); } catch (eUi) { /* ignore */ }
+        }
+
+        function scheduleChain1AutoringVisualRefresh(msg, options) {
+            options = options || {};
+            if (!isChain1AutoringMode()) {
+                return;
+            }
+            var paintChain1Visual = function () {
+                if (!isChain1AutoringActive()) {
+                    return;
+                }
+                syncChain1AutoringBodyClass();
+                var nums = getChain1CircleNumsForAutoring();
+                if (nums.length) {
+                    applyAutoRingChain1VisualOnly(nums);
+                } else if (options.forceRefreshData && autoRingChain1Marked.size) {
+                    applyChain1AutoringVisualInDOM();
+                }
+                try { applyChain1AutoringVisualInDOM(); } catch (ePaint) { /* ignore */ }
+            };
+            paintChain1Visual();
+            if (chain1AutoringVisualRefreshRaf) {
+                cancelAnimationFrame(chain1AutoringVisualRefreshRaf);
+            }
+            chain1AutoringVisualRefreshRaf = requestAnimationFrame(function () {
+                chain1AutoringVisualRefreshRaf = 0;
+                paintChain1Visual();
+                requestAnimationFrame(paintChain1Visual);
+            });
+        }
+
+        function flushPendingChain1AutoringRefresh() {
+            if (!pendingChain1AutoringRefresh || !submitAutoCircleEnabled || !isChain1AutoringMode() || !raw) {
+                pendingChain1AutoringRefresh = false;
+                return;
+            }
+            pendingChain1AutoringRefresh = false;
+            refreshChain1AutoringFromMsg(null);
         }
 
         function syncChain1AutoringBodyClass() {
@@ -2601,9 +2643,6 @@
         }
 
         function applyAutoRingChain1VisualOnly(circleNums) {
-            if (hasPendingClearSelectionUndo()) {
-                return false;
-            }
             circleNums = (circleNums || []).filter(function (n) { return !isNaN(n); }).slice(0, MAX_PICK_NUMBERS);
             autoRingPicked.clear();
             autoRingChain1Marked.clear();
@@ -3090,10 +3129,19 @@
 
         function getSubmitAutoCircleSet() {
             const out = new Set();
-            if (!submitAutoCircleEnabled || !raw || !raw.freq) {
+            if (!submitAutoCircleEnabled || !raw) {
                 return out;
             }
             var mode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
+            if (mode === 'chain1') {
+                getChain1CircleNumsForAutoring().forEach(function (n) {
+                    out.add(n);
+                });
+                return out;
+            }
+            if (!raw.freq) {
+                return out;
+            }
             if (mode === 'custom') {
                 const x = clampSubmitAutoCircleCustomX(submitAutoCircleCustomX);
                 out.add(x);
@@ -3129,12 +3177,6 @@
             }
             if (mode === 'chain') {
                 getChainCircleNumsFromAnswer(getAnswerNumsForAutoring()).forEach(function (n) {
-                    out.add(n);
-                });
-                return out;
-            }
-            if (mode === 'chain1') {
-                getChain1CircleNumsForAutoring().forEach(function (n) {
                     out.add(n);
                 });
                 return out;
@@ -4097,6 +4139,9 @@
         }
 
         function getSubmitAutoCircleNumsForApply(msg) {
+            if (isChain1AutoringMode()) {
+                return getChain1CircleNumsForAutoring();
+            }
             if (msg && Array.isArray(msg.labelCircleNums) && isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
                 return normalizeSubmitAutoCircleNumList(msg.labelCircleNums);
             }
@@ -5032,6 +5077,10 @@
             } else {
                 updateRender();
             }
+            flushPendingChain1AutoringRefresh();
+            if (isChain1AutoringActive()) {
+                scheduleChain1AutoringVisualRefresh(null);
+            }
         }
 
         function updateRender() {
@@ -5044,6 +5093,7 @@
             try { requestChecknoteDataIfNeeded(); } catch (e) { }
             try { syncPendingPosnfreqMarkersAfterRender(); } catch (eP) { /* ignore */ }
             try { applySelectionAndBlockedInDOM(); } catch (eSel) { /* ignore */ }
+            try { scheduleChain1AutoringVisualRefresh(null); } catch (eCh1) { /* ignore */ }
             setTimeout(function () { try { updateFocusIndicator(); } catch (e) { } }, 40);
         }
 
@@ -5056,6 +5106,7 @@
             try { if (!submitActive) refreshLeftPickSelectionUi(); else if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { /* ignore */ }
             try { if (document.getElementById('checknoteTooltip')) refreshChecknoteTooltip(); } catch (e) { }
             try { syncPickPropertyBadges(); } catch (eBadgesLw) { /* ignore */ }
+            try { scheduleChain1AutoringVisualRefresh(null); } catch (eCh1Lw) { /* ignore */ }
         }
 
         var wasdNavHeavyRefreshRaf = 0;
@@ -11071,11 +11122,19 @@
                         try { updateFocusIndicator(); } catch (e) { }
                         try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
                         try { notifyParentLeftCircledNums(); } catch (e) { }
+                        if (isChain1AutoringActive()) {
+                            scheduleChain1AutoringVisualRefresh(msg, { forceRefreshData: true });
+                        }
                         return;
                     }
 
-                    if (submitAutoCircleEnabled && !wasEnabled && raw) {
-                        applySubmitAutoCircleFreshFromMsg(msg);
+                    if (submitAutoCircleEnabled && !wasEnabled) {
+                        if (raw) {
+                            applySubmitAutoCircleFreshFromMsg(msg);
+                        } else if (isChain1AutoringMode()) {
+                            pendingChain1AutoringRefresh = true;
+                            syncChain1AutoringBodyClass();
+                        }
                     } else if (submitAutoCircleEnabled && wasEnabled && raw) {
                         reapplySubmitAutoCircleForCurrentFocus(msg);
                     } else if (!submitAutoCircleEnabled && wasEnabled) {
@@ -11121,6 +11180,9 @@
                         try { notifyParentLeftCircledNums(); } catch (e) { }
                     }
                     try { applySubmitState(); } catch (e) { }
+                    if (isChain1AutoringActive()) {
+                        scheduleChain1AutoringVisualRefresh(msg, { forceRefreshData: true });
+                    }
                 } else if (msg.type === 'setSubmitActive') {
                     setSubmitActiveFromParent(!!msg.active, msg.answerNums, {
                         clearManualPicks: !!msg.clearManualPicks
