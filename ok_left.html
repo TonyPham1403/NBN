@@ -214,12 +214,12 @@
             opacity: 1;
         }
 
-        /* Autoring CHUỖI 1: viền vuông tím — chỉ style, độc lập khoanh tay (không dùng .selected) */
-        body.autoring-chain1-active .cell.num.autoring-chain1-square {
+        /* Phase toolbar: viền vuông tím — chỉ style, độc lập autoring / khoanh tay */
+        body.phase-toolbar-active .cell.num.phase-chain-square {
             position: relative;
         }
 
-        body.autoring-chain1-active .cell.num.autoring-chain1-square::before {
+        body.phase-toolbar-active .cell.num.phase-chain-square::before {
             content: "";
             position: absolute;
             left: 50%;
@@ -235,7 +235,7 @@
             z-index: 2;
         }
 
-        body.submit-preview-active.autoring-chain1-active .cell.num.autoring-chain1-square::before {
+        body.submit-preview-active.phase-toolbar-active .cell.num.phase-chain-square::before {
             z-index: 3;
         }
 
@@ -2095,10 +2095,12 @@
         /** Track draw ids (right-pane focus row) that already received one-shot auto ring */
         let autoRingVisitedIds = new Set();
         let autoRingPicked = new Set();
-        /** CHUỖI 1 autoring: chỉ viền vuông tím — không vào selected / autoRingPicked. */
-        let autoRingChain1Marked = new Set();
-        let chain1AutoringVisualRefreshRaf = 0;
-        let pendingChain1AutoringRefresh = false;
+        /** Phase toolbar: viền vuông tím chuỗi N — không vào selected / autoRingPicked. */
+        let phaseToolbarEnabled = false;
+        let phaseChainLabel = 1;
+        let phaseMarkedNums = new Set();
+        let phaseVisualRefreshRaf = 0;
+        let pendingPhaseVisualRefresh = false;
         /** Remember selection per focus id so revisiting a row restores user state */
         let selectionMemoryByFocusId = new Map();
         let lastAutoRingFocusKey = '';
@@ -2508,7 +2510,6 @@
         }
 
         function clearAutoRingSelectionVisuals() {
-            clearChain1AutoringVisualOnly();
             var ringNums = Array.from(autoRingPicked);
             autoRingPicked.clear();
             if (submitActive && submitCircleOverlaySource === 'autoring') {
@@ -2549,113 +2550,139 @@
 
         function normalizeSubmitAutoCircleMode(mode) {
             var m = String(mode || '').trim();
-            if (m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist' || m === 'dateband' || m === 'chain' || m === 'chain1') {
+            if (m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist' || m === 'dateband' || m === 'chain') {
                 return m;
+            }
+            if (m === 'chain1') {
+                return 'max';
             }
             return 'max';
         }
 
         function submitAutoCircleSkipsLine11Requirement(mode) {
             var m = normalizeSubmitAutoCircleMode(mode);
-            return m === 'custom' || m === 'chain1';
+            return m === 'custom';
         }
 
-        function isChain1AutoringActive() {
-            return !!(submitAutoCircleEnabled && normalizeSubmitAutoCircleMode(submitAutoCircleMode) === 'chain1');
+        function clampPhaseChainLabel(v) {
+            var n = parseInt(v, 10);
+            if (!Number.isFinite(n) || n < 1) {
+                return 1;
+            }
+            if (n > 10) {
+                return 10;
+            }
+            return n;
         }
 
-        function isChain1AutoringMode(mode) {
-            return normalizeSubmitAutoCircleMode(mode != null ? mode : submitAutoCircleMode) === 'chain1';
+        function isPhaseToolbarActive() {
+            return !!phaseToolbarEnabled;
         }
 
-        function clearChain1AutoringVisualOnly() {
-            autoRingChain1Marked.clear();
-            syncChain1AutoringBodyClass();
-            applyChain1AutoringVisualInDOM();
+        function clearPhaseVisualOnly() {
+            phaseMarkedNums.clear();
+            syncPhaseToolbarBodyClass();
+            applyPhaseVisualInDOM();
         }
 
-        function refreshChain1AutoringFromMsg(msg) {
-            if (!isChain1AutoringMode()) {
+        function refreshPhaseVisualFromConfig() {
+            if (!isPhaseToolbarActive()) {
+                clearPhaseVisualOnly();
                 return;
             }
-            autoRingVisitedIds.clear();
-            lastAutoRingFocusKey = '';
-            scheduleChain1AutoringVisualRefresh(msg, { forceRefreshData: true });
+            schedulePhaseVisualRefresh({ forceRefreshData: true });
             try { applySelectionAndBlockedInDOM(); } catch (eDom) { /* ignore */ }
             try { refreshLeftPickSelectionUi(); } catch (eUi) { /* ignore */ }
         }
 
-        function scheduleChain1AutoringVisualRefresh(msg, options) {
+        function schedulePhaseVisualRefresh(options) {
             options = options || {};
-            if (!isChain1AutoringMode()) {
+            if (!isPhaseToolbarActive()) {
                 return;
             }
-            var paintChain1Visual = function () {
-                if (!isChain1AutoringActive()) {
+            var paintPhaseVisual = function () {
+                if (!isPhaseToolbarActive()) {
                     return;
                 }
-                syncChain1AutoringBodyClass();
-                var nums = getChain1CircleNumsForAutoring();
+                syncPhaseToolbarBodyClass();
+                var nums = getPhaseCircleNums();
                 if (nums.length) {
-                    applyAutoRingChain1VisualOnly(nums);
-                } else if (options.forceRefreshData && autoRingChain1Marked.size) {
-                    applyChain1AutoringVisualInDOM();
+                    applyPhaseVisualOnly(nums);
+                } else if (options.forceRefreshData && phaseMarkedNums.size) {
+                    applyPhaseVisualInDOM();
                 }
-                try { applyChain1AutoringVisualInDOM(); } catch (ePaint) { /* ignore */ }
+                try { applyPhaseVisualInDOM(); } catch (ePaint) { /* ignore */ }
             };
-            paintChain1Visual();
-            if (chain1AutoringVisualRefreshRaf) {
-                cancelAnimationFrame(chain1AutoringVisualRefreshRaf);
+            paintPhaseVisual();
+            if (phaseVisualRefreshRaf) {
+                cancelAnimationFrame(phaseVisualRefreshRaf);
             }
-            chain1AutoringVisualRefreshRaf = requestAnimationFrame(function () {
-                chain1AutoringVisualRefreshRaf = 0;
-                paintChain1Visual();
-                requestAnimationFrame(paintChain1Visual);
+            phaseVisualRefreshRaf = requestAnimationFrame(function () {
+                phaseVisualRefreshRaf = 0;
+                paintPhaseVisual();
+                requestAnimationFrame(paintPhaseVisual);
             });
         }
 
-        function flushPendingChain1AutoringRefresh() {
-            if (!pendingChain1AutoringRefresh || !submitAutoCircleEnabled || !isChain1AutoringMode() || !raw) {
-                pendingChain1AutoringRefresh = false;
+        function flushPendingPhaseVisualRefresh() {
+            if (!pendingPhaseVisualRefresh || !phaseToolbarEnabled || !raw) {
+                pendingPhaseVisualRefresh = false;
                 return;
             }
-            pendingChain1AutoringRefresh = false;
-            refreshChain1AutoringFromMsg(null);
+            pendingPhaseVisualRefresh = false;
+            refreshPhaseVisualFromConfig();
         }
 
-        function syncChain1AutoringBodyClass() {
+        function syncPhaseToolbarBodyClass() {
             try {
-                document.body.classList.toggle('autoring-chain1-active', isChain1AutoringActive());
+                document.body.classList.toggle('phase-toolbar-active', isPhaseToolbarActive());
             } catch (e) { /* ignore */ }
         }
 
-        function applyChain1AutoringVisualInDOM() {
-            var show = isChain1AutoringActive();
+        function applyPhaseVisualInDOM() {
+            var show = isPhaseToolbarActive();
             try {
                 document.querySelectorAll('.cell.num[data-num]').forEach(function (span) {
                     var val = parseInt(span.getAttribute('data-num'), 10);
                     if (isNaN(val)) {
                         return;
                     }
-                    span.classList.toggle('autoring-chain1-square', show && autoRingChain1Marked.has(val));
+                    span.classList.toggle('phase-chain-square', show && phaseMarkedNums.has(val));
                 });
             } catch (e) { /* ignore */ }
         }
 
-        function applyAutoRingChain1VisualOnly(circleNums) {
+        function applyPhaseVisualOnly(circleNums) {
             circleNums = (circleNums || []).filter(function (n) { return !isNaN(n); }).slice(0, MAX_PICK_NUMBERS);
-            autoRingPicked.clear();
-            autoRingChain1Marked.clear();
+            phaseMarkedNums.clear();
             circleNums.forEach(function (n) {
-                autoRingChain1Marked.add(n);
+                phaseMarkedNums.add(n);
             });
-            if (submitActive && submitCircleOverlaySource === 'autoring') {
-                try { markSubmitCircleOverlayCleared(); } catch (eOv) { /* ignore */ }
-            }
-            syncChain1AutoringBodyClass();
-            applyChain1AutoringVisualInDOM();
-            try { applySubmitCircleOverlayInDOM(); } catch (eDom) { /* ignore */ }
+            syncPhaseToolbarBodyClass();
+            applyPhaseVisualInDOM();
             return circleNums.length > 0;
+        }
+
+        function applyPhaseToolbarFromMsg(msg) {
+            if (!msg || typeof msg !== 'object') {
+                return;
+            }
+            if (typeof msg.enabled === 'boolean') {
+                phaseToolbarEnabled = msg.enabled;
+            }
+            if (msg.chainLabel != null && msg.chainLabel !== '') {
+                phaseChainLabel = clampPhaseChainLabel(msg.chainLabel);
+            }
+            if (!phaseToolbarEnabled) {
+                clearPhaseVisualOnly();
+                return;
+            }
+            if (!raw) {
+                pendingPhaseVisualRefresh = true;
+                syncPhaseToolbarBodyClass();
+                return;
+            }
+            refreshPhaseVisualFromConfig();
         }
 
         function normalizeSubmitAutoCircleChainLabels(raw) {
@@ -2733,28 +2760,40 @@
             return out;
         }
 
-        /** 5 số đáp án ở chuỗi 1 (sát kỳ focus) trong cửa sổ trượt 10 hiện tại. */
-        function getChain1CircleNumsForAutoring() {
+        /** 5 số đáp án ở chuỗi N (nhãn 1..10) trong cửa sổ trượt 10 hiện tại. */
+        function getPhaseCircleNumsForLabel(label) {
+            var want = clampPhaseChainLabel(label);
             var lines = getPickChainLinesForAutoring();
             if (!lines.length) {
                 return [];
             }
-            var chain1Line = null;
+            var chainLine = null;
             for (var i = 0; i < lines.length; i++) {
-                if (lines[i].label === 1) {
-                    chain1Line = lines[i];
+                if (lines[i].label === want) {
+                    chainLine = lines[i];
                     break;
                 }
             }
-            if (!chain1Line) {
-                chain1Line = lines[lines.length - 1];
+            if (!chainLine) {
+                for (var j = 0; j < lines.length; j++) {
+                    if (lines[j].label <= want) {
+                        chainLine = lines[j];
+                    }
+                }
+                if (!chainLine) {
+                    chainLine = lines[lines.length - 1];
+                }
             }
-            var nums = (chain1Line.nums || []).map(function (n) {
+            var nums = (chainLine.nums || []).map(function (n) {
                 return parseInt(n, 10);
             }).filter(function (n) {
                 return !isNaN(n) && n >= 1 && n <= 35;
             });
             return nums.slice(0, 5);
+        }
+
+        function getPhaseCircleNums() {
+            return getPhaseCircleNumsForLabel(phaseChainLabel);
         }
 
         function clampSubmitAutoCircleDatebandFreq(v) {
@@ -3133,18 +3172,12 @@
                 return out;
             }
             var mode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
-            if (mode === 'chain1') {
-                getChain1CircleNumsForAutoring().forEach(function (n) {
-                    out.add(n);
-                });
-                return out;
-            }
-            if (!raw.freq) {
-                return out;
-            }
             if (mode === 'custom') {
                 const x = clampSubmitAutoCircleCustomX(submitAutoCircleCustomX);
                 out.add(x);
+                return out;
+            }
+            if (!raw.freq) {
                 return out;
             }
             if (mode === 'conn3') {
@@ -3447,15 +3480,7 @@
             }
             circleNums = (circleNums || []).filter(function (n) { return !isNaN(n); });
 
-            if (normalizeSubmitAutoCircleMode(submitAutoCircleMode) === 'chain1') {
-                return applyAutoRingChain1VisualOnly(circleNums);
-            }
-
             if (!circleNums.length) return false;
-
-            autoRingChain1Marked.clear();
-            syncChain1AutoringBodyClass();
-            applyChain1AutoringVisualInDOM();
 
             if (submitActive) {
                 if (answerPopupTicketPreviewOnly) {
@@ -3467,7 +3492,7 @@
 
             /* Khoanh trước số có tần suất cao — tránh đủ 5 slot toàn số freq thấp, bỏ lỡ số quan sát freq>=2 */
             var ringModeForSort = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
-            if (!submitActive && raw && raw.freq && ringModeForSort !== 'chain1') {
+            if (!submitActive && raw && raw.freq) {
                 circleNums.sort(function (a, b) {
                     var fa = parseInt(raw.freq[a], 10) || 0;
                     var fb = parseInt(raw.freq[b], 10) || 0;
@@ -4139,9 +4164,6 @@
         }
 
         function getSubmitAutoCircleNumsForApply(msg) {
-            if (isChain1AutoringMode()) {
-                return getChain1CircleNumsForAutoring();
-            }
             if (msg && Array.isArray(msg.labelCircleNums) && isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
                 return normalizeSubmitAutoCircleNumList(msg.labelCircleNums);
             }
@@ -4156,24 +4178,11 @@
                 return;
             }
             if (disableSubmitForCurrentData) {
-                if (isChain1AutoringMode()) {
-                    clearChain1AutoringVisualOnly();
-                } else {
-                    clearAutoRingSelectionVisuals();
-                }
+                clearAutoRingSelectionVisuals();
                 return;
             }
             if (!submitAutoCircleSkipsLine11Requirement(submitAutoCircleMode) && !hasCurrentLine11Result()) {
-                if (isChain1AutoringMode()) {
-                    clearChain1AutoringVisualOnly();
-                } else {
-                    clearAutoRingSelectionVisuals();
-                }
-                return;
-            }
-
-            if (isChain1AutoringMode()) {
-                refreshChain1AutoringFromMsg(msg);
+                clearAutoRingSelectionVisuals();
                 return;
             }
 
@@ -4216,31 +4225,15 @@
                 return;
             }
             if (disableSubmitForCurrentData) {
-                if (isChain1AutoringMode()) {
-                    clearChain1AutoringVisualOnly();
-                } else {
-                    clearAutoRingSelectionVisuals();
-                }
+                clearAutoRingSelectionVisuals();
                 return;
             }
             if (!submitAutoCircleSkipsLine11Requirement(submitAutoCircleMode) && !hasCurrentLine11Result()) {
-                if (isChain1AutoringMode()) {
-                    clearChain1AutoringVisualOnly();
-                } else {
-                    clearAutoRingSelectionVisuals();
-                }
+                clearAutoRingSelectionVisuals();
                 return;
             }
             if (msg && msg.forceReapplyAutoring) {
-                if (isChain1AutoringMode()) {
-                    refreshChain1AutoringFromMsg(msg);
-                } else {
-                    applySubmitAutoCircleFreshFromMsg(msg);
-                }
-                return;
-            }
-            if (isChain1AutoringMode()) {
-                refreshChain1AutoringFromMsg(msg);
+                applySubmitAutoCircleFreshFromMsg(msg);
                 return;
             }
             var ansCfg = getAnswerNumsFromCurrentLine11();
@@ -4251,8 +4244,6 @@
             var circleNumsCfg = getSubmitAutoCircleNumsForApply(msg);
             if (circleNumsCfg.length > 0) {
                 applyAutoRingSelection(circleNumsCfg);
-            } else if (isChain1AutoringMode()) {
-                clearChain1AutoringVisualOnly();
             } else {
                 clearAutoRingSelectionVisuals();
             }
@@ -4264,38 +4255,17 @@
             try {
                 if (!submitAutoCircleEnabled || !raw) return;
                 if (disableSubmitForCurrentData) {
-                    if (isChain1AutoringMode()) {
-                        clearChain1AutoringVisualOnly();
-                    } else {
-                        clearAutoRingSelectionVisuals();
-                    }
+                    clearAutoRingSelectionVisuals();
                     return;
                 }
                 if (!submitAutoCircleSkipsLine11Requirement(submitAutoCircleMode) && !hasCurrentLine11Result()) {
-                    if (isChain1AutoringMode()) {
-                        clearChain1AutoringVisualOnly();
-                    } else {
-                        clearAutoRingSelectionVisuals();
-                    }
+                    clearAutoRingSelectionVisuals();
                     return;
                 }
 
                 var fk = normalizeAutoRingFocusKey(focusRowIdRaw);
                 if (!fk) return;
                 if (!options.focusArrival && autoRingVisitedIds.has(fk)) return;
-
-                if (isChain1AutoringMode()) {
-                    var chain1Nums = getSubmitAutoCircleNumsForApply(null);
-                    if (!chain1Nums.length) {
-                        clearChain1AutoringVisualOnly();
-                        return;
-                    }
-                    if (!applyAutoRingChain1VisualOnly(chain1Nums)) return;
-                    autoRingVisitedIds.add(fk);
-                    lastAutoRingFocusKey = fk;
-                    try { applySelectionAndBlockedInDOM(); } catch (eDom) { /* ignore */ }
-                    return;
-                }
 
                 var ans = getAnswerNumsFromCurrentLine11();
                 var ringMode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
@@ -4902,7 +4872,7 @@
                 try { refreshPairTailSelectionState(); } catch (e) { }
                 try { syncChuoiPairTrackedSoloInDOM(); } catch (eCh) { /* ignore */ }
                 try { syncChuoiIndexSemanticStylesInDOM(); } catch (eIdx) { /* ignore */ }
-                try { applyChain1AutoringVisualInDOM(); } catch (eCh1) { /* ignore */ }
+                try { applyPhaseVisualInDOM(); } catch (ePh) { /* ignore */ }
             } catch (e) { console.error(e); }
         }
 
@@ -5077,9 +5047,9 @@
             } else {
                 updateRender();
             }
-            flushPendingChain1AutoringRefresh();
-            if (isChain1AutoringActive()) {
-                scheduleChain1AutoringVisualRefresh(null);
+            flushPendingPhaseVisualRefresh();
+            if (isPhaseToolbarActive()) {
+                schedulePhaseVisualRefresh(null);
             }
         }
 
@@ -5093,7 +5063,7 @@
             try { requestChecknoteDataIfNeeded(); } catch (e) { }
             try { syncPendingPosnfreqMarkersAfterRender(); } catch (eP) { /* ignore */ }
             try { applySelectionAndBlockedInDOM(); } catch (eSel) { /* ignore */ }
-            try { scheduleChain1AutoringVisualRefresh(null); } catch (eCh1) { /* ignore */ }
+            try { schedulePhaseVisualRefresh(null); } catch (ePh) { /* ignore */ }
             setTimeout(function () { try { updateFocusIndicator(); } catch (e) { } }, 40);
         }
 
@@ -5106,7 +5076,7 @@
             try { if (!submitActive) refreshLeftPickSelectionUi(); else if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { /* ignore */ }
             try { if (document.getElementById('checknoteTooltip')) refreshChecknoteTooltip(); } catch (e) { }
             try { syncPickPropertyBadges(); } catch (eBadgesLw) { /* ignore */ }
-            try { scheduleChain1AutoringVisualRefresh(null); } catch (eCh1Lw) { /* ignore */ }
+            try { schedulePhaseVisualRefresh(null); } catch (ePhLw) { /* ignore */ }
         }
 
         var wasdNavHeavyRefreshRaf = 0;
@@ -8361,6 +8331,82 @@
             }
         }
 
+        function getChecknoteTable2Rect() {
+            const rightContainer = document.getElementById('right');
+            return rightContainer ? rightContainer.getBoundingClientRect() : null;
+        }
+
+        /** Đặt panel 📑 bên trái bảng 2 — không được phép đè lên #right. */
+        function layoutChecknoteTooltipPosition(tip, anchorEl) {
+            const TABLE2_GAP = 10;
+            const VIEWPORT_MARGIN = 8;
+            const MAX_TIP_WIDTH = 560;
+            const MIN_TIP_WIDTH = 140;
+
+            const rect = (anchorEl && anchorEl.getBoundingClientRect)
+                ? anchorEl.getBoundingClientRect()
+                : { left: 0, top: 0, width: 0, height: 0 };
+            const rightRect = getChecknoteTable2Rect();
+
+            let maxWidth = MAX_TIP_WIDTH;
+            if (rightRect) {
+                maxWidth = Math.min(
+                    MAX_TIP_WIDTH,
+                    Math.max(MIN_TIP_WIDTH, rightRect.left - VIEWPORT_MARGIN - TABLE2_GAP)
+                );
+            }
+            tip.style.maxWidth = maxWidth + 'px';
+            tip.style.visibility = 'hidden';
+            tip.style.left = '0px';
+            tip.style.top = '0px';
+
+            let w = tip.offsetWidth;
+            let h = tip.offsetHeight;
+
+            let left;
+            if (rightRect) {
+                const maxRight = rightRect.left - TABLE2_GAP;
+                left = maxRight - w;
+                if (left < VIEWPORT_MARGIN) {
+                    left = VIEWPORT_MARGIN;
+                    const allowedW = maxRight - VIEWPORT_MARGIN;
+                    if (allowedW >= MIN_TIP_WIDTH && w > allowedW) {
+                        tip.style.maxWidth = allowedW + 'px';
+                        w = tip.offsetWidth;
+                        h = tip.offsetHeight;
+                        left = maxRight - w;
+                    }
+                }
+                if (left + w > maxRight) {
+                    const shrinkTo = maxRight - Math.max(left, VIEWPORT_MARGIN);
+                    if (shrinkTo > 0 && shrinkTo < w) {
+                        tip.style.maxWidth = shrinkTo + 'px';
+                        w = tip.offsetWidth;
+                        h = tip.offsetHeight;
+                    }
+                    left = Math.max(VIEWPORT_MARGIN, maxRight - w);
+                }
+            } else {
+                left = Math.max(VIEWPORT_MARGIN, rect.left - w - 14);
+            }
+
+            let top = rect.top + rect.height / 2 - h / 2;
+            const minTop = VIEWPORT_MARGIN;
+            const maxTop = window.innerHeight - h - VIEWPORT_MARGIN;
+            if (top < minTop) top = minTop;
+            if (top > maxTop) top = maxTop;
+
+            tip.style.left = left + 'px';
+            tip.style.top = top + 'px';
+            tip.style.visibility = 'visible';
+
+            const anchorCenterY = rect.top + rect.height / 2;
+            let arrowTop = anchorCenterY - top - 8;
+            if (arrowTop < 6) arrowTop = 6;
+            if (arrowTop > h - 16) arrowTop = Math.max(6, h - 16);
+            return arrowTop;
+        }
+
         function showChecknoteTooltip(anchorEl, html, opts) {
             opts = opts || {};
             hideChecknoteTooltip(true);
@@ -8387,25 +8433,7 @@
             content.innerHTML = html;
             tip.appendChild(content);
             document.body.appendChild(tip);
-            const rect = anchorEl.getBoundingClientRect();
-            tip.style.visibility = 'hidden'; tip.style.left = '0px'; tip.style.top = '0px';
-            const w = tip.offsetWidth, h = tip.offsetHeight;
-            const rightContainer = document.getElementById('right');
-            const rightRect = rightContainer ? rightContainer.getBoundingClientRect() : rect;
-            let left = (rightRect.left - w - 14);
-            if (left < 8) left = 8;
-            let top = rect.top + rect.height / 2 - h / 2;
-            const minTop = 4;
-            const maxTop = window.innerHeight - h - 4;
-            if (top < minTop) top = minTop;
-            if (top > maxTop) top = maxTop;
-            tip.style.left = left + 'px';
-            tip.style.top = top + 'px';
-            tip.style.visibility = 'visible';
-            const anchorCenterY = rect.top + rect.height / 2;
-            let arrowTop = (anchorCenterY - top - 8);
-            if (arrowTop < 6) arrowTop = 6;
-            if (arrowTop > h - 16) arrowTop = Math.max(6, h - 16);
+            const arrowTop = layoutChecknoteTooltipPosition(tip, anchorEl);
             const arrowBorder = document.createElement('div');
             arrowBorder.className = 'checknote-arrow-border';
             arrowBorder.style.position = 'absolute';
@@ -8471,27 +8499,9 @@
 
         function repositionChecknoteTooltip(anchorEl) {
             const tip = document.getElementById('checknoteTooltip'); if (!tip) return;
-            const rect = (anchorEl && anchorEl.getBoundingClientRect) ? anchorEl.getBoundingClientRect() : { left: 0, top: 0, width: 0, height: 0 };
-            tip.style.visibility = 'hidden'; tip.style.left = '0px'; tip.style.top = '0px';
-            const w = tip.offsetWidth, h = tip.offsetHeight;
-            const rightContainer = document.getElementById('right');
-            const rightRect = rightContainer ? rightContainer.getBoundingClientRect() : rect;
-            let left = (rightRect.left - w - 14);
-            if (left < 8) left = 8;
-            let top = rect.top + rect.height / 2 - h / 2;
-            const minTop = 4;
-            const maxTop = window.innerHeight - h - 4;
-            if (top < minTop) top = minTop;
-            if (top > maxTop) top = maxTop;
-            tip.style.left = left + 'px';
-            tip.style.top = top + 'px';
-            tip.style.visibility = 'visible';
+            const arrowTop = layoutChecknoteTooltipPosition(tip, anchorEl);
             const arrowBorder = tip.querySelector('.checknote-arrow-border');
             const arrowFill = tip.querySelector('.checknote-arrow-fill');
-            const anchorCenterY = rect.top + rect.height / 2;
-            let arrowTop = (anchorCenterY - top - 8);
-            if (arrowTop < 6) arrowTop = 6;
-            if (arrowTop > h - 16) arrowTop = Math.max(6, h - 16);
             if (arrowBorder) arrowBorder.style.top = (arrowTop - 2) + 'px';
             if (arrowFill) arrowFill.style.top = arrowTop + 'px';
         }
@@ -9596,6 +9606,58 @@
             }, true);
         })();
 
+        (function initLeftPhaseAltShortcut() {
+            if (document.documentElement.dataset.phaseAltBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.phaseAltBound = '1';
+
+            var altPressedAlone = false;
+            var altChordUsed = false;
+
+            function isPhaseAltKey(event) {
+                return event.key === 'Alt' || event.code === 'AltLeft' || event.code === 'AltRight';
+            }
+
+            function onAltKeyDown(event) {
+                if (isPhaseAltKey(event)) {
+                    if (event.repeat) {
+                        return;
+                    }
+                    altPressedAlone = true;
+                    altChordUsed = false;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                }
+                if (event.altKey) {
+                    altChordUsed = true;
+                }
+            }
+
+            function onAltKeyUp(event) {
+                if (!isPhaseAltKey(event)) {
+                    return;
+                }
+                var shouldToggle = altPressedAlone && !altChordUsed;
+                altPressedAlone = false;
+                altChordUsed = false;
+                event.preventDefault();
+                event.stopPropagation();
+                if (!shouldToggle) {
+                    return;
+                }
+                try {
+                    window.parent.postMessage({ type: 'togglePhase' }, '*');
+                } catch (err) { }
+            }
+
+            document.addEventListener('keydown', onAltKeyDown, true);
+            document.addEventListener('keyup', onAltKeyUp, true);
+            window.addEventListener('keydown', onAltKeyDown, true);
+            window.addEventListener('keyup', onAltKeyUp, true);
+        })();
+
         function handleLeftPaneNavKey(key) {
             wasdNavStepActive = true;
             try {
@@ -10435,7 +10497,7 @@
 
                 try { applySubmitCircleOverlayInDOM(); } catch (ePrev) { /* ignore */ }
                 try { syncSubmitPreviewBodyClasses(); } catch (eBodyCls) { /* ignore */ }
-                try { applyChain1AutoringVisualInDOM(); } catch (eCh1) { /* ignore */ }
+                try { applyPhaseVisualInDOM(); } catch (ePh) { /* ignore */ }
 
                 // blocked classes already handled per-number above
                 if (submitActive && hasCircledNumbersForNav()) {
@@ -11108,7 +11170,6 @@
                     }
                     applySubmitAutoCircleDatebandFromMsg(msg);
                     applySubmitAutoCircleChainFromMsg(msg);
-                    try { syncChain1AutoringBodyClass(); } catch (eCh1Body) { /* ignore */ }
                     if (Array.isArray(msg.labelCircleNums) && isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
                         lastSubmitAutoCircleLabelNums = normalizeSubmitAutoCircleNumList(msg.labelCircleNums);
                     } else if (!isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
@@ -11122,32 +11183,20 @@
                         try { updateFocusIndicator(); } catch (e) { }
                         try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
                         try { notifyParentLeftCircledNums(); } catch (e) { }
-                        if (isChain1AutoringActive()) {
-                            scheduleChain1AutoringVisualRefresh(msg, { forceRefreshData: true });
-                        }
                         return;
                     }
 
                     if (submitAutoCircleEnabled && !wasEnabled) {
                         if (raw) {
                             applySubmitAutoCircleFreshFromMsg(msg);
-                        } else if (isChain1AutoringMode()) {
-                            pendingChain1AutoringRefresh = true;
-                            syncChain1AutoringBodyClass();
                         }
                     } else if (submitAutoCircleEnabled && wasEnabled && raw) {
                         reapplySubmitAutoCircleForCurrentFocus(msg);
                     } else if (!submitAutoCircleEnabled && wasEnabled) {
-                        var wasChain1Mode = normalizeSubmitAutoCircleMode(submitAutoCircleMode) === 'chain1';
-                        var ringNumsOff = wasChain1Mode ? [] : Array.from(autoRingPicked);
+                        var ringNumsOff = Array.from(autoRingPicked);
                         try { autoRingPicked.clear(); } catch (e) { }
-                        try { autoRingChain1Marked.clear(); } catch (eCh1) { /* ignore */ }
                         try { autoRingVisitedIds.clear(); } catch (eVis) { /* ignore */ }
-                        if (!wasChain1Mode) {
-                            try { sanitizeSelectionMemoryStripAutoring(); } catch (eMem) { /* ignore */ }
-                        }
-                        try { syncChain1AutoringBodyClass(); } catch (eBodyCh1) { /* ignore */ }
-                        try { applyChain1AutoringVisualInDOM(); } catch (eCh1Dom) { /* ignore */ }
+                        try { sanitizeSelectionMemoryStripAutoring(); } catch (eMem) { /* ignore */ }
                         if (ringNumsOff.length) {
                             ringNumsOff.forEach(function (n) {
                                 selected.delete(n);
@@ -11180,9 +11229,8 @@
                         try { notifyParentLeftCircledNums(); } catch (e) { }
                     }
                     try { applySubmitState(); } catch (e) { }
-                    if (isChain1AutoringActive()) {
-                        scheduleChain1AutoringVisualRefresh(msg, { forceRefreshData: true });
-                    }
+                } else if (msg.type === 'phaseChanged') {
+                    applyPhaseToolbarFromMsg(msg);
                 } else if (msg.type === 'setSubmitActive') {
                     setSubmitActiveFromParent(!!msg.active, msg.answerNums, {
                         clearManualPicks: !!msg.clearManualPicks

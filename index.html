@@ -1442,6 +1442,92 @@
             background: #6ee7b7;
         }
 
+        #phaseToggleBtn.active {
+            background: #7c3aed;
+        }
+
+        /* Phase: vuông tím + chấm pha — khác icon kim cương autoring */
+        .sheet-tools-toggle.phase-toggle::before {
+            left: 6px;
+            top: 4px;
+            width: 12px;
+            height: 12px;
+            border: 2px solid #7c3aed;
+            border-radius: 2px;
+            transform: none;
+            background: rgba(147, 51, 234, 0.14);
+            box-sizing: border-box;
+        }
+
+        .sheet-tools-toggle.phase-toggle::after {
+            left: 17px;
+            bottom: 5px;
+            width: 5px;
+            height: 5px;
+            border-radius: 1px;
+            background: #7c3aed;
+        }
+
+        .sheet-tools-toggle.phase-toggle.active::before {
+            border-color: #ddd6fe;
+            background: rgba(91, 33, 182, 0.5);
+        }
+
+        .sheet-tools-toggle.phase-toggle.active::after {
+            background: #e9d5ff;
+        }
+
+        .phase-controls {
+            display: inline-flex;
+            align-items: stretch;
+            align-self: stretch;
+            flex: 0 0 auto;
+            border-right: 1px solid #cbd5e1;
+        }
+
+        .phase-controls .phase-mode-wrap {
+            width: 68px;
+            min-width: 68px;
+        }
+
+        .phase-controls .phase-mode-wrap.enabled {
+            background: #6d28d9;
+        }
+
+        .phase-controls .phase-mode-wrap.enabled .sheet-tools-mode-value {
+            color: #ffffff;
+        }
+
+        .phase-controls .phase-mode-wrap.enabled::after {
+            color: #ffffff;
+        }
+
+        #phaseModeSelect {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            opacity: 0;
+            cursor: pointer;
+            padding: 0;
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+        }
+
+        .phase-controls .sheet-tools-mode-value {
+            right: 12px;
+            max-width: calc(100% - 14px);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            text-transform: none;
+            font-size: 9px;
+        }
+
         .sheet-tools-toggle.active::before {
             border-color: #047857;
         }
@@ -2885,7 +2971,7 @@
             border-bottom-right-radius: 0;
         }
 
-        .filter-popup-chain-filter-toggle:not(.hidden) + .filter-popup-chain-combine-toggle:not(.hidden) {
+        .filter-popup-chain-filter-toggle:not(.hidden)+.filter-popup-chain-combine-toggle:not(.hidden) {
             border-top-left-radius: 0;
             border-bottom-left-radius: 0;
             margin-left: -1px;
@@ -5062,7 +5148,8 @@
 <body>
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20250703chain1fix" style="width:100%;height:100%;border:0"></iframe>
+            <iframe id="okFrame" src="ok_left.html?v=20250703phase3"
+                style="width:100%;height:100%;border:0"></iframe>
         </section>
 
         <section class="pane right">
@@ -5091,7 +5178,6 @@
                                     <option value="nonexist">nonexist</option>
                                     <option value="dateband"> </option>
                                     <option value="chain">Chuỗi []</option>
-                                    <option value="chain1">CHUỖI 1</option>
                                 </select>
                                 <ul id="submitRingModeMenu" class="period-filter-mode-menu submit-ring-mode-menu hidden"
                                     role="listbox" aria-label="Chế độ autoring"></ul>
@@ -5125,6 +5211,27 @@
                                 title="U thuận (∪): OR — đáp án trên bất kỳ chuỗi đã chọn">U</button>
                             <div id="submitRingChainFilterPicker" class="submit-ring-chain-filter-picker hidden"
                                 role="group" aria-label="Chọn nhãn chuỗi 1–10 autoring"></div>
+                        </div>
+                        <button type="button" id="phaseToggleBtn" class="sheet-tools-toggle phase-toggle"
+                            title="Bật/tắt phase — tô vuông tím 5 số theo chuỗi (Alt)"
+                            aria-label="Toggle phase chain highlight (Alt)"></button>
+                        <div id="phaseControls" class="phase-controls">
+                            <div id="phaseModeWrap" class="sheet-tools-mode-wrap phase-mode-wrap"
+                                title="Chọn phase 1–10">
+                                <span id="phaseModeValue" class="sheet-tools-mode-value">PHASE 1</span>
+                                <select id="phaseModeSelect" aria-label="Chọn phase chuỗi 1–10">
+                                    <option value="1">PHASE 1</option>
+                                    <option value="2">PHASE 2</option>
+                                    <option value="3">PHASE 3</option>
+                                    <option value="4">PHASE 4</option>
+                                    <option value="5">PHASE 5</option>
+                                    <option value="6">PHASE 6</option>
+                                    <option value="7">PHASE 7</option>
+                                    <option value="8">PHASE 8</option>
+                                    <option value="9">PHASE 9</option>
+                                    <option value="10">PHASE 10</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
                     <div class="sheet-tools-group filter-tools-group">
@@ -5214,10 +5321,10 @@
                             </div>
                         </div>
                         <div class="filter-popup-nonexist-bracket-num" role="group"
-                            title="Số 1–35 trong nonexist — AND với []"
-                            aria-label="Số nonexist 1–35 (AND với [])">
-                            <span id="filterPopupNonexistNum" class="filter-popup-position-input filter-popup-nonexist-num"
-                                tabindex="0" role="textbox" aria-label="Số nonexist 1-35"
+                            title="Số 1–35 trong nonexist — AND với []" aria-label="Số nonexist 1–35 (AND với [])">
+                            <span id="filterPopupNonexistNum"
+                                class="filter-popup-position-input filter-popup-nonexist-num" tabindex="0"
+                                role="textbox" aria-label="Số nonexist 1-35"
                                 title="Số 1-35 trong cột nonexist; AND với []; gõ số hoặc ▴▾"></span>
                             <div id="filterPopupNonexistNumSpin" role="group"
                                 aria-label="Tăng giảm số nonexist (xoay vòng 1–35)">
@@ -5231,13 +5338,13 @@
                         </div>
                     </div>
                     <button type="button" id="filterPopupChainFilterToggle"
-                        class="filter-popup-header2-toggle filter-popup-chain-filter-toggle hidden"
-                        aria-pressed="false" title="Bật lọc theo nhãn chuỗi cửa sổ 10 (ALL)">Chuỗi []</button>
+                        class="filter-popup-header2-toggle filter-popup-chain-filter-toggle hidden" aria-pressed="false"
+                        title="Bật lọc theo nhãn chuỗi cửa sổ 10 (ALL)">Chuỗi []</button>
                     <button type="button" id="filterPopupChainCombineToggle"
-                        class="filter-popup-header2-toggle filter-popup-chain-combine-toggle hidden" aria-pressed="false"
-                        title="U thuận (∪): OR — đáp án trên bất kỳ chuỗi đã chọn">U</button>
-                    <div id="filterPopupChainFilterPicker" class="filter-popup-chain-filter-picker hidden"
-                        role="group" aria-label="Chọn nhãn chuỗi 1–10"></div>
+                        class="filter-popup-header2-toggle filter-popup-chain-combine-toggle hidden"
+                        aria-pressed="false" title="U thuận (∪): OR — đáp án trên bất kỳ chuỗi đã chọn">U</button>
+                    <div id="filterPopupChainFilterPicker" class="filter-popup-chain-filter-picker hidden" role="group"
+                        aria-label="Chọn nhãn chuỗi 1–10"></div>
                     <div id="filterPopupConnectionNoteTagPicker" class="filter-popup-note-tag-picker hidden"
                         aria-hidden="true">
                         <button type="button" id="filterPopupConnectionNoteTagBtn" class="filter-popup-note-tag-btn"
@@ -5643,12 +5750,12 @@
         const SUBMIT_RING_ENABLED_KEY = 'submitRingEnabled';
         const SUBMIT_RING_MODE_KEY = 'submitRingMode';
         const SUBMIT_RING_CUSTOM_X_KEY = 'submitRingCustomX';
-        const SUBMIT_RING_VALID_MODES = ['max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist', 'dateband', 'cuflip', 'cn', 'chain', 'chain1'];
-        const SUBMIT_RING_FREQ_MODES = ['max', 'min', 'custom', 'cuflip', 'conn3', 'tail', 'nonexist', 'dateband', 'chain', 'chain1'];
+        const SUBMIT_RING_VALID_MODES = ['max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist', 'dateband', 'cuflip', 'cn', 'chain'];
+        const SUBMIT_RING_FREQ_MODES = ['max', 'min', 'custom', 'cuflip', 'conn3', 'tail', 'nonexist', 'dateband', 'chain'];
         const SUBMIT_RING_CHAIN_MODE = 'chain';
         const SUBMIT_RING_CHAIN_LABEL = 'Chuỗi []';
-        const SUBMIT_RING_CHAIN1_MODE = 'chain1';
-        const SUBMIT_RING_CHAIN1_LABEL = 'CHUỖI 1';
+        const PHASE_ENABLED_KEY = 'phaseToolbarEnabled';
+        const PHASE_CHAIN_LABEL_KEY = 'phaseChainLabel';
         const SUBMIT_RING_CHAIN_SELECTED_KEY = 'submitRingChainSelected';
         const SUBMIT_RING_CHAIN_COMBINE_AND_KEY = 'submitRingChainCombineAnd';
         /** Uflip: chữ U xoay 180° — intersection, cùng cap-height với C */
@@ -5809,6 +5916,9 @@
         let submitRingChainCombineAnd = false;
         /** Giá trị x (1–35) khi autoring chế độ custom */
         let submitRingCustomX = 15;
+        /** Phase toolbar: tô vuông tím 5 số theo chuỗi 1–10 */
+        let phaseToolbarEnabled = false;
+        let phaseChainLabel = 1;
         /** Chỉ số hàng sheet1 đang focus (để tính nhãn C/Uflip autoring). */
         let mainSheet1FocusRowIndex = -1;
         let periodFilterEnabled = false;
@@ -6400,12 +6510,6 @@
                 submitRingFreqMode = SUBMIT_RING_CHAIN_MODE;
                 return;
             }
-            if (m === SUBMIT_RING_CHAIN1_MODE) {
-                submitRingLabelConn = false;
-                submitRingLabelIx = false;
-                submitRingFreqMode = SUBMIT_RING_CHAIN1_MODE;
-                return;
-            }
             if (m === 'cn' || m === SUBMIT_RING_CUFLIP_MODE) {
                 submitRingLabelConn = false;
                 submitRingLabelIx = false;
@@ -6466,9 +6570,6 @@
             }
             if (m === SUBMIT_RING_CHAIN_MODE) {
                 return SUBMIT_RING_CHAIN_LABEL;
-            }
-            if (m === SUBMIT_RING_CHAIN1_MODE) {
-                return SUBMIT_RING_CHAIN1_LABEL;
             }
             return m.toUpperCase();
         }
@@ -6622,10 +6723,6 @@
             }
             if (m === SUBMIT_RING_CHAIN_MODE) {
                 targetEl.textContent = SUBMIT_RING_CHAIN_LABEL;
-                return;
-            }
-            if (m === SUBMIT_RING_CHAIN1_MODE) {
-                targetEl.textContent = SUBMIT_RING_CHAIN1_LABEL;
                 return;
             }
             targetEl.removeAttribute('aria-label');
@@ -6858,6 +6955,164 @@
             notifyLeftAutoringStateToTracking();
         }
 
+        function clampPhaseChainLabel(v) {
+            const n = parseInt(v, 10);
+            if (!Number.isFinite(n) || n < 1) {
+                return 1;
+            }
+            if (n > 10) {
+                return 10;
+            }
+            return n;
+        }
+
+        function getPhaseDisplayLabel(label) {
+            return `PHASE ${clampPhaseChainLabel(label)}`;
+        }
+
+        function persistPhaseSettings() {
+            try {
+                localStorage.setItem(PHASE_ENABLED_KEY, phaseToolbarEnabled ? '1' : '0');
+            } catch (e) { /* ignore */ }
+        }
+
+        function sendPhaseConfigToIframe() {
+            const frame = el('okFrame');
+            if (!frame || !frame.contentWindow) {
+                return;
+            }
+            frame.contentWindow.postMessage({
+                type: 'phaseChanged',
+                enabled: !!phaseToolbarEnabled,
+                chainLabel: clampPhaseChainLabel(phaseChainLabel)
+            }, '*');
+        }
+
+        function syncPhaseToolbarUi() {
+            const toggleBtn = el('phaseToggleBtn');
+            const modeWrap = el('phaseModeWrap');
+            const modeValue = el('phaseModeValue');
+            const modeSelect = el('phaseModeSelect');
+            const label = clampPhaseChainLabel(phaseChainLabel);
+            const labelText = getPhaseDisplayLabel(label);
+            if (toggleBtn) {
+                toggleBtn.classList.toggle('active', !!phaseToolbarEnabled);
+                toggleBtn.setAttribute(
+                    'title',
+                    phaseToolbarEnabled
+                        ? `Đang bật phase (${labelText}). Bấm để tắt`
+                        : `Đang tắt phase. Bấm để bật ${labelText}`
+                );
+            }
+            if (modeWrap) {
+                modeWrap.classList.toggle('enabled', !!phaseToolbarEnabled);
+                modeWrap.setAttribute('title', `Chọn phase chuỗi 1–10 (hiện: ${labelText})`);
+            }
+            if (modeValue) {
+                modeValue.textContent = labelText;
+            }
+            if (modeSelect) {
+                modeSelect.value = String(label);
+            }
+        }
+
+        function togglePhaseToolbar() {
+            phaseToolbarEnabled = !phaseToolbarEnabled;
+            persistPhaseSettings();
+            syncPhaseToolbarUi();
+            sendPhaseConfigToIframe();
+        }
+
+        function selectPhaseChainLabel(raw) {
+            phaseChainLabel = clampPhaseChainLabel(raw);
+            syncPhaseToolbarUi();
+            sendPhaseConfigToIframe();
+        }
+
+        function initPhaseAltShortcut() {
+            if (document.documentElement.dataset.phaseAltBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.phaseAltBound = '1';
+
+            let altPressedAlone = false;
+            let altChordUsed = false;
+
+            const isPhaseAltKey = (event) => (
+                event.key === 'Alt' || event.code === 'AltLeft' || event.code === 'AltRight'
+            );
+
+            const onAltKeyDown = (event) => {
+                if (isPhaseAltKey(event)) {
+                    if (event.repeat) {
+                        return;
+                    }
+                    altPressedAlone = true;
+                    altChordUsed = false;
+                    event.preventDefault();
+                    event.stopPropagation();
+                    return;
+                }
+                if (event.altKey) {
+                    altChordUsed = true;
+                }
+            };
+
+            const onAltKeyUp = (event) => {
+                if (!isPhaseAltKey(event)) {
+                    return;
+                }
+                const shouldToggle = altPressedAlone && !altChordUsed;
+                altPressedAlone = false;
+                altChordUsed = false;
+                event.preventDefault();
+                event.stopPropagation();
+                if (!shouldToggle) {
+                    return;
+                }
+                togglePhaseToolbar();
+            };
+
+            document.addEventListener('keydown', onAltKeyDown, true);
+            document.addEventListener('keyup', onAltKeyUp, true);
+            window.addEventListener('keydown', onAltKeyDown, true);
+            window.addEventListener('keyup', onAltKeyUp, true);
+        }
+
+        function initPhaseToolbar() {
+            phaseChainLabel = 1;
+            try {
+                const savedEnabled = localStorage.getItem(PHASE_ENABLED_KEY);
+                const savedRingMode = localStorage.getItem(SUBMIT_RING_MODE_KEY);
+                if (savedEnabled === '1' || savedEnabled === '0') {
+                    phaseToolbarEnabled = savedEnabled === '1';
+                } else if (savedRingMode === 'chain1') {
+                    phaseToolbarEnabled = localStorage.getItem(SUBMIT_RING_ENABLED_KEY) === '1';
+                }
+            } catch (e) {
+                phaseToolbarEnabled = false;
+            }
+
+            const toggleBtn = el('phaseToggleBtn');
+            const modeSelect = el('phaseModeSelect');
+            if (toggleBtn) {
+                toggleBtn.addEventListener('mousedown', (e) => {
+                    e.preventDefault();
+                });
+                toggleBtn.addEventListener('click', () => {
+                    togglePhaseToolbar();
+                });
+            }
+            if (modeSelect) {
+                modeSelect.addEventListener('change', () => {
+                    selectPhaseChainLabel(modeSelect.value);
+                });
+            }
+            initPhaseAltShortcut();
+            syncPhaseToolbarUi();
+            sendPhaseConfigToIframe();
+        }
+
         function persistSubmitRingSettings() {
             syncSubmitRingModeFromUi();
             try {
@@ -6929,7 +7184,7 @@
             }
             if (modeValue) {
                 applySubmitRingModeMenuVisual(modeValue, modeValueMode);
-                modeValue.style.textTransform = (modeValueMode === 'custom' || modeValueMode === 'conn3' || modeValueMode === 'tail' || modeValueMode === 'dateband' || modeValueMode === SUBMIT_RING_CHAIN_MODE || modeValueMode === SUBMIT_RING_CHAIN1_MODE || modeValueMode === SUBMIT_RING_CUFLIP_MODE) ? 'none' : 'uppercase';
+                modeValue.style.textTransform = (modeValueMode === 'custom' || modeValueMode === 'conn3' || modeValueMode === 'tail' || modeValueMode === 'dateband' || modeValueMode === SUBMIT_RING_CHAIN_MODE || modeValueMode === SUBMIT_RING_CUFLIP_MODE) ? 'none' : 'uppercase';
             }
             if (modeWrap) {
                 modeWrap.classList.remove('disabled');
@@ -6992,7 +7247,15 @@
                 const savedLabelConn = localStorage.getItem(SUBMIT_RING_LABEL_CONN_KEY);
                 const savedLabelIx = localStorage.getItem(SUBMIT_RING_LABEL_IX_KEY);
                 submitRingEnabled = savedEnabled === '1';
-                if (SUBMIT_RING_VALID_MODES.includes(savedMode)) {
+                if (savedMode === 'chain1') {
+                    applyLoadedSubmitRingMode('max');
+                    phaseToolbarEnabled = savedEnabled === '1';
+                    phaseChainLabel = 1;
+                    try {
+                        localStorage.setItem(PHASE_ENABLED_KEY, phaseToolbarEnabled ? '1' : '0');
+                        localStorage.setItem(SUBMIT_RING_MODE_KEY, 'max');
+                    } catch (eMigrate) { /* ignore */ }
+                } else if (SUBMIT_RING_VALID_MODES.includes(savedMode)) {
                     applyLoadedSubmitRingMode(savedMode);
                 } else if (savedLabelConn === '1' && savedLabelIx === '1') {
                     applyLoadedSubmitRingMode('conn_ix');
@@ -7174,6 +7437,7 @@
             if (frame) {
                 const resyncIframeAfterLoad = () => {
                     sendSubmitRingConfigToIframe();
+                    sendPhaseConfigToIframe();
                     try {
                         broadcastLeftPanePosnfreqHexUi();
                     } catch (eBr) {
@@ -16799,6 +17063,7 @@
             initFilterTableScrollEdgeJumps();
             initAnswerTableScrollEdgeJumps();
             initSubmitRingToolbar();
+            initPhaseToolbar();
             initSubmitRingShiftShortcut();
             initSheetTabToggleShortcut();
             initPeriodFilterToolbar();
@@ -17025,6 +17290,14 @@
                         return;
                     }
                     toggleSubmitRingFromShortcut();
+                    return;
+                }
+                if (msg.type === 'togglePhase') {
+                    const frame = el('okFrame');
+                    if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
+                        return;
+                    }
+                    togglePhaseToolbar();
                     return;
                 }
                 if (msg.type === 'toggleAnswerPopup') {
