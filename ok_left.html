@@ -2147,8 +2147,126 @@
             syncLeftKeyboardRegion('left');
         }
 
+        /** Hàng bảng 2 chứa `num` — ưu tiên hàng vừa click/phase, không quét từ chuỗi trên xuống. */
+        function resolveTable2RowForNumber(num, stickyRow) {
+            var maxRow = 9;
+            if (num == null || isNaN(num)) {
+                if (typeof stickyRow === 'number' && stickyRow >= 0 && stickyRow <= maxRow) {
+                    return stickyRow;
+                }
+                return resolveTable2WasdNavRowIndex();
+            }
+            if (typeof stickyRow === 'number' && stickyRow >= 0 && stickyRow <= maxRow) {
+                var stickyNums = getRawDisplayLineNumsAt(stickyRow);
+                if (stickyNums && stickyNums.indexOf(num) !== -1) {
+                    return stickyRow;
+                }
+            }
+            if (lastClickedRegion === 'right' && lastClickedRow != null && lastClickedRow >= 0 && lastClickedRow <= maxRow &&
+                lastClickedNumber === num) {
+                return lastClickedRow;
+            }
+            if (currentPhaseRow != null && currentPhaseRow >= 0 && currentPhaseRow <= maxRow && currentPhaseNumber === num) {
+                return currentPhaseRow;
+            }
+            for (var hi = phaseHistory.length - 1; hi >= 0; hi--) {
+                var eh = phaseHistory[hi];
+                if (!eh || eh.number !== num || typeof eh.row !== 'number') {
+                    continue;
+                }
+                if (eh.row >= 0 && eh.row <= maxRow) {
+                    return eh.row;
+                }
+            }
+            if (lastClickedRow != null && lastClickedRow >= 0 && lastClickedRow <= maxRow) {
+                var lrNums = getRawDisplayLineNumsAt(lastClickedRow);
+                if (lrNums && lrNums.indexOf(num) !== -1) {
+                    return lastClickedRow;
+                }
+            }
+            if (currentPhaseRow != null && currentPhaseRow >= 0 && currentPhaseRow <= maxRow) {
+                var cpNums = getRawDisplayLineNumsAt(currentPhaseRow);
+                if (cpNums && cpNums.indexOf(num) !== -1) {
+                    return currentPhaseRow;
+                }
+            }
+            for (var r = maxRow; r >= 0; r--) {
+                var nums = getRawDisplayLineNumsAt(r);
+                if (nums && nums.indexOf(num) !== -1) {
+                    return r;
+                }
+            }
+            if (typeof stickyRow === 'number' && stickyRow >= 0 && stickyRow <= maxRow) {
+                return stickyRow;
+            }
+            return 0;
+        }
+
+        function resolveTable2WasdNavRowIndex() {
+            var maxRow = 9;
+            if (currentPhaseRow != null && currentPhaseRow >= 0 && currentPhaseRow <= maxRow) {
+                return currentPhaseRow;
+            }
+            if (lastClickedRegion === 'right' && lastClickedRow != null && lastClickedRow >= 0 && lastClickedRow <= maxRow) {
+                return lastClickedRow;
+            }
+            for (var hi = phaseHistory.length - 1; hi >= 0; hi--) {
+                var eh = phaseHistory[hi];
+                if (!eh || typeof eh.row !== 'number') {
+                    continue;
+                }
+                if (eh.row >= 0 && eh.row <= maxRow && (eh.region === 'right' || eh.region == null)) {
+                    return eh.row;
+                }
+            }
+            var focusCand = currentPhaseNumber != null ? currentPhaseNumber : lastClickedNumber;
+            if (focusCand != null) {
+                return resolveTable2RowForNumber(focusCand, null);
+            }
+            if (lastClickedRow != null && lastClickedRow >= 0 && lastClickedRow <= maxRow) {
+                return lastClickedRow;
+            }
+            return 0;
+        }
+
+        /** Số focus A/D trên bảng 2 — ưu tiên click/phase gần nhất trên đúng hàng. */
+        function resolveTable2WasdNavFocusNum(row) {
+            var numsR = getRawDisplayLineNumsAt(row);
+            if (!numsR || !numsR.length) {
+                return null;
+            }
+            if (lastClickedRow === row && lastClickedNumber != null && numsR.indexOf(lastClickedNumber) !== -1) {
+                return lastClickedNumber;
+            }
+            if (currentPhaseRow === row && currentPhaseNumber != null && numsR.indexOf(currentPhaseNumber) !== -1) {
+                return currentPhaseNumber;
+            }
+            for (var hi = phaseHistory.length - 1; hi >= 0; hi--) {
+                var eh = phaseHistory[hi];
+                if (!eh || eh.number == null || typeof eh.row !== 'number' || eh.row !== row) {
+                    continue;
+                }
+                if (numsR.indexOf(eh.number) !== -1) {
+                    return eh.number;
+                }
+            }
+            if (pickOrder && pickOrder.length) {
+                for (var pi = pickOrder.length - 1; pi >= 0; pi--) {
+                    var pn = pickOrder[pi];
+                    if (numsR.indexOf(pn) !== -1 && selected.has(pn)) {
+                        return pn;
+                    }
+                }
+            }
+            var table2Pick = resolveTable2RowFocusPickNum(numsR);
+            if (table2Pick != null) {
+                return table2Pick;
+            }
+            return resolveWasdNavFocusPickNum(numsR);
+        }
+
         function resolveTable2RowFocusPickNum(preferredNums) {
-            var rowIdx = currentPhaseRow != null ? currentPhaseRow : (lastClickedRow != null ? lastClickedRow : 0);
+            var rowIdx = resolveTable2WasdNavRowIndex();
             var rowNums = getRawDisplayLineNumsAt(rowIdx);
             if (!rowNums || !rowNums.length) {
                 return null;
@@ -4828,7 +4946,7 @@
                 if (region === 'left') currentPhaseRow = null;
             } catch (e) { }
             toggleNumber(n);
-            try { window.parent.postMessage({ type: 'childFocus', region: 'left' }, '*'); } catch (e) { }
+            try { window.parent.postMessage({ type: 'childFocus', region: region || 'left' }, '*'); } catch (e) { }
         }
 
         // Apply selection / idx-highlight / blocked classes in-place to avoid rerender flicker
@@ -6500,6 +6618,14 @@
             try {
                 pushPhaseHistory(lastClickedRegion || leftKeyboardRegion || 'left', toNum, currentPhaseRow);
             } catch (ePh) { /* ignore */ }
+            if (lastClickedRegion === 'right' || leftKeyboardRegion === 'right') {
+                if (currentPhaseRow == null && lastClickedRow != null) {
+                    currentPhaseRow = lastClickedRow;
+                }
+                if (currentPhaseRow != null) {
+                    lastClickedRow = currentPhaseRow;
+                }
+            }
             return dropped;
         }
 
@@ -9838,9 +9964,9 @@
                     }
 
                     if (region === 'right') {
-                        var row = (lastClickedRow != null) ? lastClickedRow : 0;
+                        var row = resolveTable2WasdNavRowIndex();
                         var numsR = getRawDisplayLineNumsAt(row); if (!numsR || numsR.length === 0) return;
-                        var lastR = resolveWasdNavFocusPickNum(numsR);
+                        var lastR = resolveTable2WasdNavFocusNum(row);
                         if (!lastR) return;
                         var idxR = numsR.indexOf(lastR); if (idxR === -1) return;
                         var foundR = null;
@@ -10535,15 +10661,9 @@
                 const indW = ind.offsetWidth || 18;
                 if (region === 'right') {
                     let maxRow = 9;
-                    let rowIdx = (currentPhaseRow != null) ? currentPhaseRow : (lastClickedRow != null ? lastClickedRow : 0);
+                    let rowIdx = resolveTable2WasdNavRowIndex();
                     if (focusNum != null) {
-                        for (var rRight = 0; rRight <= maxRow; rRight++) {
-                            var arrRight = getRawDisplayLineNumsAt(rRight);
-                            if (arrRight.indexOf(focusNum) !== -1) {
-                                rowIdx = rRight;
-                                break;
-                            }
-                        }
+                        rowIdx = resolveTable2RowForNumber(focusNum, rowIdx);
                     }
                     if (rowIdx < 0) rowIdx = 0;
                     if (rowIdx > maxRow) rowIdx = maxRow;
