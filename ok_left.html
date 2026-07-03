@@ -5139,6 +5139,7 @@
                 } catch (e) { /* ignore */ }
                 try { updatePairListNeonHints(); } catch (e) { /* ignore */ }
                 try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
+                try { if (document.getElementById('checknoteTooltip')) refreshChecknoteTooltip(); } catch (eCn) { /* ignore */ }
                 scheduleWasdNavParentNotify();
             });
         }
