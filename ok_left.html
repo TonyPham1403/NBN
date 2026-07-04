@@ -2907,6 +2907,13 @@
             }).filter(function (n) {
                 return !isNaN(n) && n >= 1 && n <= 35;
             });
+            if (raw && raw.freq) {
+                nums = nums.filter(function (n) {
+                    return (parseInt(raw.freq[n], 10) || 0) >= 2;
+                });
+            } else {
+                nums = [];
+            }
             return nums.slice(0, 5);
         }
 
