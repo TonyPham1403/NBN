@@ -3801,11 +3801,13 @@
         #filterTableWrap .sheet-data-table td.cell-date,
         #filterTableWrap .sheet-data-table td.cell-id,
         #filterTableWrap .sheet-data-table td.cell-pick-label,
+        #filterTableWrap .sheet-data-table td.cell-follow,
         #filterTableWrap .sheet-data-table td.cell-result,
         #filterTableWrap .sheet-data-table thead th:nth-child(1),
         #filterTableWrap .sheet-data-table thead th:nth-child(2),
         #filterTableWrap .sheet-data-table thead th:nth-child(3),
-        #filterTableWrap .sheet-data-table thead th:nth-child(4) {
+        #filterTableWrap .sheet-data-table thead th:nth-child(4),
+        #filterTableWrap .sheet-data-table thead th:nth-child(5) {
             white-space: nowrap;
             width: 1%;
         }
@@ -3818,8 +3820,8 @@
 
         #filterTableWrap .sheet-data-table td.cell-note,
         #filterTableWrap .sheet-data-table td.cell-nonexist,
-        #filterTableWrap .sheet-data-table thead th:nth-child(5),
-        #filterTableWrap .sheet-data-table thead th:nth-child(6) {
+        #filterTableWrap .sheet-data-table thead th:nth-child(6),
+        #filterTableWrap .sheet-data-table thead th:nth-child(7) {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -3879,6 +3881,23 @@
             vertical-align: middle;
             white-space: nowrap;
             width: 1%;
+        }
+
+        .sheet-data-table td.cell-follow,
+        .sheet-data-table th.cell-follow-h {
+            padding: 2px 6px;
+            text-align: center;
+            vertical-align: middle;
+            white-space: nowrap;
+            width: 1%;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .sheet-data-table .cell-follow-undetermined {
+            font-weight: 700;
+            font-size: 13px;
+            color: #64748b;
         }
 
         .row-pick-badges {

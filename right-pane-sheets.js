@@ -2308,7 +2308,54 @@ class RightPaneSheetManager {
     }
 
     /**
-     * ALL + Chuỗi []: đáp án có ≥1 số trùng kỳ ở nhãn chuỗi đã chọn (1 = sát kỳ, 10 = xa nhất).
+     * Cột follow: số duy nhất freq cao nhất trong 5 số chuỗi 1 (cửa sổ 10 trước kỳ);
+     * nếu ≥2 số cùng freq max → ký hiệu `?`. Tính được cả khi dòng hiện tại chưa có result.
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @returns {string}
+     */
+    computeFollowCellValue(rows, rowIndex) {
+        if (!Array.isArray(rows) || typeof rowIndex !== 'number' || rowIndex < 0) {
+            return '';
+        }
+        const row = rows[rowIndex];
+        if (!row) {
+            return '';
+        }
+        const chainLines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        let chain1 = null;
+        for (let i = 0; i < chainLines.length; i++) {
+            if (chainLines[i].label === 1) {
+                chain1 = chainLines[i];
+                break;
+            }
+        }
+        if (!chain1 || !Array.isArray(chain1.nums) || !chain1.nums.length) {
+            return '';
+        }
+        const chain1Nums = chain1.nums.filter((n) => n >= 1 && n <= 35);
+        if (!chain1Nums.length) {
+            return '';
+        }
+        const freq = this.computeMainNumsWindow10Freq(rows, rowIndex);
+        let maxFreq = -1;
+        for (let j = 0; j < chain1Nums.length; j++) {
+            const f = freq[chain1Nums[j]] || 0;
+            if (f > maxFreq) {
+                maxFreq = f;
+            }
+        }
+        const tied = chain1Nums.filter((n) => (freq[n] || 0) === maxFreq);
+        if (tied.length === 1) {
+            return String(tied[0]);
+        }
+        if (tied.length >= 2) {
+            return '?';
+        }
+        return '';
+    }
+
+    /**
      * Cùng định nghĩa với recallsAtLeastOneFromPrevPeriodAtOffset / tooltip fold theo chuỗi.
      * @param {number} rowIndex
      * @param {number[]} selectedLabels — 1..10
@@ -3730,7 +3777,7 @@ class RightPaneSheetManager {
             this.bindSourceSheetKeyboardNavigation(tableWrap);
         }
 
-        let html = '<table class="sheet-data-table sheet1-source-table"><thead><tr><th>date</th><th>id</th><th class="cell-pick-label-h">label</th><th>result</th><th>note</th><th>nonexist</th></tr></thead><tbody>';
+        let html = '<table class="sheet-data-table sheet1-source-table"><thead><tr><th>date</th><th>id</th><th class="cell-pick-label-h">label</th><th class="cell-follow-h">follow</th><th>result</th><th>note</th><th>nonexist</th></tr></thead><tbody>';
 
         const displayRows = rows || [];
         const rowIndices = Array.isArray(options.indices)
@@ -3765,11 +3812,16 @@ class RightPaneSheetManager {
                 ? `<span class="prev-period-recall-fold" data-pct="${prevRecallFoldPctAttr}"></span>`
                 : '';
             const pickLabelHtml = isEmptyResultRow ? '' : this.getRowPickPropertyLabelHtml(displayRows, i, row);
+            const followValue = this.computeFollowCellValue(displayRows, i);
+            const followHtml = followValue === '?'
+                ? '<span class="cell-follow-undetermined" title="≥2 số cùng freq cao nhất ở chuỗi 1">?</span>'
+                : this.escapeHtml(followValue);
 
             html += `<tr data-idx="${i}" class="data-row${activeClass}" data-has-result="${!!result}" data-empty="${isEmptyResultRow ? '1' : '0'}">
                 <td class="cell-date"${dateBg}>${date}</td>
                 <td class="cell-id"${idStyle}>${id}</td>
                 <td class="cell-pick-label">${pickLabelHtml}</td>
+                <td class="cell-follow">${followHtml}</td>
                 <td class="${resultCellClass}">${prevRecallFoldHit}${resultHtml}</td>
                 <td class="cell-note"${noteStyle}>${noteHtml}</td>
                 <td class="cell-nonexist">${nonexistHtml}</td>
