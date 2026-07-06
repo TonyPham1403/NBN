@@ -3743,6 +3743,15 @@
             display: none !important;
         }
 
+        /* follow: chỉ viền focus hàng #1d4ed8 — không viền đỏ/cyan tham chiếu note trên popup */
+        #filterTableWrap.filter-popup-follow-mode .sheet-data-table td.cell-note.id-focus-note-ref-highlight::after,
+        #filterTableWrap.filter-popup-follow-mode .sheet-data-table td.cell-result.id-focus-note-ref-highlight::after,
+        #filterTableWrap.filter-popup-follow-mode .sheet-data-table td.cell-note.id-ref-contextmenu-highlight::after,
+        #filterTableWrap.filter-popup-follow-mode .sheet-data-table td.cell-result.id-ref-contextmenu-highlight::after {
+            content: none !important;
+            display: none !important;
+        }
+
         #filterTableWrap tr.filter-popup-posnfreq-submit-hit.filter-popup-row-focus td {
             box-shadow:
                 inset 0 0 0 2px #22c55e,
@@ -14451,7 +14460,12 @@
                 return;
             }
             const allMode = periodFilterEnabled && isAllLikeFilterMode(periodFilterMode);
+            const followMode = periodFilterEnabled && isFollowFilterMode(periodFilterMode);
             wrap.classList.toggle('filter-popup-all-mode', allMode);
+            wrap.classList.toggle('filter-popup-follow-mode', followMode);
+            if (followMode) {
+                clearFilterPopupFollowAuxiliaryHighlights();
+            }
             if (!allMode) {
                 resetFilterAllModeWindow();
             } else {
@@ -14653,6 +14667,13 @@
             sheetManager.clearWindowBorderClassesOnWrap(filterWrap);
         }
 
+        function clearFilterPopupFollowAuxiliaryHighlights() {
+            if (!periodFilterEnabled || !isFollowFilterMode(periodFilterMode)) {
+                return;
+            }
+            clearFilterPopupHighlightsWhenMainFocusExcluded();
+        }
+
         function reapplyFilterPopupWindowHighlightsIfAllowed() {
             if (!sheetManager || typeof sheetManager.reapplyActiveWindowHighlightsToDom !== 'function') {
                 return;
@@ -14660,6 +14681,10 @@
             const mainWrap = el('tableWrap');
             const filterWrap = el('filterTableWrap');
             sheetManager.reapplyActiveWindowHighlightsToDom(mainWrap);
+            if (isFollowFilterMode(periodFilterMode)) {
+                clearFilterPopupFollowAuxiliaryHighlights();
+                return;
+            }
             if (isMainUserFocusInFilterPopupEffectiveList()) {
                 sheetManager.reapplyActiveWindowHighlightsToDom(filterWrap);
             } else {
@@ -14707,6 +14732,9 @@
             }
             if (allMode) {
                 applyFilterPopupAllModeWindow(idx);
+            }
+            if (isFollowFilterMode(periodFilterMode)) {
+                clearFilterPopupFollowAuxiliaryHighlights();
             }
             syncFilterPopupAllModeFocusMask();
         }
@@ -14783,6 +14811,7 @@
                 if (allMode) {
                     refreshFilterPopupAllModeNonexistCells(idx);
                 }
+                clearFilterPopupFollowAuxiliaryHighlights();
                 return;
             }
             const rows = getFilterSourceSheetRows();
@@ -14802,6 +14831,7 @@
             if (allMode) {
                 refreshFilterPopupAllModeNonexistCells(idx);
             }
+            clearFilterPopupFollowAuxiliaryHighlights();
         }
 
         function queueFilterPopupAllModeCommit(idx) {
