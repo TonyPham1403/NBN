@@ -3267,6 +3267,18 @@
             color: #ffffff;
         }
 
+        button.filter-popup-posnfreq-overlap-pct.is-follow-question-mode {
+            background: #b91c1c;
+            border-color: #991b1b;
+            color: #ffffff;
+        }
+
+        button.filter-popup-posnfreq-overlap-pct.is-follow-question-mode:hover {
+            background: #dc2626;
+            border-color: #b91c1c;
+            color: #ffffff;
+        }
+
         button.filter-popup-posnfreq-overlap-pct[hidden] {
             display: none !important;
         }
@@ -3720,6 +3732,10 @@
         }
 
         #filterTableWrap.filter-popup-posnfreq-green-only tbody tr[data-idx]:not(.filter-popup-posnfreq-submit-hit) {
+            display: none !important;
+        }
+
+        #filterTableWrap.filter-popup-follow-question-only tbody tr[data-idx]:not(.filter-popup-follow-question-hit) {
             display: none !important;
         }
 
@@ -5594,6 +5610,9 @@
                     <button type="button" id="filterPopupConn3OverlapPct" class="filter-popup-posnfreq-overlap-pct"
                         hidden aria-pressed="false"
                         title="% kỳ đáp án 3-connection (viền xanh) / tổng kỳ cửa sổ 10 có 3-connection. Bật: chỉ hiện kỳ viền xanh; tắt: hiện đủ cửa sổ.">0%</button>
+                    <button type="button" id="filterPopupFollowOverlapPct" class="filter-popup-posnfreq-overlap-pct"
+                        hidden aria-pressed="false"
+                        title="% kỳ có follow xác định / tổng kỳ. Nhấn: chỉ follow xác định (xanh) → chỉ follow ? (đỏ, % phần bù) → hiện đủ lại.">0%</button>
                     <div class="filter-popup-header-count-stack">
                         <span id="filterPopupMatchCount" class="period-filter-match-count filter-popup-match-count"
                             title="Số kỳ khớp mode">
@@ -5862,6 +5881,7 @@
         };
         const FILTER_MODE_LABELS = {
             all: 'ALL',
+            follow: 'follow',
             modeq: '?',
             pair1: '1 bộ 2',
             pair2: '2 bộ 2',
@@ -5955,6 +5975,8 @@
         let filterPopupPosnfreqGreenOnly = false;
         /** conn3: chỉ hiện kỳ cửa sổ 10 có 3-connection khi bật từ nút % */
         let filterPopupConn3WindowOnly = false;
+        let filterPopupFollowSubfilter = 'off';
+        let filterPopupFollowDeterminedPct = 0;
         let filterModeCounts = {};
         let filterPopupLayoutSaveTimer = null;
         let filterPopupResizeActive = false;
@@ -6243,7 +6265,7 @@
                     sheetManager.centerActiveWindowInView(wrap);
                 }
             }
-            if (periodFilterEnabled && isAllFilterMode(periodFilterMode)
+            if (periodFilterEnabled && isAllLikeFilterMode(periodFilterMode)
                 && filterPopupActiveIdx >= 0 && filterWrap && sheetManager) {
                 const start = Math.max(0, filterPopupActiveIdx - 10);
                 sheetManager.centerActiveWindowInView(filterWrap, {
@@ -7507,6 +7529,9 @@
             if (normalizeFilterMode(mode) === 'all') {
                 return 'Tất cả kỳ (giống sheet chính)';
             }
+            if (isFollowFilterMode(mode)) {
+                return 'Tất cả kỳ (follow)';
+            }
             if (isDatebandFilterMode(mode)) {
                 return 'date nền #00b0f0';
             }
@@ -7554,6 +7579,15 @@
 
         function isAllFilterMode(mode) {
             return normalizeFilterMode(mode) === 'all';
+        }
+
+        function isFollowFilterMode(mode) {
+            return normalizeFilterMode(mode) === 'follow';
+        }
+
+        function isAllLikeFilterMode(mode) {
+            const normalized = normalizeFilterMode(mode);
+            return normalized === 'all' || normalized === 'follow';
         }
 
         function supportsConnectionNoteTagFilter(mode) {
@@ -12705,7 +12739,7 @@
 
         function getFilterPopupEmptyMessage(mode) {
             const normalized = normalizeFilterMode(mode);
-            if (normalized === 'all') {
+            if (normalized === 'all' || isFollowFilterMode(normalized)) {
                 return 'Không có dữ liệu kỳ.';
             }
             if (isNonexistFilterMode(normalized)) {
@@ -12963,6 +12997,9 @@
             if (isConn3FilterMode(prevMode) && !isConn3FilterMode(periodFilterMode)) {
                 setFilterPopupConn3WindowOnly(false, { skipReconcile: true, skipCounts: true });
             }
+            if (isFollowFilterMode(prevMode) && !isFollowFilterMode(periodFilterMode)) {
+                setFilterPopupFollowSubfilter('off', { skipReconcile: true, skipCounts: true });
+            }
             try {
                 localStorage.setItem(PERIOD_FILTER_MODE_KEY, periodFilterMode);
             } catch (e) { }
@@ -13076,6 +13113,57 @@
                 .filter((idx) => Number.isFinite(idx));
         }
 
+        function collectFilterPopupFollowQuestionHitIndicesOrdered(wrap) {
+            if (!wrap) {
+                return [];
+            }
+            return [...wrap.querySelectorAll('tbody tr.filter-popup-follow-question-hit[data-idx]')]
+                .map((tr) => Number(tr.dataset.idx))
+                .filter((idx) => Number.isFinite(idx));
+        }
+
+        function isFilterPopupFollowSubfilterActive() {
+            return isFollowFilterMode(periodFilterMode) && filterPopupFollowSubfilter !== 'off';
+        }
+
+        function getNextFilterPopupFollowSubfilter(current) {
+            if (current === 'off') {
+                return 'determined';
+            }
+            if (current === 'determined') {
+                return 'undetermined';
+            }
+            return 'off';
+        }
+
+        function applyFilterPopupFollowSubfilterWrapClasses(wrap, mode) {
+            if (!wrap) {
+                return;
+            }
+            wrap.classList.toggle('filter-popup-posnfreq-green-only', mode === 'determined');
+            wrap.classList.toggle('filter-popup-follow-question-only', mode === 'undetermined');
+        }
+
+        function applyFilterPopupFollowSubfilterButtonUi(btn, mode, determinedPct) {
+            if (!btn || btn.hidden) {
+                return;
+            }
+            const complementPct = Math.max(0, Math.min(100, 100 - determinedPct));
+            if (mode === 'off') {
+                btn.textContent = `${determinedPct}%`;
+                btn.setAttribute('aria-pressed', 'false');
+                btn.classList.remove('is-follow-question-mode');
+            } else if (mode === 'determined') {
+                btn.textContent = `${determinedPct}%`;
+                btn.setAttribute('aria-pressed', 'true');
+                btn.classList.remove('is-follow-question-mode');
+            } else {
+                btn.textContent = `${complementPct}%`;
+                btn.setAttribute('aria-pressed', 'true');
+                btn.classList.add('is-follow-question-mode');
+            }
+        }
+
         function getConn3WindowExistIndicesFromSheet() {
             if (!sheetManager || typeof sheetManager.ensureConn3WindowExistIndicesCache !== 'function') {
                 return [];
@@ -13101,7 +13189,8 @@
 
         function isFilterPopupSubfilterOnlyActive() {
             return (filterPopupPosnfreqGreenOnly && isPosnfreqFilterMode(periodFilterMode))
-                || (filterPopupConn3WindowOnly && isConn3FilterMode(periodFilterMode));
+                || (filterPopupConn3WindowOnly && isConn3FilterMode(periodFilterMode))
+                || isFilterPopupFollowSubfilterActive();
         }
 
         function getFilterPopupEffectiveListIndices() {
@@ -13119,6 +13208,20 @@
                     return green;
                 }
             }
+            if (filterPopupFollowSubfilter === 'determined' && periodFilterEnabled && isFollowFilterMode(periodFilterMode)) {
+                const wrap = el('filterTableWrap');
+                const green = collectFilterPopupPosnfreqGreenHitIndicesOrdered(wrap);
+                if (green.length) {
+                    return green;
+                }
+            }
+            if (filterPopupFollowSubfilter === 'undetermined' && periodFilterEnabled && isFollowFilterMode(periodFilterMode)) {
+                const wrap = el('filterTableWrap');
+                const question = collectFilterPopupFollowQuestionHitIndicesOrdered(wrap);
+                if (question.length) {
+                    return question;
+                }
+            }
             return getFilterPopupTableIndices();
         }
 
@@ -13134,6 +13237,9 @@
                 return getFilterPopupNavListLength();
             }
             if (filterPopupConn3WindowOnly && isConn3FilterMode(periodFilterMode)) {
+                return getFilterPopupNavListLength();
+            }
+            if (isFilterPopupFollowSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
             return getFilterPopupTableIndices().length;
@@ -13285,11 +13391,55 @@
             });
         }
 
+        function setFilterPopupFollowSubfilter(mode, opts = {}) {
+            const next = mode === 'determined' || mode === 'undetermined' ? mode : 'off';
+            filterPopupFollowSubfilter = next;
+            const wrap = el('filterTableWrap');
+            const btn = el('filterPopupFollowOverlapPct');
+            applyFilterPopupFollowSubfilterWrapClasses(wrap, next);
+            if (btn && !btn.hidden) {
+                applyFilterPopupFollowSubfilterButtonUi(btn, next, filterPopupFollowDeterminedPct);
+            }
+            if (!opts.skipReconcile) {
+                reconcileFilterPopupActiveAfterSubfilterToggle();
+            }
+            if (!opts.skipCounts) {
+                updateFilterPopupMatchCount();
+                syncPeriodFilterNavModeToIframe();
+            }
+            requestAnimationFrame(() => {
+                if (filterPopupActiveIdx >= 0) {
+                    scrollFilterPopupRowIntoView();
+                }
+            });
+        }
+
+        function initFilterPopupFollowOverlapPctToggle() {
+            const btn = el('filterPopupFollowOverlapPct');
+            if (!btn || btn.dataset.followDeterminedBound === '1') {
+                return;
+            }
+            btn.dataset.followDeterminedBound = '1';
+            btn.addEventListener('mousedown', (event) => {
+                event.stopPropagation();
+            });
+            btn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                if (btn.hidden) {
+                    return;
+                }
+                setFilterPopupFollowSubfilter(getNextFilterPopupFollowSubfilter(filterPopupFollowSubfilter));
+            });
+        }
+
         function getFilterPopupListTotal(fallbackTotal) {
             if (filterPopupPosnfreqGreenOnly && periodFilterEnabled && isPosnfreqFilterMode(periodFilterMode)) {
                 return getFilterPopupNavListLength();
             }
             if (filterPopupConn3WindowOnly && periodFilterEnabled && isConn3FilterMode(periodFilterMode)) {
+                return getFilterPopupNavListLength();
+            }
+            if (isFilterPopupFollowSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
             if (periodFilterEnabled && isPeriodFilterContextSheet()) {
@@ -13919,7 +14069,7 @@
                 dock.classList.toggle('is-filter-popup-resizing', filterPopupResizeActive);
             }
             if (wrap) {
-                const allMode = periodFilterEnabled && isAllFilterMode(periodFilterMode);
+                const allMode = periodFilterEnabled && isAllLikeFilterMode(periodFilterMode);
                 wrap.classList.toggle('is-popup-resizing', filterPopupResizeActive && allMode);
             }
         }
@@ -14190,7 +14340,7 @@
 
         function setPeriodFilterEnabled(enabled, options = {}) {
             const wasEnabled = periodFilterEnabled;
-            const closingAllMode = wasEnabled && !enabled && isAllFilterMode(periodFilterMode);
+            const closingAllMode = wasEnabled && !enabled && isAllLikeFilterMode(periodFilterMode);
             periodFilterEnabled = !!enabled;
 
             if (options.persist !== false) {
@@ -14210,7 +14360,7 @@
                     filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
                     filterPopupActiveIdx = resolveFilterPopupActiveIdx(getFilterPopupDisplayIndices());
                     applyFilterPopupRowFocus(filterPopupActiveIdx);
-                    if (isAllFilterMode(periodFilterMode) && filterPopupActiveIdx >= 0) {
+                    if (isAllLikeFilterMode(periodFilterMode) && filterPopupActiveIdx >= 0) {
                         syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly: true });
                     }
                     syncPeriodFilterToolbarUi(true);
@@ -14262,7 +14412,7 @@
             if (!wrap) {
                 return;
             }
-            const allMode = periodFilterEnabled && isAllFilterMode(periodFilterMode);
+            const allMode = periodFilterEnabled && isAllLikeFilterMode(periodFilterMode);
             wrap.classList.toggle('filter-popup-all-mode', allMode);
             if (!allMode) {
                 resetFilterAllModeWindow();
@@ -14405,7 +14555,7 @@
         }
 
         function applyFilterPopupAllModeWindow(idx) {
-            if (!periodFilterEnabled || !isAllFilterMode(periodFilterMode)) {
+            if (!periodFilterEnabled || !isAllLikeFilterMode(periodFilterMode)) {
                 return;
             }
             const wrap = el('filterTableWrap');
@@ -14436,7 +14586,7 @@
             if (!clearWindow) {
                 return;
             }
-            if (periodFilterEnabled && isAllFilterMode(periodFilterMode)) {
+            if (periodFilterEnabled && isAllLikeFilterMode(periodFilterMode)) {
                 resetFilterAllModeWindow();
             } else if (sheetManager && wrap) {
                 sheetManager.clearWindowBorderClassesOnWrap(wrap);
@@ -14500,7 +14650,7 @@
                 return;
             }
 
-            const allMode = periodFilterEnabled && isAllFilterMode(periodFilterMode);
+            const allMode = periodFilterEnabled && isAllLikeFilterMode(periodFilterMode);
             clearFilterPopupRowFocus(!allMode);
             syncFilterPopupAllModeClass();
             const row = wrap.querySelector(`tbody tr[data-idx="${idx}"]`);
@@ -14571,7 +14721,7 @@
                 return;
             }
             const full = options.full === true || options.forceFull === true;
-            const allMode = periodFilterEnabled && isAllFilterMode(periodFilterMode);
+            const allMode = periodFilterEnabled && isAllLikeFilterMode(periodFilterMode);
             const tableWrap = el('tableWrap');
             if (options.previewOnly) {
                 if (typeof sheetManager.resetSheet1LeftPanePump === 'function') {
@@ -14662,7 +14812,7 @@
             if (!wrap || !sheetManager || filterPopupActiveIdx < 0) {
                 return;
             }
-            if (!periodFilterEnabled || !isAllFilterMode(periodFilterMode)) {
+            if (!periodFilterEnabled || !isAllLikeFilterMode(periodFilterMode)) {
                 return;
             }
             const start = Math.max(0, filterPopupActiveIdx - 10);
@@ -14677,7 +14827,7 @@
             if (!wrap || filterPopupActiveIdx < 0) {
                 return;
             }
-            if (periodFilterEnabled && isAllFilterMode(periodFilterMode)) {
+            if (periodFilterEnabled && isAllLikeFilterMode(periodFilterMode)) {
                 centerFilterPopupAllModeWindowInView();
                 return;
             }
@@ -15372,7 +15522,7 @@
             const domCount = wrap.querySelectorAll('tbody tr[data-idx]').length;
             const expected = filterPopupBaseIndicesCached.length
                 || getFilterPopupBaseTableIndices().length;
-            if (isAllFilterMode(periodFilterMode)) {
+            if (isAllLikeFilterMode(periodFilterMode)) {
                 return domCount > 0 && domCount === expected;
             }
             if (!filterPopupBaseIndicesCached.length || !filterPopupHtmlCache) {
@@ -15439,7 +15589,7 @@
                     syncFilterPopupFocusFromMainRow(filterPopupActiveIdx);
                 } else {
                     applyFilterPopupRowFocus(filterPopupActiveIdx);
-                    if (isAllFilterMode(periodFilterMode) && filterPopupActiveIdx >= 0) {
+                    if (isAllLikeFilterMode(periodFilterMode) && filterPopupActiveIdx >= 0) {
                         syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly: true });
                     } else {
                         reapplyFilterPopupWindowHighlightsIfAllowed();
@@ -15474,7 +15624,7 @@
         }
 
         function updateFilterPopupPrevRecallFoldTooltips() {
-            if (periodFilterEnabled && isAllFilterMode(periodFilterMode)) {
+            if (periodFilterEnabled && isAllLikeFilterMode(periodFilterMode)) {
                 return;
             }
             const wrap = el('filterTableWrap');
@@ -15533,6 +15683,7 @@
             updateFilterPopupPrevRecallFoldTooltips();
             syncFilterPopupPosnfreqSubmitOverlap();
             syncFilterPopupConn3WindowOverlap();
+            syncFilterPopupFollowDeterminedOverlap();
             applyFilterPopupNonexist005000RowBorders(wrap);
             reconcileFilterPopupFocusAfterListChange(getFilterPopupDisplayIndices(), options);
             syncFilterPopupHeaderUi();
@@ -15553,7 +15704,7 @@
                 applyFilterPopupRowFocus(filterPopupActiveIdx);
                 if (syncMain) {
                     syncMainRowFromFilter(filterPopupActiveIdx);
-                } else if (isAllFilterMode(periodFilterMode)) {
+                } else if (isAllLikeFilterMode(periodFilterMode)) {
                     syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly: true });
                 } else {
                     reapplyFilterPopupWindowHighlightsIfAllowed();
@@ -15743,6 +15894,88 @@
             applyFilterPopupNonexist005000RowBorders(wrap);
         }
 
+        function syncFilterPopupFollowDeterminedOverlap() {
+            const wrap = el('filterTableWrap');
+            const pctEl = el('filterPopupFollowOverlapPct');
+            const hidePct = () => {
+                const wasActive = isFilterPopupFollowSubfilterActive();
+                filterPopupFollowSubfilter = 'off';
+                const w = el('filterTableWrap');
+                if (w) {
+                    applyFilterPopupFollowSubfilterWrapClasses(w, 'off');
+                }
+                if (pctEl) {
+                    pctEl.hidden = true;
+                    pctEl.textContent = '';
+                    pctEl.setAttribute('aria-pressed', 'false');
+                    pctEl.classList.remove('is-follow-question-mode');
+                }
+                if (wasActive) {
+                    reconcileFilterPopupActiveAfterSubfilterToggle();
+                }
+                updateFilterPopupMatchCount();
+                syncPeriodFilterNavModeToIframe();
+            };
+            if (!wrap || !sheetManager) {
+                hidePct();
+                return;
+            }
+            if (!periodFilterEnabled || !isFollowFilterMode(periodFilterMode)) {
+                hidePct();
+                return;
+            }
+            wrap.querySelectorAll('tbody tr.filter-popup-posnfreq-submit-hit').forEach((tr) => {
+                tr.classList.remove('filter-popup-posnfreq-submit-hit');
+            });
+            wrap.querySelectorAll('tbody tr.filter-popup-follow-question-hit').forEach((tr) => {
+                tr.classList.remove('filter-popup-follow-question-hit');
+            });
+            const rows = sheetManager.getSourceSheetRows();
+            if (!Array.isArray(rows) || !rows.length) {
+                hidePct();
+                return;
+            }
+            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                const idx = Number(tr.dataset.idx);
+                if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
+                    return;
+                }
+                if (typeof sheetManager.rowHasDeterminedFollow === 'function'
+                    && sheetManager.rowHasDeterminedFollow(rows, idx)) {
+                    tr.classList.add('filter-popup-posnfreq-submit-hit');
+                }
+                if (typeof sheetManager.rowHasUndeterminedFollow === 'function'
+                    && sheetManager.rowHasUndeterminedFollow(rows, idx)) {
+                    tr.classList.add('filter-popup-follow-question-hit');
+                }
+            });
+            const tableTotal = wrap.querySelectorAll('tbody tr[data-idx]').length;
+            const green = wrap.querySelectorAll('tbody tr.filter-popup-posnfreq-submit-hit').length;
+            const question = wrap.querySelectorAll('tbody tr.filter-popup-follow-question-hit').length;
+            if (!pctEl) {
+                return;
+            }
+            if (tableTotal === 0) {
+                hidePct();
+                return;
+            }
+            const determinedPct = Math.round((green / tableTotal) * 100);
+            filterPopupFollowDeterminedPct = determinedPct;
+            pctEl.hidden = false;
+            applyFilterPopupFollowSubfilterButtonUi(pctEl, filterPopupFollowSubfilter, determinedPct);
+            applyFilterPopupFollowSubfilterWrapClasses(wrap, filterPopupFollowSubfilter);
+            if (filterPopupFollowSubfilter === 'determined' && green === 0) {
+                setFilterPopupFollowSubfilter('off');
+            } else if (filterPopupFollowSubfilter === 'undetermined' && question === 0) {
+                setFilterPopupFollowSubfilter('off');
+            } else if (isFilterPopupFollowSubfilterActive()) {
+                reconcileFilterPopupActiveAfterSubfilterToggle();
+            }
+            updateFilterPopupMatchCount();
+            syncPeriodFilterNavModeToIframe();
+            applyFilterPopupNonexist005000RowBorders(wrap);
+        }
+
         function buildFilterPopupTable(wrap, options = {}) {
             const syncMain = options.syncMain === true;
             const cacheKey = options.cacheKey || getFilterPopupRenderCacheKey();
@@ -15763,9 +15996,10 @@
             applyFilterPopupNonexistIdGapBorders(wrap);
             syncFilterPopupPosnfreqSubmitOverlap();
             syncFilterPopupConn3WindowOverlap();
+            syncFilterPopupFollowDeterminedOverlap();
             applyFilterPopupNonexist005000RowBorders(wrap);
             filterPopupRenderCacheKey = cacheKey;
-            if (isAllFilterMode(periodFilterMode)) {
+            if (isAllLikeFilterMode(periodFilterMode)) {
                 filterPopupHtmlCache = '';
             } else {
                 filterPopupHtmlCache = wrap.innerHTML;
@@ -15794,9 +16028,10 @@
                 filterPopupActiveIdx = -1;
                 filterPopupPosnfreqGreenOnly = false;
                 filterPopupConn3WindowOnly = false;
+                filterPopupFollowSubfilter = 'off';
                 const w = el('filterTableWrap');
                 if (w) {
-                    w.classList.remove('filter-popup-posnfreq-green-only');
+                    applyFilterPopupFollowSubfilterWrapClasses(w, 'off');
                 }
                 invalidateFilterPopupRenderCache();
                 wrap.innerHTML = '<div class="filter-popup-empty">Lọc chỉ áp dụng cho sheet dữ liệu chính.</div>';
@@ -15815,6 +16050,8 @@
                 invalidateFilterPopupRenderCache();
                 filterPopupPosnfreqGreenOnly = false;
                 filterPopupConn3WindowOnly = false;
+                filterPopupFollowSubfilter = 'off';
+                applyFilterPopupFollowSubfilterWrapClasses(wrap, 'off');
                 wrap.classList.remove('filter-popup-posnfreq-green-only');
                 wrap.innerHTML = '<div class="filter-popup-empty">' + getFilterPopupEmptyMessage(periodFilterMode) + '</div>';
                 finishFilterPopupOpen({ syncMain });
@@ -16613,7 +16850,7 @@
             }
             const ap = answerPopup;
             const answerOpen = !!(ap && ap.isOpen && ap.isOpen());
-            const allMode = periodFilterEnabled && isAllFilterMode(periodFilterMode);
+            const allMode = periodFilterEnabled && isAllLikeFilterMode(periodFilterMode);
             if (answerOpen && allMode && typeof sm.scheduleApplyFilterAllModeFocusMask === 'function') {
                 sm.scheduleApplyFilterAllModeFocusMask(wrap);
             } else {
@@ -16723,6 +16960,7 @@
             initFilterPopupPosnfreqControls();
             initFilterPopupPosnfreqOverlapPctToggle();
             initFilterPopupConn3OverlapPctToggle();
+            initFilterPopupFollowOverlapPctToggle();
             initFilterPopupPositionInput();
             initFilterPopupHeader2Controls();
             initFilterPopupChainFilterControls();
@@ -17259,7 +17497,7 @@
                         frame.contentWindow.postMessage(setLinesPayload, '*');
                     } else if (fromTrackingSync) {
                         scheduleTrackingSetLinesPost(setLinesPayload);
-                    } else if (fromFilterNav && periodFilterEnabled && isAllFilterMode(periodFilterMode)) {
+                    } else if (fromFilterNav && periodFilterEnabled && isAllLikeFilterMode(periodFilterMode)) {
                         scheduleFilterAllModeSetLines(setLinesPayload);
                     } else {
                         frame.contentWindow.postMessage(setLinesPayload, '*');

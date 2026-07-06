@@ -1769,7 +1769,7 @@ class RightPaneSheetManager {
     getFilterMatchingIndices(mode, filterOptions = null) {
         const indices = [];
         const rows = this.getSourceSheetRows();
-        if (mode === 'all') {
+        if (mode === 'all' || mode === 'follow') {
             for (let i = 0; i < rows.length; i++) {
                 indices.push(i);
             }
@@ -2353,6 +2353,25 @@ class RightPaneSheetManager {
             return '?';
         }
         return '';
+    }
+
+    /**
+     * Follow xác định: cột follow có số duy nhất (khác `?` và rỗng).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @returns {boolean}
+     */
+    rowHasDeterminedFollow(rows, rowIndex) {
+        const value = this.computeFollowCellValue(rows, rowIndex);
+        if (!value || value === '?') {
+            return false;
+        }
+        const num = parseInt(value, 10);
+        return Number.isFinite(num) && num >= 1 && num <= 35;
+    }
+
+    rowHasUndeterminedFollow(rows, rowIndex) {
+        return this.computeFollowCellValue(rows, rowIndex) === '?';
     }
 
     /**
