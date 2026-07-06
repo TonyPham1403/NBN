@@ -5288,7 +5288,7 @@
                         <div id="periodFilterModePicker" class="period-filter-mode-picker">
                             <button type="button" id="periodFilterModeBtn" class="period-filter-mode-btn" disabled
                                 aria-haspopup="listbox" aria-expanded="false" title="Chọn mode lọc">
-                                <span id="periodFilterModeBtnLabel">1 bộ 2</span>
+                                <span id="periodFilterModeBtnLabel">ALL</span>
                                 <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
                             </button>
                             <ul id="periodFilterModeMenu" class="period-filter-mode-menu hidden" role="listbox"
@@ -5335,7 +5335,7 @@
                     <div id="filterPopupModePicker" class="period-filter-mode-picker">
                         <button type="button" id="filterPopupModeBtn" class="period-filter-mode-btn"
                             aria-haspopup="listbox" aria-expanded="false" title="Chọn mode lọc">
-                            <span id="filterPopupModeBtnLabel">1 bộ 2</span>
+                            <span id="filterPopupModeBtnLabel">ALL</span>
                             <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
                         </button>
                     </div>
@@ -5974,7 +5974,7 @@
         /** Chỉ số hàng sheet1 đang focus (để tính nhãn C/Uflip autoring). */
         let mainSheet1FocusRowIndex = -1;
         let periodFilterEnabled = false;
-        let periodFilterMode = 'pair1';
+        let periodFilterMode = 'all';
         let periodFilterMenuAnchor = 'toolbar';
         let filterPopupIndices = [];
         let filterPopupActiveIdx = -1;
@@ -7567,7 +7567,7 @@
         }
 
         function normalizeFilterMode(mode) {
-            return VALID_FILTER_MODES.includes(mode) ? mode : 'pair1';
+            return VALID_FILTER_MODES.includes(mode) ? mode : 'all';
         }
 
         function isNonexistFilterMode(mode) {
@@ -17016,12 +17016,11 @@
         function initPeriodFilterToolbar() {
             try {
                 const savedEnabled = localStorage.getItem(PERIOD_FILTER_ENABLED_KEY);
-                const savedMode = localStorage.getItem(PERIOD_FILTER_MODE_KEY);
                 periodFilterEnabled = savedEnabled === '1';
-                periodFilterMode = normalizeFilterMode(savedMode || 'pair1');
+                periodFilterMode = 'all';
             } catch (e) {
                 periodFilterEnabled = false;
-                periodFilterMode = 'pair1';
+                periodFilterMode = 'all';
             }
 
             const toggleBtn = el('periodFilterToggleBtn');

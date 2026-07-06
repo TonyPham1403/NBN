@@ -9396,8 +9396,12 @@ class RightPaneSheetManager {
             return bellyKeyOf(group.nums) !== committedBelly;
         };
 
-        /** Hold frame (hàng id/result rỗng): tích lũy không đổi — không tính thêm streak bụng. */
+        /** Hold frame + Submit ON: tích lũy không đổi — không tính thêm streak bụng.
+         *  Submit OFF: hold frame vẫn là bước preview hợp lệ, giữ đếm streak như cũ. */
         const resolveStreakAnchorFrameIndex = (idx) => {
+            if (!leftSubmitOn) {
+                return idx;
+            }
             let anchor = idx;
             while (anchor > 0 && frames[anchor] && frames[anchor].holdFrame) {
                 anchor--;
@@ -9419,7 +9423,7 @@ class RightPaneSheetManager {
             const previewCompositionChanged = isPreviewBellyCompositionChanged(group);
             if (!previewCompositionChanged) {
                 for (let f = streakAnchorFrameIndex - 1; f >= 0; f--) {
-                    if (frames[f] && frames[f].holdFrame) {
+                    if (leftSubmitOn && frames[f] && frames[f].holdFrame) {
                         continue;
                     }
                     const prevBelly = findBellyKeyAtFreq(getGroupsForFrame(f, false), groupFreq);
@@ -9580,6 +9584,18 @@ class RightPaneSheetManager {
         }
     }
 
+    /** Special tracking: click bar giả lập — reset khi đổi id (không đụng shift+click quan sát). */
+    clearLeftSpecialBarPreviewPickOnFocusChange() {
+        return this.setLeftSpecialPreviewPickNum(null);
+    }
+
+    requestTrackingUiRepaintIfActive() {
+        const tableWrap = typeof document !== 'undefined' ? document.getElementById('tableWrap') : null;
+        if (tableWrap && typeof tableWrap.__trackingRepaint === 'function') {
+            tableWrap.__trackingRepaint();
+        }
+    }
+
     onComboFocusIdChanged(prevFocusId, nextFocusId) {
         const prev = String(prevFocusId || '').trim();
         const next = String(nextFocusId || '').trim();
@@ -9587,6 +9603,9 @@ class RightPaneSheetManager {
             return;
         }
         this.clearLeftBasicBarPreviewPicksOnFocusChange();
+        if (this.clearLeftSpecialBarPreviewPickOnFocusChange()) {
+            this.requestTrackingUiRepaintIfActive();
+        }
     }
 
     /** Bar basic tracking → nửa trái: Submit OFF hoặc kỳ cuối trống khi Submit ON. */
@@ -11047,6 +11066,18 @@ class RightPaneSheetManager {
         let basicPaintCacheKey = '';
         /** @type {{ basicDisplay: object|null, basicWindow10Freq: Record<number, number>|null, freqTieGroups: object[] }|null} */
         let basicPaintCache = null;
+        let specialPreviewAnchorSourceRow = this.getTrackingSourceRowIndexForFrame(sheet, frameIndex);
+        const resetSpecialPreviewIfSourceRowChanged = (fi) => {
+            if (isBasic) {
+                return false;
+            }
+            const row = this.getTrackingSourceRowIndexForFrame(sheet, fi);
+            if (row === specialPreviewAnchorSourceRow) {
+                return false;
+            }
+            specialPreviewAnchorSourceRow = row;
+            return this.setLeftSpecialPreviewPickNum(null);
+        };
         const clearTimer = () => {
             if (timer) {
                 clearTimeout(timer);
@@ -11473,6 +11504,7 @@ class RightPaneSheetManager {
             }
             setFrameStepping(true);
             frameIndex += frameIndex < frameAnimTarget ? 1 : -1;
+            resetSpecialPreviewIfSourceRowChanged(frameIndex);
             syncBasicLastIdBarNavAnchor();
             syncTimelineUi();
             paint();
@@ -11482,6 +11514,7 @@ class RightPaneSheetManager {
 
         const applyFrameImmediate = (idx, opts = {}) => {
             const next = Math.max(0, Math.min(total - 1, idx));
+            resetSpecialPreviewIfSourceRowChanged(next);
             clearFrameAnim();
             setFrameStepping(false);
             frameNavOpts = opts || {};
