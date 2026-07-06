@@ -9396,6 +9396,16 @@ class RightPaneSheetManager {
             return bellyKeyOf(group.nums) !== committedBelly;
         };
 
+        /** Hold frame (hàng id/result rỗng): tích lũy không đổi — không tính thêm streak bụng. */
+        const resolveStreakAnchorFrameIndex = (idx) => {
+            let anchor = idx;
+            while (anchor > 0 && frames[anchor] && frames[anchor].holdFrame) {
+                anchor--;
+            }
+            return anchor;
+        };
+        const streakAnchorFrameIndex = resolveStreakAnchorFrameIndex(frameIndex);
+
         const streakByKey = new Map();
         for (let g = 0; g < groups.length; g++) {
             const group = groups[g];
@@ -9408,7 +9418,10 @@ class RightPaneSheetManager {
             let streak = 1;
             const previewCompositionChanged = isPreviewBellyCompositionChanged(group);
             if (!previewCompositionChanged) {
-                for (let f = frameIndex - 1; f >= 0; f--) {
+                for (let f = streakAnchorFrameIndex - 1; f >= 0; f--) {
+                    if (frames[f] && frames[f].holdFrame) {
+                        continue;
+                    }
                     const prevBelly = findBellyKeyAtFreq(getGroupsForFrame(f, false), groupFreq);
                     if (prevBelly !== bellyKey) {
                         break;
