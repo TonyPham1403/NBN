@@ -3735,6 +3735,10 @@
             display: none !important;
         }
 
+        #filterTableWrap.filter-popup-follow-determined-only tbody tr[data-idx]:not(.filter-popup-follow-determined-hit) {
+            display: none !important;
+        }
+
         #filterTableWrap.filter-popup-follow-question-only tbody tr[data-idx]:not(.filter-popup-follow-question-hit) {
             display: none !important;
         }
@@ -7586,8 +7590,7 @@
         }
 
         function isAllLikeFilterMode(mode) {
-            const normalized = normalizeFilterMode(mode);
-            return normalized === 'all' || normalized === 'follow';
+            return normalizeFilterMode(mode) === 'all';
         }
 
         function supportsConnectionNoteTagFilter(mode) {
@@ -13113,6 +13116,15 @@
                 .filter((idx) => Number.isFinite(idx));
         }
 
+        function collectFilterPopupFollowDeterminedHitIndicesOrdered(wrap) {
+            if (!wrap) {
+                return [];
+            }
+            return [...wrap.querySelectorAll('tbody tr.filter-popup-follow-determined-hit[data-idx]')]
+                .map((tr) => Number(tr.dataset.idx))
+                .filter((idx) => Number.isFinite(idx));
+        }
+
         function collectFilterPopupFollowQuestionHitIndicesOrdered(wrap) {
             if (!wrap) {
                 return [];
@@ -13140,7 +13152,7 @@
             if (!wrap) {
                 return;
             }
-            wrap.classList.toggle('filter-popup-posnfreq-green-only', mode === 'determined');
+            wrap.classList.toggle('filter-popup-follow-determined-only', mode === 'determined');
             wrap.classList.toggle('filter-popup-follow-question-only', mode === 'undetermined');
         }
 
@@ -13210,9 +13222,9 @@
             }
             if (filterPopupFollowSubfilter === 'determined' && periodFilterEnabled && isFollowFilterMode(periodFilterMode)) {
                 const wrap = el('filterTableWrap');
-                const green = collectFilterPopupPosnfreqGreenHitIndicesOrdered(wrap);
-                if (green.length) {
-                    return green;
+                const determined = collectFilterPopupFollowDeterminedHitIndicesOrdered(wrap);
+                if (determined.length) {
+                    return determined;
                 }
             }
             if (filterPopupFollowSubfilter === 'undetermined' && periodFilterEnabled && isFollowFilterMode(periodFilterMode)) {
@@ -13262,7 +13274,13 @@
             const previewOnly = opts.syncPreview !== false;
             if (!isFilterPopupSubfilterOnlyActive()) {
                 const displayList = getFilterPopupDisplayIndices();
-                filterPopupActiveIdx = resolveFilterPopupActiveIdx(displayList);
+                const keepFollowAnchor = isFollowFilterMode(periodFilterMode)
+                    && typeof filterPopupActiveIdx === 'number'
+                    && filterPopupActiveIdx >= 0
+                    && displayList.includes(filterPopupActiveIdx);
+                if (!keepFollowAnchor) {
+                    filterPopupActiveIdx = resolveFilterPopupActiveIdx(displayList);
+                }
                 applyFilterPopupRowFocus(filterPopupActiveIdx);
                 if (filterPopupActiveIdx >= 0) {
                     syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly });
@@ -13286,6 +13304,26 @@
                 filterPopupActiveIdx = -1;
                 clearFilterPopupRowFocus();
                 resetFilterPopupPositionUi();
+                return;
+            }
+            if (isFollowFilterMode(periodFilterMode)) {
+                if (list.includes(filterPopupActiveIdx)) {
+                    applyFilterPopupRowFocus(filterPopupActiveIdx);
+                    syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly });
+                    const positionInput = el('filterPopupPositionInput');
+                    if (positionInput) {
+                        const pos = list.indexOf(filterPopupActiveIdx);
+                        const posText = pos >= 0 ? String(pos + 1) : '';
+                        setFilterPopupPositionText(positionInput, posText);
+                        setFilterPopupPositionInputWidth(positionInput, posText);
+                    }
+                    if (filterPopupActiveIdx >= 0) {
+                        scrollFilterPopupRowIntoView();
+                    }
+                } else {
+                    clearFilterPopupRowFocus();
+                    resetFilterPopupPositionUi();
+                }
                 return;
             }
             if (!list.includes(filterPopupActiveIdx)) {
@@ -14636,20 +14674,30 @@
                 syncFilterPopupAllModeClass();
                 return;
             }
-            if (!isMainUserFocusInFilterPopupEffectiveList()) {
-                filterPopupActiveIdx = -1;
-                clearFilterPopupRowFocus();
-                syncFilterPopupAllModeClass();
-                clearFilterPopupHighlightsWhenMainFocusExcluded();
-                return;
-            }
+
             const list = getFilterPopupEffectiveListIndices();
             if (!list.includes(idx)) {
-                clearFilterPopupRowFocus();
-                syncFilterPopupAllModeClass();
+                if (isFollowFilterMode(periodFilterMode)) {
+                    clearFilterPopupRowFocus();
+                    syncFilterPopupAllModeClass();
+                    if (!isMainUserFocusInFilterPopupEffectiveList()) {
+                        clearFilterPopupHighlightsWhenMainFocusExcluded();
+                    }
+                    return;
+                }
+                if (!isMainUserFocusInFilterPopupEffectiveList()) {
+                    filterPopupActiveIdx = -1;
+                    clearFilterPopupRowFocus();
+                    syncFilterPopupAllModeClass();
+                    clearFilterPopupHighlightsWhenMainFocusExcluded();
+                } else {
+                    clearFilterPopupRowFocus();
+                    syncFilterPopupAllModeClass();
+                }
                 return;
             }
 
+            filterPopupActiveIdx = idx;
             const allMode = periodFilterEnabled && isAllLikeFilterMode(periodFilterMode);
             clearFilterPopupRowFocus(!allMode);
             syncFilterPopupAllModeClass();
@@ -15557,6 +15605,13 @@
             }
             const list = getFilterPopupEffectiveListIndices();
             if (!list.includes(focusRowIndex)) {
+                if (isFollowFilterMode(periodFilterMode)) {
+                    filterPopupActiveIdx = focusRowIndex;
+                    clearFilterPopupRowFocus();
+                    resetFilterPopupPositionUi();
+                    clearFilterPopupHighlightsWhenMainFocusExcluded();
+                    return;
+                }
                 filterPopupActiveIdx = -1;
                 applyFilterPopupRowFocus(-1);
                 clearFilterPopupHighlightsWhenMainFocusExcluded();
@@ -15924,8 +15979,8 @@
                 hidePct();
                 return;
             }
-            wrap.querySelectorAll('tbody tr.filter-popup-posnfreq-submit-hit').forEach((tr) => {
-                tr.classList.remove('filter-popup-posnfreq-submit-hit');
+            wrap.querySelectorAll('tbody tr.filter-popup-follow-determined-hit').forEach((tr) => {
+                tr.classList.remove('filter-popup-follow-determined-hit');
             });
             wrap.querySelectorAll('tbody tr.filter-popup-follow-question-hit').forEach((tr) => {
                 tr.classList.remove('filter-popup-follow-question-hit');
@@ -15942,7 +15997,7 @@
                 }
                 if (typeof sheetManager.rowHasDeterminedFollow === 'function'
                     && sheetManager.rowHasDeterminedFollow(rows, idx)) {
-                    tr.classList.add('filter-popup-posnfreq-submit-hit');
+                    tr.classList.add('filter-popup-follow-determined-hit');
                 }
                 if (typeof sheetManager.rowHasUndeterminedFollow === 'function'
                     && sheetManager.rowHasUndeterminedFollow(rows, idx)) {
@@ -15950,7 +16005,7 @@
                 }
             });
             const tableTotal = wrap.querySelectorAll('tbody tr[data-idx]').length;
-            const green = wrap.querySelectorAll('tbody tr.filter-popup-posnfreq-submit-hit').length;
+            const green = wrap.querySelectorAll('tbody tr.filter-popup-follow-determined-hit').length;
             const question = wrap.querySelectorAll('tbody tr.filter-popup-follow-question-hit').length;
             if (!pctEl) {
                 return;
