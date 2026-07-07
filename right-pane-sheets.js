@@ -11260,7 +11260,9 @@ class RightPaneSheetManager {
 
             const effectiveJustSet = (!isBasic && specialPreviewLayout && specialPreviewPick != null)
                 ? new Set([specialPreviewPick])
-                : justSet;
+                : (!isBasic && !leftSubmitOn)
+                    ? new Set()
+                    : justSet;
 
             for (let n = 1; n <= numMax; n++) {
                 const el = barByNum[n];
@@ -11382,7 +11384,7 @@ class RightPaneSheetManager {
                 const predictHit = Boolean(pr) && actualNext != null && n === actualNext;
                 el.classList.toggle(
                     'special-tracking-rank-bar--just',
-                    !isBasic && isJust && !actualAnswer && !autoringBarLabel
+                    !isBasic && leftSubmitOn && isJust && !actualAnswer && !autoringBarLabel
                 );
                 const userClickFocus = getFocusNums().has(n);
                 el.classList.toggle('special-tracking-rank-bar--click-focus', userClickFocus);
