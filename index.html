@@ -14621,7 +14621,10 @@
                 indices.add(i);
             }
             filterAllModeNonexistRefreshPrev = null;
-            sheetManager.refreshNonexistCellsForRowIndices(wrap, indices, { forFilterPopup: true });
+            sheetManager.refreshNonexistCellsForRowIndices(wrap, indices, {
+                forFilterPopup: true,
+                windowRange: { start, end, target: idx }
+            });
         }
 
         function resetFilterAllModeWindow() {
@@ -14772,6 +14775,7 @@
             }
             if (allMode) {
                 applyFilterPopupAllModeWindow(idx);
+                refreshFilterPopupAllModeNonexistCells(idx);
             }
             if (isFollowFilterMode(periodFilterMode)) {
                 clearFilterPopupFollowAuxiliaryHighlights();

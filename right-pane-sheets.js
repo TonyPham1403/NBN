@@ -3724,17 +3724,17 @@ class RightPaneSheetManager {
     /**
      * Nonexist HTML for one source row (respects Answer-popup focus mask = empty-result styling).
      */
-    renderSourceRowNonexistCellHtml(rowIndex, row) {
+    renderSourceRowNonexistCellHtml(rowIndex, row, options = {}) {
         const maskRow = this.shouldAnswerPopupMaskSheet1Row(rowIndex);
         const source = row || {};
         const result = source.result || source.Result || '';
         if (maskRow) {
             const emptyRow = Object.assign({}, source, { result: '', Result: '' });
             const meta = this.getNonexistMetaForSourceRow(rowIndex, emptyRow);
-            return this.renderNonexistHtml(rowIndex, meta.text, '');
+            return this.renderNonexistHtml(rowIndex, meta.text, '', options);
         }
         const meta = this.getNonexistMetaForSourceRow(rowIndex, source);
-        return this.renderNonexistHtml(rowIndex, meta.text, result);
+        return this.renderNonexistHtml(rowIndex, meta.text, result, options);
     }
 
     scheduleApplyAnswerPopupFocusMask(tableWrap) {
@@ -5285,6 +5285,7 @@ class RightPaneSheetManager {
                 previewRefresh.add(i);
             }
             this.refreshNonexistCellsForRowIndices(tableWrap, previewRefresh);
+            this.renderWindowLabels(startIdx, endIdx, tableWrap);
             return;
         }
         if (idRefHighlightIndices && idRefHighlightIndices.length) {
@@ -5934,8 +5935,8 @@ class RightPaneSheetManager {
      * Boost tạm ngoài cửa sổ 10: số trong nonexist hàng focus (vd 30 @731) → hàng ngoài cửa sổ
      * mà số đó đang vàng (vd 709).
      */
-    isOutsideWindowFocusTrailBoost(rowIndex, num) {
-        const win = this.activeWindowRange;
+    isOutsideWindowFocusTrailBoost(rowIndex, num, winOverride = null) {
+        const win = winOverride || this.activeWindowRange;
         if (!win || typeof win.start !== 'number' || typeof win.end !== 'number') {
             return false;
         }
@@ -5943,10 +5944,13 @@ class RightPaneSheetManager {
         if (rowIndex >= start) {
             return false;
         }
-        if (!this._getFocusNonexistTrailNumsCache().has(num)) {
+        const targetIdx = typeof win.target === 'number' ? win.target : win.end;
+        const trailSet = winOverride
+            ? this.getFocusRowNonexistNums(targetIdx)
+            : this._getFocusNonexistTrailNumsCache();
+        if (!trailSet.has(num)) {
             return false;
         }
-        const targetIdx = typeof win.target === 'number' ? win.target : win.end;
         const streakStart = this.getNonexistStreakStartRow(targetIdx, num);
         if (streakStart >= 0 && rowIndex < streakStart) {
             return false;
@@ -5985,8 +5989,8 @@ class RightPaneSheetManager {
         return indices;
     }
 
-    shouldBoostYellowNonexistForWindow(rowIndex, num) {
-        const win = this.activeWindowRange;
+    shouldBoostYellowNonexistForWindow(rowIndex, num, winOverride = null) {
+        const win = winOverride || this.activeWindowRange;
         if (!win || typeof win.start !== 'number' || typeof win.end !== 'number') {
             return false;
         }
@@ -5995,7 +5999,7 @@ class RightPaneSheetManager {
         if (end < start) {
             return false;
         }
-        if (this.isOutsideWindowFocusTrailBoost(rowIndex, num)) {
+        if (this.isOutsideWindowFocusTrailBoost(rowIndex, num, win)) {
             return true;
         }
 
@@ -6055,7 +6059,9 @@ class RightPaneSheetManager {
                 continue;
             }
             const row = displayRows[i];
-            cell.innerHTML = this.renderSourceRowNonexistCellHtml(i, row);
+            cell.innerHTML = this.renderSourceRowNonexistCellHtml(i, row, {
+                windowRange: options.windowRange || null
+            });
             const masked = this.shouldAnswerPopupMaskSheet1Row(i);
             tr.classList.toggle('answer-popup-focus-masked', masked);
             cell.classList.toggle('answer-popup-focus-nonexist', masked);
@@ -6234,11 +6240,12 @@ class RightPaneSheetManager {
     /**
      * Render nonexist text using the generated values from result data only.
      */
-    renderNonexistHtml(rowIndex, nonexistText, currentResult) {
+    renderNonexistHtml(rowIndex, nonexistText, currentResult, options = {}) {
         if (!nonexistText || nonexistText === 'N/A') {
             return this.escapeHtml(nonexistText || '');
         }
 
+        const windowRange = options.windowRange || null;
         const greenStrikeStyle = 'color:rgb(0,80,0);font-weight:bold;font-size:1.5em;text-decoration:line-through';
         const redLongestStyle = 'color:rgb(255,0,0);font-weight:bold';
         const purpleOutsideStyle = 'color:rgb(148,55,220);font-weight:bold';
@@ -6267,7 +6274,7 @@ class RightPaneSheetManager {
                 return `<span style="color:rgb(0,80,0);font-weight:bold;font-style:italic;font-size:1.5em">${value}</span>`;
             }
             if (displayKind === 'yellow') {
-                const boost = this.shouldBoostYellowNonexistForWindow(rowIndex, value);
+                const boost = this.shouldBoostYellowNonexistForWindow(rowIndex, value, windowRange);
                 const fs = boost ? 'font-size:1.5em;' : '';
                 return `<span style="color:rgb(240,200,64);font-weight:bold;${fs}">${value}</span>`;
             }
