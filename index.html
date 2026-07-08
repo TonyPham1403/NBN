@@ -449,43 +449,61 @@
             isolation: isolate;
         }
 
-        /* Viền bar: cạnh phải dừng sau freq, không đè bụng (brace) */
-        .special-tracking-rank-bar--focus::after {
+        /* Viền focus / đáp án: 2 thanh chữ nhật — main (trái, trước bụng mờ) + tail (nhãn+freq trong bụng) */
+        .special-tracking-rank-bar--focus .special-tracking-rank-track--main::after,
+        .special-tracking-rank-bar--click-focus .special-tracking-rank-track--main::after {
             content: '';
             position: absolute;
             top: 0;
             left: 0;
             bottom: 0;
-            right: var(--st-bar-border-right-inset, 0);
+            right: 0;
             z-index: 80;
             pointer-events: none;
             box-sizing: border-box;
+        }
+
+        .special-tracking-rank-bar--focus .special-tracking-rank-track--main::after {
             box-shadow: inset 0 0 0 3px #0a0a0a;
         }
 
-        .special-tracking-rank-bar--click-focus::after {
+        .special-tracking-rank-bar--click-focus .special-tracking-rank-track--main::after {
+            box-shadow: inset 0 0 0 3px #ea580c;
+        }
+
+        .special-tracking-rank-bar--focus .special-tracking-rank-bar-tail::after,
+        .special-tracking-rank-bar--click-focus .special-tracking-rank-bar-tail::after {
             content: '';
             position: absolute;
             top: 0;
-            left: 0;
             bottom: 0;
+            left: var(--st-bar-tail-border-left-inset, calc(var(--st-freq-brace-w) - var(--st-label-digit-w) - 6px));
             right: var(--st-bar-border-right-inset, 0);
             z-index: 80;
             pointer-events: none;
             box-sizing: border-box;
+        }
+
+        .special-tracking-rank-bar--focus .special-tracking-rank-bar-tail::after {
+            box-shadow: inset 0 0 0 3px #0a0a0a;
+        }
+
+        .special-tracking-rank-bar--click-focus .special-tracking-rank-bar-tail::after {
             box-shadow: inset 0 0 0 3px #ea580c;
         }
 
         /* Viền cam + đáp án: tắt viền xanh ::before riêng, gộp vào ::after */
-        .special-tracking-rank-bar--click-focus.special-tracking-rank-bar--actual-answer::before {
+        .special-tracking-rank-bar--click-focus.special-tracking-rank-bar--actual-answer .special-tracking-rank-track--main::before,
+        .special-tracking-rank-bar--click-focus.special-tracking-rank-bar--actual-answer .special-tracking-rank-bar-tail::before {
             box-shadow: none !important;
         }
 
-        /* Basic: cam 3px ngoài, xanh lá mỏng sát trong */
-        .special-tracking-root--basic .special-tracking-rank-bar--click-focus.special-tracking-rank-bar--actual-answer::after {
+        /* Basic: cam ngoài, xanh lá sát trong — mỏng hơn special */
+        .special-tracking-root--basic .special-tracking-rank-bar--click-focus.special-tracking-rank-bar--actual-answer .special-tracking-rank-track--main::after,
+        .special-tracking-root--basic .special-tracking-rank-bar--click-focus.special-tracking-rank-bar--actual-answer .special-tracking-rank-bar-tail::after {
             box-shadow:
-                inset 0 0 0 3px #ea580c,
-                inset 0 0 0 5px rgba(0, 125, 68, 0.95);
+                inset 0 0 0 var(--st-basic-focus-border-w, 2px) #ea580c,
+                inset 0 0 0 calc(var(--st-basic-focus-border-w, 2px) + 1px) rgba(0, 125, 68, 0.95);
         }
 
         .special-tracking-rank-bar--focus:hover,
@@ -498,20 +516,30 @@
             z-index: 44 !important;
         }
 
-        .special-tracking-rank-bar--predict::before {
+        .special-tracking-rank-bar--predict .special-tracking-rank-track--main::before,
+        .special-tracking-rank-bar--predict .special-tracking-rank-bar-tail::before {
             content: '';
             position: absolute;
             top: 0;
-            left: 0;
             bottom: 0;
-            right: var(--st-bar-border-right-inset, 0);
             z-index: 6;
             pointer-events: none;
             box-sizing: border-box;
         }
 
+        .special-tracking-rank-bar--predict .special-tracking-rank-track--main::before {
+            left: 0;
+            right: 0;
+        }
+
+        .special-tracking-rank-bar--predict .special-tracking-rank-bar-tail::before {
+            left: var(--st-bar-tail-border-left-inset, calc(var(--st-freq-brace-w) - var(--st-label-digit-w) - 6px));
+            right: var(--st-bar-border-right-inset, 0);
+        }
+
         /* Dự đoán id+1 (#1–#3, chưa trúng): viền xanh dương — chỉ khi bật Predict */
-        .special-tracking-root--predict-neon-on .special-tracking-rank-bar--predict:not(.special-tracking-rank-bar--predict-hit)::before {
+        .special-tracking-root--predict-neon-on .special-tracking-rank-bar--predict:not(.special-tracking-rank-bar--predict-hit) .special-tracking-rank-track--main::before,
+        .special-tracking-root--predict-neon-on .special-tracking-rank-bar--predict:not(.special-tracking-rank-bar--predict-hit) .special-tracking-rank-bar-tail::before {
             box-shadow:
                 inset 0 0 0 3px rgba(35, 100, 215, 0.95),
                 inset 0 0 16px rgba(25, 75, 185, 0.38),
@@ -519,7 +547,8 @@
         }
 
         /* Dự đoán id+1 trúng đáp án: viền cyan */
-        .special-tracking-root--predict-neon-on .special-tracking-rank-bar--predict.special-tracking-rank-bar--predict-hit::before {
+        .special-tracking-root--predict-neon-on .special-tracking-rank-bar--predict.special-tracking-rank-bar--predict-hit .special-tracking-rank-track--main::before,
+        .special-tracking-root--predict-neon-on .special-tracking-rank-bar--predict.special-tracking-rank-bar--predict-hit .special-tracking-rank-bar-tail::before {
             box-shadow:
                 inset 0 0 0 3px rgba(0, 190, 210, 0.95),
                 inset 0 0 16px rgba(0, 160, 185, 0.4),
@@ -531,17 +560,26 @@
             z-index: 45 !important;
         }
 
-        .special-tracking-root:not(.special-tracking-root--predict-on) .special-tracking-rank-bar--actual-answer::before {
+        .special-tracking-root:not(.special-tracking-root--basic):not(.special-tracking-root--predict-on) .special-tracking-rank-bar--actual-answer .special-tracking-rank-track--main::before,
+        .special-tracking-root:not(.special-tracking-root--basic):not(.special-tracking-root--predict-on) .special-tracking-rank-bar--actual-answer .special-tracking-rank-bar-tail::before {
             content: '';
             position: absolute;
             top: 0;
-            left: 0;
             bottom: 0;
-            right: var(--st-bar-border-right-inset, 0);
             z-index: 6;
             pointer-events: none;
             box-sizing: border-box;
             box-shadow: inset 0 0 0 3px rgba(0, 125, 68, 0.95);
+        }
+
+        .special-tracking-root:not(.special-tracking-root--basic):not(.special-tracking-root--predict-on) .special-tracking-rank-bar--actual-answer .special-tracking-rank-track--main::before {
+            left: 0;
+            right: 0;
+        }
+
+        .special-tracking-root:not(.special-tracking-root--basic):not(.special-tracking-root--predict-on) .special-tracking-rank-bar--actual-answer .special-tracking-rank-bar-tail::before {
+            left: var(--st-bar-tail-border-left-inset, calc(var(--st-freq-brace-w) - var(--st-label-digit-w) - 6px));
+            right: var(--st-bar-border-right-inset, 0);
         }
 
         .special-tracking-rank-bar-main {
@@ -549,8 +587,43 @@
             min-width: 0;
             padding: 0;
             display: flex;
+            flex-direction: row;
             align-items: stretch;
             position: relative;
+        }
+
+        /* Thanh 1: track chính — kết thúc trước vùng bụng mờ */
+        .special-tracking-rank-track--main {
+            flex: 1 1 0;
+            min-width: 0;
+        }
+
+        /* Thanh 2: vùng nhãn trong bụng mờ (label-out); label-in vẫn giữ chỗ cho ghost */
+        .special-tracking-rank-track--label {
+            flex: 0 0 var(--st-freq-brace-w, clamp(28px, 5vw, 38px));
+            min-width: 0;
+        }
+
+        .special-tracking-root--label-in .special-tracking-rank-track--label {
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        .special-tracking-rank-bar-tail {
+            position: relative;
+            flex: 0 0 calc(var(--st-freq-brace-w, clamp(28px, 5vw, 38px)) * 2);
+            min-width: 0;
+            display: flex;
+            flex-direction: row;
+            align-items: stretch;
+        }
+
+        .special-tracking-root--label-in .special-tracking-rank-bar-tail {
+            flex: 0 0 var(--st-freq-brace-w, clamp(28px, 5vw, 38px));
+        }
+
+        .special-tracking-root--label-in .special-tracking-rank-bar-tail .special-tracking-rank-track--label {
+            display: none;
         }
 
         .special-tracking-rank-track {
@@ -594,7 +667,8 @@
         }
 
         .special-tracking-rank-fill .special-tracking-rank-num,
-        .special-tracking-rank-track>.special-tracking-rank-num {
+        .special-tracking-rank-track--main>.special-tracking-rank-num,
+        .special-tracking-rank-track--label>.special-tracking-rank-num {
             position: absolute;
             top: 50%;
             z-index: 2;
@@ -621,18 +695,30 @@
             user-select: none;
         }
 
-        .special-tracking-root--label-in .special-tracking-rank-track>.special-tracking-rank-num {
+        .special-tracking-root--label-in .special-tracking-rank-track--main>.special-tracking-rank-num {
             right: auto;
         }
 
-        .special-tracking-root--label-out .special-tracking-rank-track>.special-tracking-rank-num {
+        .special-tracking-root--label-out .special-tracking-rank-track--label>.special-tracking-rank-num {
             right: 0;
             left: auto;
             transform: translateY(-50%);
         }
 
+        .special-tracking-root--label-in {
+            --st-bar-tail-border-left-inset: 0;
+        }
+
+        /* label-in: thanh main dừng trước vùng bụng mờ (ghost) trên cùng track */
+        .special-tracking-root--label-in .special-tracking-rank-bar--focus .special-tracking-rank-track--main::after,
+        .special-tracking-root--label-in .special-tracking-rank-bar--click-focus .special-tracking-rank-track--main::after,
+        .special-tracking-root--label-in .special-tracking-rank-bar--actual-answer .special-tracking-rank-track--main::before,
+        .special-tracking-root--label-in .special-tracking-rank-bar--predict .special-tracking-rank-track--main::before {
+            right: var(--st-freq-brace-w, clamp(28px, 5vw, 38px));
+        }
+
         .special-tracking-rank-meta {
-            flex: 0 0 clamp(68px, 15vw, 92px);
+            flex: 0 0 var(--st-freq-brace-w, clamp(28px, 5vw, 38px));
             min-width: 0;
             display: flex;
             flex-direction: row;
@@ -1058,34 +1144,55 @@
         .special-tracking-root--basic {
             --st-basic-meta-w: clamp(52px, 10vw, 68px);
             --st-basic-freq-digit-w: 1.1rem;
+            --st-label-digit-w: clamp(10px, 1.35vh, 13px);
             --st-freq-brace-w: var(--st-basic-meta-w);
             --st-freq-brace-right: 0;
-            /* Viền ôm tới freq; phần còn lại của meta = bụng, không bị đè */
+            --st-freq-brace-count-shift-x: -35%;
+            /* Viền tail: trái ôm nhãn trong bụng mờ; phải dừng sau freq */
+            --st-bar-tail-border-left-inset: calc(var(--st-freq-brace-w) - var(--st-label-digit-w) - 6px);
             --st-bar-border-right-inset: calc(var(--st-basic-meta-w) - var(--st-basic-freq-digit-w) - 6px);
+            --st-basic-focus-border-w: 2px;
+        }
+
+        /* Basic: viền bar mỏng hơn special (2px) */
+        .special-tracking-root--basic .special-tracking-rank-bar--focus .special-tracking-rank-track--main::after,
+        .special-tracking-root--basic .special-tracking-rank-bar--focus .special-tracking-rank-bar-tail::after {
+            box-shadow: inset 0 0 0 var(--st-basic-focus-border-w) #0a0a0a;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-bar--click-focus .special-tracking-rank-track--main::after,
+        .special-tracking-root--basic .special-tracking-rank-bar--click-focus .special-tracking-rank-bar-tail::after {
+            box-shadow: inset 0 0 0 var(--st-basic-focus-border-w) #ea580c;
         }
 
         /* Special: bụng sát mép phải, full cột meta (giống basic — không chồng lên bar) */
         .special-tracking-root:not(.special-tracking-root--basic) {
             --st-freq-meta-w: clamp(68px, 15vw, 92px);
             --st-freq-digit-w: 1.75rem;
+            --st-label-digit-w: clamp(14px, 2vh, 20px);
             --st-freq-brace-w: var(--st-freq-meta-w);
             --st-freq-brace-right: 0;
+            --st-freq-brace-count-shift-x: -32%;
             --st-special-focus-border-w: 5px;
+            --st-bar-tail-border-left-inset: calc(var(--st-freq-brace-w) - var(--st-label-digit-w) - 8px);
             --st-bar-border-right-inset: calc(var(--st-freq-meta-w) - var(--st-freq-digit-w) - 8px);
         }
 
         /* Special: viền cam focus dày hơn basic */
-        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-bar--click-focus::after {
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-bar--click-focus .special-tracking-rank-track--main::after,
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-bar--click-focus .special-tracking-rank-bar-tail::after {
             box-shadow: inset 0 0 0 var(--st-special-focus-border-w) #ea580c;
         }
 
         /* Special: viền xanh đáp án dày hơn */
-        .special-tracking-root:not(.special-tracking-root--basic):not(.special-tracking-root--predict-on) .special-tracking-rank-bar--actual-answer::before {
+        .special-tracking-root:not(.special-tracking-root--basic):not(.special-tracking-root--predict-on) .special-tracking-rank-bar--actual-answer .special-tracking-rank-track--main::before,
+        .special-tracking-root:not(.special-tracking-root--basic):not(.special-tracking-root--predict-on) .special-tracking-rank-bar--actual-answer .special-tracking-rank-bar-tail::before {
             box-shadow: inset 0 0 0 var(--st-special-focus-border-w) rgba(0, 125, 68, 0.95);
         }
 
         /* Special: cam + xanh cùng độ dày, xanh sát trong cam */
-        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-bar--click-focus.special-tracking-rank-bar--actual-answer::after {
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-bar--click-focus.special-tracking-rank-bar--actual-answer .special-tracking-rank-track--main::after,
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-bar--click-focus.special-tracking-rank-bar--actual-answer .special-tracking-rank-bar-tail::after {
             box-shadow:
                 inset 0 0 0 var(--st-special-focus-border-w) #ea580c,
                 inset 0 0 0 calc(var(--st-special-focus-border-w) * 2) rgba(0, 125, 68, 0.95);
@@ -1187,46 +1294,15 @@
             text-shadow: none !important;
         }
 
-        /* Basic + Submit ON: bar win10=0 trong đáp án — nhãn đỏ → đen gạch chân */
-        .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero .special-tracking-rank-num--submit-win10-zero-transition {
-            color: #111 !important;
-            -webkit-text-stroke: 0 !important;
-            text-shadow: none !important;
-        }
-
-        .special-tracking-root--basic .special-tracking-rank-num-transition {
-            display: inline-flex;
-            align-items: baseline;
-            gap: 0;
-            font-size: inherit;
-            font-weight: inherit;
-            line-height: 1;
-            white-space: nowrap;
-            letter-spacing: inherit;
-        }
-
-        .special-tracking-root--basic .special-tracking-rank-num-from {
-            color: #ff0000 !important;
-            font-weight: 900;
-        }
-
-        .special-tracking-root--basic .special-tracking-rank-num-arrow {
-            color: #333;
-            font-weight: 900;
-            font-size: inherit;
-            padding: 0 1px;
-        }
-
-        .special-tracking-root--basic .special-tracking-rank-num-to {
-            color: #000 !important;
-            font-weight: 900;
-            text-decoration: underline solid 1.5px #000 !important;
-            text-underline-offset: 2px;
-        }
-
-        .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero.special-tracking-rank-bar--submit-win10-zero-answer .special-tracking-rank-count {
-            color: #000 !important;
-            border-bottom: 1.5px solid #000000;
+        /* Basic + submit/giả lập: nhãn win10=0 trong đáp án — xanh lá vừa, dễ đọc không chói */
+        .special-tracking-root--basic .special-tracking-rank-bar--submit-win10-zero-answer .special-tracking-rank-num {
+            color: #1f9d55 !important;
+            -webkit-text-stroke: 0.35px rgba(255, 255, 255, 0.8) !important;
+            paint-order: stroke fill;
+            text-shadow:
+                0 0 2px rgba(255, 255, 255, 0.55),
+                0 1px 2px rgba(0, 0, 0, 0.1);
+            text-decoration: none !important;
         }
 
         /* Basic + autoring (tracking): viền đen giống click quan sát bar — dùng class --focus */
@@ -1244,7 +1320,7 @@
             min-height: 0;
         }
 
-        /* Tracking basic + special: dấu } bọc cột frequency (≥2 số cùng giá trị) */
+        /* Tracking basic + special: dấu } bọc cột meta (bụng + freq) — full --st-freq-brace-w */
         .special-tracking-freq-brace-layer {
             position: absolute;
             top: 0;
@@ -1274,7 +1350,7 @@
             left: 50%;
             top: 50%;
             z-index: 2;
-            transform: translate(-35%, -50%);
+            transform: translate(var(--st-freq-brace-count-shift-x, -35%), -50%);
             font-size: clamp(8px, 1.1vh, 11px);
             font-weight: 900;
             font-variant-numeric: tabular-nums;
@@ -1289,7 +1365,6 @@
 
         .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-freq-brace-count {
             font-size: clamp(13px, 2.35vh, 20px);
-            transform: translate(-32%, -50%);
         }
 
         .special-tracking-root--scrubbing .special-tracking-freq-brace {
@@ -1306,19 +1381,97 @@
             height: 100%;
         }
 
-        /* Basic: viền xanh 5 số đáp án — bọc cả bar + cột freq tích lũy (viền 3px, không glow) */
+        /* Submit ON: bụng mờ — đối xứng gương qua mép bar|cột meta (--st-freq-brace-w) */
+        .special-tracking-freq-brace-layer--ghost {
+            z-index: 4;
+            left: auto;
+            right: var(--st-freq-brace-w, clamp(28px, 5vw, 38px));
+            width: var(--st-freq-brace-w, clamp(28px, 5vw, 38px));
+            pointer-events: none;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .special-tracking-freq-brace--ghost {
+            left: 2px;
+            right: 0;
+            width: auto;
+        }
+
+        /* Bụng không đổi trước/sau submit: chấm li ti thưa */
+        .special-tracking-freq-brace--ghost:not(.special-tracking-freq-brace--ghost-changed) {
+            color: rgba(17, 17, 17, 0.5);
+        }
+
+        .special-tracking-freq-brace--ghost:not(.special-tracking-freq-brace--ghost-changed) svg path {
+            stroke-dasharray: 0.9 3.6;
+            stroke-linecap: round;
+            stroke-width: 1.35;
+        }
+
+        /* Bụng thay đổi sau submit: style y chang bụng bình thường (nét liền) */
+        .special-tracking-freq-brace--ghost-changed {
+            color: #111;
+        }
+
+        .special-tracking-freq-brace--ghost-changed svg path {
+            stroke-dasharray: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-width: 1.75;
+        }
+
+        /* Submit ON: bụng solid có cặp ghost không đổi — chấm li ti giống ghost */
+        .special-tracking-freq-brace--submit-unchanged svg path {
+            stroke-dasharray: 0.9 3.6;
+            stroke-linecap: round;
+            stroke-width: 1.35;
+        }
+
+        /* Tên bụng mờ: đối xứng gương qua mép ghost|solid (right:50% ↔ left:50%, đảo shift-x) */
+        .special-tracking-freq-brace--ghost .special-tracking-freq-brace-count {
+            left: auto;
+            right: 50%;
+            color: #111;
+            text-shadow: 0 0 3px rgba(255, 255, 255, 0.85);
+            transform: translate(calc(-1 * var(--st-freq-brace-count-shift-x, -35%)), -50%);
+        }
+
+        .special-tracking-root--scrubbing .special-tracking-freq-brace-layer--ghost,
+        .special-tracking-root--playing .special-tracking-freq-brace-layer--ghost {
+            transition: none;
+        }
+
+        .special-tracking-root--scrubbing .special-tracking-freq-brace--ghost,
+        .special-tracking-root--playing .special-tracking-freq-brace--ghost {
+            transition-duration: 0s;
+        }
+
+        /* Basic: viền xanh đáp án — 2 thanh (main + tail nhãn/freq) */
         .special-tracking-root--basic .special-tracking-rank-bar--actual-answer {
             z-index: 45 !important;
         }
 
-        .special-tracking-root--basic .special-tracking-rank-bar--actual-answer::before {
+        .special-tracking-root--basic .special-tracking-rank-bar--actual-answer .special-tracking-rank-track--main::before,
+        .special-tracking-root--basic .special-tracking-rank-bar--actual-answer .special-tracking-rank-bar-tail::before {
             content: '';
             position: absolute;
-            inset: 0;
+            top: 0;
+            bottom: 0;
             z-index: 6;
             pointer-events: none;
             box-sizing: border-box;
-            box-shadow: inset 0 0 0 3px rgba(0, 125, 68, 0.95);
+            box-shadow: inset 0 0 0 var(--st-basic-focus-border-w, 2px) rgba(0, 125, 68, 0.95);
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-bar--actual-answer .special-tracking-rank-track--main::before {
+            left: 0;
+            right: 0;
+        }
+
+        .special-tracking-root--basic .special-tracking-rank-bar--actual-answer .special-tracking-rank-bar-tail::before {
+            left: var(--st-bar-tail-border-left-inset, calc(var(--st-freq-brace-w) - var(--st-label-digit-w) - 6px));
+            right: var(--st-bar-border-right-inset, 0);
         }
 
         .special-tracking-timeline-wrap {
