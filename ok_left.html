@@ -239,61 +239,24 @@
             z-index: -1;
         }
 
-        /* Phase follow: cùng kích thước viền tím (18px + border 4px); mask rỗng giữa → neon chỉ trên dải viền */
+        /* Phase follow: viền hồng đơn giản cho số freq cao nhất (không neon quay) */
         body.phase-toolbar-active .cell.num.phase-chain-square.phase-max-freq::before {
             width: calc(var(--selected-ring-size) + 2 * var(--selected-ring-border));
             height: calc(var(--selected-ring-size) + 2 * var(--selected-ring-border));
             box-sizing: border-box;
-            border: none;
-            padding: var(--selected-ring-border);
-            background-color: transparent;
-            background-image: linear-gradient(90deg,
-                    #581c87 0%,
-                    #9333ea 12%,
-                    #7e22ce 22%,
-                    #e879f9 38%,
-                    #f5d0fe 48%,
-                    #d946ef 52%,
-                    #c026d3 65%,
-                    #a855f7 82%,
-                    #581c87 100%);
-            background-size: 340% 100%;
-            -webkit-mask:
-                linear-gradient(#fff 0 0) content-box,
-                linear-gradient(#fff 0 0);
-            -webkit-mask-composite: xor;
-            mask:
-                linear-gradient(#fff 0 0) content-box,
-                linear-gradient(#fff 0 0);
-            mask-composite: exclude;
-            animation:
-                phase-neon-border-slide 0.95s linear infinite,
-                phase-neon-glow-pulse 0.7s ease-in-out infinite alternate;
-            animation-delay: var(--phase-neon-d1, 0s), var(--phase-neon-d2, 0s);
+            border: var(--selected-ring-border) solid #ff3fb7;
+            border-radius: 3px;
+            background: transparent;
+            padding: 0;
+            background-image: none;
+            -webkit-mask: none;
+            mask: none;
+            /* Tăng độ nổi, vẫn là tông hồng */
+            box-shadow:
+                0 0 7px rgba(255, 63, 183, 0.75),
+                0 0 20px rgba(255, 63, 183, 0.35);
+            animation: none;
             transition: none;
-        }
-
-        @keyframes phase-neon-border-slide {
-            0% {
-                background-position: 0% 0;
-            }
-
-            100% {
-                background-position: 100% 0;
-            }
-        }
-
-        @keyframes phase-neon-glow-pulse {
-            0% {
-                box-shadow: 0 0 6px rgba(147, 51, 234, 0.38);
-            }
-
-            100% {
-                box-shadow:
-                    0 0 8px rgba(232, 121, 249, 0.95),
-                    0 0 18px rgba(217, 70, 239, 0.75),
-                    0 0 28px rgba(168, 85, 247, 0.45);
-            }
         }
 
         /* Submitted numbers highlight (used when Space toggles submit preview).
@@ -6810,36 +6773,13 @@
         /** Chu kỳ animation neon pair (khớp CSS) — dùng để animation-delay âm, mọi nút cùng pha. */
         const PAIR_NEON_BORDER_PERIOD_S = 1.25;
         const PAIR_NEON_GLOW_PERIOD_S = 0.9;
-        const PHASE_NEON_BORDER_PERIOD_S = 0.95;
-        const PHASE_NEON_GLOW_PERIOD_S = 0.7;
 
         function syncPhaseMaxFreqNeonAnimations() {
-            if (!isPhaseToolbarActive()) {
-                return;
-            }
-            var neonCells = document.querySelectorAll('.cell.num.phase-chain-square.phase-max-freq');
-            if (!neonCells.length) {
-                return;
-            }
-            var t = performance.now() / 1000;
-            var d1 = -(t % PHASE_NEON_BORDER_PERIOD_S);
-            var d2 = -(t % PHASE_NEON_GLOW_PERIOD_S);
-            neonCells.forEach(function (cell) {
-                cell.style.setProperty('--phase-neon-d1', d1 + 's');
-                cell.style.setProperty('--phase-neon-d2', d2 + 's');
-            });
+            /* Phase max-freq: viền hồng tĩnh — không còn neon animation */
         }
 
         function scheduleSyncPhaseMaxFreqNeonAnimations() {
-            try { syncPhaseMaxFreqNeonAnimations(); } catch (e1) { /* ignore */ }
-            try {
-                requestAnimationFrame(function () {
-                    try { syncPhaseMaxFreqNeonAnimations(); } catch (e2) { /* ignore */ }
-                    requestAnimationFrame(function () {
-                        try { syncPhaseMaxFreqNeonAnimations(); } catch (e3) { /* ignore */ }
-                    });
-                });
-            } catch (e4) { /* ignore */ }
+            /* no-op */
         }
 
         function syncPairNeonHintAnimations() {
