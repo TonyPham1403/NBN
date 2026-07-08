@@ -449,10 +449,14 @@
             isolation: isolate;
         }
 
+        /* Viền bar: cạnh phải dừng sau freq, không đè bụng (brace) */
         .special-tracking-rank-bar--focus::after {
             content: '';
             position: absolute;
-            inset: 0;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: var(--st-bar-border-right-inset, 0);
             z-index: 80;
             pointer-events: none;
             box-sizing: border-box;
@@ -462,7 +466,10 @@
         .special-tracking-rank-bar--click-focus::after {
             content: '';
             position: absolute;
-            inset: 0;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: var(--st-bar-border-right-inset, 0);
             z-index: 80;
             pointer-events: none;
             box-sizing: border-box;
@@ -494,7 +501,10 @@
         .special-tracking-rank-bar--predict::before {
             content: '';
             position: absolute;
-            inset: 0;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: var(--st-bar-border-right-inset, 0);
             z-index: 6;
             pointer-events: none;
             box-sizing: border-box;
@@ -524,7 +534,10 @@
         .special-tracking-root:not(.special-tracking-root--predict-on) .special-tracking-rank-bar--actual-answer::before {
             content: '';
             position: absolute;
-            inset: 0;
+            top: 0;
+            left: 0;
+            bottom: 0;
+            right: var(--st-bar-border-right-inset, 0);
             z-index: 6;
             pointer-events: none;
             box-sizing: border-box;
@@ -1043,18 +1056,22 @@
         }
 
         .special-tracking-root--basic {
-            --st-basic-meta-w: clamp(40px, 8vw, 52px);
+            --st-basic-meta-w: clamp(52px, 10vw, 68px);
             --st-basic-freq-digit-w: 1.1rem;
             --st-freq-brace-w: var(--st-basic-meta-w);
             --st-freq-brace-right: 0;
+            /* Viền ôm tới freq; phần còn lại của meta = bụng, không bị đè */
+            --st-bar-border-right-inset: calc(var(--st-basic-meta-w) - var(--st-basic-freq-digit-w) - 6px);
         }
 
         /* Special: bụng sát mép phải, full cột meta (giống basic — không chồng lên bar) */
         .special-tracking-root:not(.special-tracking-root--basic) {
             --st-freq-meta-w: clamp(68px, 15vw, 92px);
+            --st-freq-digit-w: 1.75rem;
             --st-freq-brace-w: var(--st-freq-meta-w);
             --st-freq-brace-right: 0;
             --st-special-focus-border-w: 5px;
+            --st-bar-border-right-inset: calc(var(--st-freq-meta-w) - var(--st-freq-digit-w) - 8px);
         }
 
         /* Special: viền cam focus dày hơn basic */
