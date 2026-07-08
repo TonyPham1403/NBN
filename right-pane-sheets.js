@@ -2288,6 +2288,54 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Special tracking: số đặc biệt ở kỳ 1 hoặc 2 liền trước kỳ nguồn — nghiêng trái (giống chuỗi 1/2 basic).
+     * @param {Array<number|null>} drawSteps `specialDrawSteps[ri]` = số 1–12 hoặc null
+     * @param {number} rowIndex
+     * @returns {Set<number>}
+     */
+    getSpecialCh1Ch2NumsSetForSourceRow(drawSteps, rowIndex) {
+        const set = new Set();
+        if (!Array.isArray(drawSteps) || typeof rowIndex !== 'number' || rowIndex < 0) {
+            return set;
+        }
+        for (let offset = 1; offset <= 2; offset++) {
+            const ri = rowIndex - offset;
+            if (ri < 0) {
+                continue;
+            }
+            const step = drawSteps[ri];
+            if (Number.isFinite(step) && step >= 1 && step <= 12) {
+                set.add(step | 0);
+            }
+        }
+        return set;
+    }
+
+    /**
+     * Special tracking: số đặc biệt ở kỳ 11 hoặc 12 liền trước kỳ nguồn — nghiêng phải (giống chuỗi 11/12 basic).
+     * @param {Array<number|null>} drawSteps `specialDrawSteps[ri]` = số 1–12 hoặc null
+     * @param {number} rowIndex
+     * @returns {Set<number>}
+     */
+    getSpecialCh11Ch12NumsSetForSourceRow(drawSteps, rowIndex) {
+        const set = new Set();
+        if (!Array.isArray(drawSteps) || typeof rowIndex !== 'number' || rowIndex < 0) {
+            return set;
+        }
+        for (let offset = 11; offset <= 12; offset++) {
+            const ri = rowIndex - offset;
+            if (ri < 0) {
+                continue;
+            }
+            const step = drawSteps[ri];
+            if (Number.isFinite(step) && step >= 1 && step <= 12) {
+                set.add(step | 0);
+            }
+        }
+        return set;
+    }
+
+    /**
      * 10 chuỗi trước kỳ `rowIndex` (Chuỗi 1 = sát kỳ đang xét).
      * @param {object[]} rows
      * @param {number} rowIndex
@@ -9995,6 +10043,47 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Special tracking: số có freq > 0 mà giá trị freq không ±1 (và không cùng bụng)
+     * so với ít nhất một số liền trước/sau trên stack.
+     * Số cùng bụng (cùng freq liền kề) luôn được coi là kết nối.
+     * @returns {Set<number>}
+     */
+    static computeSpecialTrackingFreqDisconnectedNums(counts, slotByNum, numMax = 12) {
+        const ranked = [];
+        for (let n = 1; n <= numMax; n++) {
+            const freq = (counts && counts[n]) || 0;
+            if (freq <= 0) {
+                continue;
+            }
+            ranked.push({
+                n,
+                freq: freq | 0,
+                slot: (slotByNum && slotByNum[n]) ?? numMax
+            });
+        }
+        if (ranked.length < 2) {
+            return new Set();
+        }
+        ranked.sort((a, b) => a.slot - b.slot || a.n - b.n);
+        const out = new Set();
+        const isNeighborLinked = (freqA, freqB) => freqA === freqB || Math.abs(freqA - freqB) === 1;
+        for (let i = 0; i < ranked.length; i++) {
+            const { n, freq } = ranked[i];
+            let linked = false;
+            if (i > 0 && isNeighborLinked(freq, ranked[i - 1].freq)) {
+                linked = true;
+            }
+            if (i < ranked.length - 1 && isNeighborLinked(freq, ranked[i + 1].freq)) {
+                linked = true;
+            }
+            if (!linked) {
+                out.add(n);
+            }
+        }
+        return out;
+    }
+
+    /**
      * Bước s trong chuỗi draws mà số n vừa đạt đúng lần xuất hiện thứ v (v≥1).
      */
     static basicTrackingStepOfVthHit(draws, n, v, endInclusive) {
@@ -11188,6 +11277,8 @@ class RightPaneSheetManager {
             let basicWindow10Freq = null;
             let basicCh11Set = null;
             let basicCh1Ch2Set = null;
+            let specialCh1Ch2Set = null;
+            let specialCh11Ch12Set = null;
             let freqTieGroups = [];
             let freqTieStreakByKey = new Map();
             let specialDisplay = null;
@@ -11256,6 +11347,15 @@ class RightPaneSheetManager {
                 });
                 freqTieGroups = tieResult.groups;
                 freqTieStreakByKey = tieResult.streakByKey;
+                const srcRow = this.getTrackingSourceRowIndexForFrame(sheet, frameIndex);
+                specialCh1Ch2Set = this.getSpecialCh1Ch2NumsSetForSourceRow(
+                    sheet.specialDrawSteps || [],
+                    srcRow
+                );
+                specialCh11Ch12Set = this.getSpecialCh11Ch12NumsSetForSourceRow(
+                    sheet.specialDrawSteps || [],
+                    srcRow
+                );
             }
 
             const effectiveJustSet = (!isBasic && specialPreviewLayout && specialPreviewPick != null)
@@ -11263,6 +11363,14 @@ class RightPaneSheetManager {
                 : (!isBasic && !leftSubmitOn)
                     ? new Set()
                     : justSet;
+
+            const specialFreqDisconnected = (!isBasic && specialDisplay)
+                ? RightPaneSheetManager.computeSpecialTrackingFreqDisconnectedNums(
+                    specialDisplay.counts,
+                    specialDisplay.slotByNum,
+                    numMax
+                )
+                : null;
 
             for (let n = 1; n <= numMax; n++) {
                 const el = barByNum[n];
@@ -11293,14 +11401,22 @@ class RightPaneSheetManager {
                 const win10Ch1Ch2ItalicLeft = isBasic
                     && basicCh1Ch2Set
                     && basicCh1Ch2Set.has(n);
+                const specialCh1Ch2ItalicLeft = !isBasic
+                    && specialCh1Ch2Set
+                    && specialCh1Ch2Set.has(n);
+                const ch1Ch2ItalicLeft = win10Ch1Ch2ItalicLeft || specialCh1Ch2ItalicLeft;
                 const win10Ch11ItalicRight = isBasic
                     && (win10FreqOne || win10FreqZero)
                     && basicCh11Set
                     && basicCh11Set.has(n);
-                const win10Ch11Italic = win10Ch1Ch2ItalicLeft ? false : win10Ch11ItalicRight;
-                const numItalicSkew = win10Ch1Ch2ItalicLeft
+                const specialCh11Ch12ItalicRight = !isBasic
+                    && specialCh11Ch12Set
+                    && specialCh11Ch12Set.has(n);
+                const ch11ItalicRight = win10Ch11ItalicRight || specialCh11Ch12ItalicRight;
+                const ch11Italic = ch1Ch2ItalicLeft ? false : ch11ItalicRight;
+                const numItalicSkew = ch1Ch2ItalicLeft
                     ? 'skewX(20deg)'
-                    : (win10Ch11Italic ? 'skewX(-12deg)' : '');
+                    : (ch11Italic ? 'skewX(-12deg)' : '');
                 const isJust = effectiveJustSet.has(n);
                 const leftPickPreviewLabel = leftPickSyncSet.has(n);
                 const actualAnswer = isBasic
@@ -11350,8 +11466,8 @@ class RightPaneSheetManager {
                         }
                         numEl.classList.remove('special-tracking-rank-num--submit-win10-zero-transition');
                     }
-                    numEl.classList.toggle('special-tracking-rank-num--win10-ch11-ch12-italic', win10Ch11Italic);
-                    numEl.classList.toggle('special-tracking-rank-num--ch1-ch2-italic-left', win10Ch1Ch2ItalicLeft);
+                    numEl.classList.toggle('special-tracking-rank-num--win10-ch11-ch12-italic', ch11Italic);
+                    numEl.classList.toggle('special-tracking-rank-num--ch1-ch2-italic-left', ch1Ch2ItalicLeft);
                 }
                 const autoringBarLabel = isBasic
                     && this.leftAutoringEnabled
@@ -11371,9 +11487,13 @@ class RightPaneSheetManager {
                     'special-tracking-rank-bar--submit-win10-zero-answer',
                     showWin10ZeroTransition
                 );
+                el.classList.toggle(
+                    'special-tracking-rank-bar--freq-disconnected',
+                    !isBasic && specialFreqDisconnected && specialFreqDisconnected.has(n)
+                );
                 if (countEl) {
-                    countEl.classList.toggle('special-tracking-rank-count--win10-ch11-ch12-italic', win10Ch11Italic);
-                    countEl.classList.toggle('special-tracking-rank-count--ch1-ch2-italic-left', win10Ch1Ch2ItalicLeft);
+                    countEl.classList.toggle('special-tracking-rank-count--win10-ch11-ch12-italic', ch11Italic);
+                    countEl.classList.toggle('special-tracking-rank-count--ch1-ch2-italic-left', ch1Ch2ItalicLeft);
                 }
                 if (isBasic) {
                     el.dataset.stWin10Freq = win10Freq != null ? String(win10Freq) : '';

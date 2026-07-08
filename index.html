@@ -1119,9 +1119,49 @@
             transform-origin: center center;
         }
 
+        /* Special: số đặc biệt ở kỳ 1–2 liền trước — cùng độ nghiêng trái như basic chuỗi 1/2 */
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-num--ch1-ch2-italic-left {
+            font-style: italic !important;
+            display: inline-block;
+            transform-origin: center center;
+        }
+
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-count--ch1-ch2-italic-left {
+            font-style: italic !important;
+            display: inline-block;
+            transform: skewX(20deg);
+            transform-origin: center center;
+        }
+
+        /* Special: số đặc biệt ở kỳ 11–12 liền trước — cùng độ nghiêng phải như basic chuỗi 11 */
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-num--win10-ch11-ch12-italic {
+            font-style: italic !important;
+            display: inline-block;
+            transform-origin: center center;
+        }
+
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-count--win10-ch11-ch12-italic {
+            font-style: italic !important;
+            display: inline-block;
+            transform: skewX(-12deg);
+            transform-origin: center center;
+        }
+
         .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero .special-tracking-rank-num,
         .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero .special-tracking-rank-count {
             color: #ff0000 !important;
+        }
+
+        /* Special: freq không nối đuôi ±1 với số liền trước/sau trên stack */
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-bar--freq-disconnected .special-tracking-rank-num,
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-bar--freq-disconnected .special-tracking-rank-count {
+            color: #ff0000 !important;
+        }
+
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-bar--freq-disconnected .special-tracking-rank-num {
+            -webkit-text-stroke: 0 !important;
+            paint-order: normal;
+            text-shadow: none !important;
         }
 
         .special-tracking-root--basic .special-tracking-rank-bar--win10-freq-zero .special-tracking-rank-num {
