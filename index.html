@@ -1381,6 +1381,21 @@
             height: 100%;
         }
 
+        /* Bụng solid mặc định (submit OFF): chấm li ti */
+        .special-tracking-freq-brace:not(.special-tracking-freq-brace--ghost):not(.special-tracking-freq-brace--solid-shifted) svg path {
+            stroke-dasharray: 0.9 3.6;
+            stroke-linecap: round;
+            stroke-width: 1.35;
+        }
+
+        /* Dịch chuyển freq — submit ON / giả lập: nét liền */
+        .special-tracking-freq-brace:not(.special-tracking-freq-brace--ghost).special-tracking-freq-brace--solid-shifted svg path {
+            stroke-dasharray: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-width: 1.75;
+        }
+
         /* Submit ON: bụng mờ — đối xứng gương qua mép bar|cột meta (--st-freq-brace-w) */
         .special-tracking-freq-brace-layer--ghost {
             z-index: 4;
@@ -1419,13 +1434,6 @@
             stroke-linecap: round;
             stroke-linejoin: round;
             stroke-width: 1.75;
-        }
-
-        /* Submit ON: bụng solid có cặp ghost không đổi — chấm li ti giống ghost */
-        .special-tracking-freq-brace--submit-unchanged svg path {
-            stroke-dasharray: 0.9 3.6;
-            stroke-linecap: round;
-            stroke-width: 1.35;
         }
 
         /* Tên bụng mờ: đối xứng gương qua mép ghost|solid (right:50% ↔ left:50%, đảo shift-x) */

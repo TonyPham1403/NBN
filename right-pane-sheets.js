@@ -9363,49 +9363,69 @@ class RightPaneSheetManager {
         return changed;
     }
 
-    /** Submit ON: khóa bụng solid có cặp ghost không đổi (cùng chấm li ti). */
-    static getTrackingFreqSolidSubmitUnchangedKeys(ghostGroups, ghostChangedKeys) {
-        const out = new Set();
-        if (!ghostGroups || !ghostGroups.length || !ghostChangedKeys) {
-            return out;
+    /** Khóa exact bụng: tập số + minSlot + maxSlot. */
+    static getTrackingFreqBellyExactKey(group) {
+        if (!group || !Array.isArray(group.nums) || group.nums.length < 2) {
+            return '';
         }
+        const bellyKeyOf = RightPaneSheetManager.getFreqTieGroupBellyKey;
+        return `${bellyKeyOf(group.nums)}:${group.minSlot}:${group.maxSlot}`;
+    }
+
+    /**
+     * Khóa streak của bụng trong source không còn y hệt (nums+slot) trong target.
+     * Dùng cho solid: current vs trước giả lập/submit — bụng đổi → nét liền.
+     */
+    static getTrackingFreqBellyStreakKeysWithoutExactMatchIn(sourceGroups, targetGroups) {
         const streakKeyOf = RightPaneSheetManager.getFreqTieGroupStreakKey;
-        for (let i = 0; i < ghostGroups.length; i++) {
-            const gg = ghostGroups[i];
-            const key = streakKeyOf(gg);
-            if (key && !ghostChangedKeys.has(key)) {
+        const targetExact = new Set();
+        for (let i = 0; i < (targetGroups || []).length; i++) {
+            const exact = RightPaneSheetManager.getTrackingFreqBellyExactKey(targetGroups[i]);
+            if (exact) {
+                targetExact.add(exact);
+            }
+        }
+        const out = new Set();
+        for (let i = 0; i < (sourceGroups || []).length; i++) {
+            const g = sourceGroups[i];
+            const key = streakKeyOf(g);
+            const exact = RightPaneSheetManager.getTrackingFreqBellyExactKey(g);
+            if (key && exact && !targetExact.has(exact)) {
                 out.add(key);
             }
         }
         return out;
     }
 
-    /** Giả lập: khóa bụng solid không đổi so với trước preview (chấm li ti). */
-    static getTrackingFreqSolidPreviewUnchangedKeys(beforeGroups, currentGroups) {
-        const bellyKeyOf = RightPaneSheetManager.getFreqTieGroupBellyKey;
+    /** Bụng solid đổi so với tham chiếu (trước giả lập / submit) → nét liền; còn lại chấm li ti. */
+    static getTrackingFreqSolidShiftedKeys(referenceGroups, currentGroups) {
         const streakKeyOf = RightPaneSheetManager.getFreqTieGroupStreakKey;
-        const beforeByFreq = new Map();
-        for (let i = 0; i < (beforeGroups || []).length; i++) {
-            const g = beforeGroups[i];
-            beforeByFreq.set(g.freq | 0, g);
+        const refStreakKeys = new Set();
+        const refExact = new Set();
+        for (let i = 0; i < (referenceGroups || []).length; i++) {
+            const rg = referenceGroups[i];
+            const key = streakKeyOf(rg);
+            const exact = RightPaneSheetManager.getTrackingFreqBellyExactKey(rg);
+            if (key) {
+                refStreakKeys.add(key);
+            }
+            if (exact) {
+                refExact.add(exact);
+            }
         }
-        const out = new Set();
+        const shifted = new Set();
         for (let i = 0; i < (currentGroups || []).length; i++) {
             const cg = currentGroups[i];
-            const bg = beforeByFreq.get(cg.freq | 0);
-            if (!bg) {
+            const key = streakKeyOf(cg);
+            const exact = RightPaneSheetManager.getTrackingFreqBellyExactKey(cg);
+            if (!key) {
                 continue;
             }
-            if (bellyKeyOf(bg.nums) === bellyKeyOf(cg.nums)
-                && bg.minSlot === cg.minSlot
-                && bg.maxSlot === cg.maxSlot) {
-                const key = streakKeyOf(cg);
-                if (key) {
-                    out.add(key);
-                }
+            if (!refStreakKeys.has(key) || !refExact.has(exact)) {
+                shifted.add(key);
             }
         }
-        return out;
+        return shifted;
     }
 
     /** Special giả lập 1 số: bụng mờ cho nhóm trước preview (kể cả khi pick rời khỏi bụng cũ). */
@@ -9652,16 +9672,15 @@ class RightPaneSheetManager {
         }
         const ghost = !!options.ghost;
         const ghostChangedKeys = options.ghostChangedKeys;
-        const solidSubmitUnchangedKeys = options.solidSubmitUnchangedKeys;
+        const solidShiftedKeys = options.solidShiftedKeys;
         const sig = !groups.length
             ? ''
             : groups.map((g) => {
                 const key = RightPaneSheetManager.getFreqTieGroupStreakKey(g);
                 const streak = (streakByKey && streakByKey.get(key)) || 1;
                 const changedFlag = ghost && ghostChangedKeys && ghostChangedKeys.has(key) ? 1 : 0;
-                const solidUnchangedFlag = !ghost && solidSubmitUnchangedKeys
-                    && solidSubmitUnchangedKeys.has(key) ? 1 : 0;
-                return `${g.freq}:${g.minSlot}-${g.maxSlot}:${key}:${streak}:${changedFlag}:${solidUnchangedFlag}`;
+                const solidShiftedFlag = !ghost && solidShiftedKeys && solidShiftedKeys.has(key) ? 1 : 0;
+                return `${g.freq}:${g.minSlot}-${g.maxSlot}:${key}:${streak}:${changedFlag}:${solidShiftedFlag}`;
             }).join('|');
         const sigKey = ghost ? 'stBraceGhostSig' : 'stBraceSig';
         const fullSig = (ghost ? 'ghost|' : '') + sig;
@@ -9683,14 +9702,13 @@ class RightPaneSheetManager {
             const unchangedStreak = (streakByKey && streakByKey.get(streakKey)) || 1;
             const countLabel = RightPaneSheetManager.formatFreqBraceCountLabel(memberCount, unchangedStreak);
             const ghostChanged = ghost && ghostChangedKeys && ghostChangedKeys.has(streakKey);
-            const solidSubmitUnchanged = !ghost && solidSubmitUnchangedKeys
-                && solidSubmitUnchangedKeys.has(streakKey);
+            const solidShifted = !ghost && solidShiftedKeys && solidShiftedKeys.has(streakKey);
             const el = document.createElement('div');
             el.className = ghost
                 ? ('special-tracking-freq-brace special-tracking-freq-brace--ghost'
                     + (ghostChanged ? ' special-tracking-freq-brace--ghost-changed' : ''))
                 : ('special-tracking-freq-brace'
-                    + (solidSubmitUnchanged ? ' special-tracking-freq-brace--submit-unchanged' : ''));
+                    + (solidShifted ? ' special-tracking-freq-brace--solid-shifted' : ''));
             el.setAttribute('data-freq', String(g.freq));
             el.setAttribute('data-member-count', String(memberCount));
             el.setAttribute('data-unchanged-streak', String(unchangedStreak));
@@ -9735,22 +9753,20 @@ class RightPaneSheetManager {
             this.leftSpecialPreviewPickNum = null;
         }
         this.leftSubmitActive = next;
-        if (!next && Array.isArray(this.leftBasicPreviewPickNumsStash)
-            && this.leftBasicPreviewPickNumsStash.length) {
-            // Iframe khôi phục preSubmit khi Submit OFF — không đẩy stash cũ (có thể chứa số đã bỏ khoanh).
+        if (!next) {
+            if (Array.isArray(this.leftBasicPreviewPickNumsStash)
+                && this.leftBasicPreviewPickNumsStash.length) {
+                // Basic: iframe khôi phục preSubmit khi Submit OFF.
+                this._basicPreviewStashRestoredAt = Date.now();
+                try {
+                    window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
+                } catch (eEv) { /* ignore */ }
+            }
             this.leftBasicPreviewPickNumsStash = [];
-            this._basicPreviewStashRestoredAt = Date.now();
-            try {
-                window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
-            } catch (eEv) { /* ignore */ }
-        } else if (!next && this.leftSpecialPreviewPickNumStash != null) {
-            this.leftSpecialPreviewPickNum = this.leftSpecialPreviewPickNumStash;
-            this.leftSpecialPreviewPickNumStash = null;
-        } else if (next) {
-            /* stash đã lưu ở trên */
-        } else {
-            this.leftBasicPreviewPickNumsStash = [];
-            this.leftSpecialPreviewPickNumStash = null;
+            if (this.leftSpecialPreviewPickNumStash != null) {
+                this.leftSpecialPreviewPickNum = this.leftSpecialPreviewPickNumStash;
+                this.leftSpecialPreviewPickNumStash = null;
+            }
         }
         this.requestTrackingUiRepaintIfActive();
     }
@@ -11884,31 +11900,31 @@ class RightPaneSheetManager {
                     ghostStreakToDraw = submitGhostTie.streakByKey;
                 }
             }
+            let referenceGroupsForSolid = null;
+            if (hasPreviewSimulation && beforePreviewTie) {
+                referenceGroupsForSolid = beforePreviewTie.groups;
+            } else if (leftSubmitOn && ghostGroupsToDraw.length) {
+                referenceGroupsForSolid = ghostGroupsToDraw;
+            }
+            const solidShiftedKeys = referenceGroupsForSolid
+                ? RightPaneSheetManager.getTrackingFreqSolidShiftedKeys(
+                    referenceGroupsForSolid,
+                    freqTieGroups
+                )
+                : null;
             const ghostChangedKeys = showGhostBelly
-                ? RightPaneSheetManager.getTrackingFreqGhostChangedKeySet(
+                ? RightPaneSheetManager.getTrackingFreqBellyStreakKeysWithoutExactMatchIn(
                     ghostGroupsToDraw,
                     freqTieGroups
                 )
                 : null;
-            let solidSubmitUnchangedKeys = null;
-            if (previewUnchangedBellyReady && beforePreviewTie) {
-                solidSubmitUnchangedKeys = RightPaneSheetManager.getTrackingFreqSolidPreviewUnchangedKeys(
-                    beforePreviewTie.groups,
-                    freqTieGroups
-                );
-            } else if (leftSubmitOn && !hasPreviewSimulation) {
-                solidSubmitUnchangedKeys = RightPaneSheetManager.getTrackingFreqSolidSubmitUnchangedKeys(
-                    ghostGroupsToDraw,
-                    ghostChangedKeys
-                );
-            }
             if (freqBraceLayer) {
                 RightPaneSheetManager.syncTrackingFreqBraces(
                     freqBraceLayer,
                     freqTieGroups,
                     slotCount,
                     freqTieStreakByKey,
-                    { solidSubmitUnchangedKeys }
+                    { solidShiftedKeys }
                 );
             }
             if (freqBraceGhostLayer) {
