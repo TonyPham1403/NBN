@@ -9428,6 +9428,73 @@ class RightPaneSheetManager {
         return shifted;
     }
 
+    /**
+     * Giả lập đủ (basic 5 / special 1): nhãn solid bụng không đổi = trước giả lập + 1.
+     * Bụng trong `solidShiftedKeys` là bụng đã đổi — không bump.
+     */
+    static applyTrackingSolidPreviewStreakBump(groups, streakByKey, beforeTie, solidShiftedKeys) {
+        const out = new Map(streakByKey || []);
+        if (!beforeTie || !Array.isArray(groups) || !groups.length) {
+            return out;
+        }
+        const bellyKeyOf = RightPaneSheetManager.getFreqTieGroupBellyKey;
+        const streakKeyOf = RightPaneSheetManager.getFreqTieGroupStreakKey;
+        const beforeGroups = beforeTie.groups || [];
+        const beforeStreakByKey = beforeTie.streakByKey || new Map();
+        const findBeforeStreak = (group) => {
+            const key = streakKeyOf(group);
+            if (key && beforeStreakByKey.has(key)) {
+                return beforeStreakByKey.get(key);
+            }
+            const exact = RightPaneSheetManager.getTrackingFreqBellyExactKey(group);
+            if (exact) {
+                for (let i = 0; i < beforeGroups.length; i++) {
+                    const bg = beforeGroups[i];
+                    if (RightPaneSheetManager.getTrackingFreqBellyExactKey(bg) === exact) {
+                        const bk = streakKeyOf(bg);
+                        if (bk && beforeStreakByKey.has(bk)) {
+                            return beforeStreakByKey.get(bk);
+                        }
+                    }
+                }
+            }
+            const bkNums = bellyKeyOf(group.nums);
+            if (bkNums) {
+                for (let i = 0; i < beforeGroups.length; i++) {
+                    const bg = beforeGroups[i];
+                    if (bellyKeyOf(bg.nums) === bkNums) {
+                        const bk = streakKeyOf(bg);
+                        if (bk && beforeStreakByKey.has(bk)) {
+                            return beforeStreakByKey.get(bk);
+                        }
+                    }
+                }
+            }
+            return null;
+        };
+        for (let i = 0; i < groups.length; i++) {
+            const g = groups[i];
+            const key = streakKeyOf(g);
+            if (!key) {
+                continue;
+            }
+            if (solidShiftedKeys && solidShiftedKeys.has(key)) {
+                continue;
+            }
+            const beforeStreak = findBeforeStreak(g);
+            if (beforeStreak != null) {
+                out.set(
+                    key,
+                    Math.min(
+                        RightPaneSheetManager.FREQ_BRACE_STREAK_MAX,
+                        (beforeStreak | 0) + 1
+                    )
+                );
+            }
+        }
+        return out;
+    }
+
     /** Special giả lập 1 số: bụng mờ cho nhóm trước preview (kể cả khi pick rời khỏi bụng cũ). */
     static filterTrackingSpecialPreviewGhostGroups(beforeGroups, afterGroups, previewPickNum, beforeCounts) {
         const bellyKeyOf = RightPaneSheetManager.getFreqTieGroupBellyKey;
@@ -9620,10 +9687,17 @@ class RightPaneSheetManager {
             return bellyKeyOf(group.nums) !== committedBelly;
         };
 
-        /** Hold frame + Submit ON: tích lũy không đổi — không tính thêm streak bụng.
-         *  Submit OFF: hold frame vẫn là bước preview hợp lệ, giữ đếm streak như cũ. */
+        /** Basic đủ 5 số giả lập: đếm streak anchor giống Submit ON (bỏ hold frame). */
+        const basicFullPreviewSim = isBasic
+            && layoutPreviewAtPaintFrame
+            && previewPickNums.length >= 5
+            && !leftSubmitOn;
+        const streakSubmitOn = leftSubmitOn || basicFullPreviewSim;
+
+        /** Hold frame + Submit ON (hoặc giả lập đủ 5): không tính thêm streak tại hold frame.
+         *  Submit OFF + giả lập chưa đủ 5: hold frame vẫn là bước preview hợp lệ. */
         const resolveStreakAnchorFrameIndex = (idx) => {
-            if (!leftSubmitOn) {
+            if (!streakSubmitOn) {
                 return idx;
             }
             let anchor = idx;
@@ -9647,7 +9721,7 @@ class RightPaneSheetManager {
             const previewCompositionChanged = isPreviewBellyCompositionChanged(group);
             if (!previewCompositionChanged) {
                 for (let f = streakAnchorFrameIndex - 1; f >= 0; f--) {
-                    if (leftSubmitOn && frames[f] && frames[f].holdFrame) {
+                    if (streakSubmitOn && frames[f] && frames[f].holdFrame) {
                         continue;
                     }
                     const prevBelly = findBellyKeyAtFreq(getGroupsForFrame(f, false), groupFreq);
@@ -11552,6 +11626,10 @@ class RightPaneSheetManager {
                 && paintLastGhostContextSig !== ghostContextSig) {
                 delete freqBraceGhostLayer.dataset.stBraceGhostSig;
             }
+            if (freqBraceLayer && paintLastGhostContextSig !== null
+                && paintLastGhostContextSig !== ghostContextSig) {
+                delete freqBraceLayer.dataset.stBraceSig;
+            }
             paintLastGhostContextSig = ghostContextSig;
             const leftPickBarSyncActive = isBasic
                 && this.isBasicTrackingLeftPickBarSyncActive(sheet, frameIndex);
@@ -11837,7 +11915,12 @@ class RightPaneSheetManager {
                     el.setAttribute('aria-label', aria);
                 }
             }
-            const showGhostBelly = leftSubmitOn || hasPreviewSimulation;
+            const basicEmptyLastSubmitGhostPending = isBasic
+                && leftSubmitOn
+                && this.isBasicTrackingLastEmptyRowSyncActive(sheet, frameIndex)
+                && previewPickNums.length < 5;
+            const showGhostBelly = (leftSubmitOn || hasPreviewSimulation)
+                && !basicEmptyLastSubmitGhostPending;
             let ghostLabel = 'Trước thay đổi';
             if (leftSubmitOn && hasPreviewSimulation) {
                 ghostLabel = 'Trước submit / giả lập';
@@ -11919,11 +12002,19 @@ class RightPaneSheetManager {
                 )
                 : null;
             if (freqBraceLayer) {
+                const solidStreakByKey = (previewUnchangedBellyReady && beforePreviewTie)
+                    ? RightPaneSheetManager.applyTrackingSolidPreviewStreakBump(
+                        freqTieGroups,
+                        freqTieStreakByKey,
+                        beforePreviewTie,
+                        solidShiftedKeys
+                    )
+                    : freqTieStreakByKey;
                 RightPaneSheetManager.syncTrackingFreqBraces(
                     freqBraceLayer,
                     freqTieGroups,
                     slotCount,
-                    freqTieStreakByKey,
+                    solidStreakByKey,
                     { solidShiftedKeys }
                 );
             }
