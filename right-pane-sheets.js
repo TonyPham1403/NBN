@@ -12079,7 +12079,7 @@ class RightPaneSheetManager {
             const previewUnchangedBellyReady = basicPreviewUnchangedReady
                 || specialPreviewUnchangedReady;
             let beforePreviewTie = null;
-            if (showGhostBelly && hasPreviewSimulation) {
+            if (hasPreviewSimulation) {
                 beforePreviewTie = this.computeTrackingBeforePreviewGhostTieResult(
                     sheet,
                     frames,
