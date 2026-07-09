@@ -3111,6 +3111,41 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Autoring sameRow: trong tập pick, chỉ khoanh số nào cùng nằm trên một chuỗi cửa sổ 10.
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {number[]} pickNums
+     * @returns {number[]}
+     */
+    getSameRowCircleNumsFromPickSet(rows, rowIndex, pickNums) {
+        const answerNums = (Array.isArray(pickNums) ? pickNums : [])
+            .filter((n) => Number.isFinite(n) && n >= 1 && n <= 35);
+        if (answerNums.length < 2) {
+            return [];
+        }
+        const lines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        if (!lines.length) {
+            return [];
+        }
+        const out = new Set();
+        for (let li = 0; li < lines.length; li++) {
+            const nums = lines[li].nums || [];
+            const hits = [];
+            for (let ai = 0; ai < answerNums.length; ai++) {
+                if (nums.indexOf(answerNums[ai]) !== -1) {
+                    hits.push(answerNums[ai]);
+                }
+            }
+            if (hits.length >= 2) {
+                for (let hi = 0; hi < hits.length; hi++) {
+                    out.add(hits[hi]);
+                }
+            }
+        }
+        return Array.from(out).sort((a, b) => a - b);
+    }
+
+    /**
      * Số trong đáp án tham gia Connection (≥2 cặp trên 10 chuỗi).
      * @param {object[]} rows
      * @param {number} rowIndex

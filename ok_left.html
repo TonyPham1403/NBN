@@ -2690,7 +2690,7 @@
 
         function normalizeSubmitAutoCircleMode(mode) {
             var m = String(mode || '').trim();
-            if (m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist' || m === 'dateband' || m === 'chain') {
+            if (m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist' || m === 'dateband' || m === 'chain' || m === 'sameRow') {
                 return m;
             }
             if (m === 'chain1') {
@@ -2875,6 +2875,36 @@
             if (typeof msg.chainCombineAnd === 'boolean') {
                 submitAutoCircleChainCombineAnd = msg.chainCombineAnd;
             }
+        }
+
+        /** Autoring sameRow: trong 5 số đáp án, chỉ khoanh số nào cùng nằm trên một chuỗi cửa sổ 10. */
+        function getSameRowCircleNumsFromAnswer(ans) {
+            var answerNums = (ans || []).map(function (n) { return parseInt(n, 10); }).filter(function (n) {
+                return !isNaN(n) && n >= 1 && n <= 35;
+            });
+            if (answerNums.length < 2) {
+                return [];
+            }
+            var lines = getPickChainLinesForAutoring();
+            if (!lines.length) {
+                return [];
+            }
+            var out = new Set();
+            for (var li = 0; li < lines.length; li++) {
+                var nums = lines[li].nums || [];
+                var hits = [];
+                for (var ai = 0; ai < answerNums.length; ai++) {
+                    if (nums.indexOf(answerNums[ai]) !== -1) {
+                        hits.push(answerNums[ai]);
+                    }
+                }
+                if (hits.length >= 2) {
+                    for (var hi = 0; hi < hits.length; hi++) {
+                        out.add(hits[hi]);
+                    }
+                }
+            }
+            return Array.from(out).sort(function (a, b) { return a - b; });
         }
 
         function getChainCircleNumsFromAnswer(ans) {
@@ -3396,6 +3426,12 @@
             }
             if (mode === 'chain') {
                 getChainCircleNumsFromAnswer(getAnswerNumsForAutoring()).forEach(function (n) {
+                    out.add(n);
+                });
+                return out;
+            }
+            if (mode === 'sameRow') {
+                getSameRowCircleNumsFromAnswer(getAnswerNumsForAutoring()).forEach(function (n) {
                     out.add(n);
                 });
                 return out;

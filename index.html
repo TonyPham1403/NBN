@@ -6019,8 +6019,8 @@
         const SUBMIT_RING_ENABLED_KEY = 'submitRingEnabled';
         const SUBMIT_RING_MODE_KEY = 'submitRingMode';
         const SUBMIT_RING_CUSTOM_X_KEY = 'submitRingCustomX';
-        const SUBMIT_RING_VALID_MODES = ['max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist', 'dateband', 'cuflip', 'cn', 'chain'];
-        const SUBMIT_RING_FREQ_MODES = ['max', 'min', 'custom', 'cuflip', 'conn3', 'tail', 'nonexist', 'dateband', 'chain'];
+        const SUBMIT_RING_VALID_MODES = ['max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist', 'dateband', 'cuflip', 'cn', 'chain', 'sameRow'];
+        const SUBMIT_RING_FREQ_MODES = ['max', 'min', 'custom', 'cuflip', 'conn3', 'tail', 'nonexist', 'dateband', 'chain', 'sameRow'];
         const SUBMIT_RING_CHAIN_MODE = 'chain';
         const SUBMIT_RING_CHAIN_LABEL = 'Chuỗi []';
         const PHASE_ENABLED_KEY = 'phaseToolbarEnabled';
@@ -6843,6 +6843,9 @@
             if (m === SUBMIT_RING_CHAIN_MODE) {
                 return SUBMIT_RING_CHAIN_LABEL;
             }
+            if (m === 'sameRow') {
+                return 'sameRow';
+            }
             return m.toUpperCase();
         }
 
@@ -7456,7 +7459,7 @@
             }
             if (modeValue) {
                 applySubmitRingModeMenuVisual(modeValue, modeValueMode);
-                modeValue.style.textTransform = (modeValueMode === 'custom' || modeValueMode === 'conn3' || modeValueMode === 'tail' || modeValueMode === 'dateband' || modeValueMode === SUBMIT_RING_CHAIN_MODE || modeValueMode === SUBMIT_RING_CUFLIP_MODE) ? 'none' : 'uppercase';
+                modeValue.style.textTransform = (modeValueMode === 'custom' || modeValueMode === 'conn3' || modeValueMode === 'tail' || modeValueMode === 'dateband' || modeValueMode === SUBMIT_RING_CHAIN_MODE || modeValueMode === SUBMIT_RING_CUFLIP_MODE || modeValueMode === 'sameRow') ? 'none' : 'uppercase';
             }
             if (modeWrap) {
                 modeWrap.classList.remove('disabled');
