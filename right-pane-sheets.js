@@ -10168,9 +10168,10 @@ class RightPaneSheetManager {
         return this.isBasicTrackingLastEmptyRowSyncActive(sheet, frameIndex);
     }
 
-    /** Special tracking: frame timeline khớp hàng nguồn — giả lập chỉ khi Submit OFF. */
+    /** Special tracking: frame timeline khớp hàng nguồn — giả lập khi Submit OFF, hoặc kỳ cuối trống khi Submit ON. */
     isSpecialTrackingFramePreviewEligible(sheet, frameIndex) {
-        if (this.leftSubmitActive) {
+        if (this.leftSubmitActive
+            && !this.isSpecialTrackingLastEmptyRowSyncActive(sheet, frameIndex)) {
             return false;
         }
         if (!sheet || this.getTrackingViewMode(sheet) !== 'special') {
@@ -10221,11 +10222,15 @@ class RightPaneSheetManager {
         return frameForRow >= 0 && frameIndex === frameForRow;
     }
 
+    /** Layout giả lập số đặc biệt — Submit OFF, hoặc kỳ cuối trống khi Submit ON. */
     isSpecialTrackingFreqPreviewLayoutActive(sheet, frameIndex) {
-        if (this.leftSubmitActive) {
+        if (!this.isSpecialTrackingFramePreviewEligible(sheet, frameIndex)) {
             return false;
         }
-        return this.isSpecialTrackingFramePreviewEligible(sheet, frameIndex);
+        if (!this.leftSubmitActive) {
+            return true;
+        }
+        return this.isSpecialTrackingLastEmptyRowSyncActive(sheet, frameIndex);
     }
 
     /** Trạng thái trước click giả lập: cùng submit, không preview pick (+1). */
@@ -11646,10 +11651,9 @@ class RightPaneSheetManager {
             const previewPickNums = freqPreviewLayout
                 ? (this.leftBasicPreviewPickNums || [])
                 : [];
-            const specialPreviewEligible = !isBasic
-                && !leftSubmitOn
-                && this.isSpecialTrackingFramePreviewEligible(sheet, frameIndex);
-            const specialPreviewActive = specialPreviewEligible
+            const specialPreviewLayout = !isBasic
+                && this.isSpecialTrackingFreqPreviewLayoutActive(sheet, frameIndex);
+            const specialPreviewActive = specialPreviewLayout
                 && this.leftSpecialPreviewPickNum != null;
             const specialPreviewPick = specialPreviewActive
                 ? this.leftSpecialPreviewPickNum
@@ -11954,8 +11958,13 @@ class RightPaneSheetManager {
                 && leftSubmitOn
                 && this.isBasicTrackingLastEmptyRowSyncActive(sheet, frameIndex)
                 && previewPickNums.length < 5;
+            const specialEmptyLastSubmitGhostPending = !isBasic
+                && leftSubmitOn
+                && this.isSpecialTrackingLastEmptyRowSyncActive(sheet, frameIndex)
+                && this.leftSpecialPreviewPickNum == null;
             const showGhostBelly = (leftSubmitOn || hasPreviewSimulation)
-                && !basicEmptyLastSubmitGhostPending;
+                && !basicEmptyLastSubmitGhostPending
+                && !specialEmptyLastSubmitGhostPending;
             let ghostLabel = 'Trước thay đổi';
             if (leftSubmitOn && hasPreviewSimulation) {
                 ghostLabel = 'Trước submit / giả lập';
@@ -12428,8 +12437,7 @@ class RightPaneSheetManager {
                     }
                     return;
                 }
-                if (!isBasic && !this.leftSubmitActive
-                    && this.isSpecialTrackingFramePreviewEligible(sheet, frameIndex)) {
+                if (!isBasic && this.isSpecialTrackingFramePreviewEligible(sheet, frameIndex)) {
                     if (this.toggleSpecialTrackingBarPick(n)) {
                         paint();
                     }
