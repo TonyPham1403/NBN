@@ -2982,6 +2982,92 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Cặp pick → nhãn chuỗi (cửa sổ 10) chứa cặp đó.
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {number[]} pickNums
+     * @returns {Map<string, Set<number>>}
+     */
+    getConnectionPairToChainsMap(rows, rowIndex, pickNums) {
+        /** @type {Map<string, Set<number>>} */
+        const pairToChains = new Map();
+        const effective = new Set(Array.isArray(pickNums) ? pickNums : []);
+        if (effective.size < 2) {
+            return pairToChains;
+        }
+        const lines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        for (let li = 0; li < lines.length; li++) {
+            const selInLine = lines[li].nums.filter((n) => effective.has(n));
+            for (let i = 0; i < selInLine.length; i++) {
+                for (let j = i + 1; j < selInLine.length; j++) {
+                    const a = selInLine[i];
+                    const b = selInLine[j];
+                    const key = a < b ? `${a},${b}` : `${b},${a}`;
+                    let set = pairToChains.get(key);
+                    if (!set) {
+                        set = new Set();
+                        pairToChains.set(key, set);
+                    }
+                    set.add(lines[li].label);
+                }
+            }
+        }
+        return pairToChains;
+    }
+
+    /**
+     * Connection duplicate: cùng một cặp {a,b} xuất hiện trên ≥2 chuỗi trong cửa sổ 10.
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {object} [row]
+     * @returns {boolean}
+     */
+    rowHasDuplicateConnection(rows, rowIndex, row) {
+        const r = row || rows[rowIndex];
+        if (!r || this.isEmptyResultRow(r)) {
+            return false;
+        }
+        const pickNums = this.parseMainNums(r.result || r.Result || '');
+        if (pickNums.length < 2) {
+            return false;
+        }
+        const pairs = this.buildChainPairsFromPickSet(rows, rowIndex, pickNums);
+        if (!this.pairListSatisfiesConnection(pairs)) {
+            return false;
+        }
+        const pairToChains = this.getConnectionPairToChainsMap(rows, rowIndex, pickNums);
+        for (const chains of pairToChains.values()) {
+            if (chains.size >= 2) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Connection unique: có connection nhưng không có cặp trùng trên ≥2 chuỗi.
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {object} [row]
+     * @returns {boolean}
+     */
+    rowHasUniqueConnection(rows, rowIndex, row) {
+        const r = row || rows[rowIndex];
+        if (!r || this.isEmptyResultRow(r)) {
+            return false;
+        }
+        const pickNums = this.parseMainNums(r.result || r.Result || '');
+        if (pickNums.length < 2) {
+            return false;
+        }
+        const pairs = this.buildChainPairsFromPickSet(rows, rowIndex, pickNums);
+        if (!this.pairListSatisfiesConnection(pairs)) {
+            return false;
+        }
+        return !this.rowHasDuplicateConnection(rows, rowIndex, r);
+    }
+
+    /**
      * Intersection (intersect) trên tập pick + 10 chuỗi trước kỳ — khớp pickSubmitSatisfiesIntersect.
      * @param {object[]} rows
      * @param {number} rowIndex

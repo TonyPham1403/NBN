@@ -3485,13 +3485,15 @@
             color: #ffffff;
         }
 
-        button.filter-popup-posnfreq-overlap-pct.is-follow-question-mode {
+        button.filter-popup-posnfreq-overlap-pct.is-follow-question-mode,
+        button.filter-popup-posnfreq-overlap-pct.is-connection-duplicate-mode {
             background: #b91c1c;
             border-color: #991b1b;
             color: #ffffff;
         }
 
-        button.filter-popup-posnfreq-overlap-pct.is-follow-question-mode:hover {
+        button.filter-popup-posnfreq-overlap-pct.is-follow-question-mode:hover,
+        button.filter-popup-posnfreq-overlap-pct.is-connection-duplicate-mode:hover {
             background: #dc2626;
             border-color: #b91c1c;
             color: #ffffff;
@@ -3958,6 +3960,14 @@
         }
 
         #filterTableWrap.filter-popup-follow-question-only tbody tr[data-idx]:not(.filter-popup-follow-question-hit) {
+            display: none !important;
+        }
+
+        #filterTableWrap.filter-popup-connection-unique-only tbody tr[data-idx]:not(.filter-popup-connection-unique-hit) {
+            display: none !important;
+        }
+
+        #filterTableWrap.filter-popup-connection-duplicate-only tbody tr[data-idx]:not(.filter-popup-connection-duplicate-hit) {
             display: none !important;
         }
 
@@ -5844,6 +5854,9 @@
                     <button type="button" id="filterPopupFollowOverlapPct" class="filter-popup-posnfreq-overlap-pct"
                         hidden aria-pressed="false"
                         title="% kỳ có follow xác định / tổng kỳ. Nhấn: chỉ follow xác định (xanh) → chỉ follow ? (đỏ, % phần bù) → hiện đủ lại.">0%</button>
+                    <button type="button" id="filterPopupConnectionOverlapPct" class="filter-popup-posnfreq-overlap-pct"
+                        hidden aria-pressed="false"
+                        title="% kỳ connection unique / tổng kỳ. Nhấn: chỉ unique (xanh) → chỉ duplicate (đỏ) → hiện đủ lại.">0%</button>
                     <div class="filter-popup-header-count-stack">
                         <span id="filterPopupMatchCount" class="period-filter-match-count filter-popup-match-count"
                             title="Số kỳ khớp mode">
@@ -6208,6 +6221,8 @@
         let filterPopupConn3WindowOnly = false;
         let filterPopupFollowSubfilter = 'off';
         let filterPopupFollowDeterminedPct = 0;
+        let filterPopupConnectionSubfilter = 'off';
+        let filterPopupConnectionUniquePct = 0;
         let filterModeCounts = {};
         let filterPopupLayoutSaveTimer = null;
         let filterPopupResizeActive = false;
@@ -13364,8 +13379,30 @@
                 .filter((idx) => Number.isFinite(idx));
         }
 
+        function collectFilterPopupConnectionUniqueHitIndicesOrdered(wrap) {
+            if (!wrap) {
+                return [];
+            }
+            return [...wrap.querySelectorAll('tbody tr.filter-popup-connection-unique-hit[data-idx]')]
+                .map((tr) => Number(tr.dataset.idx))
+                .filter((idx) => Number.isFinite(idx));
+        }
+
+        function collectFilterPopupConnectionDuplicateHitIndicesOrdered(wrap) {
+            if (!wrap) {
+                return [];
+            }
+            return [...wrap.querySelectorAll('tbody tr.filter-popup-connection-duplicate-hit[data-idx]')]
+                .map((tr) => Number(tr.dataset.idx))
+                .filter((idx) => Number.isFinite(idx));
+        }
+
         function isFilterPopupFollowSubfilterActive() {
             return isFollowFilterMode(periodFilterMode) && filterPopupFollowSubfilter !== 'off';
+        }
+
+        function isFilterPopupConnectionSubfilterActive() {
+            return isConnectionFilterMode(periodFilterMode) && filterPopupConnectionSubfilter !== 'off';
         }
 
         function getNextFilterPopupFollowSubfilter(current) {
@@ -13406,6 +13443,44 @@
             }
         }
 
+        function getNextFilterPopupConnectionSubfilter(current) {
+            if (current === 'off') {
+                return 'unique';
+            }
+            if (current === 'unique') {
+                return 'duplicate';
+            }
+            return 'off';
+        }
+
+        function applyFilterPopupConnectionSubfilterWrapClasses(wrap, mode) {
+            if (!wrap) {
+                return;
+            }
+            wrap.classList.toggle('filter-popup-connection-unique-only', mode === 'unique');
+            wrap.classList.toggle('filter-popup-connection-duplicate-only', mode === 'duplicate');
+        }
+
+        function applyFilterPopupConnectionSubfilterButtonUi(btn, mode, uniquePct) {
+            if (!btn || btn.hidden) {
+                return;
+            }
+            const duplicatePct = Math.max(0, Math.min(100, 100 - uniquePct));
+            if (mode === 'off') {
+                btn.textContent = `${uniquePct}%`;
+                btn.setAttribute('aria-pressed', 'false');
+                btn.classList.remove('is-connection-duplicate-mode');
+            } else if (mode === 'unique') {
+                btn.textContent = `${uniquePct}%`;
+                btn.setAttribute('aria-pressed', 'true');
+                btn.classList.remove('is-connection-duplicate-mode');
+            } else {
+                btn.textContent = `${duplicatePct}%`;
+                btn.setAttribute('aria-pressed', 'true');
+                btn.classList.add('is-connection-duplicate-mode');
+            }
+        }
+
         function getConn3WindowExistIndicesFromSheet() {
             if (!sheetManager || typeof sheetManager.ensureConn3WindowExistIndicesCache !== 'function') {
                 return [];
@@ -13432,7 +13507,8 @@
         function isFilterPopupSubfilterOnlyActive() {
             return (filterPopupPosnfreqGreenOnly && isPosnfreqFilterMode(periodFilterMode))
                 || (filterPopupConn3WindowOnly && isConn3FilterMode(periodFilterMode))
-                || isFilterPopupFollowSubfilterActive();
+                || isFilterPopupFollowSubfilterActive()
+                || isFilterPopupConnectionSubfilterActive();
         }
 
         function getFilterPopupEffectiveListIndices() {
@@ -13464,6 +13540,20 @@
                     return question;
                 }
             }
+            if (filterPopupConnectionSubfilter === 'unique' && periodFilterEnabled && isConnectionFilterMode(periodFilterMode)) {
+                const wrap = el('filterTableWrap');
+                const unique = collectFilterPopupConnectionUniqueHitIndicesOrdered(wrap);
+                if (unique.length) {
+                    return unique;
+                }
+            }
+            if (filterPopupConnectionSubfilter === 'duplicate' && periodFilterEnabled && isConnectionFilterMode(periodFilterMode)) {
+                const wrap = el('filterTableWrap');
+                const duplicate = collectFilterPopupConnectionDuplicateHitIndicesOrdered(wrap);
+                if (duplicate.length) {
+                    return duplicate;
+                }
+            }
             return getFilterPopupTableIndices();
         }
 
@@ -13482,6 +13572,9 @@
                 return getFilterPopupNavListLength();
             }
             if (isFilterPopupFollowSubfilterActive()) {
+                return getFilterPopupNavListLength();
+            }
+            if (isFilterPopupConnectionSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
             return getFilterPopupTableIndices().length;
@@ -13537,6 +13630,26 @@
                 return;
             }
             if (isFollowFilterMode(periodFilterMode)) {
+                if (list.includes(filterPopupActiveIdx)) {
+                    applyFilterPopupRowFocus(filterPopupActiveIdx);
+                    syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly });
+                    const positionInput = el('filterPopupPositionInput');
+                    if (positionInput) {
+                        const pos = list.indexOf(filterPopupActiveIdx);
+                        const posText = pos >= 0 ? String(pos + 1) : '';
+                        setFilterPopupPositionText(positionInput, posText);
+                        setFilterPopupPositionInputWidth(positionInput, posText);
+                    }
+                    if (filterPopupActiveIdx >= 0) {
+                        scrollFilterPopupRowIntoView();
+                    }
+                } else {
+                    clearFilterPopupRowFocus();
+                    resetFilterPopupPositionUi();
+                }
+                return;
+            }
+            if (isConnectionFilterMode(periodFilterMode)) {
                 if (list.includes(filterPopupActiveIdx)) {
                     applyFilterPopupRowFocus(filterPopupActiveIdx);
                     syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly });
@@ -13682,6 +13795,29 @@
             });
         }
 
+        function setFilterPopupConnectionSubfilter(mode, opts = {}) {
+            const next = mode === 'unique' || mode === 'duplicate' ? mode : 'off';
+            filterPopupConnectionSubfilter = next;
+            const wrap = el('filterTableWrap');
+            const btn = el('filterPopupConnectionOverlapPct');
+            applyFilterPopupConnectionSubfilterWrapClasses(wrap, next);
+            if (btn && !btn.hidden) {
+                applyFilterPopupConnectionSubfilterButtonUi(btn, next, filterPopupConnectionUniquePct);
+            }
+            if (!opts.skipReconcile) {
+                reconcileFilterPopupActiveAfterSubfilterToggle();
+            }
+            if (!opts.skipCounts) {
+                updateFilterPopupMatchCount();
+                syncPeriodFilterNavModeToIframe();
+            }
+            requestAnimationFrame(() => {
+                if (filterPopupActiveIdx >= 0) {
+                    scrollFilterPopupRowIntoView();
+                }
+            });
+        }
+
         function initFilterPopupFollowOverlapPctToggle() {
             const btn = el('filterPopupFollowOverlapPct');
             if (!btn || btn.dataset.followDeterminedBound === '1') {
@@ -13700,6 +13836,24 @@
             });
         }
 
+        function initFilterPopupConnectionOverlapPctToggle() {
+            const btn = el('filterPopupConnectionOverlapPct');
+            if (!btn || btn.dataset.connectionOverlapBound === '1') {
+                return;
+            }
+            btn.dataset.connectionOverlapBound = '1';
+            btn.addEventListener('mousedown', (event) => {
+                event.stopPropagation();
+            });
+            btn.addEventListener('click', (event) => {
+                event.stopPropagation();
+                if (btn.hidden) {
+                    return;
+                }
+                setFilterPopupConnectionSubfilter(getNextFilterPopupConnectionSubfilter(filterPopupConnectionSubfilter));
+            });
+        }
+
         function getFilterPopupListTotal(fallbackTotal) {
             if (filterPopupPosnfreqGreenOnly && periodFilterEnabled && isPosnfreqFilterMode(periodFilterMode)) {
                 return getFilterPopupNavListLength();
@@ -13708,6 +13862,9 @@
                 return getFilterPopupNavListLength();
             }
             if (isFilterPopupFollowSubfilterActive()) {
+                return getFilterPopupNavListLength();
+            }
+            if (isFilterPopupConnectionSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
             if (periodFilterEnabled && isPeriodFilterContextSheet()) {
@@ -15994,6 +16151,7 @@
             syncFilterPopupPosnfreqSubmitOverlap();
             syncFilterPopupConn3WindowOverlap();
             syncFilterPopupFollowDeterminedOverlap();
+            syncFilterPopupConnectionOverlap();
             applyFilterPopupNonexist005000RowBorders(wrap);
             reconcileFilterPopupFocusAfterListChange(getFilterPopupDisplayIndices(), options);
             syncFilterPopupHeaderUi();
@@ -16286,6 +16444,88 @@
             applyFilterPopupNonexist005000RowBorders(wrap);
         }
 
+        function syncFilterPopupConnectionOverlap() {
+            const wrap = el('filterTableWrap');
+            const pctEl = el('filterPopupConnectionOverlapPct');
+            const hidePct = () => {
+                const wasActive = isFilterPopupConnectionSubfilterActive();
+                filterPopupConnectionSubfilter = 'off';
+                const w = el('filterTableWrap');
+                if (w) {
+                    applyFilterPopupConnectionSubfilterWrapClasses(w, 'off');
+                }
+                if (pctEl) {
+                    pctEl.hidden = true;
+                    pctEl.textContent = '';
+                    pctEl.setAttribute('aria-pressed', 'false');
+                    pctEl.classList.remove('is-connection-duplicate-mode');
+                }
+                if (wasActive) {
+                    reconcileFilterPopupActiveAfterSubfilterToggle();
+                }
+                updateFilterPopupMatchCount();
+                syncPeriodFilterNavModeToIframe();
+            };
+            if (!wrap || !sheetManager) {
+                hidePct();
+                return;
+            }
+            if (!periodFilterEnabled || !isConnectionFilterMode(periodFilterMode)) {
+                hidePct();
+                return;
+            }
+            wrap.querySelectorAll('tbody tr.filter-popup-connection-unique-hit').forEach((tr) => {
+                tr.classList.remove('filter-popup-connection-unique-hit');
+            });
+            wrap.querySelectorAll('tbody tr.filter-popup-connection-duplicate-hit').forEach((tr) => {
+                tr.classList.remove('filter-popup-connection-duplicate-hit');
+            });
+            const rows = sheetManager.getSourceSheetRows();
+            if (!Array.isArray(rows) || !rows.length) {
+                hidePct();
+                return;
+            }
+            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                const idx = Number(tr.dataset.idx);
+                if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
+                    return;
+                }
+                if (typeof sheetManager.rowHasUniqueConnection === 'function'
+                    && sheetManager.rowHasUniqueConnection(rows, idx)) {
+                    tr.classList.add('filter-popup-connection-unique-hit');
+                }
+                if (typeof sheetManager.rowHasDuplicateConnection === 'function'
+                    && sheetManager.rowHasDuplicateConnection(rows, idx)) {
+                    tr.classList.add('filter-popup-connection-duplicate-hit');
+                }
+            });
+            const tableTotal = wrap.querySelectorAll('tbody tr[data-idx]').length;
+            const unique = wrap.querySelectorAll('tbody tr.filter-popup-connection-unique-hit').length;
+            const duplicate = wrap.querySelectorAll('tbody tr.filter-popup-connection-duplicate-hit').length;
+            if (!pctEl) {
+                return;
+            }
+            if (tableTotal === 0) {
+                hidePct();
+                return;
+            }
+            const uniquePct = Math.round((unique / tableTotal) * 100);
+            filterPopupConnectionUniquePct = uniquePct;
+            pctEl.hidden = false;
+            applyFilterPopupConnectionSubfilterButtonUi(pctEl, filterPopupConnectionSubfilter, uniquePct);
+            applyFilterPopupConnectionSubfilterWrapClasses(wrap, filterPopupConnectionSubfilter);
+            if (filterPopupConnectionSubfilter === 'unique' && unique === 0) {
+                setFilterPopupConnectionSubfilter('off');
+            } else if (filterPopupConnectionSubfilter === 'duplicate' && duplicate === 0) {
+                setFilterPopupConnectionSubfilter('off');
+            } else if (isFilterPopupConnectionSubfilterActive()) {
+                reconcileFilterPopupActiveAfterSubfilterToggle();
+            }
+            updateFilterPopupMatchCount();
+            syncPeriodFilterNavModeToIframe();
+            applyFilterPopupNonexist005000RowBorders(wrap);
+        }
+
         function buildFilterPopupTable(wrap, options = {}) {
             const syncMain = options.syncMain === true;
             const cacheKey = options.cacheKey || getFilterPopupRenderCacheKey();
@@ -16307,6 +16547,7 @@
             syncFilterPopupPosnfreqSubmitOverlap();
             syncFilterPopupConn3WindowOverlap();
             syncFilterPopupFollowDeterminedOverlap();
+            syncFilterPopupConnectionOverlap();
             applyFilterPopupNonexist005000RowBorders(wrap);
             filterPopupRenderCacheKey = cacheKey;
             if (isAllLikeFilterMode(periodFilterMode)) {
@@ -16339,9 +16580,11 @@
                 filterPopupPosnfreqGreenOnly = false;
                 filterPopupConn3WindowOnly = false;
                 filterPopupFollowSubfilter = 'off';
+                filterPopupConnectionSubfilter = 'off';
                 const w = el('filterTableWrap');
                 if (w) {
                     applyFilterPopupFollowSubfilterWrapClasses(w, 'off');
+                    applyFilterPopupConnectionSubfilterWrapClasses(w, 'off');
                 }
                 invalidateFilterPopupRenderCache();
                 wrap.innerHTML = '<div class="filter-popup-empty">Lọc chỉ áp dụng cho sheet dữ liệu chính.</div>';
@@ -16362,6 +16605,8 @@
                 filterPopupConn3WindowOnly = false;
                 filterPopupFollowSubfilter = 'off';
                 applyFilterPopupFollowSubfilterWrapClasses(wrap, 'off');
+                filterPopupConnectionSubfilter = 'off';
+                applyFilterPopupConnectionSubfilterWrapClasses(wrap, 'off');
                 wrap.classList.remove('filter-popup-posnfreq-green-only');
                 wrap.innerHTML = '<div class="filter-popup-empty">' + getFilterPopupEmptyMessage(periodFilterMode) + '</div>';
                 finishFilterPopupOpen({ syncMain });
@@ -17270,6 +17515,7 @@
             initFilterPopupPosnfreqOverlapPctToggle();
             initFilterPopupConn3OverlapPctToggle();
             initFilterPopupFollowOverlapPctToggle();
+            initFilterPopupConnectionOverlapPctToggle();
             initFilterPopupPositionInput();
             initFilterPopupHeader2Controls();
             initFilterPopupChainFilterControls();
