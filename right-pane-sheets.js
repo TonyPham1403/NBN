@@ -2131,35 +2131,37 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Note có "connection": một số xuất hiện trong ≥2 cặp `{a,b}` (ví dụ 6 trong `{6,23}` và `{4,6}`).
+     * Note có "connection": một số xuất hiện trong ≥2 cặp `{a,b}` — mọi cặp trong mỗi khối `{…}` của note.
      * @param {string} noteText
      * @returns {boolean}
      */
     noteTextHasConnectionPairing(noteText) {
         const text = String(noteText || '');
-        if (text.indexOf('{') === -1 || text.indexOf(',') === -1 || text.indexOf('}') === -1) {
+        if (text.indexOf('{') === -1 || text.indexOf('}') === -1) {
             return false;
         }
-        const re = /\{(\d+)\s*,\s*(\d+)\}/g;
+        const re = /\{([^}]+)\}/g;
         /** @type {Map<number, Set<number>>} */
         const numToPairIdx = new Map();
         let pairIndex = 0;
         let m;
         while ((m = re.exec(text)) !== null) {
-            const a = parseInt(m[1], 10);
-            const b = parseInt(m[2], 10);
-            if (!Number.isFinite(a) || !Number.isFinite(b)) {
-                continue;
-            }
-            for (const n of [a, b]) {
-                let set = numToPairIdx.get(n);
-                if (!set) {
-                    set = new Set();
-                    numToPairIdx.set(n, set);
+            const nums = m[1].split(',')
+                .map((part) => parseInt(part.trim(), 10))
+                .filter((n) => Number.isFinite(n));
+            for (let i = 0; i < nums.length; i++) {
+                for (let j = i + 1; j < nums.length; j++) {
+                    for (const n of [nums[i], nums[j]]) {
+                        let set = numToPairIdx.get(n);
+                        if (!set) {
+                            set = new Set();
+                            numToPairIdx.set(n, set);
+                        }
+                        set.add(pairIndex);
+                    }
+                    pairIndex++;
                 }
-                set.add(pairIndex);
             }
-            pairIndex++;
         }
         for (const s of numToPairIdx.values()) {
             if (s.size >= 2) {
@@ -2529,7 +2531,7 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Cặp [a,b] theo từng chuỗi: hai số pick đầu tiên trên dòng (giống computeChainPairsFromEffectiveSelection).
+     * Cặp [a,b] theo từng chuỗi: mọi cặp hai số pick cùng nằm trên một dòng (thứ tự trên dòng).
      * @param {object[]} rows
      * @param {number} rowIndex
      * @param {number[]} pickNums
@@ -2544,8 +2546,10 @@ class RightPaneSheetManager {
         const pairs = [];
         for (let li = 0; li < lines.length; li++) {
             const selInLine = lines[li].nums.filter((n) => effective.has(n));
-            if (selInLine.length >= 2) {
-                pairs.push(selInLine.slice(0, 2));
+            for (let i = 0; i < selInLine.length; i++) {
+                for (let j = i + 1; j < selInLine.length; j++) {
+                    pairs.push([selInLine[i], selInLine[j]]);
+                }
             }
         }
         return pairs;

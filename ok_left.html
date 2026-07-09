@@ -3092,8 +3092,10 @@
             }
             getPickChainLinesForAutoring().forEach(function (line) {
                 var selInLine = line.nums.filter(function (n) { return effective.has(n); });
-                if (selInLine.length >= 2) {
-                    pairs.push(selInLine.slice(0, 2));
+                for (var i = 0; i < selInLine.length; i++) {
+                    for (var j = i + 1; j < selInLine.length; j++) {
+                        pairs.push([selInLine[i], selInLine[j]]);
+                    }
                 }
             });
             return pairs;
@@ -6236,8 +6238,10 @@
                 const selInLine = nums.filter(function (x) {
                     return effective.has(x);
                 });
-                if (selInLine.length >= 2) {
-                    pairs.push(selInLine.slice(0, 2));
+                for (let i = 0; i < selInLine.length; i++) {
+                    for (let j = i + 1; j < selInLine.length; j++) {
+                        pairs.push([selInLine[i], selInLine[j]]);
+                    }
                 }
             });
             return pairs;
