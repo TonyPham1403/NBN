@@ -1026,6 +1026,40 @@
             filter: none;
         }
 
+        /* Phase vuông tím/hồng ưu tiên hơn viền lục giác posnfreq trên cùng ô */
+        body.phase-toolbar-active #left .cell.num.phase-chain-square.posnfreq-specimen-marker::before,
+        body.phase-toolbar-active #left .cell.num.phase-chain-square.posnfreq-specimen-marker-alt::before,
+        body.phase-toolbar-active #right tr.chuoi-main-row .cell.num.phase-chain-square.posnfreq-specimen-marker::before,
+        body.phase-toolbar-active #right tr.chuoi-main-row .cell.num.phase-chain-square.posnfreq-specimen-marker-alt::before {
+            clip-path: none;
+            border-radius: 3px;
+            border: var(--selected-ring-border) solid #9333ea;
+            box-shadow: 0 0 6px rgba(147, 51, 234, 0.38);
+            background: transparent;
+            filter: none;
+        }
+
+        body.phase-toolbar-active #left .cell.num.phase-chain-square.phase-max-freq.posnfreq-specimen-marker::before,
+        body.phase-toolbar-active #left .cell.num.phase-chain-square.phase-max-freq.posnfreq-specimen-marker-alt::before,
+        body.phase-toolbar-active #right tr.chuoi-main-row .cell.num.phase-chain-square.phase-max-freq.posnfreq-specimen-marker::before,
+        body.phase-toolbar-active #right tr.chuoi-main-row .cell.num.phase-chain-square.phase-max-freq.posnfreq-specimen-marker-alt::before {
+            width: calc(var(--selected-ring-size) + 2 * var(--selected-ring-border));
+            height: calc(var(--selected-ring-size) + 2 * var(--selected-ring-border));
+            box-sizing: border-box;
+            clip-path: none;
+            border-radius: 3px;
+            border: var(--selected-ring-border) solid #ff3fb7;
+            background: transparent;
+            padding: 0;
+            background-image: none;
+            -webkit-mask: none;
+            mask: none;
+            box-shadow:
+                0 0 7px rgba(255, 63, 183, 0.75),
+                0 0 20px rgba(255, 63, 183, 0.35);
+            filter: none;
+        }
+
         /* For right-side numbers, use font-size/line-height scaling instead of transform so the
            selection pseudo-element stays centered on the glyph. Also adjust ring size to match. */
         #right td span.cell {
