@@ -439,6 +439,10 @@ class RightPaneSheetManager {
         /** Special tracking: giả lập đúng 1 bar (chỉ panel tracking, không đồng bộ nửa trái). */
         this.leftSpecialPreviewPickNum = null;
         this.leftSpecialPreviewPickNumStash = null;
+        /** Special: chuỗi pick giả lập theo thứ tự (để chuột phải về số liền trước khi bỏ bar). */
+        this.leftSpecialPreviewPickHistory = [];
+        /** Bar giả lập focus cho chuột phải — theo thứ tự chuỗi pick, không phải bar vừa bỏ. */
+        this.lastTrackingPreviewBarNum = null;
         /** Tăng mỗi lần setLeftBasicPreviewPickNums đổi — chặn response requestLeftCircledNums cũ. */
         this._leftBasicPreviewPickGeneration = 0;
         /** Cache filter mode connection (invalid khi refreshDerivedState). */
@@ -9974,7 +9978,7 @@ class RightPaneSheetManager {
         this.leftAutoringEnabled = !!on;
     }
 
-    setLeftBasicPreviewPickNums(nums) {
+    setLeftBasicPreviewPickNums(nums, options = {}) {
         const next = [];
         const seen = new Set();
         if (Array.isArray(nums)) {
@@ -9991,8 +9995,37 @@ class RightPaneSheetManager {
         if (!same) {
             this.leftBasicPreviewPickNums = next;
             this._leftBasicPreviewPickGeneration += 1;
+            if (!options.skipFocusUpdate) {
+                this.applyTrackingPreviewFocusAfterPickNumsChange(prev, next);
+            }
         }
         return !same;
+    }
+
+    /**
+     * Đồng bộ focus chuột phải theo chuỗi pick khi đổi từ nửa trái (hoặc nguồn ngoài).
+     * Thêm số → focus = phần tử cuối chuỗi.
+     * Bớt số (tắt khoanh trái / sync) → focus = phần tử cuối còn lại.
+     */
+    applyTrackingPreviewFocusAfterPickNumsChange(prev, next) {
+        const prevList = Array.isArray(prev) ? prev : [];
+        const nextList = Array.isArray(next) ? next : [];
+        const prevSet = new Set(prevList);
+        const nextSet = new Set(nextList);
+        const added = nextList.some((n) => !prevSet.has(n));
+        const removed = prevList.some((n) => !nextSet.has(n));
+        if (added || removed || !nextList.length) {
+            this.lastTrackingPreviewBarNum = nextList.length
+                ? nextList[nextList.length - 1]
+                : null;
+            return;
+        }
+        const focus = this.lastTrackingPreviewBarNum;
+        if (focus == null || !nextSet.has(focus)) {
+            this.lastTrackingPreviewBarNum = nextList.length
+                ? nextList[nextList.length - 1]
+                : null;
+        }
     }
 
     /** Sau khôi phục stash: bỏ qua leftCircledNumsReady trống từ iframe (tránh xóa pick giả lập). */
@@ -10013,6 +10046,7 @@ class RightPaneSheetManager {
     clearLeftBasicBarPreviewPicksOnFocusChange() {
         const had = Array.isArray(this.leftBasicPreviewPickNums) && this.leftBasicPreviewPickNums.length > 0;
         this.leftBasicPreviewPickNums = [];
+        this.lastTrackingPreviewBarNum = null;
         this._leftBasicPreviewPickGeneration += 1;
         if (this.shouldSyncBasicBarPickToLeftPane()) {
             this.syncLeftPickSelectionToIframe([]);
@@ -10026,6 +10060,8 @@ class RightPaneSheetManager {
 
     /** Special tracking: click bar giả lập — reset khi đổi id (không đụng shift+click quan sát). */
     clearLeftSpecialBarPreviewPickOnFocusChange() {
+        this.leftSpecialPreviewPickHistory = [];
+        this.lastTrackingPreviewBarNum = null;
         return this.setLeftSpecialPreviewPickNum(null);
     }
 
@@ -10076,24 +10112,52 @@ class RightPaneSheetManager {
 
     /**
      * Special tracking: click bar giả lập — chỉ 1 số; click bar khác thay thế, click lại bar cũ thì bỏ.
-     * Chỉ ảnh hưởng panel tracking, không đồng bộ khoanh nửa trái.
+     * options.retainFocus: chuột phải — tắt giả lập nhưng giữ focus bar đó để bật lại.
+     * Chuột trái tắt: focus chuyển về phần tử cuối chuỗi còn lại.
      */
-    toggleSpecialTrackingBarPick(n) {
+    toggleSpecialTrackingBarPick(n, options = {}) {
         const num = parseInt(n, 10);
         if (!Number.isFinite(num) || num < 1 || num > 12) {
             return false;
         }
+        const retainFocus = !!options.retainFocus;
         const current = this.leftSpecialPreviewPickNum;
-        const next = current === num ? null : num;
-        return this.setLeftSpecialPreviewPickNum(next);
+        if (current === num) {
+            const hist = Array.isArray(this.leftSpecialPreviewPickHistory)
+                ? this.leftSpecialPreviewPickHistory.slice()
+                : [];
+            while (hist.length && hist[hist.length - 1] === num) {
+                hist.pop();
+            }
+            this.leftSpecialPreviewPickHistory = hist;
+            this.lastTrackingPreviewBarNum = retainFocus
+                ? num
+                : (hist.length ? hist[hist.length - 1] : null);
+            return this.setLeftSpecialPreviewPickNum(null);
+        }
+        const hist = Array.isArray(this.leftSpecialPreviewPickHistory)
+            ? this.leftSpecialPreviewPickHistory.slice()
+            : [];
+        if (!hist.length || hist[hist.length - 1] !== num) {
+            hist.push(num);
+        }
+        this.leftSpecialPreviewPickHistory = hist;
+        this.lastTrackingPreviewBarNum = num;
+        return this.setLeftSpecialPreviewPickNum(num);
     }
 
-    /** Basic tracking id cuối: toggle khoanh số trên nửa trái (tối đa 5), đồng bộ viền đen bar phải. */
-    toggleBasicTrackingLastIdBarPick(n) {
+    /**
+     * Basic tracking id cuối: toggle khoanh số (tối đa 5).
+     * options.retainFocus: chuột phải — tắt giả lập nhưng giữ focus bar tip để bật lại;
+     *   chuỗi pick vẫn cập nhật (bỏ/thêm số), focus không nhảy sang số khác.
+     * Chuột trái / nửa trái tắt: focus = phần tử cuối chuỗi còn lại.
+     */
+    toggleBasicTrackingLastIdBarPick(n, options = {}) {
         const num = parseInt(n, 10);
         if (!Number.isFinite(num) || num < 1 || num > 35) {
             return false;
         }
+        const retainFocus = !!options.retainFocus;
         const current = Array.isArray(this.leftBasicPreviewPickNums)
             ? this.leftBasicPreviewPickNums.slice()
             : [];
@@ -10106,10 +10170,18 @@ class RightPaneSheetManager {
         } else {
             next = current.concat(num);
         }
-        this.setLeftBasicPreviewPickNums(next);
-        if (this.shouldSyncBasicBarPickToLeftPane()) {
-            this.syncLeftPickSelectionToIframe(next);
+        this.setLeftBasicPreviewPickNums(next, { skipFocusUpdate: true });
+        if (retainFocus) {
+            // Chuột phải: chuỗi đã cập nhật; focus vẫn là bar đang toggle
+            this.lastTrackingPreviewBarNum = num;
+        } else {
+            // Chuột trái trên bar: focus = tip chuỗi còn lại (hoặc số vừa thêm)
+            this.lastTrackingPreviewBarNum = next.length
+                ? next[next.length - 1]
+                : null;
         }
+        // Luôn đẩy chuỗi pick (thứ tự) sang nửa trái khi giả lập tracking
+        this.syncLeftPickSelectionToIframe(next);
         try {
             window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
         } catch (ePaint) { /* ignore */ }
@@ -10121,15 +10193,29 @@ class RightPaneSheetManager {
         if (!frame || !frame.contentWindow) {
             return;
         }
-        const list = Array.isArray(nums) ? nums : [];
+        const list = Array.isArray(nums) ? nums.slice() : [];
+        const win = frame.contentWindow;
+        // Cùng origin: gọi thẳng để khoanh/pickOrder cập nhật ngay (chuột phải toggle).
         try {
-            frame.contentWindow.postMessage({
-                type: 'syncAnswerPickSelection',
+            if (typeof win.applyBasicTrackingPreviewPicksFromParent === 'function') {
+                win.applyBasicTrackingPreviewPicksFromParent(list);
+                return;
+            }
+        } catch (eDirect) { /* fallback postMessage */ }
+        try {
+            win.postMessage({
+                type: 'syncBasicTrackingPreviewPicks',
                 nums: list,
                 basicTrackingPreview: true
             }, '*');
         } catch (e) {
-            /* ignore */
+            try {
+                win.postMessage({
+                    type: 'syncAnswerPickSelection',
+                    nums: list,
+                    basicTrackingPreview: true
+                }, '*');
+            } catch (e2) { /* ignore */ }
         }
     }
 
@@ -11738,6 +11824,8 @@ class RightPaneSheetManager {
                 return false;
             }
             specialPreviewAnchorSourceRow = row;
+            this.leftSpecialPreviewPickHistory = [];
+            this.lastTrackingPreviewBarNum = null;
             return this.setLeftSpecialPreviewPickNum(null);
         };
         const clearTimer = () => {
@@ -12407,6 +12495,7 @@ class RightPaneSheetManager {
 
         const applyBasicLastIdBarNavPick = (n) => {
             basicLastIdBarNavNum = n;
+            this.lastTrackingPreviewBarNum = n;
             this.setLeftBasicPreviewPickNums([n]);
             if (this.shouldSyncBasicBarPickToLeftPane()) {
                 this.syncLeftPickSelectionToIframe([n]);
@@ -12626,7 +12715,7 @@ class RightPaneSheetManager {
                 }
                 if (isBasic && this.isBasicTrackingFramePreviewEligible(sheet, frameIndex)) {
                     if (this.toggleBasicTrackingLastIdBarPick(n)) {
-                        basicLastIdBarNavNum = n;
+                        basicLastIdBarNavNum = this.lastTrackingPreviewBarNum;
                         paint();
                     }
                     return;
@@ -12662,56 +12751,96 @@ class RightPaneSheetManager {
             });
         });
 
-        let specialRankRightClickTarget = null;
-        let onSpecialRankPointerDown = null;
-        let onSpecialRankContextMenu = null;
-        let onSpecialRankAuxClick = null;
-        if (!isBasic) {
-            specialRankRightClickTarget = root.querySelector('.special-tracking-rank-shell')
-                || root.querySelector('.special-tracking-rank-wrap');
-            const clearSpecialBarPreviewPick = () => {
-                if (this.leftSpecialPreviewPickNum == null) {
-                    return false;
+        /** Chuột phải nửa màn phải: toggle giả lập bar vừa click gần nhất (nửa trái giữ menu trình duyệt). */
+        const rightPaneEl = tableWrap.closest('.pane.right')
+            || document.querySelector('.pane.right');
+        const resolveLastPreviewBarToToggle = () => {
+            let n = this.lastTrackingPreviewBarNum;
+            if (isBasic) {
+                const maxN = 35;
+                const picks = this.leftBasicPreviewPickNums || [];
+                if (Number.isFinite(n) && n >= 1 && n <= maxN) {
+                    return n;
                 }
-                return this.setLeftSpecialPreviewPickNum(null);
-            };
-            const handleSpecialRankRightClick = (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                if (clearSpecialBarPreviewPick()) {
-                    paint();
-                    const ae = document.activeElement;
-                    if (ae && specialRankRightClickTarget
-                        && specialRankRightClickTarget.contains(ae)
-                        && typeof ae.blur === 'function') {
-                        try {
-                            ae.blur();
-                        } catch (eBlur) { /* ignore */ }
-                    }
+                if (picks.length) {
+                    return picks[picks.length - 1];
                 }
-            };
-            onSpecialRankPointerDown = (e) => {
-                if (e.button !== 2) {
-                    return;
+                if (Number.isFinite(basicLastIdBarNavNum) && basicLastIdBarNavNum >= 1
+                    && basicLastIdBarNavNum <= maxN) {
+                    return basicLastIdBarNavNum;
                 }
-                handleSpecialRankRightClick(e);
-            };
-            onSpecialRankContextMenu = (e) => {
-                handleSpecialRankRightClick(e);
-            };
-            onSpecialRankAuxClick = (e) => {
-                if (e.button !== 2) {
-                    return;
-                }
-                handleSpecialRankRightClick(e);
-            };
-            if (specialRankRightClickTarget) {
-                const cap = true;
-                specialRankRightClickTarget.addEventListener('mousedown', onSpecialRankPointerDown, cap);
-                specialRankRightClickTarget.addEventListener('pointerdown', onSpecialRankPointerDown, cap);
-                specialRankRightClickTarget.addEventListener('contextmenu', onSpecialRankContextMenu, cap);
-                specialRankRightClickTarget.addEventListener('auxclick', onSpecialRankAuxClick, cap);
+                return null;
             }
+            const maxN = 12;
+            if (Number.isFinite(n) && n >= 1 && n <= maxN) {
+                return n;
+            }
+            const hist = this.leftSpecialPreviewPickHistory || [];
+            if (hist.length) {
+                const tip = hist[hist.length - 1];
+                if (Number.isFinite(tip) && tip >= 1 && tip <= maxN) {
+                    return tip;
+                }
+            }
+            n = this.leftSpecialPreviewPickNum;
+            return (Number.isFinite(n) && n >= 1 && n <= maxN) ? n : null;
+        };
+        const handleRightPanePreviewToggle = (e) => {
+            const eligible = isBasic
+                ? this.isBasicTrackingFramePreviewEligible(sheet, frameIndex)
+                : this.isSpecialTrackingFramePreviewEligible(sheet, frameIndex);
+            if (!eligible) {
+                return false;
+            }
+            const n = resolveLastPreviewBarToToggle();
+            if (n == null) {
+                return false;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            let changed = false;
+            if (isBasic) {
+                changed = this.toggleBasicTrackingLastIdBarPick(n, { retainFocus: true });
+                if (changed) {
+                    basicLastIdBarNavNum = this.lastTrackingPreviewBarNum;
+                }
+            } else {
+                changed = this.toggleSpecialTrackingBarPick(n, { retainFocus: true });
+            }
+            if (changed) {
+                paint();
+                const ae = document.activeElement;
+                if (ae && rightPaneEl && rightPaneEl.contains(ae)
+                    && typeof ae.blur === 'function') {
+                    try {
+                        ae.blur();
+                    } catch (eBlur) { /* ignore */ }
+                }
+            }
+            return true;
+        };
+        /** Chặn menu trình duyệt sớm; chỉ toggle một lần ở contextmenu (tránh mousedown+contextmenu đảo hai lần). */
+        const onRightPanePreviewPointerDown = (e) => {
+            if (e.button !== 2) {
+                return;
+            }
+            const eligible = isBasic
+                ? this.isBasicTrackingFramePreviewEligible(sheet, frameIndex)
+                : this.isSpecialTrackingFramePreviewEligible(sheet, frameIndex);
+            if (!eligible || resolveLastPreviewBarToToggle() == null) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+        };
+        const onRightPanePreviewContextMenu = (e) => {
+            handleRightPanePreviewToggle(e);
+        };
+        if (rightPaneEl) {
+            const cap = true;
+            rightPaneEl.addEventListener('mousedown', onRightPanePreviewPointerDown, cap);
+            rightPaneEl.addEventListener('pointerdown', onRightPanePreviewPointerDown, cap);
+            rightPaneEl.addEventListener('contextmenu', onRightPanePreviewContextMenu, cap);
         }
 
         const viewToggle = root.querySelector('[data-st-view-toggle]');
@@ -12901,16 +13030,11 @@ class RightPaneSheetManager {
             window.removeEventListener('leftAutoringStateChanged', onLeftAutoringStateChanged);
             window.removeEventListener('leftCircledNumsChanged', onLeftCircledNumsChanged);
             window.removeEventListener('rowClicked', onRowClickedForPreview);
-            if (!isBasic && specialRankRightClickTarget && onSpecialRankPointerDown) {
+            if (rightPaneEl) {
                 const cap = true;
-                specialRankRightClickTarget.removeEventListener('mousedown', onSpecialRankPointerDown, cap);
-                specialRankRightClickTarget.removeEventListener('pointerdown', onSpecialRankPointerDown, cap);
-                if (onSpecialRankContextMenu) {
-                    specialRankRightClickTarget.removeEventListener('contextmenu', onSpecialRankContextMenu, cap);
-                }
-                if (onSpecialRankAuxClick) {
-                    specialRankRightClickTarget.removeEventListener('auxclick', onSpecialRankAuxClick, cap);
-                }
+                rightPaneEl.removeEventListener('mousedown', onRightPanePreviewPointerDown, cap);
+                rightPaneEl.removeEventListener('pointerdown', onRightPanePreviewPointerDown, cap);
+                rightPaneEl.removeEventListener('contextmenu', onRightPanePreviewContextMenu, cap);
             }
         };
         tableWrap.__trackingCleanup = cleanupTrackingUi;

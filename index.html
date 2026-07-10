@@ -5519,7 +5519,7 @@
 <body>
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20250706phaseNeonFast"
+            <iframe id="okFrame" src="ok_left.html?v=20250711pickPreviewFix"
                 style="width:100%;height:100%;border:0"></iframe>
         </section>
 
@@ -6115,7 +6115,7 @@
         </div>
     </div>
 
-    <script src="right-pane-sheets.js?v=20250706"></script>
+    <script src="right-pane-sheets.js?v=20250711pickPreviewFix"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -18342,6 +18342,7 @@
                 } else if (msg.type === 'leftCircledNumsReady') {
                     if (sheetManager && typeof sheetManager.setLeftBasicPreviewPickNums === 'function') {
                         const forceSync = !!msg.forceSync;
+                        const fromBasicTrackingPreview = !!msg.basicTrackingPreview;
                         const ignoreEmptyStash = !forceSync
                             && typeof sheetManager.shouldIgnoreEmptyLeftCircledNumsAfterStashRestore === 'function'
                             && sheetManager.shouldIgnoreEmptyLeftCircledNumsAfterStashRestore(msg.nums);
@@ -18349,7 +18350,11 @@
                             if (forceSync) {
                                 sheetManager._basicPreviewStashRestoredAt = 0;
                             }
-                            const changed = sheetManager.setLeftBasicPreviewPickNums(msg.nums || []);
+                            // Echo từ sync tracking: giữ focus chuột phải (retainFocus).
+                            // Click tắt khoanh nửa trái: không có flag → cập nhật focus = tip chuỗi.
+                            const changed = sheetManager.setLeftBasicPreviewPickNums(msg.nums || [], {
+                                skipFocusUpdate: fromBasicTrackingPreview
+                            });
                             if (changed || forceSync) {
                                 window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
                             }

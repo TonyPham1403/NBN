@@ -2118,6 +2118,8 @@
         let trackingFrameStepProcess = false;
         let answerNums = [];
         let pickOrder = [];
+        /** true khi chuỗi pick đang sync từ bar giả lập tracking (ưu tiên pickOrder trên #pickPreview). */
+        let basicTrackingPreviewPickActive = false;
         let lastClickedChuoiText = '';
         let pickTooltipTimers = [];
         let pickTooltipHideTimer = null;
@@ -3540,9 +3542,14 @@
         }
 
         function refreshLeftPickSelectionUi(options) {
-            try { syncPickOrderFromSelected(); } catch (e) { /* ignore */ }
+            var opts = options || {};
+            if (!opts.preservePickOrder) {
+                try { syncPickOrderFromSelected(); } catch (e) { /* ignore */ }
+            }
             try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (e) { /* ignore */ }
-            try { notifyParentLeftCircledNums(options); } catch (e) { /* ignore */ }
+            if (!opts.skipNotify) {
+                try { notifyParentLeftCircledNums(opts); } catch (e) { /* ignore */ }
+            }
             try { syncPickPropertyBadges(); } catch (eBadges) { /* ignore */ }
             try { syncReferenceConn3PickHintRow(); } catch (eHint) { /* ignore */ }
         }
@@ -3633,11 +3640,15 @@
         function notifyParentLeftCircledNums(options) {
             try {
                 var opts = options || {};
+                var nums = Array.isArray(opts.nums)
+                    ? opts.nums.slice()
+                    : getLeftPaneCircledNums();
                 window.parent.postMessage({
                     type: 'leftCircledNumsReady',
-                    nums: getLeftPaneCircledNums(),
+                    nums: nums,
                     submitActive: !!submitActive,
-                    forceSync: !!opts.forceSync
+                    forceSync: !!opts.forceSync,
+                    basicTrackingPreview: !!opts.basicTrackingPreview
                 }, '*');
             } catch (e) { }
         }
@@ -3882,8 +3893,14 @@
             return next.slice(0, MAX_PICK_NUMBERS);
         }
 
-        /** Chuỗi pick hiển thị/copy — Submit ON: ưu tiên 5 số đáp án; Submit OFF: số khoanh đỏ. */
+        /** Chuỗi pick hiển thị/copy — Submit ON: ưu tiên 5 số đáp án; Submit OFF: số khoanh đỏ.
+         *  basicTrackingPreviewPickActive: đang giả lập bar tracking → luôn hiện đúng pickOrder. */
         function getPickDisplayNums() {
+            if (basicTrackingPreviewPickActive) {
+                return (pickOrder && pickOrder.length)
+                    ? pickOrder.slice(0, MAX_PICK_NUMBERS)
+                    : [];
+            }
             if (submitActive) {
                 if (answerNums && answerNums.length) {
                     return answerNums.slice(0, MAX_PICK_NUMBERS);
@@ -5134,6 +5151,62 @@
             } catch (e) { console.error(e); }
         }
 
+        /**
+         * Đồng bộ chuỗi pick từ basic tracking (chuột trái/phải bar) → khoanh + pickOrder nửa trái.
+         * Gọi trực tiếp từ parent hoặc qua postMessage; luôn cập nhật DOM khoanh.
+         */
+        function applyBasicTrackingPreviewPicksFromParent(rawNums) {
+            var pickNums = [];
+            var seen = {};
+            (Array.isArray(rawNums) ? rawNums : []).forEach(function (x) {
+                var n = parseInt(x, 10);
+                if (!isNaN(n) && n >= 1 && n <= 35 && !seen[n]) {
+                    seen[n] = true;
+                    pickNums.push(n);
+                }
+            });
+            pickNums = pickNums.slice(0, MAX_PICK_NUMBERS);
+            basicTrackingPreviewPickActive = true;
+            try { invalidateClearSelectionToggleBackup(); } catch (eInv) { /* ignore */ }
+            selectionCleared = false;
+            selected.clear();
+            try { transientSelected.clear(); } catch (eT) { /* ignore */ }
+            try { simulatedSelected.clear(); } catch (eS) { /* ignore */ }
+            pickOrder = pickNums.slice();
+            pickNums.forEach(function (n) { selected.add(n); });
+            try { recomputePairsFromSelected(); } catch (eR) { /* ignore */ }
+            try { updateBlocked(); } catch (eB) { /* ignore */ }
+            try { applySelectionAndBlockedInDOM(); } catch (eD) { /* ignore */ }
+            try { updateFloatingCopyButtons(); } catch (eF) { /* ignore */ }
+            try { alignTableActionsAndCenter(); } catch (eA) { /* ignore */ }
+            try { updateFocusIndicator(); } catch (eI) { /* ignore */ }
+            // Cập nhật #pickPreview ngay (chuỗi pick) — không chờ getPickDisplayNums/answerNums
+            try {
+                var pp = document.getElementById('pickPreview');
+                var pb = document.getElementById('pickBtn');
+                if (pp) {
+                    pp.textContent = pickNums.length ? pickNums.join(',') : '';
+                }
+                if (pb) {
+                    pb.disabled = pickNums.length < 1;
+                }
+            } catch (ePp) { /* ignore */ }
+            try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (eP) { /* ignore */ }
+            try { syncPickPropertyBadges(); } catch (eBadges) { /* ignore */ }
+            try { syncReferenceConn3PickHintRow(); } catch (eHint) { /* ignore */ }
+            try {
+                notifyParentLeftCircledNums({
+                    forceSync: true,
+                    basicTrackingPreview: true,
+                    nums: pickOrder.slice()
+                });
+            } catch (eN) { /* ignore */ }
+            return pickOrder.slice();
+        }
+        try {
+            window.applyBasicTrackingPreviewPicksFromParent = applyBasicTrackingPreviewPicksFromParent;
+        } catch (eExp) { /* ignore */ }
+
         function process() {
             let rawText = (typeof leftPaneRawLines === 'string' ? leftPaneRawLines : '').trim();
             debugLog('process() called — raw lines length:', rawText.length);
@@ -5145,6 +5218,7 @@
                 transientSelected.clear();
                 pairNeonObserveNum = null;
                 clearPairContributionTracking();
+                basicTrackingPreviewPickActive = false;
             }
             let rows = [];
             if (!rawText) { updateRender(); return; }
@@ -11375,8 +11449,15 @@
                 } else if (msg.type === 'syncAnswerTicketPreview') {
                     setAnswerTicketPreviewNums(msg.nums);
                     return;
+                } else if (msg.type === 'syncBasicTrackingPreviewPicks'
+                    || (msg.type === 'syncAnswerPickSelection' && msg.basicTrackingPreview)) {
+                    try {
+                        applyBasicTrackingPreviewPicksFromParent(msg.nums || []);
+                    } catch (ePrev) { /* ignore */ }
+                    return;
                 } else if (msg.type === 'syncAnswerPickSelection') {
                     const forcedPickSync = !!(msg.basicTrackingPreview || msg.comboHPickSync);
+                    const fromBasicTrackingPreview = !!msg.basicTrackingPreview;
                     if (submitActive && !forcedPickSync) {
                         return;
                     }
@@ -11391,19 +11472,38 @@
                         .map(function (x) { return parseInt(x, 10); })
                         .filter(function (n) { return !isNaN(n); })
                         .slice(0, MAX_PICK_NUMBERS);
+                    const samePickSet = pickNums.length === selected.size
+                        && pickNums.every(function (n) { return selected.has(n); });
+                    const samePickOrder = !!pickOrder
+                        && pickNums.length === pickOrder.length
+                        && pickNums.every(function (n, i) { return pickOrder[i] === n; });
                     // Parent gửi lại cùng bộ số sau Submit off (iframe đã khôi phục preSubmit):
-                    // clear + add lại gây nháy khoanh — bỏ qua nếu đã khớp.
+                    // clear + add lại gây nháy khoanh — bỏ qua nếu đã khớp cả tập lẫn thứ tự.
                     if (!forcedPickSync
                         && !transientSelected.size && !simulatedSelected.size
-                        && pickNums.length === selected.size
-                        && pickNums.every(function (n) { return selected.has(n); })) {
+                        && samePickSet) {
                         return;
                     }
                     if (forcedPickSync
-                        && !submitActive
                         && !transientSelected.size && !simulatedSelected.size
-                        && pickNums.length === selected.size
-                        && pickNums.every(function (n) { return selected.has(n); })) {
+                        && samePickSet
+                        && samePickOrder) {
+                        return;
+                    }
+                    // Cùng tập số nhưng khác thứ tự chuỗi pick (vd. toggle chuột phải) → chỉ cập nhật pickOrder
+                    if (forcedPickSync
+                        && !transientSelected.size && !simulatedSelected.size
+                        && samePickSet
+                        && !samePickOrder) {
+                        pickOrder = pickNums.slice();
+                        try {
+                            refreshLeftPickSelectionUi({
+                                preservePickOrder: true,
+                                forceSync: true,
+                                basicTrackingPreview: fromBasicTrackingPreview,
+                                nums: pickOrder.slice()
+                            });
+                        } catch (eOrd) { /* ignore */ }
                         return;
                     }
                     invalidateClearSelectionToggleBackup();
@@ -11428,7 +11528,15 @@
                         alignTableActionsAndCenter();
                         updateFocusIndicator();
                     } catch (eD) { /* ignore */ }
-                    try { refreshLeftPickSelectionUi(); } catch (eU) { /* ignore */ }
+                    try {
+                        // Giữ đúng thứ tự chuỗi pick từ tracking; báo parent bằng pickOrder (không dùng answerNums).
+                        refreshLeftPickSelectionUi({
+                            preservePickOrder: fromBasicTrackingPreview,
+                            forceSync: fromBasicTrackingPreview,
+                            basicTrackingPreview: fromBasicTrackingPreview,
+                            nums: fromBasicTrackingPreview ? pickOrder.slice() : undefined
+                        });
+                    } catch (eU) { /* ignore */ }
                     return;
                 } else if (msg.type === 'submitAutoCircleChanged') {
                     const wasEnabled = submitAutoCircleEnabled;
