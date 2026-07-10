@@ -801,6 +801,16 @@
             transition: none !important;
         }
 
+        /* Mount / toggle view: đặt timeline + bar ngay vị trí đúng, không animate từ đầu */
+        .special-tracking-root--mount-snap .special-tracking-timeline-fill,
+        .special-tracking-root--mount-snap .special-tracking-timeline-thumb,
+        .special-tracking-root--mount-snap .special-tracking-rank-bar,
+        .special-tracking-root--mount-snap .special-tracking-rank-fill,
+        .special-tracking-root--mount-snap .special-tracking-freq-brace,
+        .special-tracking-root--mount-snap .special-tracking-freq-gap-divider {
+            transition: none !important;
+        }
+
         .special-tracking-controls {
             flex: 0 0 auto;
             display: flex;
@@ -1388,12 +1398,17 @@
             stroke-width: 1.35;
         }
 
-        /* Dịch chuyển freq — submit ON / giả lập: nét liền */
+        /* Dịch chuyển freq — submit ON / giả lập: nét liền đậm, nổi bật */
+        .special-tracking-freq-brace:not(.special-tracking-freq-brace--ghost).special-tracking-freq-brace--solid-shifted {
+            color: #000;
+            filter: drop-shadow(0 0 0.65px rgba(0, 0, 0, 0.55));
+        }
+
         .special-tracking-freq-brace:not(.special-tracking-freq-brace--ghost).special-tracking-freq-brace--solid-shifted svg path {
             stroke-dasharray: none;
             stroke-linecap: round;
             stroke-linejoin: round;
-            stroke-width: 1.75;
+            stroke-width: 2.85;
         }
 
         /* Submit ON: bụng mờ — đối xứng gương qua mép bar|cột meta (--st-freq-brace-w) */
@@ -1424,7 +1439,7 @@
             stroke-width: 1.35;
         }
 
-        /* Bụng thay đổi sau submit: style y chang bụng bình thường (nét liền) */
+        /* Bụng thay đổi sau submit / giả lập: nét liền ghost */
         .special-tracking-freq-brace--ghost-changed {
             color: #111;
         }
@@ -1434,6 +1449,86 @@
             stroke-linecap: round;
             stroke-linejoin: round;
             stroke-width: 1.75;
+        }
+
+        /* Special tracking: viền đậm nổi bật hơn chấm li ti */
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-freq-brace:not(.special-tracking-freq-brace--ghost).special-tracking-freq-brace--solid-shifted {
+            color: #000;
+            filter: drop-shadow(0 0 1px rgba(0, 0, 0, 0.7));
+        }
+
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-freq-brace:not(.special-tracking-freq-brace--ghost).special-tracking-freq-brace--solid-shifted svg path {
+            stroke-width: 3.35;
+        }
+
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-freq-brace--ghost-changed {
+            color: #000;
+            filter: drop-shadow(0 0 0.55px rgba(0, 0, 0, 0.5));
+        }
+
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-freq-brace--ghost-changed svg path {
+            stroke-width: 2.15;
+        }
+
+        /* Special tracking: chấm li ti dài hơn, mật độ thưa hơn */
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-freq-brace:not(.special-tracking-freq-brace--ghost):not(.special-tracking-freq-brace--solid-shifted) svg path,
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-freq-brace--ghost:not(.special-tracking-freq-brace--ghost-changed) svg path {
+            stroke-dasharray: 2.2 8.5;
+        }
+
+        /* Freq gap ≥2: đường kẻ ngăn phía solid (cột tail/meta) */
+        .special-tracking-freq-gap-layer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: calc(var(--st-freq-brace-w, clamp(28px, 5vw, 38px)) * 2);
+            z-index: 6;
+            pointer-events: none;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .special-tracking-root--label-in .special-tracking-freq-gap-layer {
+            width: var(--st-freq-brace-w, clamp(28px, 5vw, 38px));
+        }
+
+        .special-tracking-freq-gap-divider {
+            position: absolute;
+            left: 3px;
+            right: 3px;
+            height: 4px;
+            color: #000;
+            border: none;
+            background: none;
+            transform: translateY(-50%);
+            pointer-events: none;
+            overflow: visible;
+            transition: top 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .special-tracking-freq-gap-divider svg {
+            display: block;
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+        }
+
+        .special-tracking-freq-gap-divider svg line {
+            stroke-width: 2;
+        }
+
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-freq-gap-divider svg line {
+            stroke-width: 2.75;
+        }
+
+        .special-tracking-freq-gap-divider--gap-ge3 {
+            color: #e60000;
+        }
+
+        .special-tracking-root--scrubbing .special-tracking-freq-gap-divider,
+        .special-tracking-root--playing .special-tracking-freq-gap-divider {
+            transition-duration: 0s;
         }
 
         /* Tên bụng mờ: đối xứng gương qua mép ghost|solid (right:50% ↔ left:50%, đảo shift-x) */

@@ -10555,6 +10555,97 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Đường kẻ ngăn phía solid: giữa 2 thanh liền kề trên stack khi |Δfreq| ≥ minGap.
+     * @returns {Array<{ boundarySlot: number, gap: number, aboveNum: number, belowNum: number }>}
+     */
+    static computeTrackingFreqGapDividers(counts, slotByNum, numMax, minGap = 2) {
+        const ranked = [];
+        for (let n = 1; n <= numMax; n++) {
+            const freq = (counts && counts[n]) || 0;
+            if (freq <= 0) {
+                continue;
+            }
+            ranked.push({
+                n,
+                freq: freq | 0,
+                slot: (slotByNum && slotByNum[n]) ?? numMax
+            });
+        }
+        if (ranked.length < 2) {
+            return [];
+        }
+        ranked.sort((a, b) => a.slot - b.slot || a.n - b.n);
+        const threshold = Math.max(2, minGap | 0);
+        const out = [];
+        for (let i = 0; i < ranked.length - 1; i++) {
+            const gap = Math.abs(ranked[i].freq - ranked[i + 1].freq);
+            if (gap >= threshold) {
+                out.push({
+                    boundarySlot: ranked[i + 1].slot,
+                    gap,
+                    aboveNum: ranked[i].n,
+                    belowNum: ranked[i + 1].n
+                });
+            }
+        }
+        return out;
+    }
+
+    /** Vẽ đường kẻ ngăn freq-gap trên cột solid (tail + meta). */
+    static syncTrackingFreqGapDividers(layer, dividers, slotCount) {
+        if (!layer) {
+            return;
+        }
+        const sig = !dividers.length
+            ? ''
+            : dividers.map((d) => `${d.boundarySlot}:${d.gap}:${d.aboveNum}-${d.belowNum}`).join('|');
+        if (layer.dataset.stFreqGapSig !== sig) {
+            layer.dataset.stFreqGapSig = sig;
+            layer.replaceChildren();
+            if (!dividers.length || !slotCount) {
+                return;
+            }
+            const frag = document.createDocumentFragment();
+            for (const d of dividers) {
+                const el = document.createElement('div');
+                el.className = 'special-tracking-freq-gap-divider'
+                    + (d.gap >= 3 ? ' special-tracking-freq-gap-divider--gap-ge3' : '');
+                el.dataset.stFreqGapSlot = String(d.boundarySlot);
+                el.dataset.stFreqGap = String(d.gap);
+                el.title = `Gap freq ${d.gap}: ${d.aboveNum} | ${d.belowNum}`;
+                el.setAttribute('aria-hidden', 'true');
+                el.innerHTML = '<svg viewBox="0 0 100 4" preserveAspectRatio="none" aria-hidden="true">'
+                    + '<line x1="0" y1="2" x2="100" y2="2" fill="none" stroke="currentColor" '
+                    + 'stroke-linecap="square" vector-effect="non-scaling-stroke"/></svg>';
+                frag.appendChild(el);
+            }
+            layer.appendChild(frag);
+        }
+        RightPaneSheetManager.layoutTrackingFreqGapDividers(layer, slotCount);
+    }
+
+    /** Snap vị trí freq-gap theo pixel — tránh subpixel làm nét dày mỏn không đều. */
+    static layoutTrackingFreqGapDividers(layer, slotCount) {
+        if (!layer || !slotCount) {
+            return;
+        }
+        const layerHeight = layer.clientHeight;
+        if (layerHeight <= 0) {
+            return;
+        }
+        const kids = layer.children;
+        for (let i = 0; i < kids.length; i++) {
+            const el = kids[i];
+            const slot = parseInt(el.dataset.stFreqGapSlot, 10);
+            if (!Number.isFinite(slot)) {
+                continue;
+            }
+            const yPx = Math.round((slot / slotCount) * layerHeight);
+            el.style.top = `${yPx}px`;
+        }
+    }
+
+    /**
      * Bước s trong chuỗi draws mà số n vừa đạt đúng lần xuất hiện thứ v (v≥1).
      */
     static basicTrackingStepOfVthHit(draws, n, v, endInclusive) {
@@ -11263,6 +11354,7 @@ class RightPaneSheetManager {
             + `<div class="special-tracking-rank-stack" data-st-rank-stack>${rankBarsHtml}</div>`
             + '<div class="special-tracking-freq-brace-layer special-tracking-freq-brace-layer--ghost" data-st-freq-braces-ghost aria-hidden="true"></div>'
             + '<div class="special-tracking-freq-brace-layer" data-st-freq-braces aria-hidden="true"></div>'
+            + '<div class="special-tracking-freq-gap-layer" data-st-freq-gap-dividers aria-hidden="true"></div>'
             + '</div>'
             + '</div>'
             + '</div>'
@@ -11564,6 +11656,7 @@ class RightPaneSheetManager {
         });
         const freqBraceLayer = root.querySelector('[data-st-freq-braces]');
         const freqBraceGhostLayer = root.querySelector('[data-st-freq-braces-ghost]');
+        const freqGapLayer = root.querySelector('[data-st-freq-gap-dividers]');
 
         let tlRectCache = null;
         const refreshTlRect = () => {
@@ -11574,6 +11667,7 @@ class RightPaneSheetManager {
 
         let paintRaf = 0;
         let frameAnimTarget = frameIndex;
+        root.classList.add('special-tracking-root--mount-snap');
         let frameAnimTimer = 0;
         let frameNavOpts = {};
         let frameSteppingActive = false;
@@ -12051,19 +12145,11 @@ class RightPaneSheetManager {
                     el.setAttribute('aria-label', aria);
                 }
             }
-            const basicEmptyLastSubmitGhostPending = isBasic
-                && leftSubmitOn
-                && this.isBasicTrackingLastEmptyRowSyncActive(sheet, frameIndex)
-                && previewPickNums.length < 5;
-            const specialEmptyLastSubmitGhostPending = !isBasic
-                && leftSubmitOn
-                && this.isSpecialTrackingLastEmptyRowSyncActive(sheet, frameIndex)
-                && this.leftSpecialPreviewPickNum == null;
-            const showGhostBelly = (leftSubmitOn || hasPreviewSimulation)
-                && !basicEmptyLastSubmitGhostPending
-                && !specialEmptyLastSubmitGhostPending;
+            const ghostMirrorSolid = !leftSubmitOn && !hasPreviewSimulation;
             let ghostLabel = 'Trước thay đổi';
-            if (leftSubmitOn && hasPreviewSimulation) {
+            if (ghostMirrorSolid) {
+                ghostLabel = 'Đồng bộ solid';
+            } else if (leftSubmitOn && hasPreviewSimulation) {
                 ghostLabel = 'Trước submit / giả lập';
             } else if (leftSubmitOn) {
                 ghostLabel = 'Trước submit';
@@ -12092,37 +12178,30 @@ class RightPaneSheetManager {
                     }
                 );
             }
-            if (showGhostBelly) {
-                if (hasPreviewSimulation) {
-                    if (previewUnchangedBellyReady) {
-                        ghostGroupsToDraw = beforePreviewTie.groups;
-                        ghostStreakToDraw = beforePreviewTie.streakByKey;
-                    } else {
-                        ghostGroupsToDraw = RightPaneSheetManager.filterTrackingFreqGhostGroups(
-                            beforePreviewTie.groups,
-                            freqTieGroups
-                        );
-                        ghostStreakToDraw = beforePreviewTie.streakByKey;
+            if (ghostMirrorSolid) {
+                ghostGroupsToDraw = freqTieGroups;
+                ghostStreakToDraw = freqTieStreakByKey;
+            } else if (hasPreviewSimulation) {
+                ghostGroupsToDraw = beforePreviewTie.groups;
+                ghostStreakToDraw = beforePreviewTie.streakByKey;
+            } else if (leftSubmitOn) {
+                const submitGhostTie = this.computeTrackingGhostFreqTieResult(
+                    sheet,
+                    frames,
+                    frameIndex,
+                    {
+                        isBasic,
+                        numMax,
+                        basicDraws: isBasic ? (sheet.basicDraws || []) : [],
+                        leftSubmitOn,
+                        freqPreviewLayout,
+                        specialPreviewLayout: specialPreviewActive,
+                        previewPickNums,
+                        specialPreviewPick
                     }
-                } else {
-                    const submitGhostTie = this.computeTrackingGhostFreqTieResult(
-                        sheet,
-                        frames,
-                        frameIndex,
-                        {
-                            isBasic,
-                            numMax,
-                            basicDraws: isBasic ? (sheet.basicDraws || []) : [],
-                            leftSubmitOn,
-                            freqPreviewLayout,
-                            specialPreviewLayout: specialPreviewActive,
-                            previewPickNums,
-                            specialPreviewPick
-                        }
-                    );
-                    ghostGroupsToDraw = submitGhostTie.groups;
-                    ghostStreakToDraw = submitGhostTie.streakByKey;
-                }
+                );
+                ghostGroupsToDraw = submitGhostTie.groups;
+                ghostStreakToDraw = submitGhostTie.streakByKey;
             }
             let referenceGroupsForSolid = null;
             if (hasPreviewSimulation && beforePreviewTie) {
@@ -12136,12 +12215,12 @@ class RightPaneSheetManager {
                     freqTieGroups
                 )
                 : null;
-            const ghostChangedKeys = showGhostBelly
-                ? RightPaneSheetManager.getTrackingFreqBellyStreakKeysWithoutExactMatchIn(
+            const ghostChangedKeys = ghostMirrorSolid
+                ? null
+                : RightPaneSheetManager.getTrackingFreqBellyStreakKeysWithoutExactMatchIn(
                     ghostGroupsToDraw,
                     freqTieGroups
-                )
-                : null;
+                );
             if (freqBraceLayer) {
                 const solidStreakByKey = (previewUnchangedBellyReady && beforePreviewTie)
                     ? RightPaneSheetManager.applyTrackingSolidPreviewStreakBump(
@@ -12170,6 +12249,24 @@ class RightPaneSheetManager {
                         ghostLabel,
                         ghostChangedKeys
                     }
+                );
+            }
+            if (freqGapLayer) {
+                const gapCounts = isBasic && basicDisplay
+                    ? basicDisplay.counts
+                    : specialDisplay.counts;
+                const gapSlots = isBasic && basicDisplay
+                    ? basicDisplay.slotByNum
+                    : specialDisplay.slotByNum;
+                const gapDividers = RightPaneSheetManager.computeTrackingFreqGapDividers(
+                    gapCounts,
+                    gapSlots,
+                    numMax
+                );
+                RightPaneSheetManager.syncTrackingFreqGapDividers(
+                    freqGapLayer,
+                    gapDividers,
+                    slotCount
                 );
             }
             syncTimelineUi();
@@ -12740,6 +12837,9 @@ class RightPaneSheetManager {
 
         paint();
         syncMotionClass();
+        requestAnimationFrame(() => {
+            root.classList.remove('special-tracking-root--mount-snap');
+        });
         if (btnPlay) {
             syncPlayBtnUi();
         }
