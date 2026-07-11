@@ -8532,14 +8532,15 @@
                     }).join('');
                     let rowClass = '';
                     try {
+                        // 1 số: tô mọi cặp chứa số đó. ≥2 số: chỉ tô cặp mà CẢ HAI đầu đều nằm trong tập highlight
+                        // (vd Submit giao chuỗi đúng 2 số → đúng 1 hàng pair được tô, không tô lan sang cặp chỉ chứa 1 số).
                         const uniq = Array.isArray(highlightedNums) ? [...new Set(highlightedNums.map(x => parseInt(x, 10)).filter(n => !isNaN(n)))] : [];
-                        if (uniq.length === 1) { if (uniq[0] === a || uniq[0] === b) rowClass = 'row-neon'; }
-                        else if (uniq.length === 2) {
-                            const u0 = Math.min(uniq[0], uniq[1]); const u1 = Math.max(uniq[0], uniq[1]);
-                            if (a === u0 && b === u1) rowClass = 'row-neon';
-                        } else if (uniq.length === 3) {
-                            for (let ii = 0; ii < 3 && !rowClass; ii++) { for (let jj = ii + 1; jj < 3; jj++) { const x = Math.min(uniq[ii], uniq[jj]); const y = Math.max(uniq[ii], uniq[jj]); if (a === x && b === y) { rowClass = 'row-neon'; break; } } }
-                        } else { if (uniq.some(n => n === a || n === b)) rowClass = 'row-neon'; }
+                        const hi = new Set(uniq);
+                        if (uniq.length === 1) {
+                            if (uniq[0] === a || uniq[0] === b) rowClass = 'row-neon';
+                        } else if (uniq.length >= 2) {
+                            if (hi.has(a) && hi.has(b)) rowClass = 'row-neon';
+                        }
                     } catch (e) { }
                     rows.push({ pair: `{${a},${b}}`, pairKey: key, count: count, content: rendered, rowClass: rowClass });
                 });
@@ -8567,6 +8568,105 @@
             return m ? parseInt(m[1], 10) : -1;
         }
 
+        /**
+         * Số tô nền xanh (row-neon) trong bảng 📑 — chỉ số thuộc đúng chuỗi đang mở.
+         * Submit ON: giao của answerNums với 5 số chuỗi (ưu tiên đáp án; vd 2 số khớp → đúng 1 cặp).
+         * Submit OFF: số khoanh tay (selected) ∩ chuỗi + highlight DOM trên hàng đó.
+         */
+        function getChecknoteRowNums(rowIdx) {
+            var nums = [];
+            try {
+                if (raw && rowIdx != null) {
+                    var rowObj = getRawDisplayLineAt(rowIdx);
+                    if (rowObj) nums = getNumsFromLineObj(rowObj) || [];
+                }
+            } catch (e) { /* ignore */ }
+            return (nums || []).map(function (n) { return parseInt(n, 10); }).filter(function (n) { return !isNaN(n); });
+        }
+
+        function getChecknoteHighlightNumsForRow(rowIdx, trOpt) {
+            var rowNums = getChecknoteRowNums(rowIdx);
+            var rowSet = new Set(rowNums);
+            var highlighted = [];
+
+            if (submitActive && answerNums && answerNums.length) {
+                // Chỉ lấy số đáp án thực sự nằm trong chuỗi — không đẩy cả 5 answerNums
+                // (tránh generateChecknoteHtml tô lan mọi cặp chứa 1 trong 5 số submit).
+                answerNums.forEach(function (n) {
+                    var v = parseInt(n, 10);
+                    if (!isNaN(v) && (!rowSet.size || rowSet.has(v))) highlighted.push(v);
+                });
+                return [...new Set(highlighted)];
+            }
+
+            try {
+                var tr = trOpt || null;
+                if (!tr && rowIdx != null) {
+                    var btn = document.getElementById('copyBtn-' + rowIdx);
+                    if (btn) tr = btn.closest && btn.closest('tr');
+                    if (!tr) {
+                        var right = document.getElementById('right');
+                        var mainRows = right ? right.querySelectorAll('tr.chuoi-main-row') : [];
+                        if (mainRows && mainRows[rowIdx]) tr = mainRows[rowIdx];
+                    }
+                }
+                if (tr) {
+                    var els = tr.querySelectorAll(
+                        'span.idx-highlight, span.selected, span.cell.selected, '
+                        + 'span.answer-neon, span.cell.answer-neon, '
+                        + 'span.submit-highlight, span.cell.submit-highlight'
+                    );
+                    els.forEach(function (el) {
+                        var v = NaN;
+                        try {
+                            if (el.hasAttribute && el.hasAttribute('data-num')) {
+                                v = parseInt(el.getAttribute('data-num'), 10);
+                            } else {
+                                v = parseInt((el.textContent || '').trim(), 10);
+                            }
+                        } catch (e) { }
+                        if (!isNaN(v) && (!rowSet.size || rowSet.has(v))) highlighted.push(v);
+                    });
+                }
+            } catch (e) { }
+            try {
+                if (rowNums.length) {
+                    var pickSet = selected;
+                    rowNums.forEach(function (rn) {
+                        if (pickSet.has(rn)) highlighted.push(rn);
+                    });
+                }
+            } catch (e2) { }
+            if (!highlighted.length) {
+                try {
+                    document.querySelectorAll(
+                        '#right span.cell.selected, #right span.idx-highlight, '
+                        + '#right span.index.idx-highlight, #right span.answer-neon, '
+                        + '#right span.cell.answer-neon, #right span.submit-highlight, '
+                        + '#right span.cell.submit-highlight'
+                    ).forEach(function (el) {
+                        var v = NaN;
+                        try {
+                            if (el.hasAttribute && el.hasAttribute('data-num')) {
+                                v = parseInt(el.getAttribute('data-num'), 10);
+                            } else {
+                                v = parseInt((el.textContent || '').trim(), 10);
+                            }
+                        } catch (e3) { }
+                        if (!isNaN(v) && (!rowSet.size || rowSet.has(v))) highlighted.push(v);
+                    });
+                } catch (e4) { }
+            }
+            return [...new Set(highlighted)];
+        }
+
+        function scheduleRefreshChecknoteTooltipIfOpen() {
+            try {
+                if (!document.getElementById('checknoteTooltip')) return;
+                refreshChecknoteTooltip();
+            } catch (e) { /* ignore */ }
+        }
+
         function getChecknoteRowContext(idx, btnEl) {
             if (!raw || idx < 0) return null;
             var row = getRawDisplayLineAt(idx) || '';
@@ -8579,35 +8679,17 @@
             }
             if (!resultPart) return null;
 
-            var highlightedNums = [];
-            try {
-                var tr = btnEl && btnEl.closest ? btnEl.closest('tr') : null;
-                if (!tr) {
-                    var right = document.getElementById('right');
-                    var mainRows = right ? right.querySelectorAll('tr.chuoi-main-row') : [];
-                    if (mainRows && mainRows[idx]) tr = mainRows[idx];
-                }
-                if (tr) {
-                    var els = tr.querySelectorAll('span.idx-highlight, span.selected, span.cell.selected, span.answer-neon, span.cell.answer-neon');
-                    els.forEach(function (el) {
-                        var v = NaN;
-                        try {
-                            if (el.hasAttribute && el.hasAttribute('data-num')) v = parseInt(el.getAttribute('data-num'), 10);
-                            else v = parseInt((el.textContent || '').trim(), 10);
-                        } catch (e) { }
-                        if (!isNaN(v)) highlightedNums.push(v);
-                    });
-                }
-            } catch (e) { }
+            var tr = btnEl && btnEl.closest ? btnEl.closest('tr') : null;
+            if (!tr) {
+                var right = document.getElementById('right');
+                var mainRows = right ? right.querySelectorAll('tr.chuoi-main-row') : [];
+                if (mainRows && mainRows[idx]) tr = mainRows[idx];
+            }
+            var highlightedNums = getChecknoteHighlightNumsForRow(idx, tr);
 
             var anchor = btnEl || document.body;
             try {
-                var tr2 = btnEl && btnEl.closest ? btnEl.closest('tr') : null;
-                if (!tr2) {
-                    var right2 = document.getElementById('right');
-                    var mainRows2 = right2 ? right2.querySelectorAll('tr.chuoi-main-row') : [];
-                    if (mainRows2 && mainRows2[idx]) tr2 = mainRows2[idx];
-                }
+                var tr2 = tr;
                 if (tr2) {
                     var leftLabel = tr2.querySelector('td:first-child span');
                     if (leftLabel) anchor = leftLabel;
@@ -8870,46 +8952,7 @@
             } catch (e) { }
             if (!anchor || anchor === document.body) anchor = window.__checknote_tooltip_anchor || document.body;
             const rowIdx = window.__checknote_tooltip_row;
-            let highlighted = [];
-            try {
-                if (rowIdx != null) {
-                    const btn = document.getElementById('copyBtn-' + rowIdx);
-                    if (btn) {
-                        const tr = btn.closest && btn.closest('tr');
-                        if (tr) {
-                            const els = tr.querySelectorAll('span.idx-highlight, span.selected, span.cell.selected, span.answer-neon, span.cell.answer-neon');
-                            els.forEach(el => {
-                                let v = NaN;
-                                try { if (el.hasAttribute && el.hasAttribute('data-num')) v = parseInt(el.getAttribute('data-num'), 10); else v = parseInt((el.textContent || '').trim(), 10); } catch (e) { }
-                                if (!isNaN(v)) highlighted.push(v);
-                            });
-                        }
-                    }
-                }
-            } catch (e) { }
-            try {
-                if (raw && rowIdx != null) {
-                    const rowObj = getRawDisplayLineAt(rowIdx);
-                    if (rowObj) {
-                        const pickSet = submitActive ? simulatedSelected : selected;
-                        const rowNums = getNumsFromLineObj(rowObj);
-                        rowNums.forEach(function (rn) {
-                            if (pickSet.has(rn)) highlighted.push(rn);
-                        });
-                    }
-                }
-            } catch (e) { }
-            let uniq = [...new Set(highlighted)];
-            if (!uniq || uniq.length === 0) {
-                const selectedEls = document.querySelectorAll('#right span.cell.selected, #right span.idx-highlight, #right span.index.idx-highlight, #right span.answer-neon, #right span.cell.answer-neon');
-                const highlighted = [];
-                selectedEls.forEach(el => {
-                    let v = NaN;
-                    try { if (el.hasAttribute && el.hasAttribute('data-num')) v = parseInt(el.getAttribute('data-num'), 10); else v = parseInt((el.textContent || '').trim(), 10); } catch (e) { }
-                    if (!isNaN(v)) highlighted.push(v);
-                });
-                uniq = [...new Set(highlighted)];
-            }
+            const uniq = getChecknoteHighlightNumsForRow(rowIdx, null);
             let html = '';
             if (window.__checknote_lastData) html = generateChecknoteHtml(result, uniq, window.__checknote_lastData);
             else if (window.__checknote_data) html = generateChecknoteHtml(result, uniq, window.__checknote_data);
@@ -9705,6 +9748,7 @@
                 renderTable1(); renderTable2(); try { updatePairList(); } catch (e) { } try { refreshPairTailSelectionState(); } catch (e) { } alignTableActionsAndCenter(); updateFloatingCopyButtons();
                 try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
                 try { postSubmitStateChangedToParent(); } catch (e) { }
+                try { scheduleRefreshChecknoteTooltipIfOpen(); } catch (eCnFb) { /* ignore */ }
             } catch (e) { console.error(e); }
         }
 
@@ -10858,6 +10902,8 @@
                 }
                 try { updateFocusIndicator(); } catch (e) { }
                 try { syncPickPropertyBadges(); } catch (ePb) { /* ignore */ }
+                // Submit ON/OFF: cập nhật nền xanh 📑 ngay (không chờ rê ra/vào lại)
+                try { scheduleRefreshChecknoteTooltipIfOpen(); } catch (eCn) { /* ignore */ }
             } catch (e) { console.error(e); }
         }
 
