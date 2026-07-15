@@ -57,9 +57,241 @@
     /** Cache GeoIP theo IP (lookup peer thiếu country/lat trên Firebase) */
     const geoCache = new Map();
     const geoFetchInflight = new Set();
+    /** Ước lượng loại máy / HĐH / trình duyệt (từ UA + Client Hints). */
+    let selfClientDevice = null;
 
     function el(id) {
         return document.getElementById(id);
+    }
+
+    function detectClientDeviceSync() {
+        const ua = String((typeof navigator !== 'undefined' && navigator.userAgent) || '');
+        const uaData = (typeof navigator !== 'undefined' && navigator.userAgentData) || null;
+        let form = 'desktop';
+        let os = '';
+        let browser = '';
+        let group = '';
+        let model = '';
+
+        const maxTouch = Number((typeof navigator !== 'undefined' && navigator.maxTouchPoints) || 0);
+        const platform = String((typeof navigator !== 'undefined' && navigator.platform) || '');
+        const isIpad = /iPad/i.test(ua) || (platform === 'MacIntel' && maxTouch > 1);
+        const isIphone = /iPhone|iPod/i.test(ua);
+        const isAndroid = /Android/i.test(ua);
+
+        if (isIpad) {
+            form = 'tablet';
+            os = 'iPadOS';
+            group = 'iPad';
+        } else if (isIphone) {
+            form = 'mobile';
+            os = 'iOS';
+            group = 'iPhone';
+        } else if (isAndroid) {
+            form = /Mobile/i.test(ua) ? 'mobile' : 'tablet';
+            os = 'Android';
+            group = 'Android';
+            const am = ua.match(/\((?:Linux; )?Android [^;]+;\s*([^;)]+)/i);
+            if (am && am[1]) {
+                const name = String(am[1]).replace(/\s*Build.*$/i, '').trim();
+                if (name && !/^Android$/i.test(name) && name !== 'Linux' && !/^U$/i.test(name)) {
+                    model = name;
+                }
+            }
+        } else if (/Windows Phone|IEMobile/i.test(ua)) {
+            form = 'mobile';
+            os = 'Windows';
+        } else if (/Mobile|Mobi/i.test(ua)) {
+            form = 'mobile';
+        }
+
+        if (!os) {
+            if (/Windows NT/i.test(ua)) {
+                os = 'Windows';
+            } else if (/Mac OS X|Macintosh/i.test(ua)) {
+                os = 'macOS';
+            } else if (/CrOS/i.test(ua)) {
+                os = 'Chrome OS';
+            } else if (/Linux/i.test(ua)) {
+                os = 'Linux';
+            }
+        }
+
+        if (uaData) {
+            if (uaData.mobile && form === 'desktop') {
+                form = 'mobile';
+            }
+            const p = String(uaData.platform || '');
+            if (/Win/i.test(p)) {
+                os = 'Windows';
+            } else if (/macOS|Mac OS/i.test(p)) {
+                os = os === 'iPadOS' ? os : 'macOS';
+            } else if (/Android/i.test(p)) {
+                os = 'Android';
+                group = group || 'Android';
+            } else if (/iOS/i.test(p)) {
+                os = os || 'iOS';
+            } else if (/Linux/i.test(p) && !os) {
+                os = 'Linux';
+            } else if (/Chrome OS/i.test(p)) {
+                os = 'Chrome OS';
+            }
+        }
+
+        if (/Edg\/|EdgiOS\//i.test(ua)) {
+            browser = 'Edge';
+        } else if (/OPR\/|Opera/i.test(ua)) {
+            browser = 'Opera';
+        } else if (/SamsungBrowser\//i.test(ua)) {
+            browser = 'Samsung Internet';
+        } else if (/FxiOS\/|Firefox\//i.test(ua)) {
+            browser = 'Firefox';
+        } else if (/CriOS\//i.test(ua)) {
+            browser = 'Chrome';
+        } else if (/Chrome\//i.test(ua) && !/Edg\//i.test(ua)) {
+            browser = 'Chrome';
+        } else if (/Safari\//i.test(ua) && !/Chrome\//i.test(ua) && !/Chromium\//i.test(ua)) {
+            browser = 'Safari';
+        }
+
+        return { form: form, os: os, browser: browser, group: group, model: model };
+    }
+
+    function applyClientHints(h) {
+        if (!h || !selfClientDevice) {
+            return false;
+        }
+        let changed = false;
+        if (h.mobile && selfClientDevice.form === 'desktop') {
+            selfClientDevice.form = 'mobile';
+            changed = true;
+        }
+        const p = String(h.platform || '');
+        if (p) {
+            let nextOs = selfClientDevice.os;
+            if (/Win/i.test(p)) {
+                nextOs = 'Windows';
+            } else if (/macOS|Mac OS/i.test(p)) {
+                nextOs = selfClientDevice.os === 'iPadOS' ? selfClientDevice.os : 'macOS';
+            } else if (/Android/i.test(p)) {
+                nextOs = 'Android';
+                if (!selfClientDevice.group) {
+                    selfClientDevice.group = 'Android';
+                    changed = true;
+                }
+            } else if (/iOS/i.test(p)) {
+                nextOs = selfClientDevice.os || 'iOS';
+            } else if (/Linux/i.test(p)) {
+                nextOs = selfClientDevice.os || 'Linux';
+            } else if (/Chrome OS/i.test(p)) {
+                nextOs = 'Chrome OS';
+            }
+            if (nextOs && nextOs !== selfClientDevice.os) {
+                selfClientDevice.os = nextOs;
+                changed = true;
+            }
+        }
+        const model = String(h.model || '').trim();
+        if (model && model !== selfClientDevice.model) {
+            selfClientDevice.model = model;
+            changed = true;
+            if (/iPhone/i.test(model)) {
+                selfClientDevice.group = 'iPhone';
+            } else if (/iPad/i.test(model)) {
+                selfClientDevice.group = 'iPad';
+            }
+        }
+        return changed;
+    }
+
+    function enrichClientDeviceHints() {
+        if (!navigator.userAgentData || typeof navigator.userAgentData.getHighEntropyValues !== 'function') {
+            return Promise.resolve(false);
+        }
+        return navigator.userAgentData
+            .getHighEntropyValues(['platform', 'platformVersion', 'model', 'mobile'])
+            .then((h) => applyClientHints(h))
+            .catch(() => false);
+    }
+
+    function pickClientDevice(row) {
+        const src = row || {};
+        return {
+            clientForm: String(src.clientForm || '').trim(),
+            clientOs: String(src.clientOs || '').trim(),
+            clientBrowser: String(src.clientBrowser || '').trim(),
+            clientGroup: String(src.clientGroup || '').trim(),
+            clientModel: String(src.clientModel || '').trim()
+        };
+    }
+
+    function clientDevicePayloadFields(info) {
+        const d = info || selfClientDevice;
+        if (!d) {
+            return {};
+        }
+        const out = {};
+        if (d.form || d.clientForm) {
+            out.clientForm = String(d.form || d.clientForm || '').trim();
+        }
+        if (d.os || d.clientOs) {
+            out.clientOs = String(d.os || d.clientOs || '').trim();
+        }
+        if (d.browser || d.clientBrowser) {
+            out.clientBrowser = String(d.browser || d.clientBrowser || '').trim();
+        }
+        if (d.group || d.clientGroup) {
+            out.clientGroup = String(d.group || d.clientGroup || '').trim();
+        }
+        if (d.model || d.clientModel) {
+            out.clientModel = String(d.model || d.clientModel || '').trim();
+        }
+        return out;
+    }
+
+    function formatClientDeviceTip(row) {
+        const d = pickClientDevice(row);
+        const formLabel = d.clientForm === 'mobile'
+            ? 'Điện thoại'
+            : (d.clientForm === 'tablet'
+                ? 'Máy tính bảng'
+                : (d.clientForm === 'desktop' ? 'Máy tính' : ''));
+        const lines = [];
+        if (formLabel) {
+            lines.push('Loại: ' + formLabel);
+        }
+        if (d.clientOs) {
+            lines.push('HĐH: ' + d.clientOs);
+        }
+        if (d.clientBrowser) {
+            lines.push('Trình duyệt: ' + d.clientBrowser);
+        }
+        if (d.clientGroup) {
+            lines.push('Nhóm: ' + d.clientGroup);
+        }
+        if (d.clientModel) {
+            lines.push('Model: ' + d.clientModel);
+        }
+        if (!lines.length) {
+            return '';
+        }
+        return lines.join('\n');
+    }
+
+    function deviceMetaHtml(row, deviceCounts, isSelf) {
+        let line = deviceMetaLine(row, deviceCounts);
+        if (!line && isSelf) {
+            line = 'Thiết bị';
+        }
+        if (!line) {
+            return '';
+        }
+        const tip = formatClientDeviceTip(row);
+        if (!tip) {
+            return '<span class="presence-device-hint">' + escapeHtml(line) + '</span>';
+        }
+        return '<span class="presence-device-hint" data-tip="' + escapeHtml(tip) +
+            '" tabindex="0">' + escapeHtml(line) + '</span>';
     }
 
     function makeSessionId() {
@@ -552,6 +784,7 @@
             out.lat = selfGeo.lat;
             out.lon = selfGeo.lon;
         }
+        Object.assign(out, clientDevicePayloadFields(selfClientDevice));
         return out;
     }
 
@@ -698,6 +931,7 @@
         if (m.tabIndex != null) {
             payload.tabIndex = Number(m.tabIndex) || 0;
         }
+        Object.assign(payload, clientDevicePayloadFields(m));
         db.ref(PATH + '/' + id).set(payload)
             .catch(() => { /* ignore */ })
             .then(() => {
@@ -848,7 +1082,8 @@
                 deviceCode: row.deviceCode || row.deviceTag
             }));
             const rowTabIndex = Number(row.tabIndex) || 0;
-            nextMeta[id] = {
+            const clientFields = pickClientDevice(row);
+            nextMeta[id] = Object.assign({
                 label: label,
                 code: code,
                 startedAt: rowStarted,
@@ -863,7 +1098,7 @@
                 deviceTag: rowDeviceTag,
                 deviceCode: rowDeviceTag,
                 tabIndex: rowTabIndex
-            };
+            }, clientFields);
 
             const alive = !!row.online && updatedAt > 0 && (now - updatedAt) <= STALE_ONLINE_MS;
             if (alive) {
@@ -878,7 +1113,7 @@
                     deviceTag: rowDeviceTag,
                     deviceCode: rowDeviceTag,
                     tabIndex: rowTabIndex
-                }, geoFields));
+                }, geoFields, clientFields));
                 return;
             }
 
@@ -908,7 +1143,7 @@
                 deviceTag: rowDeviceTag,
                 deviceCode: rowDeviceTag,
                 tabIndex: rowTabIndex
-            }, geoFields));
+            }, geoFields, clientFields));
             pendingGone.delete(id);
         });
 
@@ -925,7 +1160,7 @@
             }
             const at = now;
             if (!pendingGone.has(id)) {
-                pendingGone.set(id, {
+                pendingGone.set(id, Object.assign({
                     label: meta.label || id,
                     code: meta.code || '',
                     startedAt: Number(meta.startedAt) || at,
@@ -941,7 +1176,7 @@
                     deviceTag: meta.deviceTag,
                     deviceCode: meta.deviceCode || meta.deviceTag,
                     tabIndex: meta.tabIndex
-                });
+                }, pickClientDevice(meta)));
             }
             requestTombstone(id, meta, at);
         });
@@ -955,7 +1190,7 @@
                 pendingGone.delete(id);
                 return;
             }
-            offlineRows.push({
+            offlineRows.push(Object.assign({
                 id: id,
                 label: entry.label,
                 code: entry.code || '',
@@ -972,7 +1207,7 @@
                 deviceTag: entry.deviceTag,
                 deviceCode: entry.deviceCode || entry.deviceTag,
                 tabIndex: entry.tabIndex
-            });
+            }, pickClientDevice(entry)));
         });
 
         metaById = nextMeta;
@@ -1016,17 +1251,13 @@
             const you = isSelf ? ' <span class="presence-you">(You)</span>' : '';
             const geoLine = geoMetaLine(r, isSelf || sameDevice);
             const place = formatGeoPlace(geoFromRow(r) || ((isSelf || sameDevice) ? selfGeo : null));
-            const deviceLine = deviceMetaLine(r, deviceCounts);
             const distLine = distanceFromYouLine(r, isSelf || sameDevice);
-            const deviceBits = [];
-            if (deviceLine) {
-                deviceBits.push(deviceLine);
-            } else if (isSelf) {
-                deviceBits.push('Thiết bị');
-            }
+            const deviceHint = deviceMetaHtml(r, deviceCounts, isSelf);
+            let deviceMetaInner = deviceHint;
             if (distLine) {
-                deviceBits.push(distLine);
+                deviceMetaInner += (deviceMetaInner ? ' · ' : '') + escapeHtml(distLine);
             }
+            deviceMetaInner += you;
             html += '<li class="presence-item presence-item--online' +
                 (isSelf ? ' presence-item--self' : '') +
                 (sameDevice ? ' presence-item--same-device' : '') +
@@ -1044,9 +1275,8 @@
                 '<span class="presence-text">' +
                 '<span class="presence-label">' + escapeHtml(r.displayLabel || r.label) +
                 ' <span class="presence-status presence-status--online">đang online</span></span>' +
-                (deviceBits.length
-                    ? '<span class="presence-meta presence-meta--device">' +
-                    escapeHtml(deviceBits.join(' · ')) + you + '</span>'
+                (deviceMetaInner
+                    ? '<span class="presence-meta presence-meta--device">' + deviceMetaInner + '</span>'
                     : '') +
                 '<span class="presence-meta">' +
                 escapeHtml(metaLine(r.startedAt, null)) + '</span>' +
@@ -1062,17 +1292,13 @@
             const you = isSelf ? ' <span class="presence-you">(You)</span>' : '';
             const geoLine = geoMetaLine(r, isSelf || sameDevice);
             const place = formatGeoPlace(geoFromRow(r) || ((isSelf || sameDevice) ? selfGeo : null));
-            const deviceLine = deviceMetaLine(r, null);
             const distLine = distanceFromYouLine(r, isSelf || sameDevice);
-            const deviceBits = [];
-            if (deviceLine) {
-                deviceBits.push(deviceLine);
-            } else if (isSelf) {
-                deviceBits.push('Thiết bị');
-            }
+            const deviceHint = deviceMetaHtml(r, null, isSelf);
+            let deviceMetaInner = deviceHint;
             if (distLine) {
-                deviceBits.push(distLine);
+                deviceMetaInner += (deviceMetaInner ? ' · ' : '') + escapeHtml(distLine);
             }
+            deviceMetaInner += you;
             html += '<li class="presence-item presence-item--offline' +
                 (isSelf ? ' presence-item--self' : '') +
                 (sameDevice ? ' presence-item--same-device' : '') +
@@ -1090,9 +1316,8 @@
                 '<span class="presence-text">' +
                 '<span class="presence-label">' + escapeHtml(r.displayLabel || r.label) +
                 ' <span class="presence-status presence-status--offline">vừa offline</span></span>' +
-                (deviceBits.length
-                    ? '<span class="presence-meta presence-meta--device">' +
-                    escapeHtml(deviceBits.join(' · ')) + you + '</span>'
+                (deviceMetaInner
+                    ? '<span class="presence-meta presence-meta--device">' + deviceMetaInner + '</span>'
                     : '') +
                 '<span class="presence-meta">' +
                 escapeHtml(metaLine(r.startedAt, r.at)) + '</span>' +
@@ -1161,6 +1386,96 @@
                 }
             });
         }
+        bindDeviceTip(list, panel);
+    }
+
+    function ensureDeviceTipEl() {
+        let tip = el('presenceDeviceTip');
+        if (tip) {
+            return tip;
+        }
+        tip = document.createElement('div');
+        tip.id = 'presenceDeviceTip';
+        tip.className = 'presence-device-tip-float hidden';
+        tip.setAttribute('role', 'tooltip');
+        document.body.appendChild(tip);
+        return tip;
+    }
+
+    function hideDeviceTip() {
+        const tip = el('presenceDeviceTip');
+        if (tip) {
+            tip.classList.add('hidden');
+        }
+    }
+
+    function showDeviceTipFor(hint) {
+        const text = hint && hint.getAttribute('data-tip');
+        if (!text) {
+            return;
+        }
+        const tip = ensureDeviceTipEl();
+        tip.textContent = text;
+        tip.classList.remove('hidden');
+        const rect = hint.getBoundingClientRect();
+        const tipW = tip.offsetWidth || 180;
+        const tipH = tip.offsetHeight || 80;
+        let left = rect.left;
+        let top = rect.bottom + 6;
+        if (left + tipW > window.innerWidth - 8) {
+            left = window.innerWidth - tipW - 8;
+        }
+        if (left < 8) {
+            left = 8;
+        }
+        if (top + tipH > window.innerHeight - 8) {
+            top = rect.top - tipH - 6;
+        }
+        if (top < 8) {
+            top = 8;
+        }
+        tip.style.left = Math.round(left) + 'px';
+        tip.style.top = Math.round(top) + 'px';
+    }
+
+    function bindDeviceTip(list, panel) {
+        if (!list || list.dataset.deviceTipBound === '1') {
+            return;
+        }
+        list.dataset.deviceTipBound = '1';
+        ensureDeviceTipEl();
+
+        const onEnter = (e) => {
+            const hint = e.target && e.target.closest
+                ? e.target.closest('.presence-device-hint[data-tip]')
+                : null;
+            if (!hint || !list.contains(hint)) {
+                return;
+            }
+            showDeviceTipFor(hint);
+        };
+        const onLeave = (e) => {
+            const hint = e.target && e.target.closest
+                ? e.target.closest('.presence-device-hint[data-tip]')
+                : null;
+            if (!hint || !list.contains(hint)) {
+                return;
+            }
+            const next = e.relatedTarget;
+            if (next && hint.contains(next)) {
+                return;
+            }
+            hideDeviceTip();
+        };
+        list.addEventListener('mouseover', onEnter);
+        list.addEventListener('mouseout', onLeave);
+        list.addEventListener('focusin', onEnter);
+        list.addEventListener('focusout', onLeave);
+        if (panel) {
+            panel.addEventListener('scroll', hideDeviceTip, { passive: true });
+        }
+        window.addEventListener('scroll', hideDeviceTip, { passive: true });
+        window.addEventListener('resize', hideDeviceTip);
     }
 
     function startHeartbeat() {
@@ -1228,6 +1543,7 @@
         }
 
         started = true;
+        selfClientDevice = detectClientDeviceSync();
         bindUi();
         setWidgetVisible(true);
 
@@ -1270,6 +1586,13 @@
             fetchSelfGeo().then(() => {
                 writePresence(true).then(() => armOnDisconnect());
             }).catch(() => { /* ignore */ });
+
+            enrichClientDeviceHints().then((changed) => {
+                if (!changed || !sessionRef) {
+                    return;
+                }
+                writePresence(true).then(() => armOnDisconnect());
+            });
 
             window.addEventListener('pagehide', markSelfOfflineBestEffort);
             window.addEventListener('beforeunload', markSelfOfflineBestEffort);

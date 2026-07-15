@@ -1886,6 +1886,30 @@
             font-weight: 600;
         }
 
+        .presence-device-hint[data-tip] {
+            cursor: help;
+            border-bottom: 1px dotted currentColor;
+        }
+
+        .presence-device-tip-float {
+            position: fixed;
+            z-index: 200;
+            max-width: 260px;
+            padding: 8px 10px;
+            border: 1px solid #334155;
+            border-radius: 8px;
+            background: #0f172a;
+            color: #f8fafc;
+            font: 11px/1.45 Segoe UI, Arial, sans-serif;
+            white-space: pre-line;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.28);
+            pointer-events: none;
+        }
+
+        .presence-device-tip-float.hidden {
+            display: none !important;
+        }
+
         /* Viền chat trên từng dòng menu list presence */
         #presencePanel #presenceList > .presence-item.presence-item--chat-active,
         #presencePanel #presenceList > .presence-item[data-chat-border="active"] {
@@ -7278,7 +7302,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
     <script src="presence-config.js"></script>
-    <script src="presence.js?v=20260716mayNayCount"></script>
+    <script src="presence.js?v=20260716deviceTip2"></script>
     <script src="chat.js?v=20260716msgMenuSide"></script>
     <script src="right-pane-sheets.js?v=20260716filterScrollCenter"></script>
     <script src="answer-popup.js?v=20250621"></script>
