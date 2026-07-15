@@ -6,6 +6,8 @@
     'use strict';
 
     const HEARTBEAT_MS = 20000;
+    /** Không heartbeat quá lâu → coi tab chết (onDisconnect đôi khi không chạy). */
+    const STALE_ONLINE_MS = 90 * 1000;
     const OFFLINE_HOLD_MS = 5 * 60 * 1000;
     const RENDER_TICK_MS = 15000;
     const PATH = 'presence';
@@ -187,19 +189,30 @@
         const data = snapVal && typeof snapVal === 'object' ? snapVal : {};
         const nextOnlineIds = new Set();
         const metaById = renderPresence._metaById || {};
+        const now = Date.now();
 
         Object.keys(data).forEach((id) => {
             const row = data[id] || {};
             const label = String(row.label || id);
             const rowStarted = Number(row.startedAt) || Number(row.updatedAt) || 0;
+            const updatedAt = Number(row.updatedAt) || 0;
             metaById[id] = { label: label, startedAt: rowStarted };
-            if (row.online) {
+            const alive = !!row.online && updatedAt > 0 && (now - updatedAt) <= STALE_ONLINE_MS;
+            if (row.online && !alive) {
+                // Ghost: tab chết / code cũ / onDisconnect không xóa → gỡ khỏi Firebase
+                if (db && id !== sessionId) {
+                    try {
+                        db.ref(PATH + '/' + id).remove();
+                    } catch (e) { /* ignore */ }
+                }
+            }
+            if (alive) {
                 nextOnlineIds.add(id);
                 onlineRows.push({
                     id: id,
                     label: label,
                     startedAt: rowStarted,
-                    updatedAt: Number(row.updatedAt) || 0
+                    updatedAt: updatedAt
                 });
                 recentlyOffline.delete(id);
             }
