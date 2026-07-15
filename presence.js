@@ -2,13 +2,13 @@
  * Firebase Realtime Database presence — đếm tab đang online + list.
  * Config: window.PRESENCE_FIREBASE_CONFIG (presence-config.js). Hướng dẫn: PRESENCE.md
  *
- * Offline ~5 phút được ghi trên Firebase (online:false + offlineAt) để người vào sau vẫn thấy.
+ * Offline ~5 phút ghi trên Firebase (online:false + offlineAt). Tab còn mở có thể
+ * tái tạo tombstone nếu peer bị xóa (code cũ / cancel onDisconnect) để người vào sau vẫn thấy.
  */
 (function () {
     'use strict';
 
     const HEARTBEAT_MS = 20000;
-    /** Không heartbeat quá lâu → coi tab chết (onDisconnect đôi khi không chạy). */
     const STALE_ONLINE_MS = 90 * 1000;
     const OFFLINE_HOLD_MS = 5 * 60 * 1000;
     const RENDER_TICK_MS = 15000;
@@ -25,13 +25,17 @@
     let db = null;
     let started = false;
     const pruneRequested = new Set();
-    const markOfflineRequested = new Set();
+    const tombstoneRequested = new Set();
+    /** meta gần nhất theo id — để tái tạo tombstone khi node bị xóa khỏi RTDB */
+    let metaById = {};
+    let prevOnlineIds = new Set();
+    /** Offline tạm khi peer bị remove — giữ đến khi RTDB có tombstone */
+    const pendingGone = new Map();
 
     function el(id) {
         return document.getElementById(id);
     }
 
-    /** Mã hiển thị 3 ký tự: 2 chữ cái + 1 chữ số (vd. AG3), ổn định theo sessionId. */
     function makeDisplayCode(id) {
         const s = String(id || '').replace(/\W/g, '') || 'x';
         let h = 2166136261;
@@ -155,22 +159,33 @@
             .catch(() => { /* offline / blocked */ });
     }
 
+    function offlinePayload(offlineAt) {
+        const now = Date.now();
+        return {
+            online: false,
+            label: buildLabel(),
+            code: displayCode || makeDisplayCode(sessionId),
+            startedAt: startedAt || now,
+            offlineAt: Number(offlineAt) || now,
+            updatedAt: now
+        };
+    }
+
     function writePresence(online) {
         if (!sessionRef) {
             return Promise.resolve();
         }
         const now = Date.now();
-        const payload = {
-            online: !!online,
+        if (!online) {
+            return sessionRef.set(offlinePayload(now));
+        }
+        return sessionRef.set({
+            online: true,
             label: buildLabel(),
             code: displayCode || makeDisplayCode(sessionId),
             startedAt: startedAt || now,
             updatedAt: now
-        };
-        if (!online) {
-            payload.offlineAt = now;
-        }
-        return sessionRef.set(payload);
+        });
     }
 
     function requestRemoveNode(id) {
@@ -185,20 +200,25 @@
             });
     }
 
-    function requestMarkOffline(id, offlineAt) {
-        if (!db || !id || id === sessionId || markOfflineRequested.has(id)) {
+    /** Ghi tombstone offline lên RTDB (chính mình hoặc giúp peer bị xóa). */
+    function requestTombstone(id, meta, offlineAt) {
+        if (!db || !id || id === sessionId || tombstoneRequested.has(id)) {
             return;
         }
-        markOfflineRequested.add(id);
+        const m = meta || {};
         const at = Number(offlineAt) || Date.now();
-        db.ref(PATH + '/' + id).update({
+        tombstoneRequested.add(id);
+        db.ref(PATH + '/' + id).set({
             online: false,
+            label: String(m.label || id),
+            code: String(m.code || ''),
+            startedAt: Number(m.startedAt) || at,
             offlineAt: at,
             updatedAt: Date.now()
         })
             .catch(() => { /* ignore */ })
             .then(() => {
-                setTimeout(() => markOfflineRequested.delete(id), 5000);
+                setTimeout(() => tombstoneRequested.delete(id), 8000);
             });
     }
 
@@ -210,21 +230,46 @@
         return 'Vào ' + access + ' · đã ' + dur;
     }
 
+    function armOnDisconnect() {
+        if (!sessionRef || typeof firebase === 'undefined') {
+            return Promise.resolve();
+        }
+        const SERVER_TS = firebase.database.ServerValue.TIMESTAMP;
+        // Full set — không cancel ở pagehide (cancel là lý do người vào sau không thấy)
+        return sessionRef.onDisconnect().set({
+            online: false,
+            label: buildLabel(),
+            code: displayCode || makeDisplayCode(sessionId),
+            startedAt: startedAt || Date.now(),
+            offlineAt: SERVER_TS,
+            updatedAt: SERVER_TS
+        });
+    }
+
     function renderPresence(snapVal) {
         lastSnapVal = snapVal;
         const onlineRows = [];
         const offlineRows = [];
         const data = snapVal && typeof snapVal === 'object' ? snapVal : {};
         const now = Date.now();
+        const nextOnlineIds = new Set();
+        const nextMeta = {};
 
         Object.keys(data).forEach((id) => {
             const row = data[id] || {};
             const label = String(row.label || id);
+            const code = String(row.code || '');
             const rowStarted = Number(row.startedAt) || Number(row.updatedAt) || 0;
             const updatedAt = Number(row.updatedAt) || 0;
-            const alive = !!row.online && updatedAt > 0 && (now - updatedAt) <= STALE_ONLINE_MS;
+            nextMeta[id] = {
+                label: label,
+                code: code,
+                startedAt: rowStarted
+            };
 
+            const alive = !!row.online && updatedAt > 0 && (now - updatedAt) <= STALE_ONLINE_MS;
             if (alive) {
+                nextOnlineIds.add(id);
                 onlineRows.push({
                     id: id,
                     label: label,
@@ -234,11 +279,10 @@
                 return;
             }
 
-            // Tab vừa tắt / ghost hết heartbeat → giữ trên Firebase ~5 phút để người vào sau còn thấy
             let offlineAt = Number(row.offlineAt) || 0;
             if (row.online && !alive) {
                 offlineAt = offlineAt || updatedAt || now;
-                requestMarkOffline(id, offlineAt);
+                requestTombstone(id, nextMeta[id], offlineAt);
             } else if (!row.online) {
                 offlineAt = offlineAt || updatedAt || 0;
             }
@@ -257,9 +301,52 @@
                 startedAt: rowStarted,
                 at: offlineAt
             });
+            pendingGone.delete(id);
         });
 
-        // Vào sớm nhất lên đầu; vào sau append xuống dưới
+        // Peer biến mất khỏi RTDB (tab cũ dùng remove) → tab còn lại ghi lại tombstone
+        prevOnlineIds.forEach((id) => {
+            if (nextOnlineIds.has(id) || Object.prototype.hasOwnProperty.call(data, id)) {
+                return;
+            }
+            if (id === sessionId) {
+                return;
+            }
+            const meta = metaById[id] || nextMeta[id];
+            if (!meta) {
+                return;
+            }
+            const at = now;
+            if (!pendingGone.has(id)) {
+                pendingGone.set(id, {
+                    label: meta.label || id,
+                    startedAt: Number(meta.startedAt) || at,
+                    at: at
+                });
+            }
+            requestTombstone(id, meta, at);
+        });
+
+        pendingGone.forEach((entry, id) => {
+            if (nextOnlineIds.has(id) || Object.prototype.hasOwnProperty.call(data, id)) {
+                pendingGone.delete(id);
+                return;
+            }
+            if (!entry || now - entry.at > OFFLINE_HOLD_MS) {
+                pendingGone.delete(id);
+                return;
+            }
+            offlineRows.push({
+                id: id,
+                label: entry.label,
+                startedAt: entry.startedAt,
+                at: entry.at
+            });
+        });
+
+        metaById = nextMeta;
+        prevOnlineIds = nextOnlineIds;
+
         onlineRows.sort((a, b) => {
             const sa = Number(a.startedAt) || Number(a.updatedAt) || 0;
             const sb = Number(b.startedAt) || Number(b.updatedAt) || 0;
@@ -269,7 +356,6 @@
             return a.id.localeCompare(b.id);
         });
 
-        // Offline: offline sớm hơn phía trên; vừa offline append cuối
         offlineRows.sort((a, b) => {
             if (a.at !== b.at) {
                 return a.at - b.at;
@@ -345,7 +431,9 @@
             clearInterval(heartbeatTimer);
         }
         heartbeatTimer = setInterval(() => {
-            writePresence(true).catch(() => { /* ignore */ });
+            writePresence(true)
+                .then(() => armOnDisconnect())
+                .catch(() => { /* ignore */ });
         }, HEARTBEAT_MS);
     }
 
@@ -360,17 +448,18 @@
         }, RENDER_TICK_MS);
     }
 
-    function armOnDisconnect() {
-        if (!sessionRef || typeof firebase === 'undefined') {
-            return Promise.resolve();
-        }
-        const SERVER_TS = firebase.database.ServerValue.TIMESTAMP;
-        // Không xóa ngay — đánh offline để mọi client (kể cả vào sau) còn thấy ~5 phút
-        return sessionRef.onDisconnect().update({
-            online: false,
-            offlineAt: SERVER_TS,
-            updatedAt: SERVER_TS
-        });
+    function markSelfOfflineBestEffort() {
+        try {
+            if (heartbeatTimer) {
+                clearInterval(heartbeatTimer);
+                heartbeatTimer = 0;
+            }
+            if (!sessionRef) {
+                return;
+            }
+            // Không cancel onDisconnect — server vẫn ghi offline nếu client set không kịp
+            writePresence(false);
+        } catch (e) { /* ignore */ }
     }
 
     function startPresence() {
@@ -425,19 +514,17 @@
             });
             startRenderTick();
 
-            fetchPublicIp().then(() => writePresence(true)).catch(() => { /* ignore */ });
+            fetchPublicIp().then(() => {
+                writePresence(true).then(() => armOnDisconnect());
+            }).catch(() => { /* ignore */ });
 
-            window.addEventListener('pagehide', () => {
-                try {
-                    if (heartbeatTimer) {
-                        clearInterval(heartbeatTimer);
-                        heartbeatTimer = 0;
-                    }
-                    if (sessionRef) {
-                        sessionRef.onDisconnect().cancel();
-                        writePresence(false);
-                    }
-                } catch (e) { /* ignore */ }
+            window.addEventListener('pagehide', markSelfOfflineBestEffort);
+            window.addEventListener('beforeunload', markSelfOfflineBestEffort);
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'hidden') {
+                    // Tab ẩn / swipe away trên mobile — cố ghi offline sớm
+                    // Không dừng heartbeat ở đây (có thể chỉ đổi app); chỉ sync snapshot offline tạm? Skip.
+                }
             });
         };
 
@@ -445,7 +532,6 @@
             firebase.auth().signInAnonymously()
                 .then(afterAuth)
                 .catch((err) => {
-                    // Test-mode rules may allow unauthenticated access
                     console.warn('[presence] Anonymous auth failed, trying without auth', err);
                     afterAuth();
                 });
