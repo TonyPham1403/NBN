@@ -564,10 +564,7 @@
         const count = did && deviceCounts ? (deviceCounts[did] || 0) : 0;
         let line = 'Thiết bị ' + tag;
         if (did && deviceId && did === deviceId) {
-            line += ' · máy này';
-        }
-        if (count > 1) {
-            line += ' · ' + count + ' tab cùng máy';
+            line += ' · máy này [' + (count > 0 ? count : 1) + ']';
         }
         return line;
     }
