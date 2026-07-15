@@ -290,7 +290,9 @@
         if (!tip) {
             return '<span class="presence-device-hint">' + escapeHtml(line) + '</span>';
         }
-        return '<span class="presence-device-hint" data-tip="' + escapeHtml(tip) +
+        /* &#10; tránh xuống dòng thô trong attribute (một số môi trường làm lộ text ra DOM) */
+        const tipAttr = escapeHtml(tip).replace(/\r?\n/g, '&#10;');
+        return '<span class="presence-device-hint" data-tip="' + tipAttr +
             '" tabindex="0">' + escapeHtml(line) + '</span>';
     }
 
@@ -1243,6 +1245,7 @@
         if (!list) {
             return;
         }
+        hideDeviceTip();
         let html = '';
         listOnline.forEach((r) => {
             const isSelf = r.id === sessionId;
@@ -1343,7 +1346,11 @@
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             panel.classList.toggle('hidden');
-            btn.setAttribute('aria-expanded', panel.classList.contains('hidden') ? 'false' : 'true');
+            const closed = panel.classList.contains('hidden');
+            btn.setAttribute('aria-expanded', closed ? 'false' : 'true');
+            if (closed) {
+                hideDeviceTip();
+            }
         });
         document.addEventListener('click', (e) => {
             const widget = el('presenceWidget');
@@ -1355,6 +1362,7 @@
             }
             panel.classList.add('hidden');
             btn.setAttribute('aria-expanded', 'false');
+            hideDeviceTip();
         });
         if (list && list.dataset.chatDelegate !== '1') {
             list.dataset.chatDelegate = '1';
@@ -1396,17 +1404,40 @@
         }
         tip = document.createElement('div');
         tip.id = 'presenceDeviceTip';
-        tip.className = 'presence-device-tip-float hidden';
+        tip.className = 'presence-device-tip-float';
         tip.setAttribute('role', 'tooltip');
+        tip.setAttribute('aria-hidden', 'true');
+        /* Inline style: không phụ thuộc CSS cache trên GitHub Pages */
+        tip.style.cssText = [
+            'position:fixed',
+            'z-index:2147483646',
+            'display:none',
+            'max-width:260px',
+            'padding:8px 10px',
+            'border:1px solid #334155',
+            'border-radius:8px',
+            'background:#0f172a',
+            'color:#f8fafc',
+            'font:11px/1.45 Segoe UI,Arial,sans-serif',
+            'white-space:pre-line',
+            'box-shadow:0 10px 24px rgba(15,23,42,0.28)',
+            'pointer-events:none',
+            'left:0',
+            'top:0'
+        ].join(';');
         document.body.appendChild(tip);
         return tip;
     }
 
     function hideDeviceTip() {
         const tip = el('presenceDeviceTip');
-        if (tip) {
-            tip.classList.add('hidden');
+        if (!tip) {
+            return;
         }
+        tip.style.display = 'none';
+        tip.setAttribute('aria-hidden', 'true');
+        tip.textContent = '';
+        tip.classList.add('hidden');
     }
 
     function showDeviceTipFor(hint) {
@@ -1417,6 +1448,8 @@
         const tip = ensureDeviceTipEl();
         tip.textContent = text;
         tip.classList.remove('hidden');
+        tip.style.display = 'block';
+        tip.setAttribute('aria-hidden', 'false');
         const rect = hint.getBoundingClientRect();
         const tipW = tip.offsetWidth || 180;
         const tipH = tip.offsetHeight || 80;
