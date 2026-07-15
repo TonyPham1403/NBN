@@ -1677,6 +1677,97 @@
             position: relative;
             z-index: 25;
             overflow: visible;
+            flex-wrap: wrap;
+        }
+
+        .presence-widget {
+            position: relative;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+
+        .presence-widget[hidden] {
+            display: none !important;
+        }
+
+        #presenceBtn.presence-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            height: 24px;
+            padding: 0 8px;
+            border: 1px solid #86efac;
+            border-radius: 6px;
+            background: #f0fdf4;
+            color: #166534;
+            font: 600 11px/1.2 Inter, Segoe UI, Arial, sans-serif;
+            font-variant-numeric: tabular-nums;
+            cursor: pointer;
+        }
+
+        #presenceBtn.presence-btn:hover {
+            background: #dcfce7;
+        }
+
+        .presence-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #22c55e;
+            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.25);
+            flex-shrink: 0;
+        }
+
+        .presence-dot--offline {
+            background: #ef4444;
+            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.2);
+        }
+
+        .presence-panel {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 6px);
+            z-index: 80;
+            min-width: 220px;
+            max-width: 320px;
+            max-height: 240px;
+            overflow: auto;
+            padding: 6px 0;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+        }
+
+        .presence-panel.hidden {
+            display: none !important;
+        }
+
+        .presence-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+
+        .presence-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 6px 10px;
+            font: 12px/1.35 Segoe UI, Arial, sans-serif;
+            color: #0f172a;
+        }
+
+        .presence-item--offline {
+            color: #7f1d1d;
+        }
+
+        .presence-item--hint {
+            color: #64748b;
+        }
+
+        .presence-label {
+            word-break: break-all;
         }
 
         .sheet-tools-group {
@@ -5618,6 +5709,17 @@
                                 aria-label="Mode lọc"></ul>
                         </div>
                     </div>
+                    <div id="presenceWidget" class="presence-widget" hidden>
+                        <button type="button" id="presenceBtn" class="presence-btn" aria-expanded="false"
+                            aria-controls="presencePanel" title="Số người đang online">
+                            <span class="presence-dot" aria-hidden="true"></span>
+                            <span id="presenceCount">0</span>
+                        </button>
+                        <div id="presencePanel" class="presence-panel hidden" role="region"
+                            aria-label="Danh sách người online">
+                            <ul id="presenceList" class="presence-list"></ul>
+                        </div>
+                    </div>
                 </div>
                 <div class="right-table-viewport-wrap">
                     <div id="tableWrap" class="right-table-viewport"></div>
@@ -6118,6 +6220,11 @@
         </div>
     </div>
 
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+    <script src="presence-config.js"></script>
+    <script src="presence.js"></script>
     <script src="right-pane-sheets.js?v=20250711pickPreviewFix"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
