@@ -1691,6 +1691,7 @@
         }
 
         #presenceBtn.presence-btn {
+            position: relative;
             display: inline-flex;
             align-items: center;
             gap: 6px;
@@ -1728,9 +1729,9 @@
             right: 0;
             top: calc(100% + 6px);
             z-index: 80;
-            min-width: 260px;
-            max-width: 360px;
-            max-height: 280px;
+            min-width: 280px;
+            max-width: 400px;
+            max-height: 320px;
             overflow: auto;
             padding: 6px 0;
             border: 1px solid #cbd5e1;
@@ -1751,16 +1752,11 @@
 
         .presence-item {
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             gap: 8px;
             padding: 6px 10px;
             font: 12px/1.35 Segoe UI, Arial, sans-serif;
             color: #0f172a;
-        }
-
-        .presence-item .presence-dot {
-            align-self: center;
-            margin-top: 0;
         }
 
         .presence-item--offline {
@@ -1780,6 +1776,38 @@
             word-break: break-all;
         }
 
+        .presence-item > .presence-person {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 14px;
+            height: 14px;
+            margin-top: 2px;
+            color: #16a34a;
+            flex-shrink: 0;
+        }
+
+        .presence-item > .presence-person svg {
+            display: block;
+            width: 14px;
+            height: 14px;
+        }
+
+        .presence-item > .presence-person--offline,
+        .presence-item--offline > .presence-person {
+            color: #dc2626;
+        }
+
+        .presence-you {
+            font-weight: 700;
+            color: #166534;
+            white-space: nowrap;
+        }
+
+        .presence-item--offline .presence-you {
+            color: #b91c1c;
+        }
+
         .presence-meta {
             display: block;
             margin-top: 2px;
@@ -1788,8 +1816,232 @@
             word-break: break-word;
         }
 
+        .presence-meta--geo {
+            color: #475569;
+        }
+
+        .presence-meta--device {
+            color: #1d4ed8;
+            font-weight: 600;
+        }
+
+        .presence-item--same-device {
+            border-left: 3px solid #3b82f6;
+            padding-left: 7px;
+        }
+
         .presence-item--offline .presence-meta {
             color: #b91c1c;
+        }
+
+        .presence-item--offline .presence-meta--geo {
+            color: #991b1b;
+        }
+
+        .presence-item--offline .presence-meta--device {
+            color: #9f1239;
+        }
+
+        .presence-chat-btn {
+            display: inline-block;
+            margin-top: 4px;
+            padding: 2px 8px;
+            border: 1px solid #93c5fd;
+            border-radius: 4px;
+            background: #eff6ff;
+            color: #1d4ed8;
+            font: 600 11px/1.2 Segoe UI, Arial, sans-serif;
+            cursor: pointer;
+        }
+
+        .presence-chat-btn:hover {
+            background: #dbeafe;
+        }
+
+        .presence-same-device-note {
+            display: inline-block;
+            margin-top: 4px;
+            font: 11px/1.2 Segoe UI, Arial, sans-serif;
+            color: #64748b;
+        }
+
+        .presence-item--offline .presence-chat-btn {
+            border-color: #fca5a5;
+            background: #fef2f2;
+            color: #b91c1c;
+        }
+
+        .chat-unread-badge {
+            position: absolute;
+            top: -5px;
+            right: -6px;
+            min-width: 14px;
+            height: 14px;
+            padding: 0 3px;
+            border-radius: 999px;
+            background: #dc2626;
+            color: #fff;
+            font: 700 9px/14px Segoe UI, Arial, sans-serif;
+            text-align: center;
+        }
+
+        .chat-panel {
+            position: absolute;
+            right: 0;
+            top: calc(100% + 6px);
+            z-index: 81;
+            width: min(340px, 92vw);
+            height: 320px;
+            display: flex;
+            flex-direction: column;
+            border: 1px solid #cbd5e1;
+            border-radius: 8px;
+            background: #fff;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.14);
+            overflow: hidden;
+        }
+
+        .chat-panel.hidden {
+            display: none !important;
+        }
+
+        .chat-panel-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 8px 10px;
+            border-bottom: 1px solid #e2e8f0;
+            background: #f8fafc;
+        }
+
+        .chat-panel-heading {
+            min-width: 0;
+            flex: 1 1 auto;
+        }
+
+        .chat-title {
+            font: 700 12px/1.3 Segoe UI, Arial, sans-serif;
+            color: #0f172a;
+        }
+
+        .chat-subtitle {
+            margin-top: 2px;
+            font: 11px/1.3 Segoe UI, Arial, sans-serif;
+            color: #64748b;
+            word-break: break-word;
+        }
+
+        .chat-close-btn {
+            flex-shrink: 0;
+            width: 24px;
+            height: 24px;
+            border: 0;
+            border-radius: 4px;
+            background: transparent;
+            color: #64748b;
+            font: 700 16px/1 Segoe UI, Arial, sans-serif;
+            cursor: pointer;
+        }
+
+        .chat-close-btn:hover {
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+
+        .chat-messages {
+            flex: 1 1 auto;
+            min-height: 0;
+            overflow: auto;
+            padding: 8px 10px;
+            background: #fff;
+        }
+
+        .chat-empty {
+            color: #94a3b8;
+            font: 12px/1.4 Segoe UI, Arial, sans-serif;
+            padding: 12px 4px;
+        }
+
+        .chat-bubble-row {
+            display: flex;
+            justify-content: flex-start;
+            margin-bottom: 6px;
+        }
+
+        .chat-bubble-row--mine {
+            justify-content: flex-end;
+        }
+
+        .chat-bubble {
+            max-width: 85%;
+            padding: 6px 8px;
+            border-radius: 8px;
+            background: #f1f5f9;
+            color: #0f172a;
+        }
+
+        .chat-bubble--mine {
+            background: #dcfce7;
+            color: #14532d;
+        }
+
+        .chat-bubble-text {
+            font: 12px/1.35 Segoe UI, Arial, sans-serif;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .chat-bubble-time {
+            margin-top: 3px;
+            font: 10px/1.2 Segoe UI, Arial, sans-serif;
+            color: #64748b;
+            text-align: right;
+        }
+
+        .chat-bubble--mine .chat-bubble-time {
+            color: #3f6212;
+        }
+
+        .chat-form {
+            display: flex;
+            gap: 6px;
+            padding: 8px;
+            border-top: 1px solid #e2e8f0;
+            background: #f8fafc;
+        }
+
+        .chat-input {
+            flex: 1 1 auto;
+            min-width: 0;
+            height: 28px;
+            padding: 0 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font: 12px/1.2 Segoe UI, Arial, sans-serif;
+            color: #0f172a;
+            background: #fff;
+        }
+
+        .chat-input:focus {
+            outline: 2px solid #93c5fd;
+            outline-offset: 0;
+            border-color: #60a5fa;
+        }
+
+        .chat-send-btn {
+            flex-shrink: 0;
+            height: 28px;
+            padding: 0 10px;
+            border: 1px solid #86efac;
+            border-radius: 6px;
+            background: #f0fdf4;
+            color: #166534;
+            font: 600 12px/1 Segoe UI, Arial, sans-serif;
+            cursor: pointer;
+        }
+
+        .chat-send-btn:hover {
+            background: #dcfce7;
         }
 
         .sheet-tools-group {
@@ -5736,10 +5988,27 @@
                             aria-controls="presencePanel" title="Số người đang online">
                             <span class="presence-dot" aria-hidden="true"></span>
                             <span id="presenceCount">0</span>
+                            <span id="chatUnreadBadge" class="chat-unread-badge" hidden>0</span>
                         </button>
                         <div id="presencePanel" class="presence-panel hidden" role="region"
                             aria-label="Danh sách người online">
                             <ul id="presenceList" class="presence-list"></ul>
+                        </div>
+                        <div id="chatPanel" class="chat-panel hidden" role="dialog" aria-label="Chat theo thiết bị">
+                            <div class="chat-panel-header">
+                                <div class="chat-panel-heading">
+                                    <div id="chatTitle" class="chat-title">Chat</div>
+                                    <div id="chatSubtitle" class="chat-subtitle"></div>
+                                </div>
+                                <button type="button" id="chatCloseBtn" class="chat-close-btn" title="Đóng chat"
+                                    aria-label="Đóng chat">×</button>
+                            </div>
+                            <div id="chatMessages" class="chat-messages" aria-live="polite"></div>
+                            <form id="chatForm" class="chat-form" autocomplete="off">
+                                <input id="chatInput" class="chat-input" type="text" maxlength="500"
+                                    placeholder="Gõ tin nhắn…" aria-label="Nội dung tin nhắn" />
+                                <button type="submit" class="chat-send-btn" title="Gửi">Gửi</button>
+                            </form>
                         </div>
                     </div>
                 </div>
@@ -6246,8 +6515,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <script src="presence-config.js"></script>
-    <script src="presence.js"></script>
-    <script src="right-pane-sheets.js?v=20250711pickPreviewFix"></script>
+    <script src="presence.js?v=20260716chat2"></script>
+    <script src="chat.js?v=20260716chat2"></script>
+    <script src="right-pane-sheets.js?v=20260716filterScrollCenter"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
