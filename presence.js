@@ -1,6 +1,8 @@
 /**
  * Firebase Realtime Database presence — đếm tab đang online + list.
  * Config: window.PRESENCE_FIREBASE_CONFIG (presence-config.js). Hướng dẫn: PRESENCE.md
+ *
+ * Offline ~5 phút được ghi trên Firebase (online:false + offlineAt) để người vào sau vẫn thấy.
  */
 (function () {
     'use strict';
@@ -12,7 +14,6 @@
     const RENDER_TICK_MS = 15000;
     const PATH = 'presence';
 
-    const recentlyOffline = new Map();
     let sessionId = '';
     let displayCode = '';
     let startedAt = 0;
@@ -23,6 +24,8 @@
     let lastSnapVal = null;
     let db = null;
     let started = false;
+    const pruneRequested = new Set();
+    const markOfflineRequested = new Set();
 
     function el(id) {
         return document.getElementById(id);
@@ -156,22 +159,47 @@
         if (!sessionRef) {
             return Promise.resolve();
         }
-        return sessionRef.set({
+        const now = Date.now();
+        const payload = {
             online: !!online,
             label: buildLabel(),
             code: displayCode || makeDisplayCode(sessionId),
-            startedAt: startedAt || Date.now(),
-            updatedAt: Date.now()
-        });
+            startedAt: startedAt || now,
+            updatedAt: now
+        };
+        if (!online) {
+            payload.offlineAt = now;
+        }
+        return sessionRef.set(payload);
     }
 
-    function pruneRecentlyOffline() {
-        const now = Date.now();
-        recentlyOffline.forEach((entry, id) => {
-            if (!entry || now - entry.at > OFFLINE_HOLD_MS) {
-                recentlyOffline.delete(id);
-            }
-        });
+    function requestRemoveNode(id) {
+        if (!db || !id || id === sessionId || pruneRequested.has(id)) {
+            return;
+        }
+        pruneRequested.add(id);
+        db.ref(PATH + '/' + id).remove()
+            .catch(() => { /* ignore */ })
+            .then(() => {
+                setTimeout(() => pruneRequested.delete(id), 5000);
+            });
+    }
+
+    function requestMarkOffline(id, offlineAt) {
+        if (!db || !id || id === sessionId || markOfflineRequested.has(id)) {
+            return;
+        }
+        markOfflineRequested.add(id);
+        const at = Number(offlineAt) || Date.now();
+        db.ref(PATH + '/' + id).update({
+            online: false,
+            offlineAt: at,
+            updatedAt: Date.now()
+        })
+            .catch(() => { /* ignore */ })
+            .then(() => {
+                setTimeout(() => markOfflineRequested.delete(id), 5000);
+            });
     }
 
     function metaLine(started, endedAt) {
@@ -184,11 +212,9 @@
 
     function renderPresence(snapVal) {
         lastSnapVal = snapVal;
-        pruneRecentlyOffline();
         const onlineRows = [];
+        const offlineRows = [];
         const data = snapVal && typeof snapVal === 'object' ? snapVal : {};
-        const nextOnlineIds = new Set();
-        const metaById = renderPresence._metaById || {};
         const now = Date.now();
 
         Object.keys(data).forEach((id) => {
@@ -196,41 +222,42 @@
             const label = String(row.label || id);
             const rowStarted = Number(row.startedAt) || Number(row.updatedAt) || 0;
             const updatedAt = Number(row.updatedAt) || 0;
-            metaById[id] = { label: label, startedAt: rowStarted };
             const alive = !!row.online && updatedAt > 0 && (now - updatedAt) <= STALE_ONLINE_MS;
-            if (row.online && !alive) {
-                // Ghost: tab chết / code cũ / onDisconnect không xóa → gỡ khỏi Firebase
-                if (db && id !== sessionId) {
-                    try {
-                        db.ref(PATH + '/' + id).remove();
-                    } catch (e) { /* ignore */ }
-                }
-            }
+
             if (alive) {
-                nextOnlineIds.add(id);
                 onlineRows.push({
                     id: id,
                     label: label,
                     startedAt: rowStarted,
                     updatedAt: updatedAt
                 });
-                recentlyOffline.delete(id);
+                return;
             }
-        });
 
-        const prevOnline = renderPresence._prevOnlineIds || new Set();
-        prevOnline.forEach((id) => {
-            if (!nextOnlineIds.has(id) && !recentlyOffline.has(id)) {
-                const meta = metaById[id] || {};
-                recentlyOffline.set(id, {
-                    label: meta.label || id,
-                    startedAt: meta.startedAt || 0,
-                    at: Date.now()
-                });
+            // Tab vừa tắt / ghost hết heartbeat → giữ trên Firebase ~5 phút để người vào sau còn thấy
+            let offlineAt = Number(row.offlineAt) || 0;
+            if (row.online && !alive) {
+                offlineAt = offlineAt || updatedAt || now;
+                requestMarkOffline(id, offlineAt);
+            } else if (!row.online) {
+                offlineAt = offlineAt || updatedAt || 0;
             }
+
+            if (!offlineAt) {
+                requestRemoveNode(id);
+                return;
+            }
+            if (now - offlineAt > OFFLINE_HOLD_MS) {
+                requestRemoveNode(id);
+                return;
+            }
+            offlineRows.push({
+                id: id,
+                label: label,
+                startedAt: rowStarted,
+                at: offlineAt
+            });
         });
-        renderPresence._prevOnlineIds = nextOnlineIds;
-        renderPresence._metaById = metaById;
 
         // Vào sớm nhất lên đầu; vào sau append xuống dưới
         onlineRows.sort((a, b) => {
@@ -242,18 +269,7 @@
             return a.id.localeCompare(b.id);
         });
 
-        const offlineRows = [];
-        recentlyOffline.forEach((entry, id) => {
-            if (nextOnlineIds.has(id)) {
-                return;
-            }
-            offlineRows.push({
-                id: id,
-                label: entry.label,
-                startedAt: entry.startedAt || 0,
-                at: entry.at
-            });
-        });
+        // Offline: offline sớm hơn phía trên; vừa offline append cuối
         offlineRows.sort((a, b) => {
             if (a.at !== b.at) {
                 return a.at - b.at;
@@ -344,6 +360,19 @@
         }, RENDER_TICK_MS);
     }
 
+    function armOnDisconnect() {
+        if (!sessionRef || typeof firebase === 'undefined') {
+            return Promise.resolve();
+        }
+        const SERVER_TS = firebase.database.ServerValue.TIMESTAMP;
+        // Không xóa ngay — đánh offline để mọi client (kể cả vào sau) còn thấy ~5 phút
+        return sessionRef.onDisconnect().update({
+            online: false,
+            offlineAt: SERVER_TS,
+            updatedAt: SERVER_TS
+        });
+    }
+
     function startPresence() {
         if (started) {
             return;
@@ -385,7 +414,7 @@
                 if (snap.val() !== true) {
                     return;
                 }
-                sessionRef.onDisconnect().remove()
+                armOnDisconnect()
                     .then(() => writePresence(true))
                     .then(() => startHeartbeat())
                     .catch(() => { /* ignore */ });
@@ -400,9 +429,13 @@
 
             window.addEventListener('pagehide', () => {
                 try {
+                    if (heartbeatTimer) {
+                        clearInterval(heartbeatTimer);
+                        heartbeatTimer = 0;
+                    }
                     if (sessionRef) {
                         sessionRef.onDisconnect().cancel();
-                        sessionRef.remove();
+                        writePresence(false);
                     }
                 } catch (e) { /* ignore */ }
             });
