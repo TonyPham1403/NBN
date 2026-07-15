@@ -1,28 +1,42 @@
 /**
- * Chat 1–1 theo deviceId (không theo tab/session).
- * Cùng máy / trình duyệt → cùng deviceId → mọi tab đồng bộ tin qua Firebase.
- * UI mở từ list presence (nút Nhắn). Hướng dẫn rules: PRESENCE.md
+ * Chat theo deviceId — lịch sử chỉ localStorage (không lưu bền trên Firebase).
+ *
+ * - Tin nằm trên máy khi thiết bị còn “sống” (có tab / < 10 phút kể từ tab cuối).
+ * - A online, B offline: A vẫn giữ lịch sử local với B.
+ * - B online lại + A còn online: A đẩy transcript qua mailbox tạm → B merge rồi xóa mailbox.
+ * - Máy tắt hết tab > 10 phút rồi mở lại: xóa sạch lịch sử local trên máy đó.
+ * - Cùng deviceId (hai tab cùng máy) không chat với nhau.
+ *
+ * Firebase chỉ dùng path /mailbox tạm (set rồi xóa), không phải kho chats.
  */
 (function () {
     'use strict';
 
     const DEVICE_STORAGE_KEY = 'presenceDeviceId';
-    const CHAT_PATH = 'chats';
-    const INBOX_PATH = 'inbox';
+    const CHAT_STORE_KEY = 'deviceChatStore';
+    const ALIVE_KEY = 'deviceChatAliveAt';
+    const AWAY_KEY = 'deviceChatAwayAt';
+    const READ_KEY = 'deviceChatReadAt';
+    const MAILBOX_PATH = 'mailbox';
+    const PRESENCE_PATH = 'presence';
     const MAX_TEXT = 500;
-    const MSG_LIMIT = 80;
-    const BC_NAME = 'device-chat-v1';
+    const MSG_LIMIT = 120;
+    const IDLE_WIPE_MS = 10 * 60 * 1000;
+    const ALIVE_TICK_MS = 5000;
+    const BC_NAME = 'device-chat-local-v1';
 
     let db = null;
     let myDeviceId = '';
     let myDeviceTag = '';
     let peer = null;
-    let messagesRef = null;
-    let messagesHandler = null;
-    let inboxRef = null;
     let started = false;
-    let lastMessages = [];
+    let aliveTimer = 0;
     let bc = null;
+    let mailboxRef = null;
+    let presenceRef = null;
+    /** peerDeviceId → last push at (tránh spam mailbox) */
+    const lastPushAt = {};
+    let unreadMap = {};
 
     function el(id) {
         return document.getElementById(id);
@@ -75,38 +89,19 @@
         }
     }
 
-    function pairId(a, b) {
-        const x = String(a || '');
-        const y = String(b || '');
-        if (!x || !y) {
-            return '';
+    function isConfigReady(cfg) {
+        if (!cfg || typeof cfg !== 'object') {
+            return false;
         }
-        return x < y ? (x + '__' + y) : (y + '__' + x);
-    }
-
-    function readReceipts() {
-        try {
-            const raw = localStorage.getItem('chatReadAt');
-            const j = raw ? JSON.parse(raw) : {};
-            return j && typeof j === 'object' ? j : {};
-        } catch (e) {
-            return {};
+        const key = String(cfg.apiKey || '');
+        const url = String(cfg.databaseURL || '');
+        if (!key || key.indexOf('PASTE_') === 0) {
+            return false;
         }
-    }
-
-    function writeReceipts(map) {
-        try {
-            localStorage.setItem('chatReadAt', JSON.stringify(map || {}));
-        } catch (e) { /* ignore */ }
-    }
-
-    function markPairRead(pid, at) {
-        if (!pid) {
-            return;
+        if (!url || url.indexOf('PASTE_') !== -1) {
+            return false;
         }
-        const map = readReceipts();
-        map[pid] = Math.max(Number(map[pid]) || 0, Number(at) || Date.now());
-        writeReceipts(map);
+        return true;
     }
 
     function pad2(n) {
@@ -121,19 +116,128 @@
         return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
     }
 
-    function isConfigReady(cfg) {
-        if (!cfg || typeof cfg !== 'object') {
-            return false;
+    function readJson(key, fallback) {
+        try {
+            const raw = localStorage.getItem(key);
+            if (!raw) {
+                return fallback;
+            }
+            const j = JSON.parse(raw);
+            return j && typeof j === 'object' ? j : fallback;
+        } catch (e) {
+            return fallback;
         }
-        const key = String(cfg.apiKey || '');
-        const url = String(cfg.databaseURL || '');
-        if (!key || key.indexOf('PASTE_') === 0) {
-            return false;
+    }
+
+    function writeJson(key, val) {
+        try {
+            localStorage.setItem(key, JSON.stringify(val));
+        } catch (e) { /* quota */ }
+    }
+
+    function touchAlive() {
+        try {
+            localStorage.setItem(ALIVE_KEY, String(Date.now()));
+            localStorage.removeItem(AWAY_KEY);
+        } catch (e) { /* ignore */ }
+    }
+
+    function markAway() {
+        try {
+            localStorage.setItem(AWAY_KEY, String(Date.now()));
+        } catch (e) { /* ignore */ }
+    }
+
+    /** Nếu máy này đã “chết” > 10 phút (không có tab sống) → xóa hết chat local. */
+    function wipeIfDeviceIdleTooLong() {
+        const now = Date.now();
+        let aliveAt = 0;
+        let awayAt = 0;
+        try {
+            aliveAt = Number(localStorage.getItem(ALIVE_KEY)) || 0;
+            awayAt = Number(localStorage.getItem(AWAY_KEY)) || 0;
+        } catch (e) { /* ignore */ }
+        const last = Math.max(aliveAt, awayAt);
+        if (last > 0 && (now - last) > IDLE_WIPE_MS) {
+            try {
+                localStorage.removeItem(CHAT_STORE_KEY);
+                localStorage.removeItem(READ_KEY);
+            } catch (e) { /* ignore */ }
+            unreadMap = {};
+            setUnreadBadge(0);
+            return true;
         }
-        if (!url || url.indexOf('PASTE_') !== -1) {
-            return false;
+        return false;
+    }
+
+    function loadStore() {
+        const store = readJson(CHAT_STORE_KEY, {});
+        return store && typeof store === 'object' ? store : {};
+    }
+
+    function saveStore(store) {
+        writeJson(CHAT_STORE_KEY, store || {});
+        broadcast({ type: 'store' });
+    }
+
+    function getThread(peerId) {
+        const store = loadStore();
+        const t = store[peerId];
+        if (!t || typeof t !== 'object') {
+            return { messages: [], peerTag: '', peerLabel: '', updatedAt: 0 };
         }
-        return true;
+        return {
+            messages: Array.isArray(t.messages) ? t.messages.slice() : [],
+            peerTag: String(t.peerTag || ''),
+            peerLabel: String(t.peerLabel || ''),
+            updatedAt: Number(t.updatedAt) || 0
+        };
+    }
+
+    function setThread(peerId, thread) {
+        if (!peerId || peerId === myDeviceId) {
+            return;
+        }
+        const store = loadStore();
+        const msgs = (thread.messages || []).slice(-MSG_LIMIT);
+        store[peerId] = {
+            messages: msgs,
+            peerTag: String(thread.peerTag || ''),
+            peerLabel: String(thread.peerLabel || ''),
+            updatedAt: Number(thread.updatedAt) || Date.now()
+        };
+        saveStore(store);
+    }
+
+    function mergeMessages(localMsgs, incoming) {
+        const map = new Map();
+        (localMsgs || []).forEach((m) => {
+            if (!m || !m.id) {
+                return;
+            }
+            map.set(m.id, m);
+        });
+        (incoming || []).forEach((m) => {
+            if (!m || !m.id || !m.text) {
+                return;
+            }
+            if (!map.has(m.id)) {
+                map.set(m.id, {
+                    id: String(m.id),
+                    fromDeviceId: String(m.fromDeviceId || ''),
+                    toDeviceId: String(m.toDeviceId || ''),
+                    text: String(m.text || '').slice(0, MAX_TEXT),
+                    at: Number(m.at) || 0
+                });
+            }
+        });
+        return Array.from(map.values())
+            .sort((a, b) => a.at - b.at || a.id.localeCompare(b.id))
+            .slice(-MSG_LIMIT);
+    }
+
+    function msgId() {
+        return 'm' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
     }
 
     function setUnreadBadge(n) {
@@ -151,33 +255,38 @@
         badge.textContent = count > 99 ? '99+' : String(count);
     }
 
-    function refreshUnreadFromInbox(inboxVal) {
-        const data = inboxVal && typeof inboxVal === 'object' ? inboxVal : {};
-        const receipts = readReceipts();
-        let unread = 0;
-        Object.keys(data).forEach((fromId) => {
-            if (fromId === myDeviceId) {
+    function refreshUnreadBadge() {
+        let n = 0;
+        Object.keys(unreadMap).forEach((k) => {
+            if (peer && peer.deviceId === k) {
                 return;
             }
-            const row = data[fromId] || {};
-            const at = Number(row.at) || 0;
-            const pid = String(row.pairId || pairId(myDeviceId, fromId));
-            const readAt = Number(receipts[pid]) || 0;
-            if (at > readAt) {
-                unread += 1;
-            }
+            n += Number(unreadMap[k]) || 0;
         });
-        // Nếu đang mở đúng peer đó thì không tính unread của họ
-        if (peer && peer.deviceId && data[peer.deviceId]) {
-            const row = data[peer.deviceId] || {};
-            const at = Number(row.at) || 0;
-            const pid = String(row.pairId || pairId(myDeviceId, peer.deviceId));
-            const readAt = Number(receipts[pid]) || 0;
-            if (at > readAt) {
-                unread = Math.max(0, unread - 1);
-            }
+        setUnreadBadge(n);
+    }
+
+    function markPeerRead(peerId) {
+        if (!peerId) {
+            return;
         }
-        setUnreadBadge(unread);
+        unreadMap[peerId] = 0;
+        const reads = readJson(READ_KEY, {});
+        reads[peerId] = Date.now();
+        writeJson(READ_KEY, reads);
+        refreshUnreadBadge();
+    }
+
+    function bumpUnread(peerId) {
+        if (!peerId || peerId === myDeviceId) {
+            return;
+        }
+        if (peer && peer.deviceId === peerId && isChatOpen()) {
+            markPeerRead(peerId);
+            return;
+        }
+        unreadMap[peerId] = (Number(unreadMap[peerId]) || 0) + 1;
+        refreshUnreadBadge();
     }
 
     function isChatOpen() {
@@ -211,24 +320,13 @@
         }
     }
 
-    function detachMessages() {
-        if (messagesRef && messagesHandler) {
-            try {
-                messagesRef.off('value', messagesHandler);
-            } catch (e) { /* ignore */ }
-        }
-        messagesRef = null;
-        messagesHandler = null;
-        lastMessages = [];
-    }
-
     function renderMessages(rows) {
         const box = el('chatMessages');
         if (!box) {
             return;
         }
         if (!rows.length) {
-            box.innerHTML = '<div class="chat-empty">Chưa có tin nhắn — gửi tin đầu tiên.</div>';
+            box.innerHTML = '<div class="chat-empty">Chưa có tin — chỉ lưu trên máy khi còn tab; tắt máy ~10 phút sẽ mất.</div>';
             return;
         }
         let html = '';
@@ -261,50 +359,22 @@
             if (peer.label) {
                 bits.push(peer.label);
             }
-            bits.push(peer.online ? 'đang online' : 'vừa offline / offline');
-            bits.push('đồng bộ mọi tab trên máy bạn');
+            bits.push(peer.online ? 'đang online' : 'đối phương offline — tin giữ trên máy bạn');
+            bits.push('local · hết hạn ~10 phút khi tắt máy');
             sub.textContent = bits.join(' · ');
         }
     }
 
-    function subscribeMessages(pid) {
-        detachMessages();
-        if (!db || !pid) {
+    function refreshOpenThread() {
+        if (!peer || !isChatOpen()) {
             return;
         }
-        messagesRef = db.ref(CHAT_PATH + '/' + pid + '/messages')
-            .orderByChild('at')
-            .limitToLast(MSG_LIMIT);
-        messagesHandler = (snap) => {
-            const val = snap.val() || {};
-            const rows = Object.keys(val).map((id) => {
-                const row = val[id] || {};
-                return {
-                    id: id,
-                    fromDeviceId: String(row.fromDeviceId || ''),
-                    toDeviceId: String(row.toDeviceId || ''),
-                    text: String(row.text || ''),
-                    at: Number(row.at) || 0
-                };
-            }).filter((m) => m.text);
-            rows.sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
-            lastMessages = rows;
-            renderMessages(rows);
-            if (rows.length) {
-                markPairRead(pid, rows[rows.length - 1].at);
-            } else {
-                markPairRead(pid, Date.now());
-            }
-            if (inboxRef) {
-                inboxRef.once('value').then((s) => refreshUnreadFromInbox(s.val()));
-            }
-        };
-        messagesRef.on('value', messagesHandler);
+        const t = getThread(peer.deviceId);
+        renderMessages(t.messages);
     }
 
     function openChat(opts) {
         const peerId = String((opts && opts.deviceId) || '').trim();
-        // Cấm chat với chính thiết bị mình (kể cả tab khác cùng máy)
         if (!peerId || !myDeviceId || peerId === myDeviceId) {
             console.warn('[chat] blocked: same device cannot chat with itself');
             return;
@@ -315,16 +385,17 @@
             label: String((opts && opts.label) || ''),
             online: !!(opts && opts.online)
         };
+        const t = getThread(peerId);
+        t.peerTag = peer.deviceTag || t.peerTag;
+        t.peerLabel = peer.label || t.peerLabel;
+        setThread(peerId, t);
         updateHeader();
         setChatOpen(true);
-        const pid = pairId(myDeviceId, peerId);
-        subscribeMessages(pid);
-        markPairRead(pid, Date.now());
-        if (db) {
-            db.ref(INBOX_PATH + '/' + myDeviceId + '/' + peerId).remove().catch(() => { /* ignore */ });
-        }
-        if (inboxRef) {
-            inboxRef.once('value').then((s) => refreshUnreadFromInbox(s.val()));
+        renderMessages(t.messages);
+        markPeerRead(peerId);
+        // Nếu mình còn lịch sử và peer online → đẩy sang peer
+        if (peer.online && t.messages.length) {
+            pushMailboxToPeer(peerId, t.messages);
         }
         broadcast({ type: 'open', peer: peer });
     }
@@ -332,7 +403,6 @@
     function closeChat(opts) {
         const silent = !!(opts && opts.silent);
         setChatOpen(false);
-        detachMessages();
         peer = null;
         if (!silent) {
             broadcast({ type: 'close' });
@@ -341,52 +411,164 @@
 
     function sendMessage(text) {
         const raw = String(text || '').trim();
-        if (!raw || !peer || !db || !myDeviceId) {
+        if (!raw || !peer || !myDeviceId) {
             return Promise.resolve(false);
         }
         if (!peer.deviceId || peer.deviceId === myDeviceId) {
-            console.warn('[chat] blocked send: same device');
             return Promise.resolve(false);
         }
         if (raw.length > MAX_TEXT) {
             return Promise.resolve(false);
         }
-        const pid = pairId(myDeviceId, peer.deviceId);
-        if (!pid || pid.indexOf(myDeviceId + '__' + myDeviceId) === 0) {
-            return Promise.resolve(false);
-        }
         const now = Date.now();
-        const msg = {
+        const m = {
+            id: msgId(),
             fromDeviceId: myDeviceId,
             toDeviceId: peer.deviceId,
-            fromDeviceTag: myDeviceTag,
             text: raw,
             at: now
         };
-        const msgRef = db.ref(CHAT_PATH + '/' + pid + '/messages').push();
-        return msgRef.set(msg)
-            .then(() => db.ref(CHAT_PATH + '/' + pid + '/meta').update({
-                a: myDeviceId < peer.deviceId ? myDeviceId : peer.deviceId,
-                b: myDeviceId < peer.deviceId ? peer.deviceId : myDeviceId,
-                updatedAt: now,
-                lastFrom: myDeviceId,
-                lastPreview: raw.slice(0, 80)
+        const t = getThread(peer.deviceId);
+        t.messages = mergeMessages(t.messages, [m]);
+        t.peerTag = peer.deviceTag || t.peerTag;
+        t.peerLabel = peer.label || t.peerLabel;
+        t.updatedAt = now;
+        setThread(peer.deviceId, t);
+        renderMessages(t.messages);
+        markPeerRead(peer.deviceId);
+        // Mailbox tạm: peer online thì nhận ngay; offline thì khi họ online lại + mình còn sống sẽ push lại
+        return pushMailboxToPeer(peer.deviceId, t.messages).then(() => true);
+    }
+
+    function pushMailboxToPeer(peerId, messages) {
+        if (!db || !peerId || peerId === myDeviceId) {
+            return Promise.resolve();
+        }
+        const now = Date.now();
+        if (lastPushAt[peerId] && (now - lastPushAt[peerId]) < 800) {
+            return Promise.resolve();
+        }
+        lastPushAt[peerId] = now;
+        const payload = {
+            fromDeviceId: myDeviceId,
+            fromDeviceTag: myDeviceTag,
+            at: now,
+            messages: (messages || []).slice(-MSG_LIMIT).map((m) => ({
+                id: m.id,
+                fromDeviceId: m.fromDeviceId,
+                toDeviceId: m.toDeviceId,
+                text: m.text,
+                at: m.at
             }))
-            .then(() => db.ref(INBOX_PATH + '/' + peer.deviceId + '/' + myDeviceId).set({
-                pairId: pid,
-                fromDeviceId: myDeviceId,
-                fromDeviceTag: myDeviceTag,
-                preview: raw.slice(0, 80),
-                at: now
-            }))
-            .then(() => {
-                markPairRead(pid, now);
-                return true;
-            })
+        };
+        // Ghi tạm → peer đọc xong sẽ xóa. Không phải kho lịch sử.
+        return db.ref(MAILBOX_PATH + '/' + peerId + '/' + myDeviceId).set(payload)
             .catch((err) => {
-                console.warn('[chat] send failed', err);
-                return false;
+                console.warn('[chat] mailbox push failed', err);
             });
+    }
+
+    function normalizeMessageList(raw) {
+        if (Array.isArray(raw)) {
+            return raw;
+        }
+        if (raw && typeof raw === 'object') {
+            return Object.keys(raw)
+                .sort((a, b) => Number(a) - Number(b) || String(a).localeCompare(String(b)))
+                .map((k) => raw[k]);
+        }
+        return [];
+    }
+
+    function consumeMailboxEntry(fromId, payload) {
+        if (!fromId || fromId === myDeviceId || !payload) {
+            return;
+        }
+        const incoming = normalizeMessageList(payload.messages);
+        if (!incoming.length) {
+            db.ref(MAILBOX_PATH + '/' + myDeviceId + '/' + fromId).remove().catch(() => { /* ignore */ });
+            return;
+        }
+        const t = getThread(fromId);
+        const before = t.messages.length;
+        t.messages = mergeMessages(t.messages, incoming);
+        t.peerTag = String(payload.fromDeviceTag || t.peerTag || makeDeviceTag(fromId));
+        t.updatedAt = Date.now();
+        setThread(fromId, t);
+        const added = t.messages.length - before;
+        if (added > 0) {
+            if (peer && peer.deviceId === fromId && isChatOpen()) {
+                renderMessages(t.messages);
+                markPeerRead(fromId);
+            } else {
+                bumpUnread(fromId);
+            }
+        }
+        // Xóa mailbox ngay sau khi merge — không để lâu trên Firebase
+        db.ref(MAILBOX_PATH + '/' + myDeviceId + '/' + fromId).remove().catch(() => { /* ignore */ });
+
+        // Nếu mình đang mở chat với họ và mình có bản đầy hơn → đẩy lại (hai chiều merge)
+        if (peer && peer.deviceId === fromId && isChatOpen()) {
+            pushMailboxToPeer(fromId, t.messages);
+        }
+    }
+
+    function startMailboxListener() {
+        if (!db || !myDeviceId) {
+            return;
+        }
+        mailboxRef = db.ref(MAILBOX_PATH + '/' + myDeviceId);
+        mailboxRef.on('value', (snap) => {
+            const val = snap.val() || {};
+            Object.keys(val).forEach((fromId) => {
+                consumeMailboxEntry(fromId, val[fromId]);
+            });
+        });
+    }
+
+    /** Khi peer device xuất hiện online trên presence → đẩy transcript local (nếu còn). */
+    function onPresenceDevices(onlineDeviceIds) {
+        const set = onlineDeviceIds instanceof Set ? onlineDeviceIds : new Set(onlineDeviceIds || []);
+        if (peer && peer.deviceId) {
+            peer.online = set.has(peer.deviceId);
+            updateHeader();
+        }
+        const store = loadStore();
+        Object.keys(store).forEach((peerId) => {
+            if (!set.has(peerId) || peerId === myDeviceId) {
+                return;
+            }
+            const t = store[peerId];
+            if (t && Array.isArray(t.messages) && t.messages.length) {
+                pushMailboxToPeer(peerId, t.messages);
+            }
+        });
+    }
+
+    function collectOnlineDeviceIds(snapVal) {
+        const ids = new Set();
+        const data = snapVal && typeof snapVal === 'object' ? snapVal : {};
+        const now = Date.now();
+        Object.keys(data).forEach((sid) => {
+            const row = data[sid] || {};
+            const updatedAt = Number(row.updatedAt) || 0;
+            const alive = !!row.online && updatedAt > 0 && (now - updatedAt) <= 90000;
+            const did = String(row.deviceId || '').trim();
+            if (alive && did) {
+                ids.add(did);
+            }
+        });
+        return ids;
+    }
+
+    function startPresenceWatch() {
+        if (!db) {
+            return;
+        }
+        presenceRef = db.ref(PRESENCE_PATH);
+        presenceRef.on('value', (snap) => {
+            onPresenceDevices(collectOnlineDeviceIds(snap.val()));
+        });
     }
 
     function bindUi() {
@@ -418,17 +600,11 @@
                     }
                 });
             });
-            input.addEventListener('keydown', (e) => {
-                e.stopPropagation();
-            });
-            input.addEventListener('mousedown', (e) => {
-                e.stopPropagation();
-            });
+            input.addEventListener('keydown', (e) => e.stopPropagation());
+            input.addEventListener('mousedown', (e) => e.stopPropagation());
         }
 
-        panel.addEventListener('click', (e) => {
-            e.stopPropagation();
-        });
+        panel.addEventListener('click', (e) => e.stopPropagation());
 
         document.addEventListener('click', (e) => {
             if (!isChatOpen()) {
@@ -439,6 +615,15 @@
                 return;
             }
             closeChat();
+        });
+
+        window.addEventListener('storage', (e) => {
+            if (!e) {
+                return;
+            }
+            if (e.key === CHAT_STORE_KEY) {
+                refreshOpenThread();
+            }
         });
     }
 
@@ -461,6 +646,10 @@
                 if (!data || typeof data !== 'object') {
                     return;
                 }
+                if (data.type === 'store') {
+                    refreshOpenThread();
+                    return;
+                }
                 if (data.type === 'open' && data.peer && data.peer.deviceId) {
                     if (data.peer.deviceId === myDeviceId) {
                         return;
@@ -478,14 +667,14 @@
         } catch (e) { /* ignore */ }
     }
 
-    function startInbox() {
-        if (!db || !myDeviceId) {
-            return;
+    function startAliveLoop() {
+        touchAlive();
+        if (aliveTimer) {
+            clearInterval(aliveTimer);
         }
-        inboxRef = db.ref(INBOX_PATH + '/' + myDeviceId);
-        inboxRef.on('value', (snap) => {
-            refreshUnreadFromInbox(snap.val());
-        });
+        aliveTimer = setInterval(touchAlive, ALIVE_TICK_MS);
+        window.addEventListener('pagehide', markAway);
+        window.addEventListener('beforeunload', markAway);
     }
 
     function startChat() {
@@ -501,10 +690,12 @@
         }
 
         started = true;
+        wipeIfDeviceIdleTooLong();
         myDeviceId = getOrCreateDeviceId();
         myDeviceTag = makeDeviceTag(myDeviceId);
         bindUi();
         bindBroadcast();
+        startAliveLoop();
 
         const boot = () => {
             try {
@@ -513,7 +704,6 @@
                 }
             } catch (e) { /* already init */ }
             db = firebase.database();
-            // Đồng bộ device id với PresenceBridge nếu đã sẵn
             if (window.PresenceBridge && typeof window.PresenceBridge.getDeviceId === 'function') {
                 const id = window.PresenceBridge.getDeviceId();
                 const tag = window.PresenceBridge.getDeviceTag && window.PresenceBridge.getDeviceTag();
@@ -522,19 +712,15 @@
                     myDeviceTag = tag || makeDeviceTag(id);
                 }
             }
-            startInbox();
+            startMailboxListener();
+            startPresenceWatch();
         };
 
         if (firebase.auth && firebase.auth().currentUser) {
             boot();
         } else if (firebase.auth) {
-            firebase.auth().onAuthStateChanged(() => {
-                boot();
-            });
-            // Presence thường đã sign-in; nếu chưa thì cố gắng anonymous
-            firebase.auth().signInAnonymously().catch(() => {
-                boot();
-            });
+            firebase.auth().onAuthStateChanged(() => boot());
+            firebase.auth().signInAnonymously().catch(() => boot());
         } else {
             boot();
         }
