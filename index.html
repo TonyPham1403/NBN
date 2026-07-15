@@ -1792,17 +1792,52 @@
             font-weight: 700;
         }
 
+        .device-avatar {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            color: #fff;
+            font: 700 13px/1 Segoe UI, Arial, sans-serif;
+            flex-shrink: 0;
+            text-transform: uppercase;
+            user-select: none;
+            letter-spacing: 0;
+        }
+
+        .device-avatar--sm {
+            width: 28px;
+            height: 28px;
+            font-size: 12px;
+        }
+
+        .device-avatar--chat-header {
+            width: 30px;
+            height: 30px;
+            font-size: 12px;
+            margin-right: 2px;
+            box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.35);
+        }
+
+        /* Offline: mờ rõ để phân biệt với online */
+        .device-avatar--offline {
+            opacity: 0.42;
+            filter: grayscale(0.55);
+        }
+
         .presence-item > .presence-person-btn {
             position: relative;
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 18px;
-            height: 18px;
-            margin-top: 1px;
+            width: 28px;
+            height: 28px;
+            margin-top: 0;
             padding: 0;
             border: 0;
-            border-radius: 4px;
+            border-radius: 50%;
             background: transparent;
             cursor: pointer;
             flex-shrink: 0;
@@ -1810,11 +1845,11 @@
         }
 
         .presence-item > .presence-person-btn:hover {
-            background: rgba(34, 197, 94, 0.12);
+            box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.35);
         }
 
         .presence-item--offline > .presence-person-btn:hover {
-            background: rgba(239, 68, 68, 0.12);
+            box-shadow: 0 0 0 2px rgba(239, 68, 68, 0.35);
         }
 
         .presence-item > .presence-person,
@@ -1823,31 +1858,16 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            width: 14px;
-            height: 14px;
+            width: 28px;
+            height: 28px;
             margin-top: 0;
-            color: #16a34a;
             flex-shrink: 0;
-        }
-
-        .presence-item > .presence-person svg,
-        .presence-item > .presence-person-btn .presence-person svg {
-            display: block;
-            width: 14px;
-            height: 14px;
-        }
-
-        .presence-item > .presence-person--offline,
-        .presence-item--offline > .presence-person,
-        .presence-item > .presence-person-btn .presence-person--offline,
-        .presence-item--offline > .presence-person-btn .presence-person {
-            color: #dc2626;
         }
 
         .presence-person-badge {
             position: absolute;
-            top: -6px;
-            right: -8px;
+            top: -5px;
+            right: -6px;
             min-width: 14px;
             height: 14px;
             padding: 0 3px;
@@ -2810,7 +2830,7 @@
             height: 48px;
             border: 2px solid #fff;
             border-radius: 50%;
-            background: #166534;
+            background: #2196F3;
             color: #fff;
             font: 700 16px/1 Segoe UI, Arial, sans-serif;
             box-shadow: 0 4px 14px rgba(15, 23, 42, 0.22);
@@ -2819,7 +2839,7 @@
         }
 
         .chat-bubble-btn:hover {
-            background: #15803d;
+            box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.12), 0 4px 14px rgba(15, 23, 42, 0.22);
         }
 
         .chat-bubble-btn--unread {
@@ -7302,8 +7322,8 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
     <script src="presence-config.js"></script>
-    <script src="presence.js?v=20260716deviceTip3"></script>
-    <script src="chat.js?v=20260716msgMenuSide"></script>
+    <script src="presence.js?v=20260716offlineHideSame"></script>
+    <script src="chat.js?v=20260716offlineHideSame"></script>
     <script src="right-pane-sheets.js?v=20260716filterScrollCenter"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>

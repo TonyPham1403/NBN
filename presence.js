@@ -558,7 +558,19 @@
             .replace(/"/g, '&quot;');
     }
 
-    /** Icon người — online xanh / offline đỏ; có thể bấm để chat + badge unread. */
+    /** Avatar chữ cái (mã thiết bị); fallback nếu chat.js chưa sẵn sàng. */
+    function personAvatarHtml(deviceId, deviceTag, offline) {
+        const cls = 'device-avatar device-avatar--sm' + (offline ? ' device-avatar--offline' : '');
+        if (window.DeviceChat && typeof window.DeviceChat.avatarHtml === 'function') {
+            return window.DeviceChat.avatarHtml(deviceId, deviceTag, { className: cls });
+        }
+        const raw = String(deviceTag || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const letter = raw.charAt(0) || '?';
+        return '<span class="' + cls + '" style="background:#2196F3" aria-hidden="true">' +
+            escapeHtml(letter) + '</span>';
+    }
+
+    /** Avatar tròn + badge unread; bấm để chat (peer khác máy). */
     function personIconHtml(offline, opts) {
         const o = opts || {};
         const canChat = !!o.canChat;
@@ -568,11 +580,7 @@
             ? '<span class="presence-person-badge">' + (unread > 99 ? '99+' : String(unread)) + '</span>'
             : '';
         const icon = '<span class="' + cls + '" aria-hidden="true">' +
-            '<svg viewBox="0 0 24 24" width="14" height="14" focusable="false">' +
-            '<circle cx="12" cy="8" r="3.2" fill="currentColor"/>' +
-            '<path d="M5.5 19.2c.6-3.4 3.2-5.2 6.5-5.2s5.9 1.8 6.5 5.2" ' +
-            'fill="none" stroke="currentColor" stroke-width="2.2" ' +
-            'stroke-linecap="round"/></svg>' + badge + '</span>';
+            personAvatarHtml(o.deviceId, o.deviceTag, offline) + badge + '</span>';
         if (!canChat) {
             return icon;
         }
@@ -991,7 +999,7 @@
         }));
     }
 
-    /** Gom session → dòng list: máy mình giữ từng tab (AYU1…); máy khác 1 dòng AYU. */
+    /** Gom session → dòng list: online máy mình từng tab (AYU1…); offline không hiện tab cùng máy. */
     function buildListRows(sessionRows, deviceCounts, isOfflineList) {
         const groups = new Map();
         sessionRows.forEach((r) => {
@@ -1014,6 +1022,10 @@
             });
             const mine = !!(deviceId && did === deviceId);
             if (mine) {
+                /* Offline: bỏ hết tab cùng máy; online: vẫn hiện đủ từng tab */
+                if (isOfflineList) {
+                    return;
+                }
                 rows.forEach((r) => {
                     const code = String(r.code || '').trim()
                         || (resolvePeerDeviceCode(r) + String(r.tabIndex || ''));
@@ -1273,7 +1285,9 @@
                 ' data-online="1">' +
                 personIconHtml(false, {
                     canChat: canChat,
-                    unread: canChat ? getUnreadForDevice(r.deviceId) : 0
+                    unread: canChat ? getUnreadForDevice(r.deviceId) : 0,
+                    deviceId: r.deviceId || '',
+                    deviceTag: r.deviceTag || resolvePeerDeviceCode(r) || ''
                 }) +
                 '<span class="presence-text">' +
                 '<span class="presence-label">' + escapeHtml(r.displayLabel || r.label) +
@@ -1314,7 +1328,9 @@
                 ' data-online="0">' +
                 personIconHtml(true, {
                     canChat: canChat,
-                    unread: canChat ? getUnreadForDevice(r.deviceId) : 0
+                    unread: canChat ? getUnreadForDevice(r.deviceId) : 0,
+                    deviceId: r.deviceId || '',
+                    deviceTag: r.deviceTag || resolvePeerDeviceCode(r) || ''
                 }) +
                 '<span class="presence-text">' +
                 '<span class="presence-label">' + escapeHtml(r.displayLabel || r.label) +
