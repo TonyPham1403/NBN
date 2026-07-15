@@ -5,7 +5,9 @@
  * Offline ~5 phút ghi trên Firebase (online:false + offlineAt). Tab còn mở có thể
  * tái tạo tombstone nếu peer bị xóa (code cũ / cancel onDisconnect) để người vào sau vẫn thấy.
  * GeoIP (geojs.io): quốc gia + lat/lon ghi kèm presence; khoảng cách Haversine tới (You).
- * Device ID bền (localStorage) — mọi tab cùng trình duyệt/máy chung một deviceId (chat sau này).
+ * Device ID bền (localStorage). Mã máy 3 chữ (AYU); tab cùng máy AYU1, AYU2…
+ * Đếm online = số device unique. Máy khác chỉ hiện tên đại diện AYU (không liệt kê từng tab).
+ * Mã máy đổi sau ~10 phút không còn tab (cùng cơ chế idle với chat local).
  */
 (function () {
     'use strict';
@@ -14,25 +16,35 @@
     const STALE_ONLINE_MS = 90 * 1000;
     const OFFLINE_HOLD_MS = 5 * 60 * 1000;
     const RENDER_TICK_MS = 15000;
+    const IDLE_WIPE_MS = 10 * 60 * 1000;
+    const TAB_SLOT_STALE_MS = 90 * 1000;
     const PATH = 'presence';
     const DEVICE_STORAGE_KEY = 'presenceDeviceId';
+    const DEVICE_CODE_KEY = 'presenceDeviceCode';
+    const TAB_SLOTS_KEY = 'presenceTabSlots';
+    const ALIVE_KEY = 'deviceChatAliveAt';
+    const AWAY_KEY = 'deviceChatAwayAt';
     const GEO_SELF_URL = 'https://get.geojs.io/v1/ip/geo.json';
     const GEO_IP_URL = 'https://get.geojs.io/v1/ip/geo/';
 
     let sessionId = '';
+    /** Hiển thị tab: AYU1, AYU2… */
     let displayCode = '';
-    /** UUID bền theo trình duyệt/máy — chung mọi tab trên thiết bị này. */
+    /** UUID bền theo trình duyệt/máy. */
     let deviceId = '';
-    /** Mã ngắn hiển thị thiết bị (vd. D7K2), khác mã tab OT6. */
+    /** Mã máy 3 chữ cái: AYU (không có số). */
     let deviceTag = '';
+    /** Số thứ tự tab trên máy này (1, 2, 11…). */
+    let tabIndex = 1;
     let startedAt = 0;
+    let aliveTimer = 0;
     let sessionRef = null;
     let heartbeatTimer = 0;
     let renderTickTimer = 0;
     let publicIp = '';
     /** @type {{ country: string, countryCode: string, region: string, city: string, lat: number, lon: number }|null} */
     let selfGeo = null;
-    let lastSnapVal = null;
+    let lastSnapVal = {};
     let db = null;
     let started = false;
     const pruneRequested = new Set();
@@ -50,20 +62,6 @@
         return document.getElementById(id);
     }
 
-    function makeDisplayCode(id) {
-        const s = String(id || '').replace(/\W/g, '') || 'x';
-        let h = 2166136261;
-        for (let i = 0; i < s.length; i++) {
-            h ^= s.charCodeAt(i);
-            h = Math.imul(h, 16777619);
-        }
-        h = h >>> 0;
-        const a = String.fromCharCode(65 + (h % 26));
-        const b = String.fromCharCode(65 + ((h >>> 5) % 26));
-        const d = String((h >>> 10) % 10);
-        return a + b + d;
-    }
-
     function makeSessionId() {
         try {
             if (crypto && typeof crypto.randomUUID === 'function') {
@@ -73,7 +71,40 @@
         return 's' + Date.now().toString(36) + Math.random().toString(36).slice(2, 10);
     }
 
-    /** Mã thiết bị ngắn (D + 3 ký tự) từ deviceId — ổn định, khác mã tab 3 ký tự. */
+    /** 3 chữ cái A–Z (không số) — tên thiết bị đại diện. */
+    function makeRandomDeviceCode() {
+        let out = '';
+        for (let i = 0; i < 3; i++) {
+            let n = 0;
+            try {
+                if (crypto && crypto.getRandomValues) {
+                    const buf = new Uint8Array(1);
+                    crypto.getRandomValues(buf);
+                    n = buf[0];
+                } else {
+                    n = Math.floor(Math.random() * 256);
+                }
+            } catch (e) {
+                n = Math.floor(Math.random() * 256);
+            }
+            out += String.fromCharCode(65 + (n % 26));
+        }
+        return out;
+    }
+
+    function isValidDeviceCode(code) {
+        return /^[A-Z]{3}$/.test(String(code || ''));
+    }
+
+    function normalizeDeviceCode(code) {
+        const s = String(code || '').toUpperCase().replace(/[^A-Z]/g, '');
+        if (s.length >= 3) {
+            return s.slice(0, 3);
+        }
+        return '';
+    }
+
+    /** Fallback cũ: hash → 3 chữ (không số). */
     function makeDeviceTag(id) {
         const s = String(id || '').replace(/\W/g, '') || 'x';
         let h = 2166136261;
@@ -82,12 +113,34 @@
             h = Math.imul(h, 16777619);
         }
         h = h >>> 0;
-        const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        let tag = 'D';
-        for (let i = 0; i < 3; i++) {
-            tag += alphabet[(h >>> (i * 5)) % alphabet.length];
-        }
-        return tag;
+        return String.fromCharCode(65 + (h % 26))
+            + String.fromCharCode(65 + ((h >>> 5) % 26))
+            + String.fromCharCode(65 + ((h >>> 10) % 26));
+    }
+
+    function touchAlive() {
+        try {
+            localStorage.setItem(ALIVE_KEY, String(Date.now()));
+            localStorage.removeItem(AWAY_KEY);
+        } catch (e) { /* ignore */ }
+    }
+
+    function markAway() {
+        try {
+            localStorage.setItem(AWAY_KEY, String(Date.now()));
+        } catch (e) { /* ignore */ }
+    }
+
+    function wasIdleTooLong() {
+        const now = Date.now();
+        let aliveAt = 0;
+        let awayAt = 0;
+        try {
+            aliveAt = Number(localStorage.getItem(ALIVE_KEY)) || 0;
+            awayAt = Number(localStorage.getItem(AWAY_KEY)) || 0;
+        } catch (e) { /* ignore */ }
+        const last = Math.max(aliveAt, awayAt);
+        return last > 0 && (now - last) > IDLE_WIPE_MS;
     }
 
     function getOrCreateDeviceId() {
@@ -102,6 +155,125 @@
         } catch (e) {
             return 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 12);
         }
+    }
+
+    function getOrCreateDeviceCode() {
+        if (wasIdleTooLong()) {
+            try {
+                localStorage.removeItem(DEVICE_CODE_KEY);
+                localStorage.removeItem(TAB_SLOTS_KEY);
+            } catch (e) { /* ignore */ }
+        }
+        try {
+            let code = localStorage.getItem(DEVICE_CODE_KEY);
+            if (isValidDeviceCode(code)) {
+                return String(code).toUpperCase();
+            }
+            code = makeRandomDeviceCode();
+            localStorage.setItem(DEVICE_CODE_KEY, code);
+            return code;
+        } catch (e) {
+            return makeRandomDeviceCode();
+        }
+    }
+
+    function readTabSlots() {
+        try {
+            const j = JSON.parse(localStorage.getItem(TAB_SLOTS_KEY) || '{}');
+            return j && typeof j === 'object' ? j : {};
+        } catch (e) {
+            return {};
+        }
+    }
+
+    function writeTabSlots(slots) {
+        try {
+            localStorage.setItem(TAB_SLOTS_KEY, JSON.stringify(slots || {}));
+        } catch (e) { /* ignore */ }
+    }
+
+    function claimTabIndex(sid) {
+        const now = Date.now();
+        const slots = readTabSlots();
+        Object.keys(slots).forEach((k) => {
+            const row = slots[k];
+            if (!row || !row.sid || (now - (Number(row.at) || 0)) > TAB_SLOT_STALE_MS) {
+                delete slots[k];
+            }
+        });
+        const keys = Object.keys(slots);
+        for (let i = 0; i < keys.length; i++) {
+            const k = keys[i];
+            if (slots[k] && slots[k].sid === sid) {
+                slots[k].at = now;
+                writeTabSlots(slots);
+                return Math.max(1, parseInt(k, 10) || 1);
+            }
+        }
+        let n = 1;
+        while (slots[String(n)]) {
+            n += 1;
+        }
+        slots[String(n)] = { sid: sid, at: now };
+        writeTabSlots(slots);
+        return n;
+    }
+
+    function refreshTabSlot(sid) {
+        if (!sid) {
+            return;
+        }
+        const now = Date.now();
+        const slots = readTabSlots();
+        const key = String(tabIndex);
+        if (slots[key] && slots[key].sid === sid) {
+            slots[key].at = now;
+            writeTabSlots(slots);
+            return;
+        }
+        tabIndex = claimTabIndex(sid);
+        displayCode = deviceTag + String(tabIndex);
+    }
+
+    function releaseTabSlot(sid) {
+        const slots = readTabSlots();
+        Object.keys(slots).forEach((k) => {
+            if (slots[k] && slots[k].sid === sid) {
+                delete slots[k];
+            }
+        });
+        writeTabSlots(slots);
+    }
+
+    function formatUserLabel(ip, userCode) {
+        const code = String(userCode || '').trim() || '???';
+        if (ip) {
+            return String(ip) + ' · ' + code;
+        }
+        return 'tab · ' + code;
+    }
+
+    function extractIpFromRow(row) {
+        if (row && row.ip) {
+            return String(row.ip);
+        }
+        return extractIpFromLabel(row && row.label);
+    }
+
+    function resolvePeerDeviceCode(row) {
+        const tagged = normalizeDeviceCode(row && (row.deviceCode || row.deviceTag));
+        if (tagged) {
+            return tagged;
+        }
+        const code = String((row && row.code) || '');
+        const m = code.match(/^([A-Za-z]{3})\d+$/);
+        if (m) {
+            return m[1].toUpperCase();
+        }
+        if (row && row.deviceId) {
+            return makeDeviceTag(row.deviceId);
+        }
+        return normalizeDeviceCode(code) || 'XXX';
     }
 
     function isConfigReady(cfg) {
@@ -152,27 +324,59 @@
             .replace(/"/g, '&quot;');
     }
 
-    /** Icon người — trước mã tên (OT6); online xanh / offline đỏ. */
-    function personIconHtml(offline) {
+    /** Icon người — online xanh / offline đỏ; có thể bấm để chat + badge unread. */
+    function personIconHtml(offline, opts) {
+        const o = opts || {};
+        const canChat = !!o.canChat;
+        const unread = Math.max(0, Math.floor(Number(o.unread) || 0));
         const cls = offline ? 'presence-person presence-person--offline' : 'presence-person';
-        return '<span class="' + cls + '" aria-hidden="true">' +
-            '<svg viewBox="0 0 24 24" width="12" height="12" focusable="false">' +
+        const badge = unread > 0
+            ? '<span class="presence-person-badge">' + (unread > 99 ? '99+' : String(unread)) + '</span>'
+            : '';
+        const icon = '<span class="' + cls + '" aria-hidden="true">' +
+            '<svg viewBox="0 0 24 24" width="14" height="14" focusable="false">' +
             '<circle cx="12" cy="8" r="3.2" fill="currentColor"/>' +
             '<path d="M5.5 19.2c.6-3.4 3.2-5.2 6.5-5.2s5.9 1.8 6.5 5.2" ' +
             'fill="none" stroke="currentColor" stroke-width="2.2" ' +
-            'stroke-linecap="round"/></svg></span>';
+            'stroke-linecap="round"/></svg>' + badge + '</span>';
+        if (!canChat) {
+            return icon;
+        }
+        const title = unread > 0
+            ? ('Nhắn tin — ' + unread + ' tin chưa đọc')
+            : 'Nhắn tin với thiết bị này';
+        return '<button type="button" class="presence-person-btn" data-chat-open="1" title="' +
+            escapeHtml(title) + '" aria-label="' + escapeHtml(title) + '">' + icon + '</button>';
     }
 
-    /** `IP · OT6` → `IP · [icon]OT6` */
-    function formatLabelWithPerson(label, offline) {
-        const raw = String(label || '');
-        const sep = ' · ';
-        const idx = raw.lastIndexOf(sep);
-        const icon = personIconHtml(!!offline);
-        if (idx === -1) {
-            return icon + escapeHtml(raw);
+    function getUnreadForDevice(peerDeviceId) {
+        if (!peerDeviceId || !window.DeviceChat || typeof window.DeviceChat.getUnread !== 'function') {
+            return 0;
         }
-        return escapeHtml(raw.slice(0, idx)) + sep + icon + escapeHtml(raw.slice(idx + sep.length));
+        return Number(window.DeviceChat.getUnread(peerDeviceId)) || 0;
+    }
+
+    /** active = phản hồi gần nhất (xanh); closed = đã phản hồi trong session (vàng); '' = chưa phản hồi */
+    function chatBorderClass(peerDeviceId) {
+        if (!peerDeviceId || !window.DeviceChat || typeof window.DeviceChat.getBorderState !== 'function') {
+            return '';
+        }
+        const state = window.DeviceChat.getBorderState(peerDeviceId);
+        if (state === 'active') {
+            return ' presence-item--chat-active';
+        }
+        if (state === 'closed') {
+            return ' presence-item--chat-closed';
+        }
+        return '';
+    }
+
+    function chatBorderAttr(peerDeviceId) {
+        if (!peerDeviceId || !window.DeviceChat || typeof window.DeviceChat.getBorderState !== 'function') {
+            return '';
+        }
+        const state = window.DeviceChat.getBorderState(peerDeviceId);
+        return state ? (' data-chat-border="' + state + '"') : '';
     }
 
     function pad2(n) {
@@ -333,7 +537,9 @@
         const out = payload || {};
         if (deviceId) {
             out.deviceId = deviceId;
-            out.deviceTag = deviceTag || makeDeviceTag(deviceId);
+            out.deviceTag = deviceTag;
+            out.deviceCode = deviceTag;
+            out.tabIndex = tabIndex;
         }
         if (publicIp) {
             out.ip = publicIp;
@@ -350,8 +556,7 @@
     }
 
     function deviceMetaLine(row, deviceCounts) {
-        const tag = String((row && row.deviceTag) || '').trim()
-            || (row && row.deviceId ? makeDeviceTag(row.deviceId) : '');
+        const tag = resolvePeerDeviceCode(row);
         if (!tag) {
             return '';
         }
@@ -367,12 +572,22 @@
         return line;
     }
 
-    function buildLabel() {
-        const code = displayCode || makeDisplayCode(sessionId);
-        if (publicIp) {
-            return publicIp + ' · ' + code;
+    /** Khoảng cách tới You — không hiện với tab cùng máy. */
+    function distanceFromYouLine(row, skip) {
+        if (skip) {
+            return '';
         }
-        return 'tab · ' + code;
+        const geo = geoFromRow(row);
+        if (!geo || !selfGeo || !Number.isFinite(selfGeo.lat) || !Number.isFinite(selfGeo.lon)
+            || !Number.isFinite(geo.lat) || !Number.isFinite(geo.lon)) {
+            return '';
+        }
+        const km = haversineKm(selfGeo.lat, selfGeo.lon, geo.lat, geo.lon);
+        return '~' + formatDistanceKm(km) + ' từ You';
+    }
+
+    function buildLabel() {
+        return formatUserLabel(publicIp, displayCode || (deviceTag + String(tabIndex || 1)));
     }
 
     function fetchSelfGeo() {
@@ -401,7 +616,7 @@
         return attachGeoFields({
             online: false,
             label: buildLabel(),
-            code: displayCode || makeDisplayCode(sessionId),
+            code: displayCode || (deviceTag + String(tabIndex || 1)),
             startedAt: startedAt || now,
             offlineAt: Number(offlineAt) || now,
             updatedAt: now
@@ -412,6 +627,8 @@
         if (!sessionRef) {
             return Promise.resolve();
         }
+        refreshTabSlot(sessionId);
+        touchAlive();
         const now = Date.now();
         if (!online) {
             return sessionRef.set(offlinePayload(now));
@@ -419,7 +636,7 @@
         return sessionRef.set(attachGeoFields({
             online: true,
             label: buildLabel(),
-            code: displayCode || makeDisplayCode(sessionId),
+            code: displayCode || (deviceTag + String(tabIndex || 1)),
             startedAt: startedAt || now,
             updatedAt: now
         }));
@@ -478,6 +695,12 @@
         if (m.deviceTag) {
             payload.deviceTag = String(m.deviceTag);
         }
+        if (m.deviceCode) {
+            payload.deviceCode = String(m.deviceCode);
+        }
+        if (m.tabIndex != null) {
+            payload.tabIndex = Number(m.tabIndex) || 0;
+        }
         db.ref(PATH + '/' + id).set(payload)
             .catch(() => { /* ignore */ })
             .then(() => {
@@ -485,19 +708,12 @@
             });
     }
 
-    function metaLine(started, endedAt, row, isSelf) {
+    function metaLine(started, endedAt) {
         const start = Number(started) || 0;
         const end = Number(endedAt) || Date.now();
         const access = formatAccessTime(start);
         const dur = start ? formatDuration(end - start) : '—';
-        let line = 'Vào ' + access + ' · đã ' + dur;
-        const geo = geoFromRow(row) || (isSelf ? selfGeo : null);
-        if (geo && selfGeo && Number.isFinite(selfGeo.lat) && Number.isFinite(selfGeo.lon)
-            && Number.isFinite(geo.lat) && Number.isFinite(geo.lon)) {
-            const km = haversineKm(selfGeo.lat, selfGeo.lon, geo.lat, geo.lon);
-            line += ' · ~' + formatDistanceKm(km) + ' từ You';
-        }
-        return line;
+        return 'Vào ' + access + ' · đã ' + dur;
     }
 
     function geoMetaLine(row, isSelf) {
@@ -535,18 +751,89 @@
         return sessionRef.onDisconnect().set(attachGeoFields({
             online: false,
             label: buildLabel(),
-            code: displayCode || makeDisplayCode(sessionId),
+            code: displayCode || (deviceTag + String(tabIndex || 1)),
             startedAt: startedAt || Date.now(),
             offlineAt: SERVER_TS,
             updatedAt: SERVER_TS
         }));
     }
 
+    /** Gom session → dòng list: máy mình giữ từng tab (AYU1…); máy khác 1 dòng AYU. */
+    function buildListRows(sessionRows, deviceCounts, isOfflineList) {
+        const groups = new Map();
+        sessionRows.forEach((r) => {
+            const did = String(r.deviceId || '').trim() || ('session:' + r.id);
+            if (!groups.has(did)) {
+                groups.set(did, []);
+            }
+            groups.get(did).push(r);
+        });
+
+        const out = [];
+        groups.forEach((rows, did) => {
+            rows.sort((a, b) => {
+                const sa = Number(a.startedAt) || Number(a.updatedAt) || Number(a.at) || 0;
+                const sb = Number(b.startedAt) || Number(b.updatedAt) || Number(b.at) || 0;
+                if (sa !== sb) {
+                    return sa - sb;
+                }
+                return String(a.id).localeCompare(String(b.id));
+            });
+            const mine = !!(deviceId && did === deviceId);
+            if (mine) {
+                rows.forEach((r) => {
+                    const code = String(r.code || '').trim()
+                        || (resolvePeerDeviceCode(r) + String(r.tabIndex || ''));
+                    const ip = extractIpFromRow(r);
+                    out.push(Object.assign({}, r, {
+                        listId: r.id,
+                        displayLabel: formatUserLabel(ip, code),
+                        deviceTag: resolvePeerDeviceCode(r),
+                        aggregate: false,
+                        tabCount: deviceCounts[did] || rows.length
+                    }));
+                });
+                return;
+            }
+            const rep = isOfflineList
+                ? rows.slice().sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0))[0]
+                : rows[0];
+            const tag = resolvePeerDeviceCode(rep);
+            const ip = extractIpFromRow(rep);
+            out.push(Object.assign({}, rep, {
+                listId: 'device:' + did,
+                displayLabel: formatUserLabel(ip, tag),
+                deviceTag: tag,
+                deviceId: String(rep.deviceId || did.replace(/^session:/, '')),
+                aggregate: true,
+                tabCount: rows.length,
+                startedAt: Number(rows[0].startedAt) || Number(rows[0].updatedAt) || 0,
+                at: isOfflineList
+                    ? Math.max.apply(null, rows.map((x) => Number(x.at) || 0))
+                    : rep.at
+            }));
+        });
+
+        if (isOfflineList) {
+            out.sort((a, b) => (Number(a.at) || 0) - (Number(b.at) || 0));
+        } else {
+            out.sort((a, b) => {
+                const sa = Number(a.startedAt) || Number(a.updatedAt) || 0;
+                const sb = Number(b.startedAt) || Number(b.updatedAt) || 0;
+                if (sa !== sb) {
+                    return sa - sb;
+                }
+                return String(a.listId).localeCompare(String(b.listId));
+            });
+        }
+        return out;
+    }
+
     function renderPresence(snapVal) {
-        lastSnapVal = snapVal;
+        lastSnapVal = snapVal && typeof snapVal === 'object' ? snapVal : {};
         const onlineRows = [];
         const offlineRows = [];
-        const data = snapVal && typeof snapVal === 'object' ? snapVal : {};
+        const data = lastSnapVal;
         const now = Date.now();
         const nextOnlineIds = new Set();
         const nextMeta = {};
@@ -559,8 +846,11 @@
             const updatedAt = Number(row.updatedAt) || 0;
             const geoFields = rowGeoFields(Object.assign({}, row, { label: label }));
             const rowDeviceId = String(row.deviceId || '').trim();
-            const rowDeviceTag = String(row.deviceTag || '').trim()
-                || (rowDeviceId ? makeDeviceTag(rowDeviceId) : '');
+            const rowDeviceTag = resolvePeerDeviceCode(Object.assign({}, row, {
+                deviceTag: row.deviceTag || row.deviceCode,
+                deviceCode: row.deviceCode || row.deviceTag
+            }));
+            const rowTabIndex = Number(row.tabIndex) || 0;
             nextMeta[id] = {
                 label: label,
                 code: code,
@@ -573,7 +863,9 @@
                 lon: geoFields.lon,
                 ip: geoFields.ip,
                 deviceId: rowDeviceId,
-                deviceTag: rowDeviceTag
+                deviceTag: rowDeviceTag,
+                deviceCode: rowDeviceTag,
+                tabIndex: rowTabIndex
             };
 
             const alive = !!row.online && updatedAt > 0 && (now - updatedAt) <= STALE_ONLINE_MS;
@@ -582,10 +874,13 @@
                 onlineRows.push(Object.assign({
                     id: id,
                     label: label,
+                    code: code,
                     startedAt: rowStarted,
                     updatedAt: updatedAt,
                     deviceId: rowDeviceId,
-                    deviceTag: rowDeviceTag
+                    deviceTag: rowDeviceTag,
+                    deviceCode: rowDeviceTag,
+                    tabIndex: rowTabIndex
                 }, geoFields));
                 return;
             }
@@ -609,10 +904,13 @@
             offlineRows.push(Object.assign({
                 id: id,
                 label: label,
+                code: code,
                 startedAt: rowStarted,
                 at: offlineAt,
                 deviceId: rowDeviceId,
-                deviceTag: rowDeviceTag
+                deviceTag: rowDeviceTag,
+                deviceCode: rowDeviceTag,
+                tabIndex: rowTabIndex
             }, geoFields));
             pendingGone.delete(id);
         });
@@ -632,6 +930,7 @@
             if (!pendingGone.has(id)) {
                 pendingGone.set(id, {
                     label: meta.label || id,
+                    code: meta.code || '',
                     startedAt: Number(meta.startedAt) || at,
                     at: at,
                     country: meta.country,
@@ -642,7 +941,9 @@
                     lon: meta.lon,
                     ip: meta.ip,
                     deviceId: meta.deviceId,
-                    deviceTag: meta.deviceTag
+                    deviceTag: meta.deviceTag,
+                    deviceCode: meta.deviceCode || meta.deviceTag,
+                    tabIndex: meta.tabIndex
                 });
             }
             requestTombstone(id, meta, at);
@@ -660,6 +961,7 @@
             offlineRows.push({
                 id: id,
                 label: entry.label,
+                code: entry.code || '',
                 startedAt: entry.startedAt,
                 at: entry.at,
                 country: entry.country,
@@ -670,7 +972,9 @@
                 lon: entry.lon,
                 ip: entry.ip,
                 deviceId: entry.deviceId,
-                deviceTag: entry.deviceTag
+                deviceTag: entry.deviceTag,
+                deviceCode: entry.deviceCode || entry.deviceTag,
+                tabIndex: entry.tabIndex
             });
         });
 
@@ -686,35 +990,19 @@
             deviceCounts[did] = (deviceCounts[did] || 0) + 1;
         });
 
-        // Vào sớm nhất lên đầu; vào sau append xuống dưới
-        onlineRows.sort((a, b) => {
-            const sa = Number(a.startedAt) || Number(a.updatedAt) || 0;
-            const sb = Number(b.startedAt) || Number(b.updatedAt) || 0;
-            if (sa !== sb) {
-                return sa - sb;
-            }
-            const da = String(a.deviceId || '');
-            const db_ = String(b.deviceId || '');
-            if (da !== db_) {
-                return da.localeCompare(db_);
-            }
-            return a.id.localeCompare(b.id);
-        });
+        const uniqueDeviceCount = Object.keys(deviceCounts).length
+            || new Set(onlineRows.map((r) => r.deviceId || r.id)).size;
 
-        offlineRows.sort((a, b) => {
-            if (a.at !== b.at) {
-                return a.at - b.at;
-            }
-            return a.id.localeCompare(b.id);
-        });
+        const listOnline = buildListRows(onlineRows, deviceCounts, false);
+        const listOffline = buildListRows(offlineRows, deviceCounts, true);
 
         const countEl = el('presenceCount');
         if (countEl) {
-            countEl.textContent = String(onlineRows.length);
+            countEl.textContent = String(uniqueDeviceCount);
         }
         const btn = el('presenceBtn');
         if (btn) {
-            const title = onlineRows.length + ' người đang online — bấm để xem list';
+            const title = uniqueDeviceCount + ' thiết bị đang online — bấm để xem list';
             btn.title = title;
             btn.setAttribute('aria-label', title);
         }
@@ -724,72 +1012,96 @@
             return;
         }
         let html = '';
-        onlineRows.forEach((r) => {
+        listOnline.forEach((r) => {
             const isSelf = r.id === sessionId;
             const sameDevice = !!(r.deviceId && deviceId && r.deviceId === deviceId);
+            const canChat = !!(r.deviceId && !sameDevice);
             const you = isSelf ? ' <span class="presence-you">(You)</span>' : '';
-            const geoLine = geoMetaLine(r, isSelf);
+            const geoLine = geoMetaLine(r, isSelf || sameDevice);
+            const place = formatGeoPlace(geoFromRow(r) || ((isSelf || sameDevice) ? selfGeo : null));
             const deviceLine = deviceMetaLine(r, deviceCounts);
+            const distLine = distanceFromYouLine(r, isSelf || sameDevice);
+            const deviceBits = [];
+            if (deviceLine) {
+                deviceBits.push(deviceLine);
+            } else if (isSelf) {
+                deviceBits.push('Thiết bị');
+            }
+            if (distLine) {
+                deviceBits.push(distLine);
+            }
             html += '<li class="presence-item presence-item--online' +
                 (isSelf ? ' presence-item--self' : '') +
-                (sameDevice ? ' presence-item--same-device' : '') + '"' +
+                (sameDevice ? ' presence-item--same-device' : '') +
+                (!sameDevice ? chatBorderClass(r.deviceId) : '') + '"' +
+                (!sameDevice ? chatBorderAttr(r.deviceId) : '') +
                 ' data-device-id="' + escapeHtml(r.deviceId || '') + '"' +
                 ' data-device-tag="' + escapeHtml(r.deviceTag || '') + '"' +
-                ' data-label="' + escapeHtml(r.label || '') + '"' +
+                ' data-label="' + escapeHtml(r.displayLabel || r.label || '') + '"' +
+                ' data-place="' + escapeHtml(place && place !== '—' ? place : '') + '"' +
                 ' data-online="1">' +
-                personIconHtml(false) +
+                personIconHtml(false, {
+                    canChat: canChat,
+                    unread: canChat ? getUnreadForDevice(r.deviceId) : 0
+                }) +
                 '<span class="presence-text">' +
-                '<span class="presence-label">' + escapeHtml(r.label) +
-                ' đang online' + you + '</span>' +
-                (deviceLine
-                    ? '<span class="presence-meta presence-meta--device">' + escapeHtml(deviceLine) + '</span>'
+                '<span class="presence-label">' + escapeHtml(r.displayLabel || r.label) +
+                ' <span class="presence-status presence-status--online">đang online</span></span>' +
+                (deviceBits.length
+                    ? '<span class="presence-meta presence-meta--device">' +
+                    escapeHtml(deviceBits.join(' · ')) + you + '</span>'
                     : '') +
                 '<span class="presence-meta">' +
-                escapeHtml(metaLine(r.startedAt, null, r, isSelf)) + '</span>' +
+                escapeHtml(metaLine(r.startedAt, null)) + '</span>' +
                 (geoLine
                     ? '<span class="presence-meta presence-meta--geo">' + escapeHtml(geoLine) + '</span>'
                     : '') +
-                (!r.deviceId
-                    ? ''
-                    : sameDevice
-                        ? (isSelf
-                            ? ''
-                            : '<span class="presence-same-device-note">Cùng máy — không chat</span>')
-                        : '<button type="button" class="presence-chat-btn" data-chat-open="1" title="Nhắn tin (theo thiết bị)">Nhắn</button>') +
                 '</span></li>';
         });
-        offlineRows.forEach((r) => {
+        listOffline.forEach((r) => {
             const isSelf = r.id === sessionId;
             const sameDevice = !!(r.deviceId && deviceId && r.deviceId === deviceId);
+            const canChat = !!(r.deviceId && !sameDevice);
             const you = isSelf ? ' <span class="presence-you">(You)</span>' : '';
-            const geoLine = geoMetaLine(r, isSelf);
+            const geoLine = geoMetaLine(r, isSelf || sameDevice);
+            const place = formatGeoPlace(geoFromRow(r) || ((isSelf || sameDevice) ? selfGeo : null));
             const deviceLine = deviceMetaLine(r, null);
+            const distLine = distanceFromYouLine(r, isSelf || sameDevice);
+            const deviceBits = [];
+            if (deviceLine) {
+                deviceBits.push(deviceLine);
+            } else if (isSelf) {
+                deviceBits.push('Thiết bị');
+            }
+            if (distLine) {
+                deviceBits.push(distLine);
+            }
             html += '<li class="presence-item presence-item--offline' +
                 (isSelf ? ' presence-item--self' : '') +
-                (sameDevice ? ' presence-item--same-device' : '') + '"' +
+                (sameDevice ? ' presence-item--same-device' : '') +
+                (!sameDevice ? chatBorderClass(r.deviceId) : '') + '"' +
+                (!sameDevice ? chatBorderAttr(r.deviceId) : '') +
                 ' data-device-id="' + escapeHtml(r.deviceId || '') + '"' +
                 ' data-device-tag="' + escapeHtml(r.deviceTag || '') + '"' +
-                ' data-label="' + escapeHtml(r.label || '') + '"' +
+                ' data-label="' + escapeHtml(r.displayLabel || r.label || '') + '"' +
+                ' data-place="' + escapeHtml(place && place !== '—' ? place : '') + '"' +
                 ' data-online="0">' +
-                personIconHtml(true) +
+                personIconHtml(true, {
+                    canChat: canChat,
+                    unread: canChat ? getUnreadForDevice(r.deviceId) : 0
+                }) +
                 '<span class="presence-text">' +
-                '<span class="presence-label">' + escapeHtml(r.label) +
-                ' vừa offline' + you + '</span>' +
-                (deviceLine
-                    ? '<span class="presence-meta presence-meta--device">' + escapeHtml(deviceLine) + '</span>'
+                '<span class="presence-label">' + escapeHtml(r.displayLabel || r.label) +
+                ' <span class="presence-status presence-status--offline">vừa offline</span></span>' +
+                (deviceBits.length
+                    ? '<span class="presence-meta presence-meta--device">' +
+                    escapeHtml(deviceBits.join(' · ')) + you + '</span>'
                     : '') +
                 '<span class="presence-meta">' +
-                escapeHtml(metaLine(r.startedAt, r.at, r, isSelf)) + '</span>' +
+                escapeHtml(metaLine(r.startedAt, r.at)) + '</span>' +
                 (geoLine
                     ? '<span class="presence-meta presence-meta--geo">' + escapeHtml(geoLine) + '</span>'
                     : '') +
-                (!r.deviceId
-                    ? ''
-                    : sameDevice
-                        ? (isSelf
-                            ? ''
-                            : '<span class="presence-same-device-note">Cùng máy — không chat</span>')
-                        : '<button type="button" class="presence-chat-btn" data-chat-open="1" title="Nhắn tin (theo thiết bị)">Nhắn</button>') +
                 '</span></li>';
         });
         if (!html) {
@@ -808,9 +1120,6 @@
         btn.dataset.presenceBound = '1';
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
-            if (window.DeviceChat && typeof window.DeviceChat.isOpen === 'function' && window.DeviceChat.isOpen()) {
-                window.DeviceChat.close();
-            }
             panel.classList.toggle('hidden');
             btn.setAttribute('aria-expanded', panel.classList.contains('hidden') ? 'false' : 'true');
         });
@@ -849,6 +1158,7 @@
                         deviceId: peerId,
                         deviceTag: String(row.getAttribute('data-device-tag') || ''),
                         label: String(row.getAttribute('data-label') || ''),
+                        place: String(row.getAttribute('data-place') || ''),
                         online: row.getAttribute('data-online') === '1'
                     });
                 }
@@ -880,6 +1190,8 @@
 
     function markSelfOfflineBestEffort() {
         try {
+            markAway();
+            releaseTabSlot(sessionId);
             if (heartbeatTimer) {
                 clearInterval(heartbeatTimer);
                 heartbeatTimer = 0;
@@ -889,6 +1201,17 @@
             }
             writePresence(false);
         } catch (e) { /* ignore */ }
+    }
+
+    function startAliveLoop() {
+        touchAlive();
+        if (aliveTimer) {
+            clearInterval(aliveTimer);
+        }
+        aliveTimer = setInterval(() => {
+            touchAlive();
+            refreshTabSlot(sessionId);
+        }, 5000);
     }
 
     function startPresence() {
@@ -923,11 +1246,13 @@
         const afterAuth = () => {
             db = firebase.database();
             deviceId = getOrCreateDeviceId();
-            deviceTag = makeDeviceTag(deviceId);
+            deviceTag = getOrCreateDeviceCode();
             sessionId = makeSessionId();
-            displayCode = makeDisplayCode(sessionId);
+            tabIndex = claimTabIndex(sessionId);
+            displayCode = deviceTag + String(tabIndex);
             startedAt = Date.now();
             sessionRef = db.ref(PATH + '/' + sessionId);
+            startAliveLoop();
 
             const connectedRef = db.ref('.info/connected');
             connectedRef.on('value', (snap) => {
@@ -955,7 +1280,12 @@
             window.PresenceBridge = {
                 getDeviceId: () => deviceId,
                 getDeviceTag: () => deviceTag,
-                getSessionId: () => sessionId
+                getSessionId: () => sessionId,
+                getTabIndex: () => tabIndex,
+                getDisplayCode: () => displayCode,
+                rerender: () => {
+                    renderPresence(lastSnapVal && typeof lastSnapVal === 'object' ? lastSnapVal : {});
+                }
             };
         };
 

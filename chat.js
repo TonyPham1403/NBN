@@ -1,13 +1,9 @@
 /**
- * Chat theo deviceId — lịch sử chỉ localStorage (không lưu bền trên Firebase).
- *
- * - Tin nằm trên máy khi thiết bị còn “sống” (có tab / < 10 phút kể từ tab cuối).
- * - A online, B offline: A vẫn giữ lịch sử local với B.
- * - B online lại + A còn online: A đẩy transcript qua mailbox tạm → B merge rồi xóa mailbox.
- * - Máy tắt hết tab > 10 phút rồi mở lại: xóa sạch lịch sử local trên máy đó.
- * - Cùng deviceId (hai tab cùng máy) không chat với nhau.
- *
- * Firebase chỉ dùng path /mailbox tạm (set rồi xóa), không phải kho chats.
+ * Chat theo deviceId — text + file.
+ * - Meta/history: localStorage; chuyển tạm qua /mailbox rồi xóa.
+ * - File blob: Firebase Storage (chat-files/…); cache máy: IndexedDB.
+ * - Idle ~10 phút: xóa local (+ IDB); file trên Storage có thể còn đến khi xóa tay / lifecycle.
+ * UI: dock Messenger đáy trang, tối đa 3 người.
  */
 (function () {
     'use strict';
@@ -17,26 +13,89 @@
     const ALIVE_KEY = 'deviceChatAliveAt';
     const AWAY_KEY = 'deviceChatAwayAt';
     const READ_KEY = 'deviceChatReadAt';
+    const SEEN_KEY = 'deviceChatPeerSeenAt';
     const MAILBOX_PATH = 'mailbox';
+    const SENT_FLASH_MS = 1400;
+    const RECV_FLASH_MS = 1400;
+    const MAX_PINS = 20;
+    const RECALL_LABEL = 'Tin nhắn đã thu hồi';
     const PRESENCE_PATH = 'presence';
+    const STORAGE_ROOT = 'chat-files';
+    const IDB_NAME = 'deviceChatFilesDb';
+    const IDB_STORE = 'blobs';
     const MAX_TEXT = 500;
     const MSG_LIMIT = 120;
+    const MAX_DOCK = 3;
+    const MAX_FILE_BYTES = 5 * 1024 * 1024;
+    const MAX_PENDING_FILES = 10;
+    const INPUT_MIN_H = 32;
+    const INPUT_MAX_H = 110;
     const IDLE_WIPE_MS = 10 * 60 * 1000;
     const ALIVE_TICK_MS = 5000;
     const BC_NAME = 'device-chat-local-v1';
 
     let db = null;
+    let storage = null;
     let myDeviceId = '';
     let myDeviceTag = '';
-    let peer = null;
     let started = false;
     let aliveTimer = 0;
     let bc = null;
     let mailboxRef = null;
     let presenceRef = null;
-    /** peerDeviceId → last push at (tránh spam mailbox) */
     const lastPushAt = {};
     let unreadMap = {};
+    /** peerId → thời điểm họ đã đọc tin của mình */
+    let peerSeenAt = {};
+    /** peerId → hết hạn flash "Đã nhận" */
+    const receiveFlashUntil = {};
+    let statusTicker = 0;
+    /** peerId → true nếu đang neo đáy (auto-scroll); false khi user scroll xem tin cũ */
+    const scrollPinned = {};
+    const SCROLL_BOTTOM_SLACK = 56;
+    /** @type {Array<{deviceId:string, deviceTag:string, label:string, place:string, online:boolean, minimized:boolean, openedAt:number}>} */
+    let dockSessions = [];
+    let onlineDeviceSet = new Set();
+    const objectUrlCache = new Map();
+    /** @type {Object.<string, Array<{id:string, file:File, previewUrl:string, name:string, size:number, mime:string}>>} */
+    const pendingAttach = {};
+    /** @type {Object.<string, {id:string, text:string, fromDeviceId:string}>} */
+    const pendingReply = {};
+    const REPLIED_STORE_KEY = 'deviceChatRepliedSession';
+    /** Session: peers đã được phản hồi (gửi tin/file) — viền vàng */
+    const repliedPeers = new Set();
+    /** Peer phản hồi gần nhất — viền xanh (thay vàng) */
+    let lastRepliedPeerId = '';
+
+    function loadRepliedSession() {
+        try {
+            const raw = sessionStorage.getItem(REPLIED_STORE_KEY);
+            if (!raw) {
+                return;
+            }
+            const j = JSON.parse(raw);
+            if (!j || typeof j !== 'object') {
+                return;
+            }
+            (Array.isArray(j.peers) ? j.peers : []).forEach((id) => {
+                if (id) {
+                    repliedPeers.add(String(id));
+                }
+            });
+            if (j.last) {
+                lastRepliedPeerId = String(j.last);
+            }
+        } catch (e) { /* ignore */ }
+    }
+
+    function saveRepliedSession() {
+        try {
+            sessionStorage.setItem(REPLIED_STORE_KEY, JSON.stringify({
+                peers: Array.from(repliedPeers),
+                last: lastRepliedPeerId || ''
+            }));
+        } catch (e) { /* ignore */ }
+    }
 
     function el(id) {
         return document.getElementById(id);
@@ -67,12 +126,9 @@
             h = Math.imul(h, 16777619);
         }
         h = h >>> 0;
-        const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-        let tag = 'D';
-        for (let i = 0; i < 3; i++) {
-            tag += alphabet[(h >>> (i * 5)) % alphabet.length];
-        }
-        return tag;
+        return String.fromCharCode(65 + (h % 26))
+            + String.fromCharCode(65 + ((h >>> 5) % 26))
+            + String.fromCharCode(65 + ((h >>> 10) % 26));
     }
 
     function getOrCreateDeviceId() {
@@ -116,6 +172,24 @@
         return pad2(d.getHours()) + ':' + pad2(d.getMinutes());
     }
 
+    function formatFileSize(bytes) {
+        const n = Number(bytes) || 0;
+        if (n < 1024) {
+            return n + ' B';
+        }
+        if (n < 1024 * 1024) {
+            return (n / 1024).toFixed(n < 10 * 1024 ? 1 : 0).replace(/\.0$/, '') + ' KB';
+        }
+        return (n / (1024 * 1024)).toFixed(1).replace(/\.0$/, '') + ' MB';
+    }
+
+    function formatChatPlace(place) {
+        return String(place || '')
+            .replace(/\s*·\s*/g, ' · ')
+            .replace(/[ \t]+/g, ' ')
+            .trim();
+    }
+
     function readJson(key, fallback) {
         try {
             const raw = localStorage.getItem(key);
@@ -148,7 +222,60 @@
         } catch (e) { /* ignore */ }
     }
 
-    /** Nếu máy này đã “chết” > 10 phút (không có tab sống) → xóa hết chat local. */
+    function openIdb() {
+        return new Promise((resolve, reject) => {
+            if (typeof indexedDB === 'undefined') {
+                reject(new Error('no idb'));
+                return;
+            }
+            const req = indexedDB.open(IDB_NAME, 1);
+            req.onupgradeneeded = () => {
+                const idb = req.result;
+                if (!idb.objectStoreNames.contains(IDB_STORE)) {
+                    idb.createObjectStore(IDB_STORE);
+                }
+            };
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error || new Error('idb open failed'));
+        });
+    }
+
+    function idbPut(key, blob) {
+        return openIdb().then((idb) => new Promise((resolve, reject) => {
+            const tx = idb.transaction(IDB_STORE, 'readwrite');
+            tx.objectStore(IDB_STORE).put(blob, key);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        })).catch(() => { /* ignore */ });
+    }
+
+    function idbGet(key) {
+        return openIdb().then((idb) => new Promise((resolve, reject) => {
+            const tx = idb.transaction(IDB_STORE, 'readonly');
+            const req = tx.objectStore(IDB_STORE).get(key);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => reject(req.error);
+        })).catch(() => null);
+    }
+
+    function idbClear() {
+        return openIdb().then((idb) => new Promise((resolve, reject) => {
+            const tx = idb.transaction(IDB_STORE, 'readwrite');
+            tx.objectStore(IDB_STORE).clear();
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        })).catch(() => { /* ignore */ });
+    }
+
+    function revokeObjectUrls() {
+        objectUrlCache.forEach((url) => {
+            try {
+                URL.revokeObjectURL(url);
+            } catch (e) { /* ignore */ }
+        });
+        objectUrlCache.clear();
+    }
+
     function wipeIfDeviceIdleTooLong() {
         const now = Date.now();
         let aliveAt = 0;
@@ -162,12 +289,188 @@
             try {
                 localStorage.removeItem(CHAT_STORE_KEY);
                 localStorage.removeItem(READ_KEY);
+                localStorage.removeItem(SEEN_KEY);
             } catch (e) { /* ignore */ }
+            idbClear();
+            revokeObjectUrls();
+            Object.keys(pendingAttach).forEach(clearPendingAttach);
+            Object.keys(pendingReply).forEach((k) => { delete pendingReply[k]; });
+            repliedPeers.clear();
+            lastRepliedPeerId = '';
+            try {
+                sessionStorage.removeItem(REPLIED_STORE_KEY);
+            } catch (e2) { /* ignore */ }
             unreadMap = {};
-            setUnreadBadge(0);
+            peerSeenAt = {};
+            Object.keys(receiveFlashUntil).forEach((k) => { delete receiveFlashUntil[k]; });
+            dockSessions = [];
+            renderDock();
+            notifyUnreadUi();
             return true;
         }
         return false;
+    }
+
+    function loadPeerSeen() {
+        peerSeenAt = readJson(SEEN_KEY, {});
+        if (!peerSeenAt || typeof peerSeenAt !== 'object') {
+            peerSeenAt = {};
+        }
+    }
+
+    function savePeerSeen() {
+        writeJson(SEEN_KEY, peerSeenAt || {});
+    }
+
+    function applyPeerReadReceipt(fromId, readAt) {
+        const id = String(fromId || '');
+        if (!id) {
+            return;
+        }
+        const t = Number(readAt) || Date.now();
+        const prev = Number(peerSeenAt[id]) || 0;
+        if (t <= prev) {
+            return;
+        }
+        peerSeenAt[id] = t;
+        savePeerSeen();
+        refreshStatusLine(id);
+    }
+
+    function flashReceived(peerId) {
+        const id = String(peerId || '');
+        if (!id) {
+            return;
+        }
+        receiveFlashUntil[id] = Date.now() + RECV_FLASH_MS;
+        refreshStatusLine(id);
+        setTimeout(() => {
+            refreshStatusLine(id);
+        }, RECV_FLASH_MS + 40);
+    }
+
+    function statusTextForPeer(peerId) {
+        const id = String(peerId || '');
+        const now = Date.now();
+        if (receiveFlashUntil[id] && now < receiveFlashUntil[id]) {
+            return { text: 'Đã nhận', kind: 'recv' };
+        }
+        const t = getThread(id);
+        const msgs = t.messages || [];
+        if (!msgs.length) {
+            return null;
+        }
+        const last = msgs[msgs.length - 1];
+        if (!last || last.fromDeviceId !== myDeviceId) {
+            return null;
+        }
+        const seen = Number(peerSeenAt[id]) || 0;
+        if (seen >= (Number(last.at) || 0)) {
+            return { text: 'Đã xem', kind: 'seen' };
+        }
+        if ((now - (Number(last.at) || 0)) < SENT_FLASH_MS) {
+            return { text: 'Đã gửi', kind: 'sent' };
+        }
+        return { text: 'Chưa xem', kind: 'unseen' };
+    }
+
+    function renderStatusInto(line, peerId) {
+        if (!line) {
+            return;
+        }
+        const st = statusTextForPeer(peerId);
+        if (!st) {
+            line.textContent = '';
+            line.setAttribute('hidden', 'hidden');
+            line.className = 'chat-status-line';
+            return;
+        }
+        line.removeAttribute('hidden');
+        line.textContent = st.text;
+        line.className = 'chat-status-line chat-status-line--' + st.kind;
+    }
+
+    function refreshStatusLine(peerId) {
+        const dock = el('chatDock');
+        if (!dock || !peerId) {
+            return;
+        }
+        const line = dock.querySelector('[data-chat-status="' + peerId + '"]');
+        renderStatusInto(line, peerId);
+        const box = dock.querySelector('[data-chat-messages="' + peerId + '"]');
+        scrollChatToBottom(box, peerId, false);
+    }
+
+    function ensureStatusTicker() {
+        if (statusTicker) {
+            return;
+        }
+        statusTicker = setInterval(() => {
+            dockSessions.forEach((sess) => {
+                if (sess && !sess.minimized) {
+                    refreshStatusLine(sess.deviceId);
+                }
+            });
+        }, 400);
+    }
+
+    function isChatNearBottom(box) {
+        if (!box) {
+            return true;
+        }
+        return (box.scrollHeight - box.scrollTop - box.clientHeight) <= SCROLL_BOTTOM_SLACK;
+    }
+
+    function scrollChatToBottom(box, peerId, force) {
+        if (!box) {
+            return;
+        }
+        const id = String(peerId || box.getAttribute('data-chat-messages') || '');
+        if (!force && id && scrollPinned[id] === false) {
+            return;
+        }
+        if (id && force) {
+            scrollPinned[id] = true;
+        }
+        const go = () => {
+            box.scrollTop = box.scrollHeight;
+        };
+        go();
+        requestAnimationFrame(go);
+        setTimeout(go, 0);
+    }
+
+    function noteReplied(peerId) {
+        const id = String(peerId || '');
+        if (!id || id === myDeviceId) {
+            return;
+        }
+        repliedPeers.add(id);
+        lastRepliedPeerId = id;
+        saveRepliedSession();
+        // Cập nhật viền list ngay; tách khỏi renderDock để tránh lỗi UI che mất rerender
+        if (window.PresenceBridge && typeof window.PresenceBridge.rerender === 'function') {
+            window.PresenceBridge.rerender();
+        }
+        setTimeout(() => {
+            if (window.PresenceBridge && typeof window.PresenceBridge.rerender === 'function') {
+                window.PresenceBridge.rerender();
+            }
+        }, 0);
+    }
+
+    function getBorderState(peerId) {
+        const id = String(peerId || '');
+        if (!id) {
+            return '';
+        }
+        if (id === lastRepliedPeerId) {
+            return 'active';
+        }
+        if (repliedPeers.has(id)) {
+            return 'closed';
+        }
+        return '';
     }
 
     function loadStore() {
@@ -184,12 +487,20 @@
         const store = loadStore();
         const t = store[peerId];
         if (!t || typeof t !== 'object') {
-            return { messages: [], peerTag: '', peerLabel: '', updatedAt: 0 };
+            return { messages: [], peerTag: '', peerLabel: '', pinnedIds: [], peerPinnedIds: [], updatedAt: 0 };
         }
+        const pinnedIds = Array.isArray(t.pinnedIds)
+            ? t.pinnedIds.map((id) => String(id)).filter(Boolean).slice(0, MAX_PINS)
+            : [];
+        const peerPinnedIds = Array.isArray(t.peerPinnedIds)
+            ? t.peerPinnedIds.map((id) => String(id)).filter(Boolean).slice(0, MAX_PINS)
+            : [];
         return {
             messages: Array.isArray(t.messages) ? t.messages.slice() : [],
             peerTag: String(t.peerTag || ''),
             peerLabel: String(t.peerLabel || ''),
+            pinnedIds: pinnedIds,
+            peerPinnedIds: peerPinnedIds,
             updatedAt: Number(t.updatedAt) || 0
         };
     }
@@ -199,37 +510,123 @@
             return;
         }
         const store = loadStore();
-        const msgs = (thread.messages || []).slice(-MSG_LIMIT);
         store[peerId] = {
-            messages: msgs,
+            messages: (thread.messages || []).slice(-MSG_LIMIT),
             peerTag: String(thread.peerTag || ''),
             peerLabel: String(thread.peerLabel || ''),
+            pinnedIds: (thread.pinnedIds || []).map((id) => String(id)).filter(Boolean).slice(0, MAX_PINS),
+            peerPinnedIds: (thread.peerPinnedIds || []).map((id) => String(id)).filter(Boolean).slice(0, MAX_PINS),
             updatedAt: Number(thread.updatedAt) || Date.now()
         };
         saveStore(store);
     }
 
+    function normalizeFileMeta(f) {
+        if (!f || typeof f !== 'object') {
+            return null;
+        }
+        const name = String(f.name || 'file').slice(0, 120);
+        const size = Number(f.size) || 0;
+        const mime = String(f.mime || f.contentType || '').slice(0, 120);
+        const path = String(f.path || '').slice(0, 400);
+        const url = String(f.url || '').slice(0, 2000);
+        if (!name && !path && !url) {
+            return null;
+        }
+        return { name: name || 'file', size: size, mime: mime, path: path, url: url };
+    }
+
+    function normalizeMessage(m) {
+        if (!m || !m.id) {
+            return null;
+        }
+        const recalled = !!m.recalled;
+        const replyTo = normalizeReplyTo(m.replyTo);
+        if (recalled) {
+            return {
+                id: String(m.id),
+                fromDeviceId: String(m.fromDeviceId || ''),
+                toDeviceId: String(m.toDeviceId || ''),
+                text: '',
+                at: Number(m.at) || 0,
+                kind: 'text',
+                file: null,
+                status: 'ready',
+                recalled: true,
+                replyTo: replyTo
+            };
+        }
+        const file = normalizeFileMeta(m.file);
+        const text = String(m.text || '').slice(0, MAX_TEXT);
+        if (!text && !file) {
+            return null;
+        }
+        const kind = file ? 'file' : 'text';
+        const status = String(m.status || (file && file.url ? 'ready' : (file ? 'uploading' : 'ready')));
+        return {
+            id: String(m.id),
+            fromDeviceId: String(m.fromDeviceId || ''),
+            toDeviceId: String(m.toDeviceId || ''),
+            text: text,
+            at: Number(m.at) || 0,
+            kind: kind,
+            file: file,
+            status: kind === 'file' ? status : 'ready',
+            recalled: false,
+            replyTo: replyTo
+        };
+    }
+
+    function normalizeReplyTo(raw) {
+        if (!raw || typeof raw !== 'object' || !raw.id) {
+            return null;
+        }
+        return {
+            id: String(raw.id),
+            text: String(raw.text || '').slice(0, 160),
+            fromDeviceId: String(raw.fromDeviceId || '')
+        };
+    }
+
     function mergeMessages(localMsgs, incoming) {
         const map = new Map();
-        (localMsgs || []).forEach((m) => {
-            if (!m || !m.id) {
-                return;
+        (localMsgs || []).forEach((raw) => {
+            const m = normalizeMessage(raw);
+            if (m) {
+                map.set(m.id, m);
             }
-            map.set(m.id, m);
         });
-        (incoming || []).forEach((m) => {
-            if (!m || !m.id || !m.text) {
+        (incoming || []).forEach((raw) => {
+            const m = normalizeMessage(raw);
+            if (!m) {
                 return;
             }
-            if (!map.has(m.id)) {
-                map.set(m.id, {
-                    id: String(m.id),
-                    fromDeviceId: String(m.fromDeviceId || ''),
-                    toDeviceId: String(m.toDeviceId || ''),
-                    text: String(m.text || '').slice(0, MAX_TEXT),
-                    at: Number(m.at) || 0
-                });
+            const prev = map.get(m.id);
+            if (!prev) {
+                map.set(m.id, m);
+                return;
             }
+            if (prev.recalled || m.recalled) {
+                map.set(m.id, normalizeMessage(Object.assign({}, prev, m, {
+                    recalled: true,
+                    text: '',
+                    file: null,
+                    kind: 'text'
+                })) || m);
+                return;
+            }
+            // Giữ bản đầy đủ hơn (có url/path/status tốt hơn)
+            const merged = Object.assign({}, prev, m);
+            if (prev.file || m.file) {
+                merged.file = Object.assign({}, prev.file || {}, m.file || {});
+                if (!merged.file.name) {
+                    merged.file.name = 'file';
+                }
+            }
+            if (prev.status === 'ready' && m.status !== 'ready') {
+                merged.status = 'ready';
+            }
+            map.set(m.id, normalizeMessage(merged) || merged);
         });
         return Array.from(map.values())
             .sort((a, b) => a.at - b.at || a.id.localeCompare(b.id))
@@ -240,30 +637,16 @@
         return 'm' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 10);
     }
 
-    function setUnreadBadge(n) {
-        const badge = el('chatUnreadBadge');
-        if (!badge) {
-            return;
-        }
-        const count = Math.max(0, Math.floor(Number(n) || 0));
-        if (count <= 0) {
-            badge.hidden = true;
-            badge.textContent = '0';
-            return;
-        }
-        badge.hidden = false;
-        badge.textContent = count > 99 ? '99+' : String(count);
+    function bubbleLetter(tag) {
+        const t = String(tag || 'X').toUpperCase().replace(/[^A-Z]/g, '');
+        return t.charAt(0) || 'X';
     }
 
-    function refreshUnreadBadge() {
-        let n = 0;
-        Object.keys(unreadMap).forEach((k) => {
-            if (peer && peer.deviceId === k) {
-                return;
-            }
-            n += Number(unreadMap[k]) || 0;
-        });
-        setUnreadBadge(n);
+    function notifyUnreadUi() {
+        if (window.PresenceBridge && typeof window.PresenceBridge.rerender === 'function') {
+            window.PresenceBridge.rerender();
+        }
+        renderDock();
     }
 
     function markPeerRead(peerId) {
@@ -274,103 +657,834 @@
         const reads = readJson(READ_KEY, {});
         reads[peerId] = Date.now();
         writeJson(READ_KEY, reads);
-        refreshUnreadBadge();
+        sendReadReceipt(peerId);
+        if (window.PresenceBridge && typeof window.PresenceBridge.rerender === 'function') {
+            window.PresenceBridge.rerender();
+        }
+    }
+
+    function sendReadReceipt(peerId) {
+        if (!peerId || !myDeviceId || peerId === myDeviceId) {
+            return;
+        }
+        const t = getThread(peerId);
+        pushMailboxToPeer(peerId, t.messages, { readReceipt: true, force: true });
     }
 
     function bumpUnread(peerId) {
         if (!peerId || peerId === myDeviceId) {
             return;
         }
-        if (peer && peer.deviceId === peerId && isChatOpen()) {
+        const sess = dockSessions.find((s) => s.deviceId === peerId);
+        if (sess && !sess.minimized) {
             markPeerRead(peerId);
             return;
         }
         unreadMap[peerId] = (Number(unreadMap[peerId]) || 0) + 1;
-        refreshUnreadBadge();
+        notifyUnreadUi();
     }
 
-    function isChatOpen() {
-        const panel = el('chatPanel');
-        return !!(panel && !panel.classList.contains('hidden'));
+    function isChatOpen(peerId) {
+        if (peerId) {
+            return dockSessions.some((s) => s.deviceId === peerId);
+        }
+        return dockSessions.length > 0;
     }
 
-    function setChatOpen(open) {
-        const panel = el('chatPanel');
-        if (!panel) {
+    function findSession(peerId) {
+        return dockSessions.find((s) => s.deviceId === peerId) || null;
+    }
+
+    function safeFileName(name) {
+        return String(name || 'file')
+            .replace(/[^\w.\-()+ ]+/g, '_')
+            .replace(/\s+/g, '_')
+            .slice(0, 80) || 'file';
+    }
+
+    function buildStoragePath(peerId, mid, fileName) {
+        return STORAGE_ROOT + '/' + myDeviceId + '/' + peerId + '/' + mid + '_' + safeFileName(fileName);
+    }
+
+    function serializeMsgForMailbox(m) {
+        const n = normalizeMessage(m);
+        if (!n) {
+            return null;
+        }
+        if (n.recalled) {
+            const outR = {
+                id: n.id,
+                fromDeviceId: n.fromDeviceId,
+                toDeviceId: n.toDeviceId,
+                text: '',
+                at: n.at,
+                kind: 'text',
+                recalled: true
+            };
+            if (n.replyTo) {
+                outR.replyTo = n.replyTo;
+            }
+            return outR;
+        }
+        if (n.kind === 'file' && n.status !== 'ready') {
+            return null;
+        }
+        const out = {
+            id: n.id,
+            fromDeviceId: n.fromDeviceId,
+            toDeviceId: n.toDeviceId,
+            text: n.text || '',
+            at: n.at,
+            kind: n.kind,
+            recalled: false
+        };
+        if (n.file) {
+            out.file = {
+                name: n.file.name,
+                size: n.file.size,
+                mime: n.file.mime,
+                path: n.file.path,
+                url: n.file.url
+            };
+        }
+        if (n.replyTo) {
+            out.replyTo = n.replyTo;
+        }
+        return out;
+    }
+
+    function fileBodyHtml(m) {
+        const f = m.file || {};
+        const status = m.status || 'ready';
+        let body = '<div class="chat-file-card">';
+        if (status === 'uploading') {
+            body += '<div class="chat-file-status">Đang tải lên…</div>';
+        } else if (status === 'error') {
+            body += '<div class="chat-file-status chat-file-status--err">Gửi file thất bại</div>';
+        }
+        const href = f.url ? escapeHtml(f.url) : '';
+        const isImg = String(f.mime || '').indexOf('image/') === 0 && href;
+        if (isImg) {
+            body += '<a class="chat-file-link" href="' + href + '" target="_blank" rel="noopener noreferrer">' +
+                '<img class="chat-file-thumb" src="' + href + '" alt="' + escapeHtml(f.name || 'image') + '" />' +
+                '</a>';
+        }
+        if (href) {
+            body += '<a class="chat-file-link" href="' + href + '" target="_blank" rel="noopener noreferrer" download="' +
+                escapeHtml(f.name || 'file') + '">📎 ' + escapeHtml(f.name || 'file') + '</a>';
+        } else {
+            body += '<div class="chat-file-link">📎 ' + escapeHtml(f.name || 'file') + '</div>';
+        }
+        body += '<div class="chat-file-meta">' + escapeHtml(formatFileSize(f.size)) +
+            (f.mime ? ' · ' + escapeHtml(f.mime.split(';')[0]) : '') + '</div>';
+        if (m.text) {
+            body += '<div class="chat-bubble-text">' + escapeHtml(m.text) + '</div>';
+        }
+        body += '</div>';
+        return body;
+    }
+
+    function peerTagForRender(peerId) {
+        const sess = findSession(peerId);
+        if (sess && sess.deviceTag) {
+            return String(sess.deviceTag);
+        }
+        const t = getThread(peerId);
+        if (t && t.peerTag) {
+            return String(t.peerTag);
+        }
+        return peerId ? makeDeviceTag(peerId) : '';
+    }
+
+    function pinBannerHtml(peerId) {
+        const t = getThread(peerId);
+        const myN = (t.pinnedIds || []).length;
+        const peerN = (t.peerPinnedIds || []).length;
+        if (!myN && !peerN) {
+            return '<div class="chat-pin-banner" data-chat-pin-banner="' + escapeHtml(peerId) + '"></div>';
+        }
+        let label = '';
+        if (myN && peerN) {
+            label = 'Bạn ghim ' + myN + ' · đối phương ghim ' + peerN + '.';
+        } else if (myN === 1) {
+            label = 'Bạn đã ghim một tin nhắn.';
+        } else if (myN > 1) {
+            label = 'Bạn đã ghim ' + myN + ' tin nhắn.';
+        } else if (peerN === 1) {
+            label = 'Đối phương đã ghim một tin nhắn.';
+        } else {
+            label = 'Đối phương đã ghim ' + peerN + ' tin nhắn.';
+        }
+        return '<div class="chat-pin-banner is-on" data-chat-pin-banner="' + escapeHtml(peerId) + '">' +
+            '<span class="chat-pin-banner-text">' + escapeHtml(label) + '</span>' +
+            '<button type="button" class="chat-pin-banner-link" data-chat-pins-open="' +
+            escapeHtml(peerId) + '">Xem tất cả</button></div>';
+    }
+
+    function closeAllMsgMenus(exceptMenu) {
+        const dock = el('chatDock');
+        if (!dock) {
             return;
         }
-        panel.classList.toggle('hidden', !open);
-        if (open) {
-            const presencePanel = el('presencePanel');
-            const presenceBtn = el('presenceBtn');
-            if (presencePanel) {
-                presencePanel.classList.add('hidden');
+        dock.querySelectorAll('.chat-msg-menu.is-open').forEach((menu) => {
+            if (exceptMenu && menu === exceptMenu) {
+                return;
             }
-            if (presenceBtn) {
-                presenceBtn.setAttribute('aria-expanded', 'false');
+            menu.classList.remove('is-open');
+            const row = menu.closest('.chat-bubble-row');
+            const btn = row && row.querySelector('.chat-msg-more');
+            if (btn) {
+                btn.classList.remove('is-open');
             }
-            const input = el('chatInput');
-            if (input) {
-                setTimeout(() => {
-                    try {
-                        input.focus();
-                    } catch (e) { /* ignore */ }
-                }, 0);
-            }
-        }
+        });
     }
 
-    function renderMessages(rows) {
-        const box = el('chatMessages');
+    function replyQuoteHtml(m, peerId, peerTag) {
+        if (!m || !m.replyTo || !m.replyTo.id) {
+            return '';
+        }
+        const t = getThread(peerId);
+        const orig = (t.messages || []).find((x) => x.id === m.replyTo.id);
+        let who = m.replyTo.fromDeviceId === myDeviceId ? 'You' : (peerTag || 'Them');
+        let preview = String(m.replyTo.text || '');
+        if (orig) {
+            who = orig.fromDeviceId === myDeviceId ? 'You' : (peerTag || 'Them');
+            preview = orig.recalled ? RECALL_LABEL : previewPinnedText(orig);
+        }
+        if (!preview) {
+            preview = 'Tin nhắn';
+        }
+        return '<div class="chat-reply-quote">' +
+            '<div class="chat-reply-quote-who">' + escapeHtml(who) + '</div>' +
+            '<div class="chat-reply-quote-text">' + escapeHtml(preview) + '</div></div>';
+    }
+
+    function replyDraftHtml(peerId) {
+        const r = pendingReply[peerId];
+        if (!r) {
+            return '<div class="chat-reply-draft" data-chat-reply-draft="' + escapeHtml(peerId) + '"></div>';
+        }
+        const who = r.fromDeviceId === myDeviceId ? 'You' : peerTagForRender(peerId);
+        return '<div class="chat-reply-draft is-on" data-chat-reply-draft="' + escapeHtml(peerId) + '">' +
+            '<div class="chat-reply-draft-body"><strong>Đang trả lời ' + escapeHtml(who) + '</strong>' +
+            '<span>' + escapeHtml(r.text || 'Tin nhắn') + '</span></div>' +
+            '<button type="button" class="chat-reply-draft-cancel" data-chat-reply-cancel="' +
+            escapeHtml(peerId) + '" title="Hủy trả lời" aria-label="Hủy trả lời">×</button></div>';
+    }
+
+    function setReplyTarget(peerId, msgId) {
+        const t = getThread(peerId);
+        const m = (t.messages || []).find((x) => x.id === msgId);
+        if (!m || m.recalled || !findSession(peerId)) {
+            return;
+        }
+        pendingReply[peerId] = {
+            id: m.id,
+            text: previewPinnedText(m).slice(0, 160),
+            fromDeviceId: m.fromDeviceId
+        };
+        renderDock();
+        focusInput(peerId);
+    }
+
+    function clearReplyTarget(peerId) {
+        delete pendingReply[peerId];
+    }
+
+    function takeReplyTarget(peerId) {
+        const r = pendingReply[peerId] || null;
+        delete pendingReply[peerId];
+        return r;
+    }
+
+    function renderMessagesInto(box, rows, peerId) {
         if (!box) {
             return;
         }
         if (!rows.length) {
-            box.innerHTML = '<div class="chat-empty">Chưa có tin — chỉ lưu trên máy khi còn tab; tắt máy ~10 phút sẽ mất.</div>';
+            box.innerHTML = '<div class="chat-empty">Chưa có tin — lưu trên máy; tắt máy ~10 phút sẽ mất.</div>';
             return;
         }
+        const peerTag = peerTagForRender(peerId);
+        const shouldStick = !peerId || scrollPinned[peerId] !== false;
+        const t = getThread(peerId);
+        const pinnedSet = new Set(t.pinnedIds || []);
         let html = '';
         rows.forEach((m) => {
             const mine = m.fromDeviceId === myDeviceId;
-            html += '<div class="chat-bubble-row' + (mine ? ' chat-bubble-row--mine' : '') + '">' +
+            const who = mine ? 'You' : (peerTag || 'Them');
+            const recalled = !!m.recalled;
+            let inner;
+            if (recalled) {
+                inner = '<div class="chat-bubble-text chat-bubble-text--recalled">' +
+                    escapeHtml(RECALL_LABEL) + '</div>';
+            } else if (m.kind === 'file' || m.file) {
+                inner = fileBodyHtml(m);
+            } else {
+                inner = '<div class="chat-bubble-text">' + escapeHtml(m.text) + '</div>';
+            }
+            const canRecall = mine && !recalled;
+            const canPin = !recalled;
+            const canReply = !recalled;
+            const pinned = pinnedSet.has(m.id);
+            const tools = (canReply || canRecall || canPin)
+                ? ('<div class="chat-msg-tools">' +
+                    (canReply
+                        ? '<button type="button" class="chat-msg-reply" data-chat-msg-reply="1" ' +
+                        'title="Trả lời" aria-label="Trả lời tin nhắn">↩</button>'
+                        : '') +
+                    ((canRecall || canPin)
+                        ? ('<button type="button" class="chat-msg-more" data-chat-msg-more="1" ' +
+                        'title="Tuỳ chọn" aria-label="Tuỳ chọn tin nhắn">⋮</button>' +
+                        '<div class="chat-msg-menu" data-chat-msg-menu="1">' +
+                        (canRecall
+                            ? '<button type="button" class="chat-msg-menu-item chat-msg-menu-item--danger" ' +
+                            'data-chat-recall="1">Thu hồi</button>'
+                            : '') +
+                        (canPin
+                            ? '<button type="button" class="chat-msg-menu-item" data-chat-pin-toggle="1">' +
+                            (pinned ? 'Bỏ ghim' : 'Ghim') + '</button>'
+                            : '') +
+                        '</div>')
+                        : '') +
+                    '</div>')
+                : '';
+            html += '<div class="chat-bubble-row' + (mine ? ' chat-bubble-row--mine' : '') +
+                (recalled ? ' chat-bubble-row--recalled' : '') +
+                '" data-msg-id="' + escapeHtml(m.id) + '" data-msg-peer="' + escapeHtml(peerId) + '">' +
+                tools +
                 '<div class="chat-bubble' + (mine ? ' chat-bubble--mine' : '') + '">' +
-                '<div class="chat-bubble-text">' + escapeHtml(m.text) + '</div>' +
+                replyQuoteHtml(m, peerId, peerTag) +
+                inner +
                 '<div class="chat-bubble-time">' + escapeHtml(formatMsgTime(m.at)) +
-                (mine ? ' · You' : '') + '</div>' +
+                ' · ' + escapeHtml(who) + '</div>' +
                 '</div></div>';
         });
+        html += '<div class="chat-status-line" data-chat-status="' + escapeHtml(peerId || '') +
+            '" hidden></div>';
         box.innerHTML = html;
-        box.scrollTop = box.scrollHeight;
+        renderStatusInto(box.querySelector('[data-chat-status]'), peerId);
+        ensureStatusTicker();
+        if (shouldStick) {
+            scrollChatToBottom(box, peerId, true);
+        }
     }
 
-    function updateHeader() {
-        const title = el('chatTitle');
-        const sub = el('chatSubtitle');
-        if (!peer) {
+    function refreshThreadUi(peerId) {
+        const dock = el('chatDock');
+        if (!dock || !peerId) {
             return;
         }
-        if (title) {
-            title.textContent = peer.deviceTag
-                ? ('Chat · ' + peer.deviceTag)
-                : 'Chat';
-        }
-        if (sub) {
-            const bits = [];
-            if (peer.label) {
-                bits.push(peer.label);
+        const bannerHost = dock.querySelector('[data-chat-pin-banner="' + peerId + '"]');
+        if (bannerHost) {
+            const wrap = document.createElement('div');
+            wrap.innerHTML = pinBannerHtml(peerId);
+            const next = wrap.firstElementChild;
+            if (next) {
+                bannerHost.replaceWith(next);
             }
-            bits.push(peer.online ? 'đang online' : 'đối phương offline — tin giữ trên máy bạn');
-            bits.push('local · hết hạn ~10 phút khi tắt máy');
-            sub.textContent = bits.join(' · ');
+        }
+        const box = dock.querySelector('[data-chat-messages="' + peerId + '"]');
+        if (box) {
+            renderMessagesInto(box, getThread(peerId).messages, peerId);
+        }
+        const modal = el('chatPinModal');
+        if (modal && !modal.hidden && modal.getAttribute('data-peer') === peerId) {
+            renderPinnedModal(peerId);
+        }
+    }
+
+    function recallMessage(peerId, msgId) {
+        const t = getThread(peerId);
+        let found = null;
+        t.messages = t.messages.map((m) => {
+            if (m.id !== msgId) {
+                return m;
+            }
+            if (m.fromDeviceId !== myDeviceId || m.recalled) {
+                return m;
+            }
+            found = m;
+            return normalizeMessage({
+                id: m.id,
+                fromDeviceId: m.fromDeviceId,
+                toDeviceId: m.toDeviceId,
+                at: m.at,
+                recalled: true
+            }) || m;
+        });
+        if (!found) {
+            return;
+        }
+        t.pinnedIds = (t.pinnedIds || []).filter((id) => id !== msgId);
+        t.updatedAt = Date.now();
+        setThread(peerId, t);
+        refreshThreadUi(peerId);
+        pushMailboxToPeer(peerId, t.messages, { force: true });
+    }
+
+    function togglePinMessage(peerId, msgId) {
+        const t = getThread(peerId);
+        const msg = (t.messages || []).find((m) => m.id === msgId);
+        if (!msg || msg.recalled) {
+            return;
+        }
+        const pins = (t.pinnedIds || []).slice();
+        const idx = pins.indexOf(msgId);
+        if (idx >= 0) {
+            pins.splice(idx, 1);
+        } else {
+            if (pins.length >= MAX_PINS) {
+                window.alert('Tối đa ' + MAX_PINS + ' tin ghim.');
+                return;
+            }
+            pins.push(msgId);
+        }
+        t.pinnedIds = pins;
+        t.updatedAt = Date.now();
+        setThread(peerId, t);
+        refreshThreadUi(peerId);
+        pushMailboxToPeer(peerId, t.messages, { force: true, pins: true });
+    }
+
+    function ensurePinModal() {
+        let modal = el('chatPinModal');
+        if (modal) {
+            return modal;
+        }
+        modal = document.createElement('div');
+        modal.id = 'chatPinModal';
+        modal.className = 'chat-pin-modal';
+        modal.hidden = true;
+        modal.innerHTML = '<div class="chat-pin-modal-card" role="dialog" aria-modal="true" ' +
+            'aria-label="Tin nhắn đã ghim">' +
+            '<div class="chat-pin-modal-head"><span data-pin-modal-title>Tin nhắn đã ghim</span>' +
+            '<button type="button" class="chat-pin-modal-close" data-chat-pin-modal-close="1" ' +
+            'aria-label="Đóng">×</button></div>' +
+            '<div class="chat-pin-modal-list" data-pin-modal-list></div></div>';
+        document.body.appendChild(modal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal || (e.target && e.target.getAttribute &&
+                e.target.getAttribute('data-chat-pin-modal-close') === '1')) {
+                closePinnedModal();
+                return;
+            }
+            const unpin = e.target && e.target.closest
+                ? e.target.closest('[data-chat-pin-unpin]')
+                : null;
+            if (unpin) {
+                const peerId = modal.getAttribute('data-peer');
+                const msgId = unpin.getAttribute('data-chat-pin-unpin');
+                togglePinMessage(peerId, msgId);
+            }
+        });
+        return modal;
+    }
+
+    function previewPinnedText(m) {
+        if (!m || m.recalled) {
+            return RECALL_LABEL;
+        }
+        if (m.file) {
+            return '📎 ' + (m.file.name || 'file') + (m.text ? (' — ' + m.text) : '');
+        }
+        return String(m.text || '');
+    }
+
+    function renderPinnedModal(peerId) {
+        const modal = ensurePinModal();
+        const t = getThread(peerId);
+        const list = modal.querySelector('[data-pin-modal-list]');
+        const title = modal.querySelector('[data-pin-modal-title]');
+        const myPins = new Set(t.pinnedIds || []);
+        const peerPins = new Set(t.peerPinnedIds || []);
+        const allIds = [];
+        const seen = new Set();
+        (t.pinnedIds || []).concat(t.peerPinnedIds || []).forEach((id) => {
+            if (!seen.has(id)) {
+                seen.add(id);
+                allIds.push(id);
+            }
+        });
+        if (title) {
+            title.textContent = allIds.length
+                ? ('Tin nhắn đã ghim (' + allIds.length + ')')
+                : 'Tin nhắn đã ghim';
+        }
+        if (!list) {
+            return;
+        }
+        if (!allIds.length) {
+            list.innerHTML = '<div class="chat-empty">Chưa ghim tin nào.</div>';
+            return;
+        }
+        const byId = new Map((t.messages || []).map((m) => [m.id, m]));
+        const ordered = allIds
+            .map((id) => byId.get(id))
+            .filter(Boolean)
+            .sort((a, b) => a.at - b.at || a.id.localeCompare(b.id));
+        const peerTag = peerTagForRender(peerId);
+        let html = '';
+        ordered.forEach((m) => {
+            const mine = m.fromDeviceId === myDeviceId;
+            const who = mine ? 'You' : peerTag;
+            const iPinned = myPins.has(m.id);
+            const theyPinned = peerPins.has(m.id);
+            let by = '';
+            if (iPinned && theyPinned) {
+                by = 'Bạn & đối phương ghim';
+            } else if (iPinned) {
+                by = 'Bạn ghim';
+            } else {
+                by = 'Đối phương ghim';
+            }
+            const unpinBtn = iPinned
+                ? ('<button type="button" class="chat-pin-unpin" data-chat-pin-unpin="' +
+                    escapeHtml(m.id) + '">Bỏ ghim</button>')
+                : '';
+            html += '<div class="chat-pin-modal-row' + (mine ? ' chat-pin-modal-row--mine' : '') + '">' +
+                (mine
+                    ? ('<div class="chat-pin-modal-actions"><span class="chat-pin-by">' +
+                        escapeHtml(by) + '</span>' + unpinBtn + '</div>')
+                    : '') +
+                '<div class="chat-pin-modal-bubble">' +
+                '<div class="chat-pin-modal-item-text">' + escapeHtml(previewPinnedText(m)) + '</div>' +
+                '<div class="chat-pin-modal-item-meta">' +
+                escapeHtml(formatMsgTime(m.at)) + ' · ' + escapeHtml(who) + '</div></div>' +
+                (!mine
+                    ? ('<div class="chat-pin-modal-actions"><span class="chat-pin-by">' +
+                        escapeHtml(by) + '</span>' + unpinBtn + '</div>')
+                    : '') +
+                '</div>';
+        });
+        list.innerHTML = html || '<div class="chat-empty">Chưa ghim tin nào.</div>';
+    }
+
+    function openPinnedModal(peerId) {
+        const modal = ensurePinModal();
+        modal.setAttribute('data-peer', peerId);
+        modal.hidden = false;
+        renderPinnedModal(peerId);
+    }
+
+    function closePinnedModal() {
+        const modal = el('chatPinModal');
+        if (modal) {
+            modal.hidden = true;
+            modal.removeAttribute('data-peer');
+        }
+    }
+
+    function sessionTitle(sess) {
+        const tag = String(sess.deviceTag || 'Chat');
+        const place = formatChatPlace(sess.place);
+        return place ? (tag + ' (' + place + ')') : tag;
+    }
+
+    function sessionSubtitle(sess) {
+        return sess.online ? 'đang online' : 'offline — tin giữ trên máy bạn';
+    }
+
+    function autosizeInput(input) {
+        if (!input) {
+            return;
+        }
+        input.style.height = 'auto';
+        const next = Math.max(INPUT_MIN_H, Math.min(INPUT_MAX_H, input.scrollHeight));
+        input.style.height = next + 'px';
+    }
+
+    function ensureDock() {
+        let dock = el('chatDock');
+        if (!dock) {
+            dock = document.createElement('div');
+            dock.id = 'chatDock';
+            dock.className = 'chat-dock';
+            document.body.appendChild(dock);
+        }
+        return dock;
+    }
+
+    function captureDrafts() {
+        const drafts = {};
+        const dock = el('chatDock');
+        if (!dock) {
+            return drafts;
+        }
+        dock.querySelectorAll('[data-chat-input]').forEach((input) => {
+            const id = input.getAttribute('data-chat-input');
+            if (id) {
+                drafts[id] = input.value;
+            }
+        });
+        return drafts;
+    }
+
+    function pendingList(peerId) {
+        if (!pendingAttach[peerId]) {
+            pendingAttach[peerId] = [];
+        }
+        return pendingAttach[peerId];
+    }
+
+    function clearPendingAttach(peerId) {
+        const list = pendingAttach[peerId] || [];
+        list.forEach((item) => {
+            if (item && item.previewUrl) {
+                try {
+                    URL.revokeObjectURL(item.previewUrl);
+                } catch (e) { /* ignore */ }
+            }
+        });
+        delete pendingAttach[peerId];
+    }
+
+    function removePendingAttachItem(peerId, itemId) {
+        const list = pendingAttach[peerId] || [];
+        const next = [];
+        list.forEach((item) => {
+            if (item.id === itemId) {
+                if (item.previewUrl) {
+                    try {
+                        URL.revokeObjectURL(item.previewUrl);
+                    } catch (e) { /* ignore */ }
+                }
+                return;
+            }
+            next.push(item);
+        });
+        if (next.length) {
+            pendingAttach[peerId] = next;
+        } else {
+            delete pendingAttach[peerId];
+        }
+    }
+
+    function stageFile(peerId, file, opts) {
+        const silent = !!(opts && opts.silent);
+        if (!peerId || !file || !findSession(peerId)) {
+            return false;
+        }
+        if (file.size > MAX_FILE_BYTES) {
+            if (!silent) {
+                window.alert('File tối đa ' + formatFileSize(MAX_FILE_BYTES) + '.');
+            }
+            return false;
+        }
+        const list = pendingList(peerId);
+        if (list.length >= MAX_PENDING_FILES) {
+            if (!silent) {
+                window.alert('Tối đa ' + MAX_PENDING_FILES + ' file mỗi lần gửi.');
+            }
+            return false;
+        }
+        const mime = String(file.type || 'application/octet-stream');
+        let name = String(file.name || '').trim();
+        if (!name) {
+            const ext = mime.indexOf('image/') === 0
+                ? (mime.split('/')[1] || 'png')
+                : 'bin';
+            name = 'clipboard-' + Date.now() + '.' + ext;
+        }
+        const previewUrl = mime.indexOf('image/') === 0
+            ? URL.createObjectURL(file)
+            : '';
+        list.push({
+            id: 'p' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2, 8),
+            file: file,
+            previewUrl: previewUrl,
+            name: name.slice(0, 120),
+            size: Number(file.size) || 0,
+            mime: mime.slice(0, 120)
+        });
+        if (!silent) {
+            renderDock();
+            focusInput(peerId);
+        }
+        return true;
+    }
+
+    function stageFiles(peerId, files) {
+        const arr = Array.prototype.slice.call(files || []);
+        let ok = 0;
+        let blockedSize = false;
+        let blockedMax = false;
+        arr.forEach((f) => {
+            if (!f) {
+                return;
+            }
+            if (f.size > MAX_FILE_BYTES) {
+                blockedSize = true;
+                return;
+            }
+            if ((pendingAttach[peerId] || []).length >= MAX_PENDING_FILES) {
+                blockedMax = true;
+                return;
+            }
+            if (stageFile(peerId, f, { silent: true })) {
+                ok += 1;
+            }
+        });
+        if (blockedSize) {
+            window.alert('Một số file vượt quá ' + formatFileSize(MAX_FILE_BYTES) + '.');
+        } else if (blockedMax) {
+            window.alert('Tối đa ' + MAX_PENDING_FILES + ' file mỗi lần gửi.');
+        }
+        if (ok > 0) {
+            renderDock();
+            focusInput(peerId);
+        }
+        return ok > 0;
+    }
+
+    function draftAttachHtml(peerId) {
+        const list = pendingAttach[peerId] || [];
+        if (!list.length) {
+            return '<div class="chat-draft-list" data-chat-draft="' + escapeHtml(peerId) + '"></div>';
+        }
+        let html = '<div class="chat-draft-list is-on" data-chat-draft="' + escapeHtml(peerId) + '">';
+        list.forEach((p) => {
+            const thumb = p.previewUrl
+                ? '<img class="chat-draft-thumb" src="' + escapeHtml(p.previewUrl) + '" alt="" />'
+                : '<span class="chat-draft-icon">📎</span>';
+            html += '<div class="chat-draft-attach">' +
+                thumb +
+                '<div class="chat-draft-meta">' + escapeHtml(p.name) +
+                '<small>' + escapeHtml(formatFileSize(p.size)) + ' · chờ Gửi</small></div>' +
+                '<button type="button" class="chat-draft-remove" data-chat-draft-remove="' +
+                escapeHtml(peerId) + '" data-chat-draft-id="' + escapeHtml(p.id) +
+                '" title="Bỏ đính kèm" aria-label="Bỏ đính kèm">×</button>' +
+                '</div>';
+        });
+        html += '</div>';
+        return html;
+    }
+
+    function renderDock() {
+        const dock = ensureDock();
+        const drafts = captureDrafts();
+        const ordered = dockSessions.slice().sort((a, b) => b.openedAt - a.openedAt);
+        let html = '';
+        ordered.forEach((sess) => {
+            const unread = Number(unreadMap[sess.deviceId]) || 0;
+            if (sess.minimized) {
+                html += '<button type="button" class="chat-bubble-btn' +
+                    (unread > 0 ? ' chat-bubble-btn--unread' : '') + '"' +
+                    ' data-chat-expand="' + escapeHtml(sess.deviceId) + '"' +
+                    ' title="' + escapeHtml(sess.deviceTag || 'Chat') + '">' +
+                    escapeHtml(bubbleLetter(sess.deviceTag)) +
+                    (unread > 0
+                        ? '<span class="chat-bubble-unread">' + (unread > 99 ? '99+' : String(unread)) + '</span>'
+                        : '') +
+                    '</button>';
+                return;
+            }
+            html += '<div class="chat-window" data-chat-window="' + escapeHtml(sess.deviceId) + '">' +
+                '<div class="chat-panel-header" data-chat-header="' + escapeHtml(sess.deviceId) + '">' +
+                '<div class="chat-panel-heading">' +
+                '<div class="chat-title" title="' + escapeHtml(sessionTitle(sess)) + '">' +
+                escapeHtml(sessionTitle(sess)) + '</div>' +
+                '<div class="chat-subtitle">' + escapeHtml(sessionSubtitle(sess)) + '</div>' +
+                '</div>' +
+                '<div class="chat-header-actions">' +
+                '<button type="button" class="chat-min-btn" data-chat-min="' + escapeHtml(sess.deviceId) +
+                '" title="Thu nhỏ" aria-label="Thu nhỏ">−</button>' +
+                '<button type="button" class="chat-close-btn" data-chat-close="' + escapeHtml(sess.deviceId) +
+                '" title="Đóng" aria-label="Đóng">×</button>' +
+                '</div></div>' +
+                pinBannerHtml(sess.deviceId) +
+                '<div class="chat-messages" data-chat-messages="' + escapeHtml(sess.deviceId) + '"></div>' +
+                '<form class="chat-form" data-chat-form="' + escapeHtml(sess.deviceId) + '" autocomplete="off">' +
+                replyDraftHtml(sess.deviceId) +
+                draftAttachHtml(sess.deviceId) +
+                '<div class="chat-composer-row">' +
+                '<button type="button" class="chat-attach-btn" data-chat-attach="' + escapeHtml(sess.deviceId) +
+                '" title="Đính kèm file" aria-label="Đính kèm file">+' +
+                (((pendingAttach[sess.deviceId] || []).length)
+                    ? '<span class="chat-attach-badge">' +
+                    String((pendingAttach[sess.deviceId] || []).length > 99
+                        ? '99+'
+                        : (pendingAttach[sess.deviceId] || []).length) +
+                    '</span>'
+                    : '') +
+                '</button>' +
+                '<input class="chat-file-input" type="file" accept="*/*" multiple data-chat-file-input="' +
+                escapeHtml(sess.deviceId) + '" />' +
+                '<textarea class="chat-input" rows="1" maxlength="500" placeholder="Gõ tin nhắn hoặc dán ảnh…" ' +
+                'aria-label="Nội dung tin nhắn" data-chat-input="' + escapeHtml(sess.deviceId) + '"></textarea>' +
+                '<button type="submit" class="chat-send-btn">Gửi</button>' +
+                '</div></form></div>';
+        });
+        dock.innerHTML = html;
+        ordered.forEach((sess) => {
+            if (sess.minimized) {
+                return;
+            }
+            const box = dock.querySelector('[data-chat-messages="' + sess.deviceId + '"]');
+            renderMessagesInto(box, getThread(sess.deviceId).messages, sess.deviceId);
+            const input = dock.querySelector('[data-chat-input="' + sess.deviceId + '"]');
+            if (input) {
+                if (Object.prototype.hasOwnProperty.call(drafts, sess.deviceId)) {
+                    input.value = drafts[sess.deviceId];
+                }
+                autosizeInput(input);
+            }
+        });
+    }
+
+    function focusInput(peerId) {
+        const dock = el('chatDock');
+        if (!dock) {
+            return;
+        }
+        const input = dock.querySelector('[data-chat-input="' + peerId + '"]');
+        if (input) {
+            setTimeout(() => {
+                try {
+                    input.focus();
+                } catch (e) { /* ignore */ }
+            }, 0);
         }
     }
 
     function refreshOpenThread() {
-        if (!peer || !isChatOpen()) {
+        const dock = el('chatDock');
+        if (!dock) {
             return;
         }
-        const t = getThread(peer.deviceId);
-        renderMessages(t.messages);
+        dockSessions.forEach((sess) => {
+            if (sess.minimized) {
+                return;
+            }
+            const box = dock.querySelector('[data-chat-messages="' + sess.deviceId + '"]');
+            if (box) {
+                renderMessagesInto(box, getThread(sess.deviceId).messages, sess.deviceId);
+            }
+        });
+    }
+
+    function updateThreadMessage(peerId, mid, patch) {
+        const t = getThread(peerId);
+        let found = false;
+        t.messages = t.messages.map((m) => {
+            if (m.id !== mid) {
+                return m;
+            }
+            found = true;
+            const next = Object.assign({}, m, patch || {});
+            if (patch && patch.file) {
+                next.file = Object.assign({}, m.file || {}, patch.file);
+            }
+            return normalizeMessage(next) || next;
+        });
+        if (!found) {
+            return;
+        }
+        t.updatedAt = Date.now();
+        setThread(peerId, t);
+        const dock = el('chatDock');
+        const box = dock && dock.querySelector('[data-chat-messages="' + peerId + '"]');
+        renderMessagesInto(box, t.messages, peerId);
     }
 
     function openChat(opts) {
@@ -379,73 +1493,281 @@
             console.warn('[chat] blocked: same device cannot chat with itself');
             return;
         }
-        peer = {
-            deviceId: peerId,
-            deviceTag: String((opts && opts.deviceTag) || makeDeviceTag(peerId)),
-            label: String((opts && opts.label) || ''),
-            online: !!(opts && opts.online)
-        };
+        const silent = !!(opts && opts.silent);
+        const tag = String((opts && opts.deviceTag) || makeDeviceTag(peerId));
+        const label = String((opts && opts.label) || '');
+        const place = String((opts && opts.place) || '');
+        const online = opts && typeof opts.online === 'boolean'
+            ? !!opts.online
+            : onlineDeviceSet.has(peerId);
+
+        let sess = findSession(peerId);
+        if (sess) {
+            sess.minimized = false;
+            sess.deviceTag = tag || sess.deviceTag;
+            sess.label = label || sess.label;
+            sess.place = place || sess.place;
+            sess.online = online;
+            sess.openedAt = Date.now();
+        } else {
+            while (dockSessions.length >= MAX_DOCK) {
+                dockSessions.sort((a, b) => a.openedAt - b.openedAt);
+                dockSessions.shift();
+            }
+            sess = {
+                deviceId: peerId,
+                deviceTag: tag,
+                label: label,
+                place: place,
+                online: online,
+                minimized: false,
+                openedAt: Date.now()
+            };
+            dockSessions.push(sess);
+        }
+
         const t = getThread(peerId);
-        t.peerTag = peer.deviceTag || t.peerTag;
-        t.peerLabel = peer.label || t.peerLabel;
+        t.peerTag = sess.deviceTag || t.peerTag;
+        t.peerLabel = sess.label || t.peerLabel;
         setThread(peerId, t);
-        updateHeader();
-        setChatOpen(true);
-        renderMessages(t.messages);
         markPeerRead(peerId);
-        // Nếu mình còn lịch sử và peer online → đẩy sang peer
-        if (peer.online && t.messages.length) {
+        scrollPinned[peerId] = true;
+        renderDock();
+        focusInput(peerId);
+        if (sess.online && t.messages.length) {
             pushMailboxToPeer(peerId, t.messages);
         }
-        broadcast({ type: 'open', peer: peer });
+        if (!silent) {
+            broadcast({ type: 'open', peer: sess });
+        }
+    }
+
+    function minimizeChat(peerId, silent) {
+        const sess = findSession(peerId);
+        if (!sess) {
+            return;
+        }
+        sess.minimized = true;
+        renderDock();
+        if (!silent) {
+            broadcast({ type: 'min', peerId: peerId });
+        }
+    }
+
+    function expandChat(peerId, silent) {
+        const sess = findSession(peerId);
+        if (!sess) {
+            return;
+        }
+        sess.minimized = false;
+        sess.openedAt = Date.now();
+        scrollPinned[peerId] = true;
+        markPeerRead(peerId);
+        renderDock();
+        focusInput(peerId);
+        if (!silent) {
+            broadcast({ type: 'expand', peerId: peerId });
+        }
     }
 
     function closeChat(opts) {
         const silent = !!(opts && opts.silent);
-        setChatOpen(false);
-        peer = null;
+        const peerId = opts && opts.peerId ? String(opts.peerId) : '';
+        if (peerId) {
+            clearPendingAttach(peerId);
+            clearReplyTarget(peerId);
+            dockSessions = dockSessions.filter((s) => s.deviceId !== peerId);
+        } else {
+            Object.keys(pendingAttach).forEach(clearPendingAttach);
+            Object.keys(pendingReply).forEach((k) => { delete pendingReply[k]; });
+            dockSessions = [];
+        }
+        renderDock();
         if (!silent) {
-            broadcast({ type: 'close' });
+            broadcast({ type: 'close', peerId: peerId || null });
         }
     }
 
-    function sendMessage(text) {
-        const raw = String(text || '').trim();
-        if (!raw || !peer || !myDeviceId) {
+    function submitComposer(peerId) {
+        const dock = el('chatDock');
+        const input = dock && dock.querySelector('[data-chat-input="' + peerId + '"]');
+        const text = input ? input.value : '';
+        const pending = (pendingAttach[peerId] || []).slice();
+        if (!pending.length && !String(text || '').trim()) {
             return Promise.resolve(false);
         }
-        if (!peer.deviceId || peer.deviceId === myDeviceId) {
+        if (input) {
+            input.value = '';
+            autosizeInput(input);
+        }
+        if (pending.length) {
+            const files = pending.map((p) => p.file);
+            clearPendingAttach(peerId);
+            const replySnap = takeReplyTarget(peerId);
+            renderDock();
+            const next = el('chatDock') && el('chatDock').querySelector('[data-chat-input="' + peerId + '"]');
+            if (next) {
+                next.value = '';
+                autosizeInput(next);
+            }
+            let chain = Promise.resolve(true);
+            files.forEach((file, idx) => {
+                const caption = idx === 0 ? text : '';
+                const reply = idx === 0 ? replySnap : null;
+                chain = chain.then(() => sendFile(peerId, file, caption, reply));
+            });
+            return chain;
+        }
+        return sendMessage(peerId, text).then((ok) => {
+            if (!ok && String(text || '').trim()) {
+                const again = el('chatDock') && el('chatDock').querySelector('[data-chat-input="' + peerId + '"]');
+                if (again) {
+                    again.value = text;
+                    autosizeInput(again);
+                }
+            }
+            return ok;
+        });
+    }
+
+    function sendMessage(peerId, text) {
+        const raw = String(text || '').trim();
+        const sess = findSession(peerId);
+        if (!raw || !sess || !myDeviceId) {
+            return Promise.resolve(false);
+        }
+        if (peerId === myDeviceId) {
             return Promise.resolve(false);
         }
         if (raw.length > MAX_TEXT) {
             return Promise.resolve(false);
         }
+        const replyTo = takeReplyTarget(peerId);
         const now = Date.now();
         const m = {
             id: msgId(),
             fromDeviceId: myDeviceId,
-            toDeviceId: peer.deviceId,
+            toDeviceId: peerId,
             text: raw,
-            at: now
+            at: now,
+            kind: 'text',
+            status: 'ready',
+            replyTo: replyTo
         };
-        const t = getThread(peer.deviceId);
+        const t = getThread(peerId);
         t.messages = mergeMessages(t.messages, [m]);
-        t.peerTag = peer.deviceTag || t.peerTag;
-        t.peerLabel = peer.label || t.peerLabel;
+        t.peerTag = sess.deviceTag || t.peerTag;
+        t.peerLabel = sess.label || t.peerLabel;
         t.updatedAt = now;
-        setThread(peer.deviceId, t);
-        renderMessages(t.messages);
-        markPeerRead(peer.deviceId);
-        // Mailbox tạm: peer online thì nhận ngay; offline thì khi họ online lại + mình còn sống sẽ push lại
-        return pushMailboxToPeer(peer.deviceId, t.messages).then(() => true);
+        setThread(peerId, t);
+        noteReplied(peerId);
+        scrollPinned[peerId] = true;
+        const dock = el('chatDock');
+        const box = dock && dock.querySelector('[data-chat-messages="' + peerId + '"]');
+        renderMessagesInto(box, t.messages, peerId);
+        // Cập nhật dải "Đang trả lời" nếu vừa clear
+        const draftHost = dock && dock.querySelector('[data-chat-reply-draft="' + peerId + '"]');
+        if (draftHost) {
+            const wrap = document.createElement('div');
+            wrap.innerHTML = replyDraftHtml(peerId);
+            if (wrap.firstElementChild) {
+                draftHost.replaceWith(wrap.firstElementChild);
+            }
+        }
+        markPeerRead(peerId);
+        setTimeout(() => refreshStatusLine(peerId), SENT_FLASH_MS + 40);
+        return pushMailboxToPeer(peerId, t.messages).then(() => true);
     }
 
-    function pushMailboxToPeer(peerId, messages) {
+    function uploadToStorage(file, path) {
+        if (!storage) {
+            return Promise.reject(new Error('Firebase Storage chưa sẵn sàng'));
+        }
+        const ref = storage.ref(path);
+        return ref.put(file, {
+            contentType: file.type || 'application/octet-stream',
+            customMetadata: {
+                fromDeviceId: myDeviceId,
+                originalName: String(file.name || '').slice(0, 120)
+            }
+        }).then(() => ref.getDownloadURL()).then((url) => ({ url: url, path: path }));
+    }
+
+    function sendFile(peerId, file, caption, replyTo) {
+        const sess = findSession(peerId);
+        if (!sess || !myDeviceId || !file || peerId === myDeviceId) {
+            return Promise.resolve(false);
+        }
+        if (file.size > MAX_FILE_BYTES) {
+            window.alert('File tối đa ' + formatFileSize(MAX_FILE_BYTES) + '.');
+            return Promise.resolve(false);
+        }
+        if (!storage) {
+            window.alert('Chưa bật Firebase Storage (hoặc chưa load SDK). Xem PRESENCE.md.');
+            return Promise.resolve(false);
+        }
+        const now = Date.now();
+        const mid = msgId();
+        const path = buildStoragePath(peerId, mid, file.name);
+        const cap = String(caption || '').trim().slice(0, MAX_TEXT);
+        const pending = {
+            id: mid,
+            fromDeviceId: myDeviceId,
+            toDeviceId: peerId,
+            text: cap,
+            at: now,
+            kind: 'file',
+            status: 'uploading',
+            replyTo: replyTo || null,
+            file: {
+                name: String(file.name || 'file').slice(0, 120),
+                size: Number(file.size) || 0,
+                mime: String(file.type || 'application/octet-stream').slice(0, 120),
+                path: path,
+                url: ''
+            }
+        };
+        const t = getThread(peerId);
+        t.messages = mergeMessages(t.messages, [pending]);
+        t.peerTag = sess.deviceTag || t.peerTag;
+        t.peerLabel = sess.label || t.peerLabel;
+        t.updatedAt = now;
+        setThread(peerId, t);
+        noteReplied(peerId);
+        scrollPinned[peerId] = true;
+        const dock = el('chatDock');
+        const box = dock && dock.querySelector('[data-chat-messages="' + peerId + '"]');
+        renderMessagesInto(box, t.messages, peerId);
+        markPeerRead(peerId);
+        setTimeout(() => refreshStatusLine(peerId), SENT_FLASH_MS + 40);
+
+        idbPut(mid, file);
+        return uploadToStorage(file, path).then((res) => {
+            updateThreadMessage(peerId, mid, {
+                status: 'ready',
+                file: { url: res.url, path: res.path }
+            });
+            const readyThread = getThread(peerId);
+            return pushMailboxToPeer(peerId, readyThread.messages).then(() => true);
+        }).catch((err) => {
+            console.warn('[chat] file upload failed', err);
+            updateThreadMessage(peerId, mid, { status: 'error' });
+            window.alert('Không gửi được file. Kiểm tra Firebase Storage rules / Anonymous Auth.');
+            return false;
+        });
+    }
+
+    function pushMailboxToPeer(peerId, messages, opts) {
         if (!db || !peerId || peerId === myDeviceId) {
             return Promise.resolve();
         }
+        const options = opts || {};
         const now = Date.now();
-        if (lastPushAt[peerId] && (now - lastPushAt[peerId]) < 800) {
+        if (!options.force && lastPushAt[peerId] && (now - lastPushAt[peerId]) < 800) {
+            return Promise.resolve();
+        }
+        const serialized = (messages || []).map(serializeMsgForMailbox).filter(Boolean);
+        if (!serialized.length && !options.readReceipt && !options.pins) {
             return Promise.resolve();
         }
         lastPushAt[peerId] = now;
@@ -453,15 +1775,14 @@
             fromDeviceId: myDeviceId,
             fromDeviceTag: myDeviceTag,
             at: now,
-            messages: (messages || []).slice(-MSG_LIMIT).map((m) => ({
-                id: m.id,
-                fromDeviceId: m.fromDeviceId,
-                toDeviceId: m.toDeviceId,
-                text: m.text,
-                at: m.at
-            }))
+            messages: serialized.slice(-MSG_LIMIT)
         };
-        // Ghi tạm → peer đọc xong sẽ xóa. Không phải kho lịch sử.
+        if (options.readReceipt) {
+            payload.readReceipt = { readAt: now };
+        }
+        if (options.pins || options.readReceipt || serialized.length) {
+            payload.pins = (getThread(peerId).pinnedIds || []).slice(0, MAX_PINS);
+        }
         return db.ref(MAILBOX_PATH + '/' + peerId + '/' + myDeviceId).set(payload)
             .catch((err) => {
                 console.warn('[chat] mailbox push failed', err);
@@ -484,32 +1805,61 @@
         if (!fromId || fromId === myDeviceId || !payload) {
             return;
         }
+        if (payload.readReceipt) {
+            applyPeerReadReceipt(fromId, payload.readReceipt.readAt);
+        }
+        if (Object.prototype.hasOwnProperty.call(payload, 'pins')) {
+            const tPins = getThread(fromId);
+            const nextPins = Array.isArray(payload.pins)
+                ? payload.pins.map((id) => String(id)).filter(Boolean).slice(0, MAX_PINS)
+                : [];
+            const prevSig = (tPins.peerPinnedIds || []).join('|');
+            const nextSig = nextPins.join('|');
+            if (prevSig !== nextSig) {
+                tPins.peerPinnedIds = nextPins;
+                tPins.updatedAt = Date.now();
+                setThread(fromId, tPins);
+                if (findSession(fromId) && !findSession(fromId).minimized) {
+                    refreshThreadUi(fromId);
+                } else if (window.PresenceBridge && typeof window.PresenceBridge.rerender === 'function') {
+                    // banner cập nhật khi mở lại
+                }
+            }
+        }
         const incoming = normalizeMessageList(payload.messages);
         if (!incoming.length) {
             db.ref(MAILBOX_PATH + '/' + myDeviceId + '/' + fromId).remove().catch(() => { /* ignore */ });
             return;
         }
         const t = getThread(fromId);
-        const before = t.messages.length;
+        const beforeLen = t.messages.length;
+        const beforeSig = t.messages.map((m) => m.id + ':' + (m.recalled ? '1' : '0')).join('|');
         t.messages = mergeMessages(t.messages, incoming);
+        const recalledIds = new Set(t.messages.filter((m) => m.recalled).map((m) => m.id));
+        if (recalledIds.size) {
+            t.pinnedIds = (t.pinnedIds || []).filter((id) => !recalledIds.has(id));
+        }
         t.peerTag = String(payload.fromDeviceTag || t.peerTag || makeDeviceTag(fromId));
         t.updatedAt = Date.now();
         setThread(fromId, t);
-        const added = t.messages.length - before;
+        const afterSig = t.messages.map((m) => m.id + ':' + (m.recalled ? '1' : '0')).join('|');
+        const added = t.messages.length - beforeLen;
+        const changed = added > 0 || beforeSig !== afterSig;
+        const sess = findSession(fromId);
         if (added > 0) {
-            if (peer && peer.deviceId === fromId && isChatOpen()) {
-                renderMessages(t.messages);
+            if (sess && !sess.minimized) {
+                flashReceived(fromId);
                 markPeerRead(fromId);
             } else {
                 bumpUnread(fromId);
             }
         }
-        // Xóa mailbox ngay sau khi merge — không để lâu trên Firebase
         db.ref(MAILBOX_PATH + '/' + myDeviceId + '/' + fromId).remove().catch(() => { /* ignore */ });
-
-        // Nếu mình đang mở chat với họ và mình có bản đầy hơn → đẩy lại (hai chiều merge)
-        if (peer && peer.deviceId === fromId && isChatOpen()) {
-            pushMailboxToPeer(fromId, t.messages);
+        if (sess && !sess.minimized && changed) {
+            refreshThreadUi(fromId);
+            if (added > 0) {
+                pushMailboxToPeer(fromId, getThread(fromId).messages);
+            }
         }
     }
 
@@ -526,16 +1876,17 @@
         });
     }
 
-    /** Khi peer device xuất hiện online trên presence → đẩy transcript local (nếu còn). */
     function onPresenceDevices(onlineDeviceIds) {
-        const set = onlineDeviceIds instanceof Set ? onlineDeviceIds : new Set(onlineDeviceIds || []);
-        if (peer && peer.deviceId) {
-            peer.online = set.has(peer.deviceId);
-            updateHeader();
-        }
+        onlineDeviceSet = onlineDeviceIds instanceof Set
+            ? onlineDeviceIds
+            : new Set(onlineDeviceIds || []);
+        dockSessions.forEach((sess) => {
+            sess.online = onlineDeviceSet.has(sess.deviceId);
+        });
+        renderDock();
         const store = loadStore();
         Object.keys(store).forEach((peerId) => {
-            if (!set.has(peerId) || peerId === myDeviceId) {
+            if (!onlineDeviceSet.has(peerId) || peerId === myDeviceId) {
                 return;
             }
             const t = store[peerId];
@@ -572,56 +1923,231 @@
     }
 
     function bindUi() {
-        const panel = el('chatPanel');
-        const closeBtn = el('chatCloseBtn');
-        const form = el('chatForm');
-        const input = el('chatInput');
-        if (!panel || panel.dataset.chatBound === '1') {
+        const dock = ensureDock();
+        if (dock.dataset.chatBound === '1') {
             return;
         }
-        panel.dataset.chatBound = '1';
-
-        if (closeBtn) {
-            closeBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                closeChat();
-            });
-        }
-
-        if (form && input) {
-            form.addEventListener('submit', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const text = input.value;
-                input.value = '';
-                sendMessage(text).then((ok) => {
-                    if (!ok && text.trim()) {
-                        input.value = text;
-                    }
-                });
-            });
-            input.addEventListener('keydown', (e) => e.stopPropagation());
-            input.addEventListener('mousedown', (e) => e.stopPropagation());
-        }
-
-        panel.addEventListener('click', (e) => e.stopPropagation());
-
-        document.addEventListener('click', (e) => {
-            if (!isChatOpen()) {
+        dock.dataset.chatBound = '1';
+        dock.addEventListener('scroll', (e) => {
+            const box = e.target && e.target.getAttribute
+                ? (e.target.getAttribute('data-chat-messages') ? e.target : null)
+                : null;
+            if (!box) {
                 return;
             }
-            const widget = el('presenceWidget');
-            if (widget && widget.contains(e.target)) {
+            const peerId = box.getAttribute('data-chat-messages');
+            if (!peerId) {
                 return;
             }
-            closeChat();
+            scrollPinned[peerId] = isChatNearBottom(box);
+        }, true);
+        dock.addEventListener('click', (e) => {
+            const t = e.target;
+            if (!t || !t.closest) {
+                return;
+            }
+            e.stopPropagation();
+            const pinsOpen = t.closest('[data-chat-pins-open]');
+            if (pinsOpen) {
+                openPinnedModal(pinsOpen.getAttribute('data-chat-pins-open'));
+                return;
+            }
+            const replyCancel = t.closest('[data-chat-reply-cancel]');
+            if (replyCancel) {
+                clearReplyTarget(replyCancel.getAttribute('data-chat-reply-cancel'));
+                renderDock();
+                return;
+            }
+            const replyBtn = t.closest('[data-chat-msg-reply]');
+            if (replyBtn) {
+                const row = replyBtn.closest('.chat-bubble-row');
+                const peerId = row && row.getAttribute('data-msg-peer');
+                const msgId = row && row.getAttribute('data-msg-id');
+                closeAllMsgMenus();
+                if (peerId && msgId) {
+                    setReplyTarget(peerId, msgId);
+                }
+                return;
+            }
+            const moreBtn = t.closest('[data-chat-msg-more]');
+            if (moreBtn) {
+                const row = moreBtn.closest('.chat-bubble-row');
+                const menu = row && row.querySelector('[data-chat-msg-menu]');
+                const willOpen = menu && !menu.classList.contains('is-open');
+                closeAllMsgMenus(willOpen ? menu : null);
+                if (menu && willOpen) {
+                    menu.classList.add('is-open');
+                    moreBtn.classList.add('is-open');
+                }
+                return;
+            }
+            const recallBtn = t.closest('[data-chat-recall]');
+            if (recallBtn) {
+                const row = recallBtn.closest('.chat-bubble-row');
+                const peerId = row && row.getAttribute('data-msg-peer');
+                const msgId = row && row.getAttribute('data-msg-id');
+                closeAllMsgMenus();
+                if (peerId && msgId) {
+                    recallMessage(peerId, msgId);
+                }
+                return;
+            }
+            const pinBtn = t.closest('[data-chat-pin-toggle]');
+            if (pinBtn) {
+                const row = pinBtn.closest('.chat-bubble-row');
+                const peerId = row && row.getAttribute('data-msg-peer');
+                const msgId = row && row.getAttribute('data-msg-id');
+                closeAllMsgMenus();
+                if (peerId && msgId) {
+                    togglePinMessage(peerId, msgId);
+                }
+                return;
+            }
+            if (!t.closest('[data-chat-msg-menu]')) {
+                closeAllMsgMenus();
+            }
+            const draftRm = t.closest('[data-chat-draft-remove]');
+            if (draftRm) {
+                removePendingAttachItem(
+                    draftRm.getAttribute('data-chat-draft-remove'),
+                    draftRm.getAttribute('data-chat-draft-id')
+                );
+                renderDock();
+                return;
+            }
+            const attachBtn = t.closest('[data-chat-attach]');
+            if (attachBtn) {
+                const peerId = attachBtn.getAttribute('data-chat-attach');
+                const input = dock.querySelector('[data-chat-file-input="' + peerId + '"]');
+                if (input) {
+                    input.click();
+                }
+                return;
+            }
+            const closeBtn = t.closest('[data-chat-close]');
+            if (closeBtn) {
+                closeChat({ peerId: closeBtn.getAttribute('data-chat-close') });
+                return;
+            }
+            const minBtn = t.closest('[data-chat-min]');
+            if (minBtn) {
+                minimizeChat(minBtn.getAttribute('data-chat-min'));
+                return;
+            }
+            const expandBtn = t.closest('[data-chat-expand]');
+            if (expandBtn) {
+                expandChat(expandBtn.getAttribute('data-chat-expand'));
+                return;
+            }
+            const header = t.closest('[data-chat-header]');
+            if (header && !t.closest('.chat-header-actions')) {
+                minimizeChat(header.getAttribute('data-chat-header'));
+            }
         });
+        document.addEventListener('click', (e) => {
+            if (e.target && e.target.closest && e.target.closest('#chatDock')) {
+                return;
+            }
+            closeAllMsgMenus();
+        });
+        dock.addEventListener('change', (e) => {
+            const input = e.target && e.target.closest
+                ? e.target.closest('[data-chat-file-input]')
+                : null;
+            if (!input || !input.files || !input.files.length) {
+                return;
+            }
+            const peerId = input.getAttribute('data-chat-file-input');
+            const files = Array.prototype.slice.call(input.files);
+            input.value = '';
+            stageFiles(peerId, files);
+        });
+        dock.addEventListener('paste', (e) => {
+            const input = e.target && e.target.closest
+                ? e.target.closest('[data-chat-input]')
+                : null;
+            if (!input) {
+                return;
+            }
+            const peerId = input.getAttribute('data-chat-input');
+            const cd = e.clipboardData;
+            if (!peerId || !cd) {
+                return;
+            }
+            const blobs = [];
+            if (cd.items && cd.items.length) {
+                for (let i = 0; i < cd.items.length; i++) {
+                    const it = cd.items[i];
+                    if (it && it.type && it.type.indexOf('image/') === 0) {
+                        const b = it.getAsFile();
+                        if (b) {
+                            blobs.push(b);
+                        }
+                    }
+                }
+            }
+            if (!blobs.length && cd.files && cd.files.length) {
+                for (let j = 0; j < cd.files.length; j++) {
+                    const f = cd.files[j];
+                    if (f && String(f.type || '').indexOf('image/') === 0) {
+                        blobs.push(f);
+                    }
+                }
+            }
+            if (!blobs.length) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            const files = blobs.map((blob, idx) => {
+                const mime = blob.type || 'image/png';
+                const ext = (mime.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '') || 'png';
+                if (blob instanceof File && blob.name) {
+                    return blob;
+                }
+                return new File([blob], 'clipboard-' + Date.now() + '-' + idx + '.' + ext, { type: mime });
+            });
+            stageFiles(peerId, files);
+        });
+        dock.addEventListener('submit', (e) => {
+            const form = e.target && e.target.closest
+                ? e.target.closest('[data-chat-form]')
+                : null;
+            if (!form) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            submitComposer(form.getAttribute('data-chat-form'));
+        });
+        dock.addEventListener('input', (e) => {
+            const input = e.target && e.target.closest
+                ? e.target.closest('[data-chat-input]')
+                : null;
+            if (input) {
+                autosizeInput(input);
+            }
+        });
+        dock.addEventListener('keydown', (e) => {
+            e.stopPropagation();
+            const input = e.target && e.target.closest
+                ? e.target.closest('[data-chat-input]')
+                : null;
+            if (!input || e.key !== 'Enter' || e.shiftKey) {
+                return;
+            }
+            e.preventDefault();
+            const form = input.closest('[data-chat-form]');
+            if (form && typeof form.requestSubmit === 'function') {
+                form.requestSubmit();
+            } else if (form) {
+                form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+            }
+        });
+        dock.addEventListener('mousedown', (e) => e.stopPropagation());
 
         window.addEventListener('storage', (e) => {
-            if (!e) {
-                return;
-            }
-            if (e.key === CHAT_STORE_KEY) {
+            if (e && e.key === CHAT_STORE_KEY) {
                 refreshOpenThread();
             }
         });
@@ -654,14 +2180,13 @@
                     if (data.peer.deviceId === myDeviceId) {
                         return;
                     }
-                    if (peer && peer.deviceId === data.peer.deviceId && isChatOpen()) {
-                        return;
-                    }
-                    openChat(data.peer);
+                    openChat(Object.assign({}, data.peer, { silent: true }));
                 } else if (data.type === 'close') {
-                    if (isChatOpen()) {
-                        closeChat({ silent: true });
-                    }
+                    closeChat({ peerId: data.peerId || '', silent: true });
+                } else if (data.type === 'min' && data.peerId) {
+                    minimizeChat(data.peerId, true);
+                } else if (data.type === 'expand' && data.peerId) {
+                    expandChat(data.peerId, true);
                 }
             };
         } catch (e) { /* ignore */ }
@@ -691,11 +2216,18 @@
 
         started = true;
         wipeIfDeviceIdleTooLong();
+        loadPeerSeen();
+        loadRepliedSession();
         myDeviceId = getOrCreateDeviceId();
         myDeviceTag = makeDeviceTag(myDeviceId);
         bindUi();
         bindBroadcast();
         startAliveLoop();
+        ensureStatusTicker();
+        renderDock();
+        if (window.PresenceBridge && typeof window.PresenceBridge.rerender === 'function') {
+            window.PresenceBridge.rerender();
+        }
 
         const boot = () => {
             try {
@@ -704,6 +2236,14 @@
                 }
             } catch (e) { /* already init */ }
             db = firebase.database();
+            try {
+                if (firebase.storage) {
+                    storage = firebase.storage();
+                }
+            } catch (e) {
+                storage = null;
+                console.warn('[chat] Firebase Storage init failed', e);
+            }
             if (window.PresenceBridge && typeof window.PresenceBridge.getDeviceId === 'function') {
                 const id = window.PresenceBridge.getDeviceId();
                 const tag = window.PresenceBridge.getDeviceTag && window.PresenceBridge.getDeviceTag();
@@ -729,8 +2269,13 @@
     window.DeviceChat = {
         open: openChat,
         close: closeChat,
+        minimize: minimizeChat,
+        expand: expandChat,
         getMyDeviceId: () => myDeviceId,
-        isOpen: isChatOpen
+        isOpen: isChatOpen,
+        getUnread: (peerId) => Number(unreadMap[peerId]) || 0,
+        getUnreadMap: () => Object.assign({}, unreadMap),
+        getBorderState: getBorderState
     };
 
     if (document.readyState === 'loading') {
