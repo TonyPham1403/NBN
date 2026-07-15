@@ -5943,15 +5943,18 @@
                     <button type="button" id="filterPopupPosnfreqOverlapPct" class="filter-popup-posnfreq-overlap-pct"
                         hidden aria-pressed="false"
                         title="% kỳ có viền xanh / tổng kỳ đang lọc. Bật: chỉ hiện các kỳ có viền xanh; tắt: hiện đủ lại.">0%</button>
-                    <button type="button" id="filterPopupConn3OverlapPct" class="filter-popup-posnfreq-overlap-pct"
-                        hidden aria-pressed="false"
-                        title="% kỳ đáp án 3-connection (viền xanh) / tổng kỳ cửa sổ 10 có 3-connection. Bật: chỉ hiện kỳ viền xanh; tắt: hiện đủ cửa sổ.">0%</button>
-                    <button type="button" id="filterPopupFollowOverlapPct" class="filter-popup-posnfreq-overlap-pct"
-                        hidden aria-pressed="false"
-                        title="% kỳ có follow xác định / tổng kỳ. Nhấn: chỉ follow xác định (xanh) → chỉ follow ? (đỏ, % phần bù) → hiện đủ lại.">0%</button>
-                    <button type="button" id="filterPopupConnectionOverlapPct" class="filter-popup-posnfreq-overlap-pct"
-                        hidden aria-pressed="false"
-                        title="% kỳ connection unique / tổng kỳ. Nhấn: chỉ unique (xanh) → chỉ duplicate (đỏ) → hiện đủ lại.">0%</button>
+                    <button type="button" id="filterPopupFollowOverlapPct"
+                        class="filter-popup-posnfreq-overlap-pct is-follow-pct-btn" hidden aria-pressed="false"
+                        title="F = follow (cột follow). Nhấn: chỉ follow xác định (xanh) → chỉ follow ? (đỏ) → hiện đủ. Mode connection: AND với U/D. Mode 3-connection: AND với 3C."
+                        aria-label="Phần trăm follow xác định">F 0%</button>
+                    <button type="button" id="filterPopupConn3OverlapPct"
+                        class="filter-popup-posnfreq-overlap-pct is-conn3-pct-btn" hidden aria-pressed="false"
+                        title="3C = kỳ đáp án có 3-connection (viền xanh). Bật: chỉ kỳ 3C; tắt: đủ cửa sổ. AND với nút F (follow)."
+                        aria-label="Phần trăm kỳ 3-connection">3C 0%</button>
+                    <button type="button" id="filterPopupConnectionOverlapPct"
+                        class="filter-popup-posnfreq-overlap-pct is-connection-pct-btn" hidden aria-pressed="false"
+                        title="U/D = connection unique/duplicate. Nhấn: chỉ unique (xanh) → chỉ duplicate (đỏ) → hiện đủ. AND với nút F (follow)."
+                        aria-label="Phần trăm connection unique">U 0%</button>
                     <div class="filter-popup-header-count-stack">
                         <span id="filterPopupMatchCount" class="period-filter-match-count filter-popup-match-count"
                             title="Số kỳ khớp mode">
@@ -6220,7 +6223,6 @@
         };
         const FILTER_MODE_LABELS = {
             all: 'ALL',
-            follow: 'follow',
             modeq: '?',
             pair1: '1 bộ 2',
             pair2: '2 bộ 2',
@@ -6240,6 +6242,18 @@
         const DATEBAND_FILTER_MODE = 'dateband';
         const TAIL_FILTER_MODE = 'tail';
         const VALID_FILTER_MODES = Object.keys(FILTER_MODE_LABELS);
+        /** Modes that show the follow-logic % button (determined / ?). */
+        const FOLLOW_PCT_FILTER_MODES = new Set([
+            'all',
+            'dateband',
+            'tail',
+            'intersection',
+            'connection',
+            'conn3',
+            'pair1', 'pair2', 'pair3', 'pair4', 'pair5',
+            'triple1',
+            'quad1'
+        ]);
         let sheetManager = null;
         let answerPopup = null;
         /** Tăng dần khi click filter / answer dock để popup nào click sau nổi trên. */
@@ -7871,10 +7885,7 @@
 
         function getFilterModeTitleHint(mode) {
             if (normalizeFilterMode(mode) === 'all') {
-                return 'Tất cả kỳ (giống sheet chính)';
-            }
-            if (isFollowFilterMode(mode)) {
-                return 'Tất cả kỳ (follow)';
+                return 'Tất cả kỳ (giống sheet chính); nút F lọc theo cột follow';
             }
             if (isDatebandFilterMode(mode)) {
                 return 'date nền #00b0f0';
@@ -7898,6 +7909,9 @@
         }
 
         function normalizeFilterMode(mode) {
+            if (mode === 'follow') {
+                return 'all';
+            }
             return VALID_FILTER_MODES.includes(mode) ? mode : 'all';
         }
 
@@ -7925,8 +7939,8 @@
             return normalizeFilterMode(mode) === 'all';
         }
 
-        function isFollowFilterMode(mode) {
-            return normalizeFilterMode(mode) === 'follow';
+        function isFollowPctFilterMode(mode) {
+            return FOLLOW_PCT_FILTER_MODES.has(normalizeFilterMode(mode));
         }
 
         function isAllLikeFilterMode(mode) {
@@ -13082,7 +13096,7 @@
 
         function getFilterPopupEmptyMessage(mode) {
             const normalized = normalizeFilterMode(mode);
-            if (normalized === 'all' || isFollowFilterMode(normalized)) {
+            if (normalized === 'all') {
                 return 'Không có dữ liệu kỳ.';
             }
             if (isNonexistFilterMode(normalized)) {
@@ -13340,8 +13354,11 @@
             if (isConn3FilterMode(prevMode) && !isConn3FilterMode(periodFilterMode)) {
                 setFilterPopupConn3WindowOnly(false, { skipReconcile: true, skipCounts: true });
             }
-            if (isFollowFilterMode(prevMode) && !isFollowFilterMode(periodFilterMode)) {
+            if (isFollowPctFilterMode(prevMode) && !isFollowPctFilterMode(periodFilterMode)) {
                 setFilterPopupFollowSubfilter('off', { skipReconcile: true, skipCounts: true });
+            }
+            if (isConnectionFilterMode(prevMode) && !isConnectionFilterMode(periodFilterMode)) {
+                setFilterPopupConnectionSubfilter('off', { skipReconcile: true, skipCounts: true });
             }
             try {
                 localStorage.setItem(PERIOD_FILTER_MODE_KEY, periodFilterMode);
@@ -13493,7 +13510,7 @@
         }
 
         function isFilterPopupFollowSubfilterActive() {
-            return isFollowFilterMode(periodFilterMode) && filterPopupFollowSubfilter !== 'off';
+            return isFollowPctFilterMode(periodFilterMode) && filterPopupFollowSubfilter !== 'off';
         }
 
         function isFilterPopupConnectionSubfilterActive() {
@@ -13524,15 +13541,15 @@
             }
             const complementPct = Math.max(0, Math.min(100, 100 - determinedPct));
             if (mode === 'off') {
-                btn.textContent = `${determinedPct}%`;
+                btn.textContent = `F ${determinedPct}%`;
                 btn.setAttribute('aria-pressed', 'false');
                 btn.classList.remove('is-follow-question-mode');
             } else if (mode === 'determined') {
-                btn.textContent = `${determinedPct}%`;
+                btn.textContent = `F ${determinedPct}%`;
                 btn.setAttribute('aria-pressed', 'true');
                 btn.classList.remove('is-follow-question-mode');
             } else {
-                btn.textContent = `${complementPct}%`;
+                btn.textContent = `F ${complementPct}%`;
                 btn.setAttribute('aria-pressed', 'true');
                 btn.classList.add('is-follow-question-mode');
             }
@@ -13562,15 +13579,15 @@
             }
             const duplicatePct = Math.max(0, Math.min(100, 100 - uniquePct));
             if (mode === 'off') {
-                btn.textContent = `${uniquePct}%`;
+                btn.textContent = `U ${uniquePct}%`;
                 btn.setAttribute('aria-pressed', 'false');
                 btn.classList.remove('is-connection-duplicate-mode');
             } else if (mode === 'unique') {
-                btn.textContent = `${uniquePct}%`;
+                btn.textContent = `U ${uniquePct}%`;
                 btn.setAttribute('aria-pressed', 'true');
                 btn.classList.remove('is-connection-duplicate-mode');
             } else {
-                btn.textContent = `${duplicatePct}%`;
+                btn.textContent = `D ${duplicatePct}%`;
                 btn.setAttribute('aria-pressed', 'true');
                 btn.classList.add('is-connection-duplicate-mode');
             }
@@ -13614,40 +13631,51 @@
                     return green;
                 }
             }
+
+            const wrap = el('filterTableWrap');
+            let followHits = null;
+            if (periodFilterEnabled && isFollowPctFilterMode(periodFilterMode)) {
+                if (filterPopupFollowSubfilter === 'determined') {
+                    followHits = collectFilterPopupFollowDeterminedHitIndicesOrdered(wrap);
+                } else if (filterPopupFollowSubfilter === 'undetermined') {
+                    followHits = collectFilterPopupFollowQuestionHitIndicesOrdered(wrap);
+                }
+            }
+            let connectionHits = null;
+            if (periodFilterEnabled && isConnectionFilterMode(periodFilterMode)) {
+                if (filterPopupConnectionSubfilter === 'unique') {
+                    connectionHits = collectFilterPopupConnectionUniqueHitIndicesOrdered(wrap);
+                } else if (filterPopupConnectionSubfilter === 'duplicate') {
+                    connectionHits = collectFilterPopupConnectionDuplicateHitIndicesOrdered(wrap);
+                }
+            }
+            let conn3Hits = null;
             if (filterPopupConn3WindowOnly && periodFilterEnabled && isConn3FilterMode(periodFilterMode)) {
-                const wrap = el('filterTableWrap');
-                const green = collectFilterPopupPosnfreqGreenHitIndicesOrdered(wrap);
-                if (green.length) {
-                    return green;
+                conn3Hits = collectFilterPopupPosnfreqGreenHitIndicesOrdered(wrap);
+            }
+
+            let list = null;
+            if (followHits !== null) {
+                list = followHits;
+            }
+            if (connectionHits !== null) {
+                if (list === null) {
+                    list = connectionHits;
+                } else {
+                    const setB = new Set(connectionHits);
+                    list = list.filter((idx) => setB.has(idx));
                 }
             }
-            if (filterPopupFollowSubfilter === 'determined' && periodFilterEnabled && isFollowFilterMode(periodFilterMode)) {
-                const wrap = el('filterTableWrap');
-                const determined = collectFilterPopupFollowDeterminedHitIndicesOrdered(wrap);
-                if (determined.length) {
-                    return determined;
+            if (conn3Hits !== null) {
+                if (list === null) {
+                    list = conn3Hits;
+                } else {
+                    const setB = new Set(conn3Hits);
+                    list = list.filter((idx) => setB.has(idx));
                 }
             }
-            if (filterPopupFollowSubfilter === 'undetermined' && periodFilterEnabled && isFollowFilterMode(periodFilterMode)) {
-                const wrap = el('filterTableWrap');
-                const question = collectFilterPopupFollowQuestionHitIndicesOrdered(wrap);
-                if (question.length) {
-                    return question;
-                }
-            }
-            if (filterPopupConnectionSubfilter === 'unique' && periodFilterEnabled && isConnectionFilterMode(periodFilterMode)) {
-                const wrap = el('filterTableWrap');
-                const unique = collectFilterPopupConnectionUniqueHitIndicesOrdered(wrap);
-                if (unique.length) {
-                    return unique;
-                }
-            }
-            if (filterPopupConnectionSubfilter === 'duplicate' && periodFilterEnabled && isConnectionFilterMode(periodFilterMode)) {
-                const wrap = el('filterTableWrap');
-                const duplicate = collectFilterPopupConnectionDuplicateHitIndicesOrdered(wrap);
-                if (duplicate.length) {
-                    return duplicate;
-                }
+            if (list !== null) {
+                return list;
             }
             return getFilterPopupTableIndices();
         }
@@ -13692,7 +13720,7 @@
             const previewOnly = opts.syncPreview !== false;
             if (!isFilterPopupSubfilterOnlyActive()) {
                 const displayList = getFilterPopupDisplayIndices();
-                const keepFollowAnchor = isFollowFilterMode(periodFilterMode)
+                const keepFollowAnchor = isFollowPctFilterMode(periodFilterMode)
                     && typeof filterPopupActiveIdx === 'number'
                     && filterPopupActiveIdx >= 0
                     && displayList.includes(filterPopupActiveIdx);
@@ -13724,7 +13752,7 @@
                 resetFilterPopupPositionUi();
                 return;
             }
-            if (isFollowFilterMode(periodFilterMode)) {
+            if (isFollowPctFilterMode(periodFilterMode)) {
                 if (list.includes(filterPopupActiveIdx)) {
                     applyFilterPopupRowFocus(filterPopupActiveIdx);
                     syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly });
@@ -14933,12 +14961,8 @@
                 return;
             }
             const allMode = periodFilterEnabled && isAllLikeFilterMode(periodFilterMode);
-            const followMode = periodFilterEnabled && isFollowFilterMode(periodFilterMode);
             wrap.classList.toggle('filter-popup-all-mode', allMode);
-            wrap.classList.toggle('filter-popup-follow-mode', followMode);
-            if (followMode) {
-                clearFilterPopupFollowAuxiliaryHighlights();
-            }
+            wrap.classList.remove('filter-popup-follow-mode');
             if (!allMode) {
                 resetFilterAllModeWindow();
             } else {
@@ -15143,13 +15167,6 @@
             sheetManager.clearWindowBorderClassesOnWrap(filterWrap);
         }
 
-        function clearFilterPopupFollowAuxiliaryHighlights() {
-            if (!periodFilterEnabled || !isFollowFilterMode(periodFilterMode)) {
-                return;
-            }
-            clearFilterPopupHighlightsWhenMainFocusExcluded();
-        }
-
         function reapplyFilterPopupWindowHighlightsIfAllowed() {
             if (!sheetManager || typeof sheetManager.reapplyActiveWindowHighlightsToDom !== 'function') {
                 return;
@@ -15157,10 +15174,6 @@
             const mainWrap = el('tableWrap');
             const filterWrap = el('filterTableWrap');
             sheetManager.reapplyActiveWindowHighlightsToDom(mainWrap);
-            if (isFollowFilterMode(periodFilterMode)) {
-                clearFilterPopupFollowAuxiliaryHighlights();
-                return;
-            }
             if (isMainUserFocusInFilterPopupEffectiveList()) {
                 sheetManager.reapplyActiveWindowHighlightsToDom(filterWrap);
             } else {
@@ -15178,14 +15191,6 @@
 
             const list = getFilterPopupEffectiveListIndices();
             if (!list.includes(idx)) {
-                if (isFollowFilterMode(periodFilterMode)) {
-                    clearFilterPopupRowFocus();
-                    syncFilterPopupAllModeClass();
-                    if (!isMainUserFocusInFilterPopupEffectiveList()) {
-                        clearFilterPopupHighlightsWhenMainFocusExcluded();
-                    }
-                    return;
-                }
                 if (!isMainUserFocusInFilterPopupEffectiveList()) {
                     filterPopupActiveIdx = -1;
                     clearFilterPopupRowFocus();
@@ -15209,9 +15214,6 @@
             if (allMode) {
                 applyFilterPopupAllModeWindow(idx);
                 refreshFilterPopupAllModeNonexistCells(idx);
-            }
-            if (isFollowFilterMode(periodFilterMode)) {
-                clearFilterPopupFollowAuxiliaryHighlights();
             }
             syncFilterPopupAllModeFocusMask();
         }
@@ -15288,7 +15290,6 @@
                 if (allMode) {
                     refreshFilterPopupAllModeNonexistCells(idx);
                 }
-                clearFilterPopupFollowAuxiliaryHighlights();
                 return;
             }
             const rows = getFilterSourceSheetRows();
@@ -15308,7 +15309,6 @@
             if (allMode) {
                 refreshFilterPopupAllModeNonexistCells(idx);
             }
-            clearFilterPopupFollowAuxiliaryHighlights();
         }
 
         function queueFilterPopupAllModeCommit(idx) {
@@ -16112,13 +16112,6 @@
             }
             const list = getFilterPopupEffectiveListIndices();
             if (!list.includes(focusRowIndex)) {
-                if (isFollowFilterMode(periodFilterMode)) {
-                    filterPopupActiveIdx = focusRowIndex;
-                    clearFilterPopupRowFocus();
-                    resetFilterPopupPositionUi();
-                    clearFilterPopupHighlightsWhenMainFocusExcluded();
-                    return;
-                }
                 filterPopupActiveIdx = -1;
                 applyFilterPopupRowFocus(-1);
                 clearFilterPopupHighlightsWhenMainFocusExcluded();
@@ -16442,7 +16435,7 @@
             }
             const pct = Math.round((green / tableTotal) * 100);
             pctEl.hidden = false;
-            pctEl.textContent = `${pct}%`;
+            pctEl.textContent = `3C ${pct}%`;
             if (filterPopupConn3WindowOnly && green === 0) {
                 setFilterPopupConn3WindowOnly(false);
             } else if (filterPopupConn3WindowOnly) {
@@ -16463,18 +16456,18 @@
             const hidePct = () => {
                 const wasActive = isFilterPopupFollowSubfilterActive();
                 filterPopupFollowSubfilter = 'off';
-                const w = el('filterTableWrap');
-                if (w) {
-                    applyFilterPopupFollowSubfilterWrapClasses(w, 'off');
+                if (wasActive) {
+                    const w = el('filterTableWrap');
+                    if (w) {
+                        applyFilterPopupFollowSubfilterWrapClasses(w, 'off');
+                    }
+                    reconcileFilterPopupActiveAfterSubfilterToggle();
                 }
                 if (pctEl) {
                     pctEl.hidden = true;
                     pctEl.textContent = '';
                     pctEl.setAttribute('aria-pressed', 'false');
                     pctEl.classList.remove('is-follow-question-mode');
-                }
-                if (wasActive) {
-                    reconcileFilterPopupActiveAfterSubfilterToggle();
                 }
                 updateFilterPopupMatchCount();
                 syncPeriodFilterNavModeToIframe();
@@ -16483,7 +16476,7 @@
                 hidePct();
                 return;
             }
-            if (!periodFilterEnabled || !isFollowFilterMode(periodFilterMode)) {
+            if (!periodFilterEnabled || !isFollowPctFilterMode(periodFilterMode)) {
                 hidePct();
                 return;
             }

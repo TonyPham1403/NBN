@@ -406,6 +406,8 @@ class RightPaneSheetManager {
         this.answerPopupFocusMask = { active: false, rowIndex: -1 };
         this._answerPopupMaskAppliedRow = -1;
         this._answerPopupMaskApplyRaf = 0;
+        this._idFreqAsOfCacheRow = -1;
+        this._idFreqAsOfCache = null;
         this._filterAllModeMaskAppliedRow = -1;
         this._filterAllModeMaskApplyRaf = 0;
         this.comboG1Enabled = false;
@@ -582,6 +584,8 @@ class RightPaneSheetManager {
         this.noteCache = this.buildNotesFromRows(this.sourceRows || []);
         this.nonexistCache = this.buildNonexistFromRows(this.sourceRows || []);
         this.idFrequencyMap = this.buildIdFrequencyMapFromNotes(this.noteCache);
+        this._idFreqAsOfCacheRow = -1;
+        this._idFreqAsOfCache = null;
         this.nonexistGreenFilterCache = null;
         this.nonexistDisplayEntriesCache = null;
         this.datebandFilterIndicesCache = null;
@@ -1773,7 +1777,7 @@ class RightPaneSheetManager {
     getFilterMatchingIndices(mode, filterOptions = null) {
         const indices = [];
         const rows = this.getSourceSheetRows();
-        if (mode === 'all' || mode === 'follow') {
+        if (mode === 'all') {
             for (let i = 0; i < rows.length; i++) {
                 indices.push(i);
             }
@@ -3833,21 +3837,91 @@ class RightPaneSheetManager {
 
     /**
      * Answer popup open + Submit OFF: dim result/note and show empty-style nonexist on focus row.
+     * ID greens use note-frequency as of that moment (notes before focus only — like chưa có result).
      */
     setAnswerPopupFocusMask(opts) {
         const o = opts || {};
         const open = !!o.open;
         const rowIndex = Number.isFinite(o.rowIndex) ? o.rowIndex : -1;
         const submitOn = !!o.submitOn;
+        const nextActive = open && rowIndex >= 0 && !submitOn;
+        const nextRow = open ? rowIndex : -1;
+        const prev = this.answerPopupFocusMask || {};
+        if (prev.active !== nextActive || prev.rowIndex !== nextRow) {
+            this._idFreqAsOfCacheRow = -1;
+            this._idFreqAsOfCache = null;
+        }
         this.answerPopupFocusMask = {
-            active: open && rowIndex >= 0 && !submitOn,
-            rowIndex: open ? rowIndex : -1
+            active: nextActive,
+            rowIndex: nextRow
         };
     }
 
     shouldAnswerPopupMaskSheet1Row(rowIndex) {
         const m = this.answerPopupFocusMask || {};
         return !!(m.active && m.rowIndex === rowIndex);
+    }
+
+    /**
+     * Id frequency map "at focus moment": only notes of rows before focus
+     * (as if focus row chưa có result and later periods do not exist yet).
+     */
+    getIdFrequencyMapAsOfRow(rowIndex) {
+        const idx = Number(rowIndex);
+        if (!Number.isFinite(idx) || idx < 0) {
+            return this.idFrequencyMap;
+        }
+        if (!this.noteCache) {
+            this.refreshDerivedState();
+        }
+        if (this._idFreqAsOfCacheRow === idx && this._idFreqAsOfCache) {
+            return this._idFreqAsOfCache;
+        }
+        const truncated = (this.noteCache || []).slice(0, idx);
+        const map = this.buildIdFrequencyMapFromNotes(truncated);
+        this._idFreqAsOfCacheRow = idx;
+        this._idFreqAsOfCache = map;
+        return map;
+    }
+
+    getEffectiveIdFrequencyMap() {
+        const m = this.answerPopupFocusMask || {};
+        if (m.active && m.rowIndex >= 0) {
+            return this.getIdFrequencyMapAsOfRow(m.rowIndex);
+        }
+        return this.idFrequencyMap;
+    }
+
+    /**
+     * Repaint sheet1 id cells from effective frequency map (full vs answer-popup as-of).
+     */
+    applyIdBackgroundsForAnswerPopupMask(tableWrap) {
+        if (!tableWrap) {
+            return;
+        }
+        const rows = tableWrap.id === 'filterTableWrap'
+            ? (this.getSourceSheetRows() || [])
+            : (this.dataRows || []);
+        const freqMap = this.getEffectiveIdFrequencyMap();
+        const trs = tableWrap.querySelectorAll('tbody tr[data-idx]');
+        for (let t = 0; t < trs.length; t++) {
+            const tr = trs[t];
+            const idx = Number(tr.dataset.idx);
+            if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
+                continue;
+            }
+            const idCell = tr.querySelector('td.cell-id');
+            if (!idCell) {
+                continue;
+            }
+            const row = rows[idx] || {};
+            const bg = this.getIdBackgroundByFrequency(row.id || row.ID || '', freqMap);
+            if (bg) {
+                idCell.setAttribute('style', `background:${bg};`);
+            } else {
+                idCell.removeAttribute('style');
+            }
+        }
     }
 
     /**
@@ -3921,6 +3995,7 @@ class RightPaneSheetManager {
         const prevIdx = this[appliedRowKey];
         const nextIdx = m.active ? m.rowIndex : -1;
         const force = !!options.reset;
+        const maskChanged = prevIdx !== nextIdx || force;
 
         if (prevIdx >= 0) {
             if (prevIdx !== nextIdx || (force && nextIdx < 0)) {
@@ -3932,6 +4007,10 @@ class RightPaneSheetManager {
         }
 
         this[appliedRowKey] = nextIdx;
+
+        if (maskChanged) {
+            this.applyIdBackgroundsForAnswerPopupMask(tableWrap);
+        }
     }
 
     setFocusPreviewMaskOnRowDom(tableWrap, rowIndex, masked) {
@@ -3992,7 +4071,7 @@ class RightPaneSheetManager {
             const noteMeta = isEmptyResultRow
                 ? { text: '', highlightYellow: false }
                 : this.getComputedNoteMeta(i, row);
-            const idBg = this.getIdBackgroundByFrequency(id);
+            const idBg = this.getIdBackgroundByFrequency(id, this.getEffectiveIdFrequencyMap());
             const dateBg = this.shouldHighlightDateByPairWindow(displayRows, i) ? ' style="background:#00b0f0;color:#000;font-weight:bold;"' : '';
 
             let resultHtml = this.highlightResultByFrequency(result);
@@ -6621,14 +6700,17 @@ class RightPaneSheetManager {
 
     /**
      * Get the id background color by note frequency.
+     * @param {*} rawId
+     * @param {Map<string, number>} [freqMap] - defaults to full-sheet idFrequencyMap
      */
-    getIdBackgroundByFrequency(rawId) {
+    getIdBackgroundByFrequency(rawId, freqMap) {
         const idNum = this.parseRowId(rawId);
-        if (idNum === null || !this.idFrequencyMap) {
+        const map = freqMap || this.idFrequencyMap;
+        if (idNum === null || !map) {
             return '';
         }
 
-        const freq = this.idFrequencyMap.get(String(idNum)) || 0;
+        const freq = map.get(String(idNum)) || 0;
         if (freq <= 0) {
             return '';
         }
