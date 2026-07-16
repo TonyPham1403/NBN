@@ -1075,8 +1075,8 @@
                 '<img class="chat-file-thumb" src="' + src + '"' + pathAttr +
                 ' alt="' + escapeHtml(f.name || 'image') + '" />' +
                 '</a>';
-        }
-        if (f.url) {
+            body += '<div class="chat-file-link">🖼 ' + escapeHtml(f.name || 'image') + '</div>';
+        } else if (f.url) {
             body += '<a class="chat-file-link" href="' + escapeHtml(f.url) +
                 '" target="_blank" rel="noopener noreferrer" download="' +
                 escapeHtml(f.name || 'file') + '">📎 ' + escapeHtml(f.name || 'file') + '</a>';
