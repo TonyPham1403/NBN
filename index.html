@@ -18683,37 +18683,46 @@
             }
             document.documentElement.dataset.submitRingShiftBound = '1';
 
-            let shiftPressedAlone = false;
-            let shiftChordUsed = false;
+            /** true khi đang giữ Shift — chỉ toggle autoring nếu thả mà không có chuột trong lúc giữ. */
+            let shiftHeld = false;
+            let shiftClickDirty = false;
 
-            /** Shift+click bar tracking = quan sát viền cam — không toggle autoring khi thả Shift. */
-            const markShiftUsedForTrackingBarObserve = (event) => {
-                if (!event.shiftKey) {
+            const markShiftClickDirty = () => {
+                shiftClickDirty = true;
+            };
+            /** Iframe left gọi đồng bộ (tránh race postMessage với keyup Shift). */
+            window.__markShiftClickDirty = markShiftClickDirty;
+            window.__isShiftClickDirty = () => !!shiftClickDirty;
+
+            const onPointerWhileShift = (event) => {
+                if (!shiftHeld && !event.shiftKey) {
                     return;
                 }
-                const t = event.target;
-                if (t instanceof Element && t.closest('[data-st-bar]')) {
-                    shiftChordUsed = true;
-                }
+                markShiftClickDirty();
             };
 
-            document.addEventListener('pointerdown', markShiftUsedForTrackingBarObserve, true);
-            document.addEventListener('mousedown', markShiftUsedForTrackingBarObserve, true);
+            document.addEventListener('pointerdown', onPointerWhileShift, true);
+            document.addEventListener('mousedown', onPointerWhileShift, true);
 
             document.addEventListener('keydown', (event) => {
                 if (event.key === 'Shift') {
                     if (event.repeat) {
                         return;
                     }
-                    shiftPressedAlone = true;
-                    shiftChordUsed = false;
+                    /* Đã Shift+click (kể cả từ iframe): keydown Shift giả khi đổi focus không mở session toggle. */
+                    if (shiftClickDirty) {
+                        shiftHeld = false;
+                    } else {
+                        shiftHeld = true;
+                        shiftClickDirty = false;
+                    }
                     if (!isPeriodFilterShortcutBlockedTarget(event.target)) {
                         event.preventDefault();
                     }
                     return;
                 }
                 if (event.shiftKey) {
-                    shiftChordUsed = true;
+                    markShiftClickDirty();
                 }
             }, true);
 
@@ -18721,9 +18730,9 @@
                 if (event.key !== 'Shift') {
                     return;
                 }
-                const shouldToggle = shiftPressedAlone && !shiftChordUsed;
-                shiftPressedAlone = false;
-                shiftChordUsed = false;
+                const shouldToggle = shiftHeld && !shiftClickDirty;
+                shiftHeld = false;
+                shiftClickDirty = false;
                 if (!shouldToggle || isPeriodFilterShortcutBlockedTarget(event.target)) {
                     return;
                 }
@@ -19590,7 +19599,21 @@
                     if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
                         return;
                     }
+                    /* Iframe báo toggle — bỏ qua nếu vừa Shift+click quan sát */
+                    if (typeof window.__isShiftClickDirty === 'function' && window.__isShiftClickDirty()) {
+                        return;
+                    }
                     toggleSubmitRingFromShortcut();
+                    return;
+                }
+                if (msg.type === 'markShiftClickDirty') {
+                    const frame = el('okFrame');
+                    if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
+                        return;
+                    }
+                    if (typeof window.__markShiftClickDirty === 'function') {
+                        window.__markShiftClickDirty();
+                    }
                     return;
                 }
                 if (msg.type === 'togglePhase') {
@@ -19706,6 +19729,19 @@
                         return;
                     }
                     toggleComboFocusUndoFromShortcut();
+                    return;
+                }
+                if (msg.type === 'toggleTrackingBarObserve') {
+                    const frame = el('okFrame');
+                    if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
+                        return;
+                    }
+                    if (typeof window.__markShiftClickDirty === 'function') {
+                        window.__markShiftClickDirty();
+                    }
+                    if (sheetManager && typeof sheetManager.toggleTrackingBarObserveFocus === 'function') {
+                        sheetManager.toggleTrackingBarObserveFocus(msg.num);
+                    }
                     return;
                 }
                 if (msg.type === 'submitStateChanged') {

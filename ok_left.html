@@ -9953,8 +9953,9 @@
             }
             document.documentElement.dataset.submitRingShiftBound = '1';
 
-            var shiftPressedAlone = false;
-            var shiftChordUsed = false;
+            /** Chỉ toggle autoring khi giữ+thả Shift mà không có chuột. Shift+click = quan sát (dirty). */
+            var shiftHeld = false;
+            var shiftClickDirty = false;
 
             function isSubmitRingShortcutBlockedTarget(target) {
                 if (!target || !target.tagName) {
@@ -9974,30 +9975,141 @@
                 }
             }
 
+            function isLeftNumberCellTarget(target) {
+                if (!target || !target.closest) {
+                    return false;
+                }
+                try {
+                    return !!target.closest('#left .cell[data-num], #right .cell[data-num]');
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            /** Đồng bộ sang parent ngay (trước keyup) — postMessage dễ trễ hơn thả Shift. */
+            function markShiftClickDirty() {
+                shiftClickDirty = true;
+                try {
+                    if (window.parent && typeof window.parent.__markShiftClickDirty === 'function') {
+                        window.parent.__markShiftClickDirty();
+                    }
+                } catch (eSync) { /* ignore */ }
+                try {
+                    window.parent.postMessage({ type: 'markShiftClickDirty' }, '*');
+                } catch (eMsg) { /* ignore */ }
+            }
+
+            function clearBrowserTextSelection() {
+                try {
+                    var sel = window.getSelection && window.getSelection();
+                    if (sel && sel.removeAllRanges) {
+                        sel.removeAllRanges();
+                    }
+                } catch (eClr) { /* ignore */ }
+            }
+
+            function onPointerWhileShift(event) {
+                if (!shiftHeld && !event.shiftKey) {
+                    return;
+                }
+                markShiftClickDirty();
+            }
+
+            document.addEventListener('pointerdown', onPointerWhileShift, true);
+            document.addEventListener('mousedown', onPointerWhileShift, true);
+
             document.addEventListener('keydown', function (event) {
                 if (event.key === 'Shift') {
                     if (event.repeat) {
                         return;
                     }
-                    shiftPressedAlone = true;
-                    shiftChordUsed = false;
+                    /* Đã có chuột trong lúc giữ Shift: không coi là session “chỉ Shift” (tránh focus hop). */
+                    if (shiftClickDirty) {
+                        shiftHeld = false;
+                    } else {
+                        shiftHeld = true;
+                        shiftClickDirty = false;
+                    }
                     if (!isSubmitRingShortcutBlockedTarget(event.target)) {
                         event.preventDefault();
                     }
                     return;
                 }
                 if (event.shiftKey) {
-                    shiftChordUsed = true;
+                    markShiftClickDirty();
                 }
+            }, true);
+
+            /** Shift+click số = quan sát viền cam — chặn chọn chữ mặc định của trình duyệt. */
+            document.addEventListener('mousedown', function (event) {
+                if (!event.shiftKey || event.button !== 0) {
+                    return;
+                }
+                if (!isLeftNumberCellTarget(event.target)) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                markShiftClickDirty();
+                clearBrowserTextSelection();
+            }, true);
+
+            document.addEventListener('selectstart', function (event) {
+                if (!event.shiftKey) {
+                    return;
+                }
+                if (!isLeftNumberCellTarget(event.target)) {
+                    return;
+                }
+                event.preventDefault();
+            }, true);
+
+            document.addEventListener('click', function (event) {
+                if (!event.shiftKey || event.button !== 0) {
+                    return;
+                }
+                if (!isLeftNumberCellTarget(event.target)) {
+                    return;
+                }
+                var cell = event.target.closest('#left .cell[data-num], #right .cell[data-num]');
+                if (!cell) {
+                    return;
+                }
+                var n = parseInt(cell.getAttribute('data-num'), 10);
+                if (isNaN(n)) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                event.stopImmediatePropagation();
+                markShiftClickDirty();
+                clearBrowserTextSelection();
+                try {
+                    if (window.parent && typeof window.parent.__markShiftClickDirty === 'function') {
+                        window.parent.__markShiftClickDirty();
+                    }
+                } catch (eSync) { /* ignore */ }
+                try {
+                    window.parent.postMessage({ type: 'toggleTrackingBarObserve', num: n }, '*');
+                } catch (err) { }
             }, true);
 
             document.addEventListener('keyup', function (event) {
                 if (event.key !== 'Shift') {
                     return;
                 }
-                var shouldToggle = shiftPressedAlone && !shiftChordUsed;
-                shiftPressedAlone = false;
-                shiftChordUsed = false;
+                var shouldToggle = shiftHeld && !shiftClickDirty;
+                var wasDirty = shiftClickDirty;
+                shiftHeld = false;
+                shiftClickDirty = false;
+                if (wasDirty) {
+                    /* Giữ dirty trên parent tới khi parent nhận keyup Shift */
+                    try {
+                        if (window.parent && typeof window.parent.__markShiftClickDirty === 'function') {
+                            window.parent.__markShiftClickDirty();
+                        }
+                    } catch (eKeep) { /* ignore */ }
+                }
                 if (!shouldToggle || isSubmitRingShortcutBlockedTarget(event.target)) {
                     return;
                 }
