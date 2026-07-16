@@ -18694,6 +18694,7 @@
 
         /**
          * Ctrl+Shift: tắt/khôi phục toàn bộ viền cam quan sát.
+         * Fire theo modifier trên từng keydown (không track ctrlDown) — giữ Ctrl + nhấn/nhả Shift nhiều lần vẫn được.
          * Đánh dấu chord Ctrl + dirty Shift để không va chạm Ctrl-only / Shift-only.
          */
         function initCtrlShiftObserveFocusShortcut() {
@@ -18702,9 +18703,12 @@
             }
             document.documentElement.dataset.ctrlShiftObserveBound = '1';
 
-            let ctrlDown = false;
-            let shiftDown = false;
-            let ctrlShiftHandled = false;
+            const isCtrlKey = (event) => (
+                event.key === 'Control' || event.code === 'ControlLeft' || event.code === 'ControlRight'
+            );
+            const isShiftKey = (event) => (
+                event.key === 'Shift' || event.code === 'ShiftLeft' || event.code === 'ShiftRight'
+            );
 
             const markChordAgainstAloneShortcuts = () => {
                 if (typeof window.__markCtrlChordUsed === 'function') {
@@ -18715,17 +18719,13 @@
                 }
             };
 
-            const tryFireCtrlShift = (event) => {
-                if (!ctrlDown || !shiftDown || ctrlShiftHandled) {
-                    return;
-                }
+            const fireCtrlShift = (event) => {
                 if (event.altKey || event.metaKey) {
                     return;
                 }
                 if (isPeriodFilterShortcutBlockedTarget(event.target)) {
                     return;
                 }
-                ctrlShiftHandled = true;
                 event.preventDefault();
                 event.stopPropagation();
                 markChordAgainstAloneShortcuts();
@@ -18733,34 +18733,21 @@
             };
 
             document.addEventListener('keydown', (event) => {
-                if (event.key === 'Control') {
-                    if (!event.repeat) {
-                        ctrlDown = true;
-                    }
-                    tryFireCtrlShift(event);
+                if (event.repeat || event.altKey || event.metaKey) {
                     return;
                 }
-                if (event.key === 'Shift') {
-                    if (!event.repeat) {
-                        shiftDown = true;
-                    }
-                    tryFireCtrlShift(event);
+                /* Nhấn Shift trong lúc Ctrl đang giữ → mỗi lần Shift là một lần toggle */
+                if (isShiftKey(event) && event.ctrlKey) {
+                    fireCtrlShift(event);
+                    return;
+                }
+                /* Nhấn Ctrl trong lúc Shift đang giữ */
+                if (isCtrlKey(event) && event.shiftKey) {
+                    fireCtrlShift(event);
                     return;
                 }
                 if (event.ctrlKey && event.shiftKey) {
                     markChordAgainstAloneShortcuts();
-                    ctrlShiftHandled = true;
-                }
-            }, true);
-
-            document.addEventListener('keyup', (event) => {
-                if (event.key === 'Control') {
-                    ctrlDown = false;
-                } else if (event.key === 'Shift') {
-                    shiftDown = false;
-                }
-                if (!ctrlDown && !shiftDown) {
-                    ctrlShiftHandled = false;
                 }
             }, true);
         }
@@ -19845,6 +19832,16 @@
                         window.__markShiftClickDirty();
                     }
                     toggleTrackingObserveFocusAllFromShortcut();
+                    return;
+                }
+                if (msg.type === 'setTrackingBarObserveFocus') {
+                    const frame = el('okFrame');
+                    if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
+                        return;
+                    }
+                    if (sheetManager && typeof sheetManager.setTrackingBarObserveFocusNums === 'function') {
+                        sheetManager.setTrackingBarObserveFocusNums(msg.nums);
+                    }
                     return;
                 }
                 if (msg.type === 'submitStateChanged') {

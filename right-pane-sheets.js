@@ -13203,6 +13203,7 @@ class RightPaneSheetManager {
                 delete tableWrap.__trackingGetFrameIndex;
                 delete tableWrap.__trackingToggleObserveFocus;
                 delete tableWrap.__trackingToggleObserveFocusAll;
+                delete tableWrap.__trackingSetObserveFocusNums;
             } catch (eDelSeek) {
                 /* ignore */
             }
@@ -13301,8 +13302,44 @@ class RightPaneSheetManager {
             paint();
         };
         tableWrap.__trackingGetFrameIndex = () => frameIndex;
+        const setObserveFocusNums = (rawNums) => {
+            const maxN = isBasic ? 35 : 12;
+            const mode = isBasic ? 'basic' : 'special';
+            if (!this._trackingObserveFocusStashByMode) {
+                this._trackingObserveFocusStashByMode = { basic: null, special: null };
+            }
+            const next = new Set();
+            (Array.isArray(rawNums) ? rawNums : []).forEach((x) => {
+                const n = Math.floor(Number(x));
+                if (Number.isFinite(n) && n >= 1 && n <= maxN) {
+                    next.add(n);
+                }
+            });
+            const focusNums = getFocusNums();
+            let same = focusNums.size === next.size && next.size > 0;
+            if (same) {
+                next.forEach((n) => {
+                    if (!focusNums.has(n)) {
+                        same = false;
+                    }
+                });
+            }
+            focusNums.clear();
+            if (same) {
+                /* Click lại Chuỗi x → tắt, stash để Ctrl+Shift bật lại */
+                this._trackingObserveFocusStashByMode[mode] = new Set(next);
+            } else {
+                abandonObserveFocusStashForMode(mode);
+                next.forEach((n) => focusNums.add(n));
+            }
+            paint();
+            persistTrackingUi();
+            return true;
+        };
+
         tableWrap.__trackingToggleObserveFocus = toggleObserveFocusNum;
         tableWrap.__trackingToggleObserveFocusAll = toggleObserveFocusAll;
+        tableWrap.__trackingSetObserveFocusNums = setObserveFocusNums;
     }
 
     /**
@@ -13339,6 +13376,73 @@ class RightPaneSheetManager {
             set.delete(n);
         } else {
             set.add(n);
+        }
+        const prev = sheet.trackingUi && typeof sheet.trackingUi === 'object'
+            ? sheet.trackingUi
+            : {};
+        sheet.trackingUi = {
+            ...prev,
+            viewMode,
+            focusNumsByMode: RightPaneSheetManager.serializeTrackingFocusNumsByMode(byMode)
+        };
+        try {
+            sessionStorage.setItem(
+                TRACKING_UI_STORAGE_KEY,
+                JSON.stringify(sheet.trackingUi)
+            );
+        } catch (e) {
+            /* ignore */
+        }
+        return true;
+    }
+
+    /**
+     * Thay toàn bộ viền cam quan sát (mode hiện tại) bằng danh sách số (vd. 5 số Chuỗi x).
+     * @returns {boolean}
+     */
+    setTrackingBarObserveFocusNums(rawNums) {
+        const tableWrap = typeof document !== 'undefined'
+            ? document.getElementById('tableWrap')
+            : null;
+        if (tableWrap && typeof tableWrap.__trackingSetObserveFocusNums === 'function') {
+            return !!tableWrap.__trackingSetObserveFocusNums(rawNums);
+        }
+        const sheet = this.sheets[TRACKING_SHEET_ID] || this.sheets.specialtracking;
+        if (!sheet || sheet.kind !== TRACKING_KIND) {
+            return false;
+        }
+        if (!this._trackingObserveFocusStashByMode) {
+            this._trackingObserveFocusStashByMode = { basic: null, special: null };
+        }
+        const viewMode = this.getTrackingViewMode(sheet);
+        const mode = viewMode === 'basic' ? 'basic' : 'special';
+        const maxN = mode === 'basic' ? 35 : 12;
+        this._trackingObserveFocusStashByMode[mode] = null;
+        const byMode = RightPaneSheetManager.readTrackingFocusNumsByMode(
+            sheet.trackingUi || {}
+        );
+        const set = byMode[mode];
+        const next = new Set();
+        (Array.isArray(rawNums) ? rawNums : []).forEach((x) => {
+            const n = Math.floor(Number(x));
+            if (Number.isFinite(n) && n >= 1 && n <= maxN) {
+                next.add(n);
+            }
+        });
+        let same = set.size === next.size && next.size > 0;
+        if (same) {
+            next.forEach((n) => {
+                if (!set.has(n)) {
+                    same = false;
+                }
+            });
+        }
+        set.clear();
+        if (same) {
+            this._trackingObserveFocusStashByMode[mode] = new Set(next);
+        } else {
+            this._trackingObserveFocusStashByMode[mode] = null;
+            next.forEach((n) => set.add(n));
         }
         const prev = sheet.trackingUi && typeof sheet.trackingUi === 'object'
             ? sheet.trackingUi

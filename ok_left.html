@@ -359,12 +359,6 @@
             font-weight: bold
         }
 
-        .chuoi-toggled-td {
-            background: black !important;
-            color: #ffffff !important;
-            font-weight: bold
-        }
-
         /* Keep Chuoi label readable on neon submit rows */
         td.answer-neon>span {
             color: #000000 !important;
@@ -5539,8 +5533,25 @@
         }
 
         // Helper utilities used by renderTable1/renderTable2
-        const clickedChuoi = new Set();
-        function toggleChuoi(i) { if (clickedChuoi.has(i)) clickedChuoi.delete(i); else clickedChuoi.add(i); renderTable2(); }
+        /** Click nhãn Chuỗi x → thay toàn bộ viền cam quan sát bằng 5 số của chuỗi đó. */
+        function toggleChuoi(i) {
+            if (!raw) {
+                return;
+            }
+            try {
+                var displayLines = getRawDisplayLines();
+                if (!displayLines || !displayLines[i]) {
+                    return;
+                }
+                var nums = getNumsFromLineObj(displayLines[i]).filter(function (n) {
+                    return !isNaN(n) && n >= 1 && n <= 35;
+                });
+                if (!nums.length) {
+                    return;
+                }
+                window.parent.postMessage({ type: 'setTrackingBarObserveFocus', nums: nums }, '*');
+            } catch (eChuoi) { /* ignore */ }
+        }
         function matchSearchPattern(pattern, searchDigitsCached) {
             try {
                 let val;
@@ -8086,12 +8097,12 @@
                     effectiveRefExp = Math.min(CHUOI_REF_COUNT_MAX, Math.max(effectiveRefExp, 0) + 1);
                 }
                 labelStyle = getChuoiRefCountLabelStyle(effectiveRefExp);
-                let chuoiTdClass = clickedChuoi.has(i) ? 'chuoi-toggled-td' : '';
+                let chuoiTdClass = '';
                 // detect neon
                 // A chuỗi should go neon immediately when it contains at least 2 submit numbers.
                 let isNeon = submitActive && rowHasTwoOrMoreAnswers;
                 // when neon is active, mark the label cell so CSS animations apply
-                if (isNeon) chuoiTdClass = (chuoiTdClass ? chuoiTdClass + ' ' : '') + 'answer-neon animate';
+                if (isNeon) chuoiTdClass = 'answer-neon animate';
                 let labelVars = '';
                 if (isNeon) labelVars = '--neon-color:#00ff66;--neon-mid:rgba(0,255,102,0.85);--neon-outer:rgba(0,255,102,0.7);--neon-inner:rgba(0,255,102,1);';
                 // NOTE: Inline SVG generation removed here to avoid being overwritten by
@@ -8101,7 +8112,7 @@
 
                 // Main row
                 html += `<tr class="chuoi-main-row">`;
-                html += `<td style="${labelStyle};${labelVars}position:relative" class="${chuoiTdClass}"><span onclick="toggleChuoi(${i})" style="cursor:pointer;position:relative;z-index:2">Chuỗi ${displayLines.length - i}</span></td>`;
+                html += `<td style="${labelStyle};${labelVars}position:relative" class="${chuoiTdClass}"><span onclick="toggleChuoi(${i})" style="cursor:pointer;position:relative;z-index:2" title="Viền cam = 5 số chuỗi này (bấm lại để tắt)">Chuỗi ${displayLines.length - i}</span></td>`;
                 html += `<td style='font-size:13px;position:relative;'>` + nums.map(n => {
                     let cls = selected.has(n) ? ' selected' : '';
                     if (noteSet.indexOf(n) !== -1) cls += ' note-highlight';
@@ -8126,7 +8137,7 @@
                 const searchClass = matchSearchPattern(pattern) ? 'search-hit' : '';
                 if (color) html += `<tr class="chuoi-pattern-row"><td class="chuoi-pattern-label ${searchClass}" data-chuoi-pattern="${pattern}" style='font-size:12px;font-weight:bold;color:${color}'>${pattern}</td>`;
                 else html += `<tr class="chuoi-pattern-row"><td class="chuoi-pattern-label ${searchClass}" data-chuoi-pattern="${pattern}" style='font-size:12px;'>${pattern}</td>`;
-                html += `<td class='${clickedChuoi.has(i) ? "chuoi-toggled-td" : ""}' style='font-size:12px;'>` + freqArr.map((f, idx) => { const n = nums[idx]; const clickAttr = (!submitActive && !isBlocked(n)) ? `onclick="onNumberCellClick(${n},'right',${i})"` : ''; const semanticCls = getLeftTableSemanticColorClasses(n); const idxClass = ('cell index' + (semanticCls ? (' ' + semanticCls) : '')).trim(); return `<span class="${idxClass}" data-num="${n}" ${clickAttr}>${f}</span>`; }).join('') + `</td></tr>`;
+                html += `<td style='font-size:12px;'>` + freqArr.map((f, idx) => { const n = nums[idx]; const clickAttr = (!submitActive && !isBlocked(n)) ? `onclick="onNumberCellClick(${n},'right',${i})"` : ''; const semanticCls = getLeftTableSemanticColorClasses(n); const idxClass = ('cell index' + (semanticCls ? (' ' + semanticCls) : '')).trim(); return `<span class="${idxClass}" data-num="${n}" ${clickAttr}>${f}</span>`; }).join('') + `</td></tr>`;
                 html += `<tr class="chuoi-gap-row"><td colspan="2"></td></tr>`;
             });
             html += '</table>';
@@ -10135,9 +10146,12 @@
             }
             document.documentElement.dataset.ctrlShiftObserveBound = '1';
 
-            var ctrlDown = false;
-            var shiftDown = false;
-            var ctrlShiftHandled = false;
+            function isCtrlKey(event) {
+                return event.key === 'Control' || event.code === 'ControlLeft' || event.code === 'ControlRight';
+            }
+            function isShiftKey(event) {
+                return event.key === 'Shift' || event.code === 'ShiftLeft' || event.code === 'ShiftRight';
+            }
 
             function markChordAgainstAloneShortcuts() {
                 try {
@@ -10162,52 +10176,34 @@
                 } catch (ePShift) { /* ignore */ }
             }
 
-            function tryFireCtrlShift(event) {
-                if (!ctrlDown || !shiftDown || ctrlShiftHandled) {
-                    return;
-                }
+            function fireCtrlShift(event) {
                 if (event.altKey || event.metaKey) {
                     return;
                 }
-                ctrlShiftHandled = true;
                 event.preventDefault();
                 event.stopPropagation();
                 markChordAgainstAloneShortcuts();
-                /* Local shift dirty — initLeftSubmitRingShiftShortcut cùng trang */
                 try {
                     window.parent.postMessage({ type: 'toggleTrackingObserveFocusAll' }, '*');
                 } catch (err) { }
             }
 
             document.addEventListener('keydown', function (event) {
-                if (event.key === 'Control') {
-                    if (!event.repeat) {
-                        ctrlDown = true;
-                    }
-                    tryFireCtrlShift(event);
+                if (event.repeat || event.altKey || event.metaKey) {
                     return;
                 }
-                if (event.key === 'Shift') {
-                    if (!event.repeat) {
-                        shiftDown = true;
-                    }
-                    tryFireCtrlShift(event);
+                /* Nhấn Shift trong lúc Ctrl đang giữ → mỗi lần Shift là một lần toggle */
+                if (isShiftKey(event) && event.ctrlKey) {
+                    fireCtrlShift(event);
+                    return;
+                }
+                /* Nhấn Ctrl trong lúc Shift đang giữ */
+                if (isCtrlKey(event) && event.shiftKey) {
+                    fireCtrlShift(event);
                     return;
                 }
                 if (event.ctrlKey && event.shiftKey) {
                     markChordAgainstAloneShortcuts();
-                    ctrlShiftHandled = true;
-                }
-            }, true);
-
-            document.addEventListener('keyup', function (event) {
-                if (event.key === 'Control') {
-                    ctrlDown = false;
-                } else if (event.key === 'Shift') {
-                    shiftDown = false;
-                }
-                if (!ctrlDown && !shiftDown) {
-                    ctrlShiftHandled = false;
                 }
             }, true);
         })();
