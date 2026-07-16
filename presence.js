@@ -374,7 +374,20 @@
             awayAt = Number(localStorage.getItem(AWAY_KEY)) || 0;
         } catch (e) { /* ignore */ }
         const last = Math.max(aliveAt, awayAt);
-        return last > 0 && (now - last) > IDLE_WIPE_MS;
+        if (last <= 0) {
+            return false;
+        }
+        return (now - last) > IDLE_WIPE_MS;
+    }
+
+    function onPresenceIdleTick() {
+        if (document.hidden) {
+            markAway();
+            return;
+        }
+        if (!wasIdleTooLong()) {
+            touchAlive();
+        }
     }
 
     function getOrCreateDeviceId() {
@@ -409,6 +422,138 @@
         } catch (e) {
             return makeRandomDeviceCode();
         }
+    }
+
+    /** deviceId → mã 3 chữ trên /presence. Nhiều tab cùng máy = một deviceId → cùng mã (AYU1, AYU2). */
+    function extractDeviceCodesFromPresence(data) {
+        const map = new Map();
+        if (!data || typeof data !== 'object') {
+            return map;
+        }
+        Object.keys(data).forEach((sid) => {
+            const row = data[sid];
+            if (!row || typeof row !== 'object') {
+                return;
+            }
+            const did = String(row.deviceId || '').trim();
+            const code = normalizeDeviceCode(row.deviceCode || row.deviceTag);
+            if (!did || !code) {
+                return;
+            }
+            map.set(did, code);
+        });
+        return map;
+    }
+
+    /** Mã đang được thiết bị **khác** (khác deviceId) dùng — bỏ qua tab/máy mình. */
+    function getUsedCodesByOthers(deviceCodeMap) {
+        const used = new Set();
+        deviceCodeMap.forEach((code, did) => {
+            if (did && deviceId && did !== deviceId) {
+                used.add(code);
+            }
+        });
+        return used;
+    }
+
+    /** Thiết bị online khác đang dùng cùng mã (xử lý race khi 2 máy mới cùng lúc). */
+    function onlineDeviceIdsWithCode(data, code) {
+        const holders = new Set();
+        const want = normalizeDeviceCode(code);
+        if (!want || !data || typeof data !== 'object') {
+            return holders;
+        }
+        const now = Date.now();
+        Object.keys(data).forEach((sid) => {
+            const row = data[sid];
+            if (!row || typeof row !== 'object') {
+                return;
+            }
+            const rowCode = normalizeDeviceCode(row.deviceCode || row.deviceTag);
+            if (rowCode !== want) {
+                return;
+            }
+            const updatedAt = Number(row.updatedAt) || 0;
+            const alive = !!row.online && updatedAt > 0 && (now - updatedAt) <= STALE_ONLINE_MS;
+            if (!alive) {
+                return;
+            }
+            const did = String(row.deviceId || '').trim();
+            if (did) {
+                holders.add(did);
+            }
+        });
+        return holders;
+    }
+
+    function codeAtIndex(i) {
+        const n = Math.max(0, Math.min(17575, Math.floor(Number(i) || 0)));
+        const a = 65 + Math.floor(n / 676) % 26;
+        const b = 65 + Math.floor(n / 26) % 26;
+        const c = 65 + n % 26;
+        return String.fromCharCode(a, b, c);
+    }
+
+    /** Chọn mã chưa có thiết bị khác trên Firebase. */
+    function pickAvailableDeviceCode(usedSet) {
+        const used = usedSet || new Set();
+        for (let i = 0; i < 400; i++) {
+            const code = makeRandomDeviceCode();
+            if (!used.has(code)) {
+                return code;
+            }
+        }
+        for (let i = 0; i < 17576; i++) {
+            const code = codeAtIndex(i);
+            if (!used.has(code)) {
+                return code;
+            }
+        }
+        return makeRandomDeviceCode();
+    }
+
+    function setDeviceCode(code) {
+        const next = normalizeDeviceCode(code) || makeRandomDeviceCode();
+        deviceTag = next;
+        displayCode = deviceTag + String(tabIndex || 1);
+        try {
+            localStorage.setItem(DEVICE_CODE_KEY, deviceTag);
+        } catch (e) { /* ignore */ }
+    }
+
+    /**
+     * Mã 3 chữ unique theo deviceId (máy), không theo tab.
+     * Cùng máy: AYU1 + AYU2 OK. Hai máy khác: không được cùng AYU.
+     */
+    function reconcileUniqueDeviceCode(data) {
+        if (!deviceId) {
+            return false;
+        }
+        const deviceMap = extractDeviceCodesFromPresence(data);
+        const usedByOthers = getUsedCodesByOthers(deviceMap);
+        let myCode = normalizeDeviceCode(deviceTag) || '';
+
+        if (!isValidDeviceCode(myCode)) {
+            setDeviceCode(pickAvailableDeviceCode(usedByOthers));
+            return true;
+        }
+
+        const onlineHolders = onlineDeviceIdsWithCode(data, myCode);
+        if (onlineHolders.size > 1) {
+            const winner = Array.from(onlineHolders).sort()[0];
+            if (winner !== deviceId) {
+                usedByOthers.add(myCode);
+                setDeviceCode(pickAvailableDeviceCode(usedByOthers));
+                return true;
+            }
+        }
+
+        if (usedByOthers.has(myCode)) {
+            setDeviceCode(pickAvailableDeviceCode(usedByOthers));
+            return true;
+        }
+
+        return false;
     }
 
     function readTabSlots() {
@@ -1076,6 +1221,13 @@
 
     function renderPresence(snapVal) {
         lastSnapVal = snapVal && typeof snapVal === 'object' ? snapVal : {};
+        if (deviceId && reconcileUniqueDeviceCode(lastSnapVal)) {
+            if (sessionRef) {
+                writePresence(true)
+                    .then(() => armOnDisconnect())
+                    .catch(() => { /* ignore */ });
+            }
+        }
         const onlineRows = [];
         const offlineRows = [];
         const data = lastSnapVal;
@@ -1161,6 +1313,14 @@
             pendingGone.delete(id);
         });
 
+        const onlineDeviceIds = new Set();
+        onlineRows.forEach((r) => {
+            const did = String(r.deviceId || '').trim();
+            if (did) {
+                onlineDeviceIds.add(did);
+            }
+        });
+
         prevOnlineIds.forEach((id) => {
             if (nextOnlineIds.has(id) || Object.prototype.hasOwnProperty.call(data, id)) {
                 return;
@@ -1170,6 +1330,11 @@
             }
             const meta = metaById[id] || nextMeta[id];
             if (!meta) {
+                return;
+            }
+            const metaDid = String(meta.deviceId || '').trim();
+            if (metaDid && onlineDeviceIds.has(metaDid)) {
+                pendingGone.delete(id);
                 return;
             }
             const at = now;
@@ -1204,6 +1369,11 @@
                 pendingGone.delete(id);
                 return;
             }
+            const entryDid = String(entry.deviceId || '').trim();
+            if (entryDid && onlineDeviceIds.has(entryDid)) {
+                pendingGone.delete(id);
+                return;
+            }
             offlineRows.push(Object.assign({
                 id: id,
                 label: entry.label,
@@ -1224,6 +1394,16 @@
             }, pickClientDevice(entry)));
         });
 
+        const reconciledOfflineRows = offlineRows.filter((r) => {
+            const did = String(r.deviceId || '').trim();
+            if (did && onlineDeviceIds.has(did)) {
+                requestRemoveNode(r.id);
+                pendingGone.delete(r.id);
+                return false;
+            }
+            return true;
+        });
+
         metaById = nextMeta;
         prevOnlineIds = nextOnlineIds;
 
@@ -1240,7 +1420,7 @@
             || new Set(onlineRows.map((r) => r.deviceId || r.id)).size;
 
         const listOnline = buildListRows(onlineRows, deviceCounts, false);
-        const listOffline = buildListRows(offlineRows, deviceCounts, true);
+        const listOffline = buildListRows(reconciledOfflineRows, deviceCounts, true);
 
         const countEl = el('presenceCount');
         if (countEl) {
@@ -1292,14 +1472,14 @@
                 '<span class="presence-text">' +
                 '<span class="presence-label">' + escapeHtml(r.displayLabel || r.label) +
                 ' <span class="presence-status presence-status--online">đang online</span></span>' +
+                (geoLine
+                    ? '<span class="presence-meta presence-meta--geo">' + escapeHtml(geoLine) + '</span>'
+                    : '') +
                 (deviceMetaInner
                     ? '<span class="presence-meta presence-meta--device">' + deviceMetaInner + '</span>'
                     : '') +
                 '<span class="presence-meta">' +
                 escapeHtml(metaLine(r.startedAt, null)) + '</span>' +
-                (geoLine
-                    ? '<span class="presence-meta presence-meta--geo">' + escapeHtml(geoLine) + '</span>'
-                    : '') +
                 '</span></li>';
         });
         listOffline.forEach((r) => {
@@ -1335,14 +1515,14 @@
                 '<span class="presence-text">' +
                 '<span class="presence-label">' + escapeHtml(r.displayLabel || r.label) +
                 ' <span class="presence-status presence-status--offline">vừa offline</span></span>' +
+                (geoLine
+                    ? '<span class="presence-meta presence-meta--geo">' + escapeHtml(geoLine) + '</span>'
+                    : '') +
                 (deviceMetaInner
                     ? '<span class="presence-meta presence-meta--device">' + deviceMetaInner + '</span>'
                     : '') +
                 '<span class="presence-meta">' +
                 escapeHtml(metaLine(r.startedAt, r.at)) + '</span>' +
-                (geoLine
-                    ? '<span class="presence-meta presence-meta--geo">' + escapeHtml(geoLine) + '</span>'
-                    : '') +
                 '</span></li>';
         });
         if (!html) {
@@ -1565,14 +1745,20 @@
     }
 
     function startAliveLoop() {
-        touchAlive();
+        onPresenceIdleTick();
         if (aliveTimer) {
             clearInterval(aliveTimer);
         }
         aliveTimer = setInterval(() => {
-            touchAlive();
-            refreshTabSlot(sessionId);
+            onPresenceIdleTick();
+            if (!document.hidden && sessionId) {
+                refreshTabSlot(sessionId);
+            }
         }, 5000);
+        if (!window.__presenceIdleBound) {
+            window.__presenceIdleBound = true;
+            document.addEventListener('visibilitychange', onPresenceIdleTick);
+        }
     }
 
     function startPresence() {
@@ -1608,54 +1794,65 @@
         const afterAuth = () => {
             db = firebase.database();
             deviceId = getOrCreateDeviceId();
-            deviceTag = getOrCreateDeviceCode();
             sessionId = makeSessionId();
             tabIndex = claimTabIndex(sessionId);
-            displayCode = deviceTag + String(tabIndex);
             startedAt = Date.now();
-            sessionRef = db.ref(PATH + '/' + sessionId);
-            startAliveLoop();
 
-            const connectedRef = db.ref('.info/connected');
-            connectedRef.on('value', (snap) => {
-                if (snap.val() !== true) {
-                    return;
-                }
-                armOnDisconnect()
-                    .then(() => writePresence(true))
-                    .then(() => startHeartbeat())
-                    .catch(() => { /* ignore */ });
-            });
+            const beginPresence = (initialData) => {
+                deviceTag = getOrCreateDeviceCode();
+                reconcileUniqueDeviceCode(initialData && typeof initialData === 'object' ? initialData : {});
+                displayCode = deviceTag + String(tabIndex);
+                sessionRef = db.ref(PATH + '/' + sessionId);
+                startAliveLoop();
 
-            db.ref(PATH).on('value', (snap) => {
-                renderPresence(snap.val());
-            });
-            startRenderTick();
+                const connectedRef = db.ref('.info/connected');
+                connectedRef.on('value', (snap) => {
+                    if (snap.val() !== true) {
+                        return;
+                    }
+                    armOnDisconnect()
+                        .then(() => writePresence(true))
+                        .then(() => startHeartbeat())
+                        .catch(() => { /* ignore */ });
+                });
 
-            fetchSelfGeo().then(() => {
-                writePresence(true).then(() => armOnDisconnect());
-            }).catch(() => { /* ignore */ });
+                db.ref(PATH).on('value', (snap) => {
+                    renderPresence(snap.val());
+                });
+                startRenderTick();
 
-            enrichClientDeviceHints().then((changed) => {
-                if (!changed || !sessionRef) {
-                    return;
-                }
-                writePresence(true).then(() => armOnDisconnect());
-            });
+                lastSnapVal = initialData && typeof initialData === 'object' ? initialData : {};
+                renderPresence(lastSnapVal);
 
-            window.addEventListener('pagehide', markSelfOfflineBestEffort);
-            window.addEventListener('beforeunload', markSelfOfflineBestEffort);
+                fetchSelfGeo().then(() => {
+                    writePresence(true).then(() => armOnDisconnect());
+                }).catch(() => { /* ignore */ });
 
-            window.PresenceBridge = {
-                getDeviceId: () => deviceId,
-                getDeviceTag: () => deviceTag,
-                getSessionId: () => sessionId,
-                getTabIndex: () => tabIndex,
-                getDisplayCode: () => displayCode,
-                rerender: () => {
-                    renderPresence(lastSnapVal && typeof lastSnapVal === 'object' ? lastSnapVal : {});
-                }
+                enrichClientDeviceHints().then((changed) => {
+                    if (!changed || !sessionRef) {
+                        return;
+                    }
+                    writePresence(true).then(() => armOnDisconnect());
+                });
+
+                window.addEventListener('pagehide', markSelfOfflineBestEffort);
+                window.addEventListener('beforeunload', markSelfOfflineBestEffort);
+
+                window.PresenceBridge = {
+                    getDeviceId: () => deviceId,
+                    getDeviceTag: () => deviceTag,
+                    getSessionId: () => sessionId,
+                    getTabIndex: () => tabIndex,
+                    getDisplayCode: () => displayCode,
+                    rerender: () => {
+                        renderPresence(lastSnapVal && typeof lastSnapVal === 'object' ? lastSnapVal : {});
+                    }
+                };
             };
+
+            db.ref(PATH).once('value')
+                .then((snap) => beginPresence(snap.val()))
+                .catch(() => beginPresence({}));
         };
 
         if (firebase.auth) {

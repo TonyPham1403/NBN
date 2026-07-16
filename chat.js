@@ -1379,6 +1379,388 @@
     }
 
     let imagePreviewEscHandler = null;
+    let imagePreviewZoom = null;
+    let imagePreviewPanPointerId = null;
+    let imagePreviewWheelState = null;
+    let imagePreviewSaveMeta = null;
+    let imagePreviewMenuDismissBound = false;
+    const IMAGE_PREVIEW_WHEEL_SENS = 0.0016;
+    const IMAGE_PREVIEW_MIN_SCALE = 1;
+    const IMAGE_PREVIEW_MAX_SCALE = 8;
+
+    function defaultImagePreviewZoom() {
+        return {
+            scale: 1,
+            panX: 0,
+            panY: 0,
+            fit: 1,
+            layoutW: 0,
+            layoutH: 0,
+            viewportW: 0,
+            viewportH: 0,
+            isZoomed: false
+        };
+    }
+
+    function normalizeWheelDelta(e, viewport) {
+        let dy = e.deltaY;
+        if (e.deltaMode === 1) {
+            dy *= 18;
+        } else if (e.deltaMode === 2) {
+            dy *= viewport.clientHeight || 600;
+        }
+        return dy;
+    }
+
+    function applyImagePreviewTransform(modal) {
+        const stage = modal.querySelector('[data-chat-image-preview-stage]');
+        const viewport = modal.querySelector('[data-chat-image-preview-viewport]');
+        if (!stage || !viewport || !imagePreviewZoom) {
+            return;
+        }
+        const z = imagePreviewZoom;
+        const s = z.fit * z.scale;
+        const vw = z.viewportW || viewport.clientWidth;
+        const vh = z.viewportH || viewport.clientHeight;
+        const tx = (vw - z.layoutW * s) / 2 + z.panX;
+        const ty = (vh - z.layoutH * s) / 2 + z.panY;
+        stage.style.transform = 'translate3d(' + tx + 'px,' + ty + 'px,0) scale(' + s + ')';
+        const zoomed = z.scale > 1.005;
+        if (z.isZoomed !== zoomed) {
+            z.isZoomed = zoomed;
+            viewport.classList.toggle('is-zoomed', zoomed);
+        }
+    }
+
+    function layoutImagePreview(modal) {
+        const img = modal.querySelector('[data-chat-image-preview-img]');
+        const viewport = modal.querySelector('[data-chat-image-preview-viewport]');
+        const stage = modal.querySelector('[data-chat-image-preview-stage]');
+        if (!img || !viewport || !stage || !img.naturalWidth) {
+            return;
+        }
+        imagePreviewZoom = defaultImagePreviewZoom();
+        const vw = viewport.clientWidth;
+        const vh = viewport.clientHeight;
+        const iw = img.naturalWidth;
+        const ih = img.naturalHeight;
+        imagePreviewZoom.fit = Math.min(1, vw / iw, vh / ih);
+        imagePreviewZoom.layoutW = iw;
+        imagePreviewZoom.layoutH = ih;
+        imagePreviewZoom.viewportW = vw;
+        imagePreviewZoom.viewportH = vh;
+        img.style.width = iw + 'px';
+        img.style.height = ih + 'px';
+        stage.style.transform = '';
+        applyImagePreviewTransform(modal);
+    }
+
+    function applyImagePreviewWheelDelta(modal, viewport, mx, my, deltaY) {
+        if (!imagePreviewZoom || !deltaY) {
+            return;
+        }
+        const z = imagePreviewZoom;
+        const vw = z.viewportW || viewport.clientWidth;
+        const vh = z.viewportH || viewport.clientHeight;
+        const s = z.fit * z.scale;
+        const tx = (vw - z.layoutW * s) / 2 + z.panX;
+        const ty = (vh - z.layoutH * s) / 2 + z.panY;
+        const cx = (mx - tx) / s;
+        const cy = (my - ty) / s;
+        const factor = Math.exp(-deltaY * IMAGE_PREVIEW_WHEEL_SENS);
+        let newScale = z.scale * factor;
+        newScale = Math.min(IMAGE_PREVIEW_MAX_SCALE, Math.max(IMAGE_PREVIEW_MIN_SCALE, newScale));
+        if (newScale <= IMAGE_PREVIEW_MIN_SCALE + 0.002) {
+            z.scale = IMAGE_PREVIEW_MIN_SCALE;
+            z.panX = 0;
+            z.panY = 0;
+        } else {
+            const newS = z.fit * newScale;
+            const newTx = (vw - z.layoutW * newS) / 2;
+            const newTy = (vh - z.layoutH * newS) / 2;
+            z.panX = mx - cx * newS - newTx;
+            z.panY = my - cy * newS - newTy;
+            z.scale = newScale;
+        }
+        applyImagePreviewTransform(modal);
+    }
+
+    function onImagePreviewWheel(e, modal) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!imagePreviewZoom) {
+            return;
+        }
+        const viewport = e.currentTarget;
+        if (!imagePreviewWheelState) {
+            imagePreviewWheelState = {
+                pendingDy: 0,
+                mx: 0,
+                my: 0,
+                rafId: 0,
+                modal: modal,
+                viewport: viewport
+            };
+        }
+        const st = imagePreviewWheelState;
+        st.pendingDy += normalizeWheelDelta(e, viewport);
+        st.mx = e.clientX;
+        st.my = e.clientY;
+        st.modal = modal;
+        st.viewport = viewport;
+        if (!st.rafId) {
+            st.rafId = requestAnimationFrame(() => {
+                st.rafId = 0;
+                const rect = st.viewport.getBoundingClientRect();
+                const mx = st.mx - rect.left;
+                const my = st.my - rect.top;
+                const dy = st.pendingDy;
+                st.pendingDy = 0;
+                applyImagePreviewWheelDelta(st.modal, st.viewport, mx, my, dy);
+            });
+        }
+    }
+
+    function clearImagePreviewWheelState() {
+        if (imagePreviewWheelState && imagePreviewWheelState.rafId) {
+            cancelAnimationFrame(imagePreviewWheelState.rafId);
+        }
+        imagePreviewWheelState = null;
+    }
+
+    function hideImagePreviewContextMenu() {
+        const menu = el('chatImagePreviewMenu');
+        if (menu) {
+            menu.hidden = true;
+        }
+    }
+
+    function guessImageExtFromSrc(src) {
+        if (!src) {
+            return '.png';
+        }
+        if (src.indexOf('data:image/png') === 0) {
+            return '.png';
+        }
+        if (src.indexOf('data:image/jpeg') === 0 || src.indexOf('data:image/jpg') === 0) {
+            return '.jpg';
+        }
+        if (src.indexOf('data:image/webp') === 0) {
+            return '.webp';
+        }
+        if (src.indexOf('data:image/gif') === 0) {
+            return '.gif';
+        }
+        const m = String(src).match(/\.(jpe?g|png|gif|webp|bmp)(\?|#|$)/i);
+        if (m) {
+            const ext = m[1].toLowerCase();
+            return ext === 'jpeg' ? '.jpg' : ('.' + ext);
+        }
+        return '.png';
+    }
+
+    function sanitizeImageDownloadName(name, src) {
+        let n = String(name || '').trim();
+        if (!n) {
+            n = 'image';
+        }
+        n = n.replace(/[\\/:*?"<>|]+/g, '_').replace(/\s+/g, ' ').trim();
+        if (!n) {
+            n = 'image';
+        }
+        if (!/\.(jpe?g|png|gif|webp|bmp|svg)$/i.test(n)) {
+            n += guessImageExtFromSrc(src);
+        }
+        return n;
+    }
+
+    async function imageSrcToBlob(src) {
+        const resp = await fetch(src);
+        if (!resp.ok) {
+            throw new Error('fetch failed');
+        }
+        return resp.blob();
+    }
+
+    function canUseNativeSavePicker() {
+        return !!(window.isSecureContext && typeof window.showSaveFilePicker === 'function');
+    }
+
+    function writeImageBlobToHandle(handle, src) {
+        return imageSrcToBlob(src).then((blob) => {
+            return handle.createWritable().then((writable) => {
+                return writable.write(blob).then(() => writable.close());
+            });
+        });
+    }
+
+    function beginSaveImagePreviewFromGesture() {
+        const meta = imagePreviewSaveMeta;
+        if (!meta || !meta.src) {
+            return;
+        }
+        const filename = sanitizeImageDownloadName(meta.filename, meta.src);
+        hideImagePreviewContextMenu();
+        if (canUseNativeSavePicker()) {
+            window.showSaveFilePicker({
+                suggestedName: filename
+            }).then((handle) => {
+                return writeImageBlobToHandle(handle, meta.src);
+            }).catch((err) => {
+                if (err && err.name === 'AbortError') {
+                    return;
+                }
+                saveImagePreviewFileWithAnchor(meta, filename);
+            });
+            return;
+        }
+        saveImagePreviewFileWithAnchor(meta, filename);
+    }
+
+    function triggerImageDownload(href, filename, revoke) {
+        const a = document.createElement('a');
+        a.href = href;
+        a.download = filename;
+        a.rel = 'noopener';
+        a.style.display = 'none';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        if (revoke) {
+            setTimeout(revoke, 1500);
+        }
+    }
+
+    function saveImagePreviewFileWithAnchor(meta, filename) {
+        const src = meta.src;
+        if (src.indexOf('data:') === 0 || src.indexOf('blob:') === 0) {
+            triggerImageDownload(src, filename, null);
+            return;
+        }
+        fetch(src, { mode: 'cors' }).then((resp) => {
+            if (!resp.ok) {
+                throw new Error('fetch failed');
+            }
+            return resp.blob();
+        }).then((blob) => {
+            const url = URL.createObjectURL(blob);
+            triggerImageDownload(url, filename, () => URL.revokeObjectURL(url));
+        }).catch(() => {
+            triggerImageDownload(src, filename, null);
+        });
+    }
+
+    function saveImagePreviewFile() {
+        beginSaveImagePreviewFromGesture();
+    }
+
+    function ensureImagePreviewContextMenu() {
+        let menu = el('chatImagePreviewMenu');
+        if (menu) {
+            return menu;
+        }
+        menu = document.createElement('div');
+        menu.id = 'chatImagePreviewMenu';
+        menu.className = 'chat-image-preview-menu';
+        menu.hidden = true;
+        menu.innerHTML = '<button type="button" class="chat-image-preview-menu-item" ' +
+            'data-chat-image-preview-save="1">Lưu ảnh về máy…</button>';
+        document.body.appendChild(menu);
+        menu.addEventListener('pointerdown', (e) => {
+            const saveBtn = e.target && e.target.closest
+                ? e.target.closest('[data-chat-image-preview-save]')
+                : null;
+            if (!saveBtn || e.button !== 0) {
+                return;
+            }
+            e.preventDefault();
+            e.stopPropagation();
+            beginSaveImagePreviewFromGesture();
+        });
+        if (!imagePreviewMenuDismissBound) {
+            imagePreviewMenuDismissBound = true;
+            document.addEventListener('pointerdown', (e) => {
+                const menuEl = el('chatImagePreviewMenu');
+                if (!menuEl || menuEl.hidden) {
+                    return;
+                }
+                if (menuEl.contains(e.target)) {
+                    return;
+                }
+                hideImagePreviewContextMenu();
+            });
+        }
+        return menu;
+    }
+
+    function showImagePreviewContextMenu(clientX, clientY) {
+        if (!imagePreviewSaveMeta || !imagePreviewSaveMeta.src) {
+            return;
+        }
+        const menu = ensureImagePreviewContextMenu();
+        const pad = 8;
+        menu.hidden = false;
+        menu.style.left = clientX + 'px';
+        menu.style.top = clientY + 'px';
+        requestAnimationFrame(() => {
+            const rect = menu.getBoundingClientRect();
+            let x = clientX;
+            let y = clientY;
+            if (rect.right > window.innerWidth - pad) {
+                x = Math.max(pad, window.innerWidth - rect.width - pad);
+            }
+            if (rect.bottom > window.innerHeight - pad) {
+                y = Math.max(pad, window.innerHeight - rect.height - pad);
+            }
+            menu.style.left = x + 'px';
+            menu.style.top = y + 'px';
+        });
+    }
+
+    function bindImagePreviewInteractions(modal) {
+        const viewport = modal.querySelector('[data-chat-image-preview-viewport]');
+        if (!viewport || viewport.dataset.previewBound === '1') {
+            return;
+        }
+        viewport.dataset.previewBound = '1';
+        viewport.addEventListener('wheel', (e) => onImagePreviewWheel(e, modal), { passive: false });
+        viewport.addEventListener('pointerdown', (e) => {
+            if (!imagePreviewZoom || imagePreviewZoom.scale <= 1.01 || e.button !== 0) {
+                return;
+            }
+            imagePreviewPanPointerId = e.pointerId;
+            viewport.classList.add('is-dragging');
+            viewport.setPointerCapture(e.pointerId);
+            viewport._panStart = {
+                x: e.clientX,
+                y: e.clientY,
+                panX: imagePreviewZoom.panX,
+                panY: imagePreviewZoom.panY
+            };
+            e.preventDefault();
+        });
+        viewport.addEventListener('pointermove', (e) => {
+            if (imagePreviewPanPointerId !== e.pointerId || !viewport._panStart || !imagePreviewZoom) {
+                return;
+            }
+            imagePreviewZoom.panX = viewport._panStart.panX + (e.clientX - viewport._panStart.x);
+            imagePreviewZoom.panY = viewport._panStart.panY + (e.clientY - viewport._panStart.y);
+            applyImagePreviewTransform(modal);
+        });
+        const endPan = (e) => {
+            if (imagePreviewPanPointerId !== e.pointerId) {
+                return;
+            }
+            imagePreviewPanPointerId = null;
+            viewport._panStart = null;
+            viewport.classList.remove('is-dragging');
+            if (viewport.hasPointerCapture && viewport.hasPointerCapture(e.pointerId)) {
+                viewport.releasePointerCapture(e.pointerId);
+            }
+        };
+        viewport.addEventListener('pointerup', endPan);
+        viewport.addEventListener('pointercancel', endPan);
+    }
 
     function ensureImagePreviewModal() {
         let modal = el('chatImagePreviewModal');
@@ -1389,19 +1771,40 @@
         modal.id = 'chatImagePreviewModal';
         modal.className = 'chat-image-preview-modal';
         modal.hidden = true;
-        modal.innerHTML = '<div class="chat-image-preview-card" role="dialog" aria-modal="true" ' +
-            'aria-label="Xem ảnh">' +
-            '<button type="button" class="chat-image-preview-close" data-chat-image-preview-close="1" ' +
+        modal.innerHTML = '<button type="button" class="chat-image-preview-close" data-chat-image-preview-close="1" ' +
             'aria-label="Đóng">×</button>' +
-            '<img class="chat-image-preview-img" data-chat-image-preview-img alt="" />' +
+            '<div class="chat-image-preview-card" role="dialog" aria-modal="true" aria-label="Xem ảnh">' +
+            '<div class="chat-image-preview-viewport" data-chat-image-preview-viewport>' +
+            '<div class="chat-image-preview-stage" data-chat-image-preview-stage>' +
+            '<img class="chat-image-preview-img" data-chat-image-preview-img alt="" draggable="false" />' +
+            '</div></div>' +
             '<div class="chat-image-preview-caption" data-chat-image-preview-caption></div></div>';
         document.body.appendChild(modal);
         modal.addEventListener('click', (e) => {
-            if (e.target === modal || (e.target && e.target.getAttribute &&
-                e.target.getAttribute('data-chat-image-preview-close') === '1')) {
+            if (e.target === modal) {
+                closeImagePreview();
+                return;
+            }
+            if (e.target && e.target.getAttribute &&
+                e.target.getAttribute('data-chat-image-preview-close') === '1') {
                 closeImagePreview();
             }
         });
+        modal.addEventListener('contextmenu', (e) => {
+            if (modal.hidden) {
+                return;
+            }
+            if (e.target && e.target.closest && e.target.closest('.chat-image-preview-close')) {
+                return;
+            }
+            if (e.target && e.target.closest &&
+                e.target.closest('[data-chat-image-preview-img]')) {
+                return;
+            }
+            e.preventDefault();
+            showImagePreviewContextMenu(e.clientX, e.clientY);
+        });
+        bindImagePreviewInteractions(modal);
         return modal;
     }
 
@@ -1412,10 +1815,25 @@
         }
         modal.hidden = true;
         const img = modal.querySelector('[data-chat-image-preview-img]');
+        const stage = modal.querySelector('[data-chat-image-preview-stage]');
+        const viewport = modal.querySelector('[data-chat-image-preview-viewport]');
         if (img) {
             img.removeAttribute('src');
             img.alt = '';
+            img.style.width = '';
+            img.style.height = '';
         }
+        if (stage) {
+            stage.style.transform = '';
+        }
+        if (viewport) {
+            viewport.classList.remove('is-zoomed', 'is-dragging');
+        }
+        imagePreviewZoom = null;
+        imagePreviewPanPointerId = null;
+        clearImagePreviewWheelState();
+        hideImagePreviewContextMenu();
+        imagePreviewSaveMeta = null;
         const cap = modal.querySelector('[data-chat-image-preview-caption]');
         if (cap) {
             cap.textContent = '';
@@ -1433,9 +1851,16 @@
         const modal = ensureImagePreviewModal();
         const img = modal.querySelector('[data-chat-image-preview-img]');
         const cap = modal.querySelector('[data-chat-image-preview-caption]');
+        imagePreviewSaveMeta = { src: src, filename: alt || 'image' };
+        hideImagePreviewContextMenu();
+        const onReady = () => layoutImagePreview(modal);
         if (img) {
+            img.onload = onReady;
             img.src = src;
             img.alt = alt || 'image';
+            if (img.complete) {
+                onReady();
+            }
         }
         if (cap) {
             cap.textContent = alt || '';
@@ -1445,6 +1870,7 @@
         if (!imagePreviewEscHandler) {
             imagePreviewEscHandler = (e) => {
                 if (e.key === 'Escape') {
+                    hideImagePreviewContextMenu();
                     closeImagePreview();
                 }
             };
