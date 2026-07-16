@@ -17262,6 +17262,13 @@
             }
         }
 
+        function toggleComboFocusUndoFromShortcut() {
+            if (!sheetManager || typeof sheetManager.toggleComboFocusUndoPeer !== 'function') {
+                return false;
+            }
+            return !!sheetManager.toggleComboFocusUndoPeer();
+        }
+
         function initSplitPaneKeyboardRouting() {
             if (document.documentElement.dataset.splitPaneKeyboardBound === '1') {
                 return;
@@ -17274,6 +17281,18 @@
                 }
                 const okFrame = el('okFrame');
                 if (okFrame && document.activeElement === okFrame) {
+                    return;
+                }
+
+                const isCtrlZ = (event.ctrlKey || event.metaKey)
+                    && !event.altKey
+                    && !event.shiftKey
+                    && (event.code === 'KeyZ' || event.key === 'z' || event.key === 'Z');
+                if (isCtrlZ) {
+                    if (toggleComboFocusUndoFromShortcut()) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                    }
                     return;
                 }
 
@@ -19679,6 +19698,14 @@
                         return;
                     }
                     navigateRightPaneByArrowKey(msg.key);
+                    return;
+                }
+                if (msg.type === 'toggleComboFocusUndo') {
+                    const frame = el('okFrame');
+                    if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
+                        return;
+                    }
+                    toggleComboFocusUndoFromShortcut();
                     return;
                 }
                 if (msg.type === 'submitStateChanged') {

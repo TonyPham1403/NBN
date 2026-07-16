@@ -403,6 +403,11 @@ class RightPaneSheetManager {
         this.activeWindowRange = null;
         this.comboFocusRowId = '';
         this.comboFocusRowIndex = -1;
+        /** Id đối ứng Ctrl+Z: qua lại giữa id focus trước và hiện tại. */
+        this.comboFocusUndoPeerId = '';
+        this._comboFocusUndoBurstAnchorId = '';
+        this._comboFocusUndoBurstEndId = '';
+        this._comboFocusUndoCommitTimer = 0;
         this.answerPopupFocusMask = { active: false, rowIndex: -1 };
         this._answerPopupMaskAppliedRow = -1;
         this._answerPopupMaskApplyRaf = 0;
@@ -4203,6 +4208,7 @@ class RightPaneSheetManager {
 
     /**
      * Center the active sliding window inside the right table viewport.
+     * Skips display:none rows (F%/U% subfilters) so geometry is not (0 + end)/2 → jump to bottom.
      */
     centerActiveWindowInView(tableWrap, options = {}) {
         if (!tableWrap) {
@@ -4224,16 +4230,49 @@ class RightPaneSheetManager {
             return;
         }
 
-        const startRow = tableWrap.querySelector(`tbody tr[data-idx="${startIdx}"]`);
-        const endRow = tableWrap.querySelector(`tbody tr[data-idx="${endIdx}"]`);
-        if (!startRow || !endRow) {
-            return;
-        }
+        const isRowLaidOut = (tr) => {
+            if (!tr) {
+                return false;
+            }
+            // display:none → no client rects; content-visibility skip still has a rect/placeholder
+            return tr.getClientRects().length > 0;
+        };
+
+        const resolveVisibleWindowRows = () => {
+            let first = null;
+            let last = null;
+            for (let i = startIdx; i <= endIdx; i++) {
+                const tr = tableWrap.querySelector(`tbody tr[data-idx="${i}"]`);
+                if (!isRowLaidOut(tr)) {
+                    continue;
+                }
+                if (!first) {
+                    first = tr;
+                }
+                last = tr;
+            }
+            if (first && last) {
+                return { startRow: first, endRow: last };
+            }
+            const fallback = tableWrap.querySelector(`tbody tr[data-idx="${endIdx}"]`)
+                || tableWrap.querySelector(`tbody tr[data-idx="${startIdx}"]`);
+            if (isRowLaidOut(fallback)) {
+                return { startRow: fallback, endRow: fallback };
+            }
+            return null;
+        };
 
         const applyCentering = () => {
+            const bounds = resolveVisibleWindowRows();
+            if (!bounds) {
+                return;
+            }
             const wrapRect = tableWrap.getBoundingClientRect();
-            const startRect = startRow.getBoundingClientRect();
-            const endRect = endRow.getBoundingClientRect();
+            const startRect = bounds.startRow.getBoundingClientRect();
+            const endRect = bounds.endRow.getBoundingClientRect();
+            if (startRect.height <= 0 && endRect.height <= 0) {
+                return;
+            }
 
             const windowCenterY = (startRect.top + endRect.bottom) / 2;
             // 60/40 view split: keep active window a bit lower than center.
@@ -10160,10 +10199,104 @@ class RightPaneSheetManager {
         if (!next || prev === next) {
             return;
         }
+        this.noteComboFocusUndoTransition(prev, next);
         this.clearLeftBasicBarPreviewPicksOnFocusChange();
         if (this.clearLeftSpecialBarPreviewPickOnFocusChange()) {
             this.requestTrackingUiRepaintIfActive();
         }
+    }
+
+    /**
+     * Ghi nhận chuỗi đổi focus (click/mũi tên): neo = id đầu, sau khi ổn định → peer Ctrl+Z.
+     * Thí dụ 701→…→705: peer = 701 (không phải bước trung gian).
+     */
+    noteComboFocusUndoTransition(prevFocusId, nextFocusId) {
+        const prev = String(prevFocusId || '').trim();
+        const next = String(nextFocusId || '').trim();
+        if (!prev || !next || prev === next) {
+            return;
+        }
+        if (!this._comboFocusUndoBurstAnchorId) {
+            this._comboFocusUndoBurstAnchorId = prev;
+        }
+        this._comboFocusUndoBurstEndId = next;
+        if (this._comboFocusUndoCommitTimer) {
+            clearTimeout(this._comboFocusUndoCommitTimer);
+        }
+        this._comboFocusUndoCommitTimer = setTimeout(() => {
+            this._comboFocusUndoCommitTimer = 0;
+            this.commitComboFocusUndoBurst();
+        }, 150);
+    }
+
+    commitComboFocusUndoBurst() {
+        const anchor = String(this._comboFocusUndoBurstAnchorId || '').trim();
+        const end = String(this._comboFocusUndoBurstEndId || '').trim();
+        this._comboFocusUndoBurstAnchorId = '';
+        this._comboFocusUndoBurstEndId = '';
+        if (anchor && end && anchor !== end) {
+            this.comboFocusUndoPeerId = anchor;
+        }
+    }
+
+    flushComboFocusUndoBurst() {
+        if (this._comboFocusUndoCommitTimer) {
+            clearTimeout(this._comboFocusUndoCommitTimer);
+            this._comboFocusUndoCommitTimer = 0;
+            this.commitComboFocusUndoBurst();
+            return;
+        }
+        if (this._comboFocusUndoBurstAnchorId) {
+            this.commitComboFocusUndoBurst();
+        }
+    }
+
+    getSourceRowIndexById(rawId) {
+        const key = this.normalizeNumberKey(rawId);
+        if (!key) {
+            return -1;
+        }
+        const rows = this.getSourceSheetRows();
+        return rows.findIndex((row) => this.normalizeNumberKey(row.id || row.ID || '') === key);
+    }
+
+    /**
+     * Ctrl+Z: focus id peer (id trước ↔ id hiện tại).
+     * @returns {boolean}
+     */
+    toggleComboFocusUndoPeer() {
+        this.flushComboFocusUndoBurst();
+        const peerId = String(this.comboFocusUndoPeerId || '').trim();
+        if (!peerId) {
+            return false;
+        }
+        const currentId = String(this.comboFocusRowId || '').trim();
+        const idx = this.getSourceRowIndexById(peerId);
+        if (idx < 0) {
+            return false;
+        }
+        if (this.normalizeNumberKey(peerId) === this.normalizeNumberKey(currentId)) {
+            return false;
+        }
+        this.focusSourceSheetRow(idx, { skipSave: true });
+        if (this._comboFocusUndoCommitTimer) {
+            clearTimeout(this._comboFocusUndoCommitTimer);
+            this._comboFocusUndoCommitTimer = 0;
+        }
+        this._comboFocusUndoBurstAnchorId = '';
+        this._comboFocusUndoBurstEndId = '';
+        if (currentId) {
+            this.comboFocusUndoPeerId = currentId;
+        }
+        const wrap = typeof document !== 'undefined' ? document.getElementById('tableWrap') : null;
+        if (wrap) {
+            try {
+                wrap.focus({ preventScroll: true });
+            } catch (err) {
+                /* ignore */
+            }
+        }
+        return true;
     }
 
     /** Bar basic tracking → nửa trái: Submit OFF hoặc kỳ cuối trống khi Submit ON. */

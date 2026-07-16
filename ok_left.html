@@ -169,10 +169,18 @@
             transform: translate(-50%, -50%) scale(1) !important;
         }
 
-        /* Autoring + Submit ON: nền xanh tròn + vòng đỏ ::after (không khối vuông) */
+        /*
+         * Autoring + Submit ON: nền xanh = vòng tròn đúng --selected-ring-size (content của khoanh đỏ),
+         * không tô full ô → hết lệch với viền đỏ (leftcu size giữ nguyên).
+         */
         body.submit-preview-active .cell.num.answer-submit-overlay-pick.submit-highlight {
             border-radius: 50% !important;
-            background-color: green !important;
+            background-color: transparent !important;
+            background-image: radial-gradient(
+                circle at center,
+                green calc(var(--selected-ring-size) * 0.5),
+                transparent calc(var(--selected-ring-size) * 0.5 + 0.5px)
+            ) !important;
             color: var(--submit-answer-color) !important;
             font-weight: bold !important;
         }
@@ -10303,6 +10311,16 @@
                     return;
                 }
                 if (active && (activeTag === 'INPUT' || activeTag === 'TEXTAREA' || active.isContentEditable)) return;
+
+                if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey
+                    && (e.code === 'KeyZ' || e.key === 'z' || e.key === 'Z')) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    try {
+                        window.parent.postMessage({ type: 'toggleComboFocusUndo' }, '*');
+                    } catch (eUndo) { /* ignore */ }
+                    return;
+                }
 
                 if ((e.code === 'KeyQ' || e.key === 'q' || e.key === 'Q') && !e.ctrlKey && !e.metaKey && !e.altKey) {
                     try {
