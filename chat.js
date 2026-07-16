@@ -234,7 +234,10 @@
 
     function markAway() {
         try {
-            localStorage.setItem(AWAY_KEY, String(Date.now()));
+            /* Chỉ ghi lần đầu ẩn/đóng — không refresh mỗi tick kẻo idle wipe không bao giờ chạy. */
+            if (!localStorage.getItem(AWAY_KEY)) {
+                localStorage.setItem(AWAY_KEY, String(Date.now()));
+            }
         } catch (e) { /* ignore */ }
     }
 
@@ -346,6 +349,8 @@
             localStorage.removeItem(AVATAR_STORE_KEY);
             localStorage.removeItem(READ_KEY);
             localStorage.removeItem(SEEN_KEY);
+            localStorage.removeItem('presenceDeviceCode');
+            localStorage.removeItem('presenceTabSlots');
         } catch (e) { /* ignore */ }
         avatarStore = {};
         avatarStoreLoaded = true;

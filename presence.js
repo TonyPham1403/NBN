@@ -361,7 +361,10 @@
 
     function markAway() {
         try {
-            localStorage.setItem(AWAY_KEY, String(Date.now()));
+            /* Chỉ ghi lần đầu ẩn/đóng — không refresh mỗi tick (nếu refresh thì idle wipe không bao giờ chạy). */
+            if (!localStorage.getItem(AWAY_KEY)) {
+                localStorage.setItem(AWAY_KEY, String(Date.now()));
+            }
         } catch (e) { /* ignore */ }
     }
 
