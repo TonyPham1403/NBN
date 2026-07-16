@@ -941,11 +941,203 @@
             ' aria-hidden="true">' + escapeHtml(av.letter) + '</span>';
     }
 
+    /* ===== Favicon badge: chấm đỏ khi có tin chưa đọc ===== */
+    let faviconBadgeOn = false;
+    let faviconBadgeDataUrl = '';
+    let faviconOriginalHref = '';
+
+    function faviconLinkEl() {
+        return document.querySelector('link[rel="icon"]');
+    }
+
+    function totalUnreadCount() {
+        return Object.keys(unreadMap).reduce((a, k) => a + (Number(unreadMap[k]) || 0), 0);
+    }
+
+    function buildFaviconBadge(cb) {
+        if (faviconBadgeDataUrl) {
+            cb(faviconBadgeDataUrl);
+            return;
+        }
+        const link = faviconLinkEl();
+        const img = new Image();
+        img.onload = () => {
+            try {
+                const c = document.createElement('canvas');
+                c.width = 64;
+                c.height = 64;
+                const ctx = c.getContext('2d');
+                ctx.drawImage(img, 0, 0, 64, 64);
+                ctx.beginPath();
+                ctx.arc(49, 15, 13, 0, Math.PI * 2);
+                ctx.fillStyle = '#ef4444';
+                ctx.fill();
+                ctx.lineWidth = 4;
+                ctx.strokeStyle = '#ffffff';
+                ctx.stroke();
+                faviconBadgeDataUrl = c.toDataURL('image/png');
+                cb(faviconBadgeDataUrl);
+            } catch (e) { /* ignore */ }
+        };
+        img.src = (link && link.href) || 'favicon.svg';
+    }
+
+    function updateFaviconBadge() {
+        const want = totalUnreadCount() > 0;
+        if (want === faviconBadgeOn) {
+            return;
+        }
+        const link = faviconLinkEl();
+        if (!link) {
+            return;
+        }
+        if (!faviconOriginalHref) {
+            faviconOriginalHref = link.href;
+        }
+        faviconBadgeOn = want;
+        if (!want) {
+            link.href = faviconOriginalHref;
+            return;
+        }
+        buildFaviconBadge((url) => {
+            if (faviconBadgeOn) {
+                link.href = url;
+            }
+        });
+    }
+
+    /* ===== Âm thanh tin nhắn mới (khi đang ở tab khác) ===== */
+    let chatAudioCtx = null;
+    let audioUnlockBound = false;
+    let lastNotifySoundAt = 0;
+    const NOTIFY_SOUND_MIN_GAP_MS = 1500;
+
+    /** Trình duyệt chặn autoplay — mở khóa AudioContext ở lần tương tác đầu tiên. */
+    function bindAudioUnlock() {
+        if (audioUnlockBound) {
+            return;
+        }
+        audioUnlockBound = true;
+        const unlock = () => {
+            try {
+                const AC = window.AudioContext || window.webkitAudioContext;
+                if (!AC) {
+                    return;
+                }
+                if (!chatAudioCtx) {
+                    chatAudioCtx = new AC();
+                }
+                if (chatAudioCtx.state === 'suspended') {
+                    chatAudioCtx.resume().catch(() => { /* ignore */ });
+                }
+            } catch (e) { /* ignore */ }
+        };
+        document.addEventListener('pointerdown', unlock, { passive: true });
+        document.addEventListener('keydown', unlock, { passive: true });
+    }
+
+    function playIncomingSound() {
+        const now = Date.now();
+        if (now - lastNotifySoundAt < NOTIFY_SOUND_MIN_GAP_MS) {
+            return;
+        }
+        try {
+            const AC = window.AudioContext || window.webkitAudioContext;
+            if (!AC) {
+                return;
+            }
+            if (!chatAudioCtx) {
+                chatAudioCtx = new AC();
+            }
+            const doPlay = () => {
+                if (chatAudioCtx.state !== 'running') {
+                    return;
+                }
+                lastNotifySoundAt = Date.now();
+                const ctx = chatAudioCtx;
+                const t0 = ctx.currentTime;
+                /* Chuông pha lê 4 nốt rải hợp âm D major đi lên (A5→D6→F#6→A6),
+                   âm sắc bell: sine + hoạ âm quãng 8 + shimmer lệch tần nhẹ, đuôi ngân dài. */
+                const NOTES = [
+                    { f: 880.0, at: 0, dur: 0.55, vol: 0.42 },
+                    { f: 1174.66, at: 0.13, dur: 0.6, vol: 0.5 },
+                    { f: 1479.98, at: 0.26, dur: 0.7, vol: 0.55 },
+                    { f: 1760.0, at: 0.39, dur: 1.0, vol: 0.62 }
+                ];
+                const master = ctx.createGain();
+                master.gain.value = 0.95;
+                master.connect(ctx.destination);
+                NOTES.forEach((n) => {
+                    const g = ctx.createGain();
+                    g.connect(master);
+                    const start = t0 + n.at;
+                    const end = start + n.dur;
+                    /* Attack mềm như gõ chuông, decay dài tự nhiên */
+                    g.gain.setValueAtTime(0.0001, start);
+                    g.gain.exponentialRampToValueAtTime(n.vol, start + 0.012);
+                    g.gain.exponentialRampToValueAtTime(n.vol * 0.35, start + n.dur * 0.35);
+                    g.gain.exponentialRampToValueAtTime(0.0001, end);
+                    const o1 = ctx.createOscillator();
+                    o1.type = 'sine';
+                    o1.frequency.value = n.f;
+                    o1.connect(g);
+                    o1.start(start);
+                    o1.stop(end + 0.05);
+                    /* Hoạ âm quãng 8 — tiếng chuông sáng */
+                    const g2 = ctx.createGain();
+                    g2.gain.value = 0.18;
+                    g2.connect(g);
+                    const o2 = ctx.createOscillator();
+                    o2.type = 'sine';
+                    o2.frequency.value = n.f * 2;
+                    o2.connect(g2);
+                    o2.start(start);
+                    o2.stop(end + 0.05);
+                    /* Shimmer: lệch tần ~1.5% tạo cảm giác pha lê lung linh */
+                    const g3 = ctx.createGain();
+                    g3.gain.value = 0.12;
+                    g3.connect(g);
+                    const o3 = ctx.createOscillator();
+                    o3.type = 'sine';
+                    o3.frequency.value = n.f * 1.015;
+                    o3.connect(g3);
+                    o3.start(start);
+                    o3.stop(end + 0.05);
+                });
+            };
+            if (chatAudioCtx.state === 'suspended') {
+                chatAudioCtx.resume().then(doPlay).catch(() => { /* ignore */ });
+            } else {
+                doPlay();
+            }
+        } catch (e) { /* ignore */ }
+    }
+
     function notifyUnreadUi() {
         if (window.PresenceBridge && typeof window.PresenceBridge.rerender === 'function') {
             window.PresenceBridge.rerender();
         }
         renderDock();
+        updateFaviconBadge();
+    }
+
+    /** Quay lại tab: chat nào đang mở (không thu nhỏ) thì mark read → tắt chấm đỏ. */
+    function bindVisibilityReadSync() {
+        if (window.__deviceChatVisReadBound === '1') {
+            return;
+        }
+        window.__deviceChatVisReadBound = '1';
+        document.addEventListener('visibilitychange', () => {
+            if (document.hidden) {
+                return;
+            }
+            dockSessions.forEach((sess) => {
+                if (!sess.minimized && (Number(unreadMap[sess.deviceId]) || 0) > 0) {
+                    markPeerRead(sess.deviceId);
+                }
+            });
+            notifyUnreadUi();
+        });
     }
 
     function markPeerRead(peerId) {
@@ -957,6 +1149,7 @@
         reads[peerId] = Date.now();
         writeJson(READ_KEY, reads);
         sendReadReceipt(peerId);
+        updateFaviconBadge();
         if (window.PresenceBridge && typeof window.PresenceBridge.rerender === 'function') {
             window.PresenceBridge.rerender();
         }
@@ -2753,7 +2946,12 @@
         const changed = added > 0 || beforeSig !== afterSig;
         const sess = findSession(fromId);
         if (added > 0) {
-            if (sess && !sess.minimized) {
+            if (document.hidden) {
+                playIncomingSound();
+                /* Tab ẩn: luôn tính chưa đọc để chấm đỏ favicon; quay lại tab sẽ tự mark read. */
+                unreadMap[fromId] = (Number(unreadMap[fromId]) || 0) + 1;
+                notifyUnreadUi();
+            } else if (sess && !sess.minimized) {
                 flashReceived(fromId);
                 markPeerRead(fromId);
             } else {
@@ -3146,6 +3344,8 @@
         myDeviceTag = makeDeviceTag(myDeviceId);
         bindUi();
         bindBroadcast();
+        bindAudioUnlock();
+        bindVisibilityReadSync();
         startAliveLoop();
         ensureStatusTicker();
         renderDock();

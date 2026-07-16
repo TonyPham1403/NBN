@@ -1222,6 +1222,35 @@
         return out;
     }
 
+    /** Badge đỏ trên nút presence: tổng tin nhắn chưa đọc từ mọi user khác. */
+    function syncUnreadBadge(btn) {
+        let total = 0;
+        try {
+            if (window.DeviceChat && typeof window.DeviceChat.getUnreadMap === 'function') {
+                const m = window.DeviceChat.getUnreadMap();
+                Object.keys(m || {}).forEach((k) => {
+                    total += Number(m[k]) || 0;
+                });
+            }
+        } catch (e) { /* ignore */ }
+        let badge = el('presenceUnreadBadge');
+        if (!total) {
+            if (badge) {
+                badge.hidden = true;
+            }
+            return;
+        }
+        if (!badge) {
+            badge = document.createElement('span');
+            badge.id = 'presenceUnreadBadge';
+            badge.className = 'presence-unread-badge';
+            badge.setAttribute('aria-label', 'Tin nhắn chưa đọc');
+            btn.appendChild(badge);
+        }
+        badge.hidden = false;
+        badge.textContent = total > 99 ? '99+' : String(total);
+    }
+
     function renderPresence(snapVal) {
         lastSnapVal = snapVal && typeof snapVal === 'object' ? snapVal : {};
         if (deviceId && reconcileUniqueDeviceCode(lastSnapVal)) {
@@ -1434,6 +1463,7 @@
             const title = uniqueDeviceCount + ' thiết bị đang online — bấm để xem list';
             btn.title = title;
             btn.setAttribute('aria-label', title);
+            syncUnreadBadge(btn);
         }
 
         const list = el('presenceList');
