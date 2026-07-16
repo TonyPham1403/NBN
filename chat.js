@@ -35,6 +35,7 @@
     const MSG_LIMIT = 120;
     const MAX_DOCK = 3;
     const MAX_FILE_BYTES = 5 * 1024 * 1024;
+    const MAX_INLINE_IMAGE_BYTES = 350 * 1024;
     const MAX_PENDING_FILES = 10;
     const INPUT_MIN_H = 32;
     const INPUT_MAX_H = 110;
@@ -288,44 +289,105 @@
             } catch (e) { /* ignore */ }
         });
         objectUrlCache.clear();
+        uploadPreviewUrls.forEach((url) => {
+            try {
+                URL.revokeObjectURL(url);
+            } catch (e) { /* ignore */ }
+        });
+        uploadPreviewUrls.clear();
     }
 
-    function wipeIfDeviceIdleTooLong() {
-        const now = Date.now();
+    /** Hoạt động gần nhất: heartbeat, đóng tab, hoặc tin trong store. */
+    function getLastActivityAt() {
         let aliveAt = 0;
         let awayAt = 0;
         try {
             aliveAt = Number(localStorage.getItem(ALIVE_KEY)) || 0;
             awayAt = Number(localStorage.getItem(AWAY_KEY)) || 0;
         } catch (e) { /* ignore */ }
-        const last = Math.max(aliveAt, awayAt);
-        if (last > 0 && (now - last) > IDLE_WIPE_MS) {
-            try {
-                localStorage.removeItem(CHAT_STORE_KEY);
-                localStorage.removeItem(AVATAR_STORE_KEY);
-                localStorage.removeItem(READ_KEY);
-                localStorage.removeItem(SEEN_KEY);
-            } catch (e) { /* ignore */ }
-            avatarStore = {};
-            avatarStoreLoaded = true;
-            idbClear();
-            revokeObjectUrls();
-            Object.keys(pendingAttach).forEach(clearPendingAttach);
-            Object.keys(pendingReply).forEach((k) => { delete pendingReply[k]; });
-            repliedPeers.clear();
-            lastRepliedPeerId = '';
-            try {
-                sessionStorage.removeItem(REPLIED_STORE_KEY);
-            } catch (e2) { /* ignore */ }
-            unreadMap = {};
-            peerSeenAt = {};
-            Object.keys(receiveFlashUntil).forEach((k) => { delete receiveFlashUntil[k]; });
-            dockSessions = [];
-            renderDock();
-            notifyUnreadUi();
-            return true;
+        let chatAt = 0;
+        try {
+            const store = readJson(CHAT_STORE_KEY, {});
+            Object.keys(store || {}).forEach((peerId) => {
+                const t = store[peerId];
+                if (!t || typeof t !== 'object') {
+                    return;
+                }
+                chatAt = Math.max(chatAt, Number(t.updatedAt) || 0);
+                (Array.isArray(t.messages) ? t.messages : []).forEach((m) => {
+                    chatAt = Math.max(chatAt, Number(m.at) || 0);
+                });
+            });
+        } catch (e) { /* ignore */ }
+        return Math.max(aliveAt, awayAt, chatAt);
+    }
+
+    function hasLocalChatData() {
+        try {
+            const raw = localStorage.getItem(CHAT_STORE_KEY);
+            return !!(raw && raw.length > 2 && raw !== '{}' && raw !== 'null');
+        } catch (e) {
+            return false;
         }
-        return false;
+    }
+
+    function wipeIfDeviceIdleTooLong() {
+        if (!hasLocalChatData()) {
+            return false;
+        }
+        const now = Date.now();
+        const last = getLastActivityAt();
+        if (last <= 0 || (now - last) <= IDLE_WIPE_MS) {
+            return false;
+        }
+        try {
+            localStorage.removeItem(CHAT_STORE_KEY);
+            localStorage.removeItem(AVATAR_STORE_KEY);
+            localStorage.removeItem(READ_KEY);
+            localStorage.removeItem(SEEN_KEY);
+        } catch (e) { /* ignore */ }
+        avatarStore = {};
+        avatarStoreLoaded = true;
+        idbClear();
+        revokeObjectUrls();
+        Object.keys(pendingAttach).forEach(clearPendingAttach);
+        Object.keys(pendingReply).forEach((k) => { delete pendingReply[k]; });
+        repliedPeers.clear();
+        lastRepliedPeerId = '';
+        try {
+            sessionStorage.removeItem(REPLIED_STORE_KEY);
+        } catch (e2) { /* ignore */ }
+        unreadMap = {};
+        peerSeenAt = {};
+        Object.keys(receiveFlashUntil).forEach((k) => { delete receiveFlashUntil[k]; });
+        dockSessions = [];
+        renderDock();
+        notifyUnreadUi();
+        touchAlive();
+        return true;
+    }
+
+    function onIdleVisibilityOrTick() {
+        if (document.hidden) {
+            markAway();
+            return;
+        }
+        if (wipeIfDeviceIdleTooLong()) {
+            loadAvatarStore();
+            loadPeerSeen();
+            loadRepliedSession();
+        } else {
+            touchAlive();
+        }
+    }
+
+    function bindIdleLifecycle() {
+        if (window.__deviceChatIdleBound === '1') {
+            return;
+        }
+        window.__deviceChatIdleBound = '1';
+        document.addEventListener('visibilitychange', onIdleVisibilityOrTick);
+        setInterval(onIdleVisibilityOrTick, 60000);
     }
 
     function loadPeerSeen() {
@@ -555,19 +617,29 @@
                 resolve(auth.currentUser);
                 return;
             }
-            const deadline = Date.now() + limit;
-            const unsub = auth.onAuthStateChanged((user) => {
-                if (user) {
-                    unsub();
-                    resolve(user);
+            let done = false;
+            const finish = (fn, val) => {
+                if (done) {
                     return;
                 }
-                if (Date.now() >= deadline) {
+                done = true;
+                clearTimeout(timer);
+                try {
                     unsub();
-                    reject(new Error('Chưa đăng nhập Firebase (Anonymous Auth).'));
+                } catch (e) { /* ignore */ }
+                fn(val);
+            };
+            const timer = setTimeout(() => {
+                finish(reject, new Error('Chưa đăng nhập Firebase (Anonymous Auth).'));
+            }, limit);
+            const unsub = auth.onAuthStateChanged((user) => {
+                if (user) {
+                    finish(resolve, user);
                 }
             });
-            firebase.auth().signInAnonymously().catch(() => { /* onAuthStateChanged handles */ });
+            auth.signInAnonymously().catch((err) => {
+                finish(reject, err || new Error('Anonymous Auth thất bại.'));
+            });
         });
     }
 
@@ -579,18 +651,50 @@
             return null;
         }
         try {
-            const cfg = window.PRESENCE_FIREBASE_CONFIG || {};
-            const bucket = String(cfg.storageBucket || '').trim().replace(/^gs:\/\//, '');
-            storage = bucket ? firebase.app().storage('gs://' + bucket) : firebase.storage();
+            storage = firebase.storage();
         } catch (e) {
-            try {
-                storage = firebase.storage();
-            } catch (e2) {
-                storage = null;
-                console.warn('[chat] Firebase Storage init failed', e2);
-            }
+            storage = null;
+            console.warn('[chat] Firebase Storage init failed', e);
         }
         return storage;
+    }
+
+    function getStorageDownloadUrl(path) {
+        const p = String(path || '').trim();
+        const st = ensureStorage();
+        if (!p || !st) {
+            return Promise.resolve('');
+        }
+        return waitForAuth(10000).then(() => st.ref(p).getDownloadURL()).catch(() => '');
+    }
+
+    function hydrateFileUrls(box) {
+        if (!box) {
+            return;
+        }
+        box.querySelectorAll('[data-chat-file-path]:not([data-url-hydrated])').forEach((node) => {
+            const path = node.getAttribute('data-chat-file-path');
+            if (!path) {
+                return;
+            }
+            node.setAttribute('data-url-hydrated', '1');
+            getStorageDownloadUrl(path).then((url) => {
+                if (!url) {
+                    return;
+                }
+                if (node.tagName === 'IMG') {
+                    node.src = url;
+                    const link = node.closest('a.chat-file-link');
+                    if (link) {
+                        link.href = url;
+                    }
+                    return;
+                }
+                if (node.classList && node.classList.contains('chat-file-link')) {
+                    node.href = url;
+                }
+            });
+        });
     }
 
     function setUploadPreview(mid, file) {
@@ -620,6 +724,19 @@
         }
     }
 
+    function fileToDataUrl(file) {
+        return new Promise((resolve, reject) => {
+            try {
+                const reader = new FileReader();
+                reader.onload = () => resolve(String(reader.result || ''));
+                reader.onerror = () => reject(reader.error || new Error('Đọc ảnh thất bại.'));
+                reader.readAsDataURL(file);
+            } catch (e) {
+                reject(e);
+            }
+        });
+    }
+
     function normalizeFileMeta(f) {
         if (!f || typeof f !== 'object') {
             return null;
@@ -628,7 +745,12 @@
         const size = Number(f.size) || 0;
         const mime = String(f.mime || f.contentType || '').slice(0, 120);
         const path = String(f.path || '').slice(0, 400);
-        const url = String(f.url || '').slice(0, 2000);
+        let url = String(f.url || '');
+        if (url.indexOf('data:image/') === 0) {
+            url = url.slice(0, 900000);
+        } else {
+            url = url.slice(0, 2000);
+        }
         if (!name && !path && !url) {
             return null;
         }
@@ -900,6 +1022,9 @@
         if (n.kind === 'file' && n.status !== 'ready') {
             return null;
         }
+        if (n.kind === 'file' && !(n.file && (n.file.url || n.file.path))) {
+            return null;
+        }
         const out = {
             id: n.id,
             fromDeviceId: n.fromDeviceId,
@@ -926,8 +1051,14 @@
 
     function fileBodyHtml(m) {
         const f = m.file || {};
-        const status = m.status || 'ready';
+        let status = m.status || 'ready';
         const previewUrl = uploadPreviewUrls.get(m.id) || '';
+        const pathAttr = f.path
+            ? ' data-chat-file-path="' + escapeHtml(f.path) + '"'
+            : '';
+        if (status === 'uploading' && m.at && (Date.now() - Number(m.at)) > UPLOAD_TIMEOUT_MS) {
+            status = 'error';
+        }
         const href = f.url ? escapeHtml(f.url) : (previewUrl ? escapeHtml(previewUrl) : '');
         let body = '<div class="chat-file-card">';
         if (status === 'uploading') {
@@ -935,17 +1066,21 @@
         } else if (status === 'error') {
             body += '<div class="chat-file-status chat-file-status--err">Gửi file thất bại</div>';
         }
-        const isImg = String(f.mime || '').indexOf('image/') === 0 && href;
+        const isImg = String(f.mime || '').indexOf('image/') === 0 && (href || f.path);
         if (isImg) {
-            body += '<a class="chat-file-link" href="' + href + '" target="_blank" rel="noopener noreferrer">' +
-                '<img class="chat-file-thumb" src="' + href + '" alt="' + escapeHtml(f.name || 'image') + '" />' +
+            const src = href || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
+            body += '<a class="chat-file-link"' + (href ? ' href="' + href + '"' : '') +
+                ' target="_blank" rel="noopener noreferrer">' +
+                '<img class="chat-file-thumb" src="' + src + '"' + pathAttr +
+                ' alt="' + escapeHtml(f.name || 'image') + '" />' +
                 '</a>';
         }
         if (f.url) {
-            body += '<a class="chat-file-link" href="' + escapeHtml(f.url) + '" target="_blank" rel="noopener noreferrer" download="' +
+            body += '<a class="chat-file-link" href="' + escapeHtml(f.url) +
+                '" target="_blank" rel="noopener noreferrer" download="' +
                 escapeHtml(f.name || 'file') + '">📎 ' + escapeHtml(f.name || 'file') + '</a>';
         } else if (!isImg) {
-            body += '<div class="chat-file-link">📎 ' + escapeHtml(f.name || 'file') + '</div>';
+            body += '<div class="chat-file-link"' + pathAttr + '>📎 ' + escapeHtml(f.name || 'file') + '</div>';
         }
         body += '<div class="chat-file-meta">' + escapeHtml(formatFileSize(f.size)) +
             (f.mime ? ' · ' + escapeHtml(f.mime.split(';')[0]) : '') + '</div>';
@@ -1069,9 +1204,31 @@
         return r;
     }
 
+    function repairStuckUploads(peerId) {
+        const t = getThread(peerId);
+        const now = Date.now();
+        let dirty = false;
+        const next = (t.messages || []).map((m) => {
+            if (m.status === 'uploading' && Number(m.at) && (now - Number(m.at)) > UPLOAD_TIMEOUT_MS) {
+                dirty = true;
+                return Object.assign({}, m, { status: 'error' });
+            }
+            return m;
+        });
+        if (dirty) {
+            t.messages = next;
+            t.updatedAt = now;
+            setThread(peerId, t);
+        }
+        return dirty ? next : t.messages;
+    }
+
     function renderMessagesInto(box, rows, peerId) {
         if (!box) {
             return;
+        }
+        if (peerId) {
+            rows = repairStuckUploads(peerId);
         }
         if (!rows.length) {
             box.innerHTML = '<div class="chat-empty">Chưa có tin — lưu trên máy; tắt máy ~10 phút sẽ mất.</div>';
@@ -1135,6 +1292,7 @@
         html += '<div class="chat-status-line" data-chat-status="' + escapeHtml(peerId || '') +
             '" hidden></div>';
         box.innerHTML = html;
+        hydrateFileUrls(box);
         renderStatusInto(box.querySelector('[data-chat-status]'), peerId);
         ensureStatusTicker();
         if (shouldStick) {
@@ -1859,42 +2017,45 @@
         if (!st) {
             return Promise.reject(new Error('Firebase Storage chưa sẵn sàng'));
         }
+        const meta = {
+            contentType: file.type || 'application/octet-stream',
+            customMetadata: {
+                fromDeviceId: myDeviceId,
+                originalName: String(file.name || '').slice(0, 120)
+            }
+        };
         return waitForAuth(15000).then(() => {
             const ref = st.ref(path);
-            const task = ref.put(file, {
-                contentType: file.type || 'application/octet-stream',
-                customMetadata: {
-                    fromDeviceId: myDeviceId,
-                    originalName: String(file.name || '').slice(0, 120)
-                }
-            });
-            return new Promise((resolve, reject) => {
-                let settled = false;
-                const finish = (fn, val) => {
-                    if (settled) {
-                        return;
-                    }
-                    settled = true;
-                    clearTimeout(timer);
-                    fn(val);
-                };
-                const timer = setTimeout(() => {
-                    try {
-                        task.cancel();
-                    } catch (e) { /* ignore */ }
-                    finish(reject, new Error('Tải file quá lâu — kiểm tra Firebase Storage rules / mạng.'));
-                }, UPLOAD_TIMEOUT_MS);
-                task.on(
-                    'state_changed',
-                    null,
-                    (err) => finish(reject, err || new Error('Upload thất bại')),
-                    () => {
-                        task.snapshot.ref.getDownloadURL()
-                            .then((url) => finish(resolve, { url: url, path: path }))
-                            .catch((err) => finish(reject, err || new Error('Không lấy được link file')));
-                    }
-                );
-            });
+            const uploadPromise = ref.put(file, meta);
+            const done = typeof uploadPromise.then === 'function'
+                ? uploadPromise
+                : new Promise((resolve, reject) => {
+                    uploadPromise.on(
+                        'state_changed',
+                        (snap) => {
+                            if (snap && snap.state === 'success') {
+                                resolve(snap);
+                            }
+                        },
+                        reject,
+                        () => resolve(uploadPromise.snapshot)
+                    );
+                });
+            return Promise.race([
+                done,
+                new Promise((_, reject) => setTimeout(
+                    () => reject(new Error('Tải file quá lâu — bật Storage + rules trên Firebase Console.')),
+                    UPLOAD_TIMEOUT_MS
+                ))
+            ]);
+        }).then((snapshot) => {
+            const ref = (snapshot && snapshot.ref) ? snapshot.ref : st.ref(path);
+            return ref.getDownloadURL()
+                .then((url) => ({ url: url, path: path }))
+                .catch((err) => {
+                    console.warn('[chat] getDownloadURL failed — dùng path', err);
+                    return { url: '', path: path };
+                });
         });
     }
 
@@ -1907,10 +2068,7 @@
             window.alert('File tối đa ' + formatFileSize(MAX_FILE_BYTES) + '.');
             return Promise.resolve(false);
         }
-        if (!ensureStorage()) {
-            window.alert('Chưa bật Firebase Storage (hoặc chưa load SDK). Xem PRESENCE.md.');
-            return Promise.resolve(false);
-        }
+        const hasStorage = !!ensureStorage();
         const now = Date.now();
         const mid = msgId();
         const path = buildStoragePath(peerId, mid, file.name);
@@ -1948,11 +2106,39 @@
         setTimeout(() => refreshStatusLine(peerId), SENT_FLASH_MS + 40);
 
         idbPut(mid, file);
+        if (!hasStorage) {
+            if (String(file.type || '').indexOf('image/') !== 0) {
+                clearUploadPreview(mid);
+                updateThreadMessage(peerId, mid, { status: 'error' });
+                window.alert('Project chưa bật Firebase Storage. Chỉ hỗ trợ paste/gửi ảnh nhỏ dạng inline.');
+                return Promise.resolve(false);
+            }
+            if (file.size > MAX_INLINE_IMAGE_BYTES) {
+                clearUploadPreview(mid);
+                updateThreadMessage(peerId, mid, { status: 'error' });
+                window.alert('Ảnh quá lớn cho chế độ miễn phí. Giới hạn ~350KB khi chưa bật Storage.');
+                return Promise.resolve(false);
+            }
+            return fileToDataUrl(file).then((dataUrl) => {
+                clearUploadPreview(mid);
+                updateThreadMessage(peerId, mid, {
+                    status: 'ready',
+                    file: { url: dataUrl, path: '' }
+                });
+                const readyThread = getThread(peerId);
+                return pushMailboxToPeer(peerId, readyThread.messages, { force: true }).then(() => true);
+            }).catch((err) => {
+                clearUploadPreview(mid);
+                updateThreadMessage(peerId, mid, { status: 'error' });
+                window.alert((err && err.message) ? err.message : 'Không đọc được ảnh để gửi.');
+                return false;
+            });
+        }
         return waitForAuth(15000).then(() => uploadToStorage(file, path)).then((res) => {
             clearUploadPreview(mid);
             updateThreadMessage(peerId, mid, {
                 status: 'ready',
-                file: { url: res.url, path: res.path }
+                file: { url: res.url || '', path: res.path }
             });
             const readyThread = getThread(peerId);
             return pushMailboxToPeer(peerId, readyThread.messages, { force: true }).then(() => true);
@@ -1960,10 +2146,9 @@
             console.warn('[chat] file upload failed', err);
             clearUploadPreview(mid);
             updateThreadMessage(peerId, mid, { status: 'error' });
-            const msg = err && err.message
-                ? String(err.message)
-                : 'Không gửi được file.';
-            window.alert(msg + ' Kiểm tra Firebase Storage (bật Storage + rules + Anonymous Auth).');
+            const code = err && err.code ? String(err.code) + ': ' : '';
+            const msg = err && err.message ? String(err.message) : 'Không gửi được file.';
+            window.alert(code + msg + '\n\nKiểm tra: Firebase Console → Storage (đã bật?) → Rules → Anonymous Auth.');
             return false;
         });
     }
@@ -2404,13 +2589,20 @@
     }
 
     function startAliveLoop() {
-        touchAlive();
+        onIdleVisibilityOrTick();
         if (aliveTimer) {
             clearInterval(aliveTimer);
         }
-        aliveTimer = setInterval(touchAlive, ALIVE_TICK_MS);
+        aliveTimer = setInterval(() => {
+            if (document.hidden) {
+                markAway();
+                return;
+            }
+            touchAlive();
+        }, ALIVE_TICK_MS);
         window.addEventListener('pagehide', markAway);
         window.addEventListener('beforeunload', markAway);
+        bindIdleLifecycle();
     }
 
     function startChat() {
