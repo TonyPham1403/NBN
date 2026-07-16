@@ -450,6 +450,8 @@ class RightPaneSheetManager {
         this.leftSpecialPreviewPickHistory = [];
         /** Bar giả lập focus cho chuột phải — theo thứ tự chuỗi pick, không phải bar vừa bỏ. */
         this.lastTrackingPreviewBarNum = null;
+        /** Ctrl+Shift: stash viền cam quan sát (basic/special) để tắt hết rồi khôi phục. */
+        this._trackingObserveFocusStashByMode = { basic: null, special: null };
         /** Tăng mỗi lần setLeftBasicPreviewPickNums đổi — chặn response requestLeftCircledNums cũ. */
         this._leftBasicPreviewPickGeneration = 0;
         /** Cache filter mode connection (invalid khi refreshDerivedState). */
@@ -13200,6 +13202,7 @@ class RightPaneSheetManager {
                 delete tableWrap.__trackingRepaint;
                 delete tableWrap.__trackingGetFrameIndex;
                 delete tableWrap.__trackingToggleObserveFocus;
+                delete tableWrap.__trackingToggleObserveFocusAll;
             } catch (eDelSeek) {
                 /* ignore */
             }
@@ -13246,17 +13249,46 @@ class RightPaneSheetManager {
                 rightPaneEl.removeEventListener('contextmenu', onRightPanePreviewContextMenu, cap);
             }
         };
+        const abandonObserveFocusStashForMode = (mode) => {
+            if (!this._trackingObserveFocusStashByMode) {
+                this._trackingObserveFocusStashByMode = { basic: null, special: null };
+            }
+            this._trackingObserveFocusStashByMode[mode] = null;
+        };
+
         const toggleObserveFocusNum = (rawNum) => {
             const n = Math.floor(Number(rawNum));
             const maxN = isBasic ? 35 : 12;
             if (!Number.isFinite(n) || n < 1 || n > maxN) {
                 return false;
             }
+            const mode = isBasic ? 'basic' : 'special';
+            abandonObserveFocusStashForMode(mode);
             const focusNums = getFocusNums();
             if (focusNums.has(n)) {
                 focusNums.delete(n);
             } else {
                 focusNums.add(n);
+            }
+            paint();
+            persistTrackingUi();
+            return true;
+        };
+
+        const toggleObserveFocusAll = () => {
+            if (!this._trackingObserveFocusStashByMode) {
+                this._trackingObserveFocusStashByMode = { basic: null, special: null };
+            }
+            const mode = isBasic ? 'basic' : 'special';
+            const focusNums = getFocusNums();
+            const stash = this._trackingObserveFocusStashByMode[mode];
+            if (stash != null) {
+                focusNums.clear();
+                stash.forEach((n) => focusNums.add(n));
+                this._trackingObserveFocusStashByMode[mode] = null;
+            } else {
+                this._trackingObserveFocusStashByMode[mode] = new Set(focusNums);
+                focusNums.clear();
             }
             paint();
             persistTrackingUi();
@@ -13270,6 +13302,7 @@ class RightPaneSheetManager {
         };
         tableWrap.__trackingGetFrameIndex = () => frameIndex;
         tableWrap.__trackingToggleObserveFocus = toggleObserveFocusNum;
+        tableWrap.__trackingToggleObserveFocusAll = toggleObserveFocusAll;
     }
 
     /**
@@ -13293,14 +13326,71 @@ class RightPaneSheetManager {
         if (!Number.isFinite(n) || n < 1 || n > maxN) {
             return false;
         }
+        const mode = viewMode === 'basic' ? 'basic' : 'special';
+        if (!this._trackingObserveFocusStashByMode) {
+            this._trackingObserveFocusStashByMode = { basic: null, special: null };
+        }
+        this._trackingObserveFocusStashByMode[mode] = null;
         const byMode = RightPaneSheetManager.readTrackingFocusNumsByMode(
             sheet.trackingUi || {}
         );
-        const set = byMode[viewMode === 'basic' ? 'basic' : 'special'];
+        const set = byMode[mode];
         if (set.has(n)) {
             set.delete(n);
         } else {
             set.add(n);
+        }
+        const prev = sheet.trackingUi && typeof sheet.trackingUi === 'object'
+            ? sheet.trackingUi
+            : {};
+        sheet.trackingUi = {
+            ...prev,
+            viewMode,
+            focusNumsByMode: RightPaneSheetManager.serializeTrackingFocusNumsByMode(byMode)
+        };
+        try {
+            sessionStorage.setItem(
+                TRACKING_UI_STORAGE_KEY,
+                JSON.stringify(sheet.trackingUi)
+            );
+        } catch (e) {
+            /* ignore */
+        }
+        return true;
+    }
+
+    /**
+     * Ctrl+Shift: tắt hết viền cam quan sát (mode hiện tại); lần nữa khôi phục stash vừa tắt.
+     * @returns {boolean}
+     */
+    toggleTrackingBarObserveFocusAll() {
+        const tableWrap = typeof document !== 'undefined'
+            ? document.getElementById('tableWrap')
+            : null;
+        if (tableWrap && typeof tableWrap.__trackingToggleObserveFocusAll === 'function') {
+            return !!tableWrap.__trackingToggleObserveFocusAll();
+        }
+        const sheet = this.sheets[TRACKING_SHEET_ID] || this.sheets.specialtracking;
+        if (!sheet || sheet.kind !== TRACKING_KIND) {
+            return false;
+        }
+        if (!this._trackingObserveFocusStashByMode) {
+            this._trackingObserveFocusStashByMode = { basic: null, special: null };
+        }
+        const viewMode = this.getTrackingViewMode(sheet);
+        const mode = viewMode === 'basic' ? 'basic' : 'special';
+        const byMode = RightPaneSheetManager.readTrackingFocusNumsByMode(
+            sheet.trackingUi || {}
+        );
+        const set = byMode[mode];
+        const stash = this._trackingObserveFocusStashByMode[mode];
+        if (stash != null) {
+            set.clear();
+            stash.forEach((n) => set.add(n));
+            this._trackingObserveFocusStashByMode[mode] = null;
+        } else {
+            this._trackingObserveFocusStashByMode[mode] = new Set(set);
+            set.clear();
         }
         const prev = sheet.trackingUi && typeof sheet.trackingUi === 'object'
             ? sheet.trackingUi

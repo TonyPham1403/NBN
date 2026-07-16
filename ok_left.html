@@ -9894,6 +9894,11 @@
             var ctrlPressedAlone = false;
             var ctrlChordUsed = false;
 
+            function markCtrlChordUsed() {
+                ctrlChordUsed = true;
+            }
+            window.__markCtrlChordUsed = markCtrlChordUsed;
+
             function isPeriodFilterShortcutBlockedTarget(target) {
                 if (!target || !target.tagName) {
                     return false;
@@ -9918,7 +9923,9 @@
                         return;
                     }
                     ctrlPressedAlone = true;
-                    ctrlChordUsed = false;
+                    if (!event.shiftKey) {
+                        ctrlChordUsed = false;
+                    }
                     if (!isPeriodFilterShortcutBlockedTarget(event.target)) {
                         event.preventDefault();
                     }
@@ -9998,6 +10005,7 @@
                     window.parent.postMessage({ type: 'markShiftClickDirty' }, '*');
                 } catch (eMsg) { /* ignore */ }
             }
+            window.__markShiftClickDirty = markShiftClickDirty;
 
             function clearBrowserTextSelection() {
                 try {
@@ -10118,6 +10126,89 @@
                 try {
                     window.parent.postMessage({ type: 'toggleSubmitRing' }, '*');
                 } catch (err) { }
+            }, true);
+        })();
+
+        (function initLeftCtrlShiftObserveFocusShortcut() {
+            if (document.documentElement.dataset.ctrlShiftObserveBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.ctrlShiftObserveBound = '1';
+
+            var ctrlDown = false;
+            var shiftDown = false;
+            var ctrlShiftHandled = false;
+
+            function markChordAgainstAloneShortcuts() {
+                try {
+                    if (typeof window.__markCtrlChordUsed === 'function') {
+                        window.__markCtrlChordUsed();
+                    }
+                } catch (eCtrl) { /* ignore */ }
+                try {
+                    if (typeof window.__markShiftClickDirty === 'function') {
+                        window.__markShiftClickDirty();
+                    }
+                } catch (eShift) { /* ignore */ }
+                try {
+                    if (window.parent && typeof window.parent.__markCtrlChordUsed === 'function') {
+                        window.parent.__markCtrlChordUsed();
+                    }
+                } catch (ePCtrl) { /* ignore */ }
+                try {
+                    if (window.parent && typeof window.parent.__markShiftClickDirty === 'function') {
+                        window.parent.__markShiftClickDirty();
+                    }
+                } catch (ePShift) { /* ignore */ }
+            }
+
+            function tryFireCtrlShift(event) {
+                if (!ctrlDown || !shiftDown || ctrlShiftHandled) {
+                    return;
+                }
+                if (event.altKey || event.metaKey) {
+                    return;
+                }
+                ctrlShiftHandled = true;
+                event.preventDefault();
+                event.stopPropagation();
+                markChordAgainstAloneShortcuts();
+                /* Local shift dirty — initLeftSubmitRingShiftShortcut cùng trang */
+                try {
+                    window.parent.postMessage({ type: 'toggleTrackingObserveFocusAll' }, '*');
+                } catch (err) { }
+            }
+
+            document.addEventListener('keydown', function (event) {
+                if (event.key === 'Control') {
+                    if (!event.repeat) {
+                        ctrlDown = true;
+                    }
+                    tryFireCtrlShift(event);
+                    return;
+                }
+                if (event.key === 'Shift') {
+                    if (!event.repeat) {
+                        shiftDown = true;
+                    }
+                    tryFireCtrlShift(event);
+                    return;
+                }
+                if (event.ctrlKey && event.shiftKey) {
+                    markChordAgainstAloneShortcuts();
+                    ctrlShiftHandled = true;
+                }
+            }, true);
+
+            document.addEventListener('keyup', function (event) {
+                if (event.key === 'Control') {
+                    ctrlDown = false;
+                } else if (event.key === 'Shift') {
+                    shiftDown = false;
+                }
+                if (!ctrlDown && !shiftDown) {
+                    ctrlShiftHandled = false;
+                }
             }, true);
         })();
 

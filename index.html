@@ -18644,13 +18644,21 @@
             let ctrlPressedAlone = false;
             let ctrlChordUsed = false;
 
+            const markCtrlChordUsed = () => {
+                ctrlChordUsed = true;
+            };
+            window.__markCtrlChordUsed = markCtrlChordUsed;
+
             document.addEventListener('keydown', (event) => {
                 if (event.key === 'Control') {
                     if (event.repeat) {
                         return;
                     }
                     ctrlPressedAlone = true;
-                    ctrlChordUsed = false;
+                    /* Giữ chord nếu đang Ctrl+Shift (handler khác sẽ mark). */
+                    if (!event.shiftKey) {
+                        ctrlChordUsed = false;
+                    }
                     if (!isPeriodFilterShortcutBlockedTarget(event.target)) {
                         event.preventDefault();
                     }
@@ -18674,6 +18682,86 @@
                 event.preventDefault();
                 event.stopPropagation();
                 togglePeriodFilterFromShortcut();
+            }, true);
+        }
+
+        function toggleTrackingObserveFocusAllFromShortcut() {
+            if (!sheetManager || typeof sheetManager.toggleTrackingBarObserveFocusAll !== 'function') {
+                return false;
+            }
+            return !!sheetManager.toggleTrackingBarObserveFocusAll();
+        }
+
+        /**
+         * Ctrl+Shift: tắt/khôi phục toàn bộ viền cam quan sát.
+         * Đánh dấu chord Ctrl + dirty Shift để không va chạm Ctrl-only / Shift-only.
+         */
+        function initCtrlShiftObserveFocusShortcut() {
+            if (document.documentElement.dataset.ctrlShiftObserveBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.ctrlShiftObserveBound = '1';
+
+            let ctrlDown = false;
+            let shiftDown = false;
+            let ctrlShiftHandled = false;
+
+            const markChordAgainstAloneShortcuts = () => {
+                if (typeof window.__markCtrlChordUsed === 'function') {
+                    window.__markCtrlChordUsed();
+                }
+                if (typeof window.__markShiftClickDirty === 'function') {
+                    window.__markShiftClickDirty();
+                }
+            };
+
+            const tryFireCtrlShift = (event) => {
+                if (!ctrlDown || !shiftDown || ctrlShiftHandled) {
+                    return;
+                }
+                if (event.altKey || event.metaKey) {
+                    return;
+                }
+                if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+                    return;
+                }
+                ctrlShiftHandled = true;
+                event.preventDefault();
+                event.stopPropagation();
+                markChordAgainstAloneShortcuts();
+                toggleTrackingObserveFocusAllFromShortcut();
+            };
+
+            document.addEventListener('keydown', (event) => {
+                if (event.key === 'Control') {
+                    if (!event.repeat) {
+                        ctrlDown = true;
+                    }
+                    tryFireCtrlShift(event);
+                    return;
+                }
+                if (event.key === 'Shift') {
+                    if (!event.repeat) {
+                        shiftDown = true;
+                    }
+                    tryFireCtrlShift(event);
+                    return;
+                }
+                if (event.ctrlKey && event.shiftKey) {
+                    markChordAgainstAloneShortcuts();
+                    ctrlShiftHandled = true;
+                }
+            }, true);
+
+            document.addEventListener('keyup', (event) => {
+                if (event.key === 'Control') {
+                    ctrlDown = false;
+                } else if (event.key === 'Shift') {
+                    shiftDown = false;
+                }
+                if (!ctrlDown && !shiftDown) {
+                    ctrlShiftHandled = false;
+                }
             }, true);
         }
 
@@ -19375,6 +19463,7 @@
             initSubmitRingToolbar();
             initPhaseToolbar();
             initSubmitRingShiftShortcut();
+            initCtrlShiftObserveFocusShortcut();
             initSheetTabToggleShortcut();
             initPeriodFilterToolbar();
             initAnswerPopupShortcut();
@@ -19742,6 +19831,20 @@
                     if (sheetManager && typeof sheetManager.toggleTrackingBarObserveFocus === 'function') {
                         sheetManager.toggleTrackingBarObserveFocus(msg.num);
                     }
+                    return;
+                }
+                if (msg.type === 'toggleTrackingObserveFocusAll') {
+                    const frame = el('okFrame');
+                    if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
+                        return;
+                    }
+                    if (typeof window.__markCtrlChordUsed === 'function') {
+                        window.__markCtrlChordUsed();
+                    }
+                    if (typeof window.__markShiftClickDirty === 'function') {
+                        window.__markShiftClickDirty();
+                    }
+                    toggleTrackingObserveFocusAllFromShortcut();
                     return;
                 }
                 if (msg.type === 'submitStateChanged') {
