@@ -36,6 +36,7 @@
     const MAX_DOCK = 3;
     const MAX_FILE_BYTES = 5 * 1024 * 1024;
     const MAX_INLINE_IMAGE_BYTES = 350 * 1024;
+    const PREFER_INLINE_IMAGE_SEND = true;
     const MAX_PENDING_FILES = 10;
     const INPUT_MIN_H = 32;
     const INPUT_MAX_H = 110;
@@ -2106,17 +2107,12 @@
         setTimeout(() => refreshStatusLine(peerId), SENT_FLASH_MS + 40);
 
         idbPut(mid, file);
-        if (!hasStorage) {
-            if (String(file.type || '').indexOf('image/') !== 0) {
-                clearUploadPreview(mid);
-                updateThreadMessage(peerId, mid, { status: 'error' });
-                window.alert('Project chưa bật Firebase Storage. Chỉ hỗ trợ paste/gửi ảnh nhỏ dạng inline.');
-                return Promise.resolve(false);
-            }
+        const isImage = String(file.type || '').indexOf('image/') === 0;
+        if (isImage && PREFER_INLINE_IMAGE_SEND) {
             if (file.size > MAX_INLINE_IMAGE_BYTES) {
                 clearUploadPreview(mid);
                 updateThreadMessage(peerId, mid, { status: 'error' });
-                window.alert('Ảnh quá lớn cho chế độ miễn phí. Giới hạn ~350KB khi chưa bật Storage.');
+                window.alert('Ảnh quá lớn cho chế độ miễn phí. Giới hạn ~350KB khi gửi inline.');
                 return Promise.resolve(false);
             }
             return fileToDataUrl(file).then((dataUrl) => {
@@ -2133,6 +2129,15 @@
                 window.alert((err && err.message) ? err.message : 'Không đọc được ảnh để gửi.');
                 return false;
             });
+        }
+
+        if (!hasStorage) {
+            if (!isImage) {
+                clearUploadPreview(mid);
+                updateThreadMessage(peerId, mid, { status: 'error' });
+                window.alert('Project chưa bật Firebase Storage. Chỉ hỗ trợ paste/gửi ảnh nhỏ dạng inline.');
+                return Promise.resolve(false);
+            }
         }
         return waitForAuth(15000).then(() => uploadToStorage(file, path)).then((res) => {
             clearUploadPreview(mid);
