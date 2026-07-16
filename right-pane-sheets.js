@@ -13257,6 +13257,12 @@ class RightPaneSheetManager {
             this._trackingObserveFocusStashByMode[mode] = null;
         };
 
+        const emitObserveFocusChanged = () => {
+            try {
+                this.emitTrackingObserveFocusChanged();
+            } catch (eEmit) { /* ignore */ }
+        };
+
         const toggleObserveFocusNum = (rawNum) => {
             const n = Math.floor(Number(rawNum));
             const maxN = isBasic ? 35 : 12;
@@ -13273,6 +13279,7 @@ class RightPaneSheetManager {
             }
             paint();
             persistTrackingUi();
+            emitObserveFocusChanged();
             return true;
         };
 
@@ -13293,6 +13300,7 @@ class RightPaneSheetManager {
             }
             paint();
             persistTrackingUi();
+            emitObserveFocusChanged();
             return true;
         };
 
@@ -13302,7 +13310,8 @@ class RightPaneSheetManager {
             paint();
         };
         tableWrap.__trackingGetFrameIndex = () => frameIndex;
-        const setObserveFocusNums = (rawNums) => {
+        const setObserveFocusNums = (rawNums, options) => {
+            const force = !!(options && options.force);
             const maxN = isBasic ? 35 : 12;
             const mode = isBasic ? 'basic' : 'special';
             if (!this._trackingObserveFocusStashByMode) {
@@ -13324,8 +13333,9 @@ class RightPaneSheetManager {
                     }
                 });
             }
+            const toggleOff = !force && same;
             focusNums.clear();
-            if (same) {
+            if (toggleOff) {
                 /* Click lại Chuỗi x → tắt, stash để Ctrl+Shift bật lại */
                 this._trackingObserveFocusStashByMode[mode] = new Set(next);
             } else {
@@ -13334,12 +13344,36 @@ class RightPaneSheetManager {
             }
             paint();
             persistTrackingUi();
+            emitObserveFocusChanged();
             return true;
         };
 
         tableWrap.__trackingToggleObserveFocus = toggleObserveFocusNum;
         tableWrap.__trackingToggleObserveFocusAll = toggleObserveFocusAll;
         tableWrap.__trackingSetObserveFocusNums = setObserveFocusNums;
+    }
+
+    /** Số đang có viền cam quan sát (mode tracking hiện tại). */
+    getTrackingBarObserveFocusNums() {
+        const sheet = this.sheets[TRACKING_SHEET_ID] || this.sheets.specialtracking;
+        if (!sheet || sheet.kind !== TRACKING_KIND) {
+            return [];
+        }
+        const viewMode = this.getTrackingViewMode(sheet);
+        const mode = viewMode === 'basic' ? 'basic' : 'special';
+        const byMode = RightPaneSheetManager.readTrackingFocusNumsByMode(
+            sheet.trackingUi || {}
+        );
+        return Array.from(byMode[mode] || []).sort((a, b) => a - b);
+    }
+
+    /** Báo nửa trái kiểm tra gạch chân Chuỗi pin còn đủ 5 viền cam không. */
+    emitTrackingObserveFocusChanged() {
+        try {
+            window.dispatchEvent(new CustomEvent('trackingObserveFocusNumsChanged', {
+                detail: { nums: this.getTrackingBarObserveFocusNums() }
+            }));
+        } catch (e) { /* ignore */ }
     }
 
     /**
@@ -13393,20 +13427,24 @@ class RightPaneSheetManager {
         } catch (e) {
             /* ignore */
         }
+        this.emitTrackingObserveFocusChanged();
         return true;
     }
 
     /**
      * Thay toàn bộ viền cam quan sát (mode hiện tại) bằng danh sách số (vd. 5 số Chuỗi x).
+     * @param {number[]} rawNums
+     * @param {{ force?: boolean }} [options] force=true: luôn gán (không toggle tắt khi trùng bộ)
      * @returns {boolean}
      */
-    setTrackingBarObserveFocusNums(rawNums) {
+    setTrackingBarObserveFocusNums(rawNums, options) {
         const tableWrap = typeof document !== 'undefined'
             ? document.getElementById('tableWrap')
             : null;
         if (tableWrap && typeof tableWrap.__trackingSetObserveFocusNums === 'function') {
-            return !!tableWrap.__trackingSetObserveFocusNums(rawNums);
+            return !!tableWrap.__trackingSetObserveFocusNums(rawNums, options);
         }
+        const force = !!(options && options.force);
         const sheet = this.sheets[TRACKING_SHEET_ID] || this.sheets.specialtracking;
         if (!sheet || sheet.kind !== TRACKING_KIND) {
             return false;
@@ -13417,7 +13455,6 @@ class RightPaneSheetManager {
         const viewMode = this.getTrackingViewMode(sheet);
         const mode = viewMode === 'basic' ? 'basic' : 'special';
         const maxN = mode === 'basic' ? 35 : 12;
-        this._trackingObserveFocusStashByMode[mode] = null;
         const byMode = RightPaneSheetManager.readTrackingFocusNumsByMode(
             sheet.trackingUi || {}
         );
@@ -13437,8 +13474,9 @@ class RightPaneSheetManager {
                 }
             });
         }
+        const toggleOff = !force && same;
         set.clear();
-        if (same) {
+        if (toggleOff) {
             this._trackingObserveFocusStashByMode[mode] = new Set(next);
         } else {
             this._trackingObserveFocusStashByMode[mode] = null;
@@ -13460,6 +13498,7 @@ class RightPaneSheetManager {
         } catch (e) {
             /* ignore */
         }
+        this.emitTrackingObserveFocusChanged();
         return true;
     }
 
@@ -13512,6 +13551,7 @@ class RightPaneSheetManager {
         } catch (e) {
             /* ignore */
         }
+        this.emitTrackingObserveFocusChanged();
         return true;
     }
 

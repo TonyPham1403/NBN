@@ -359,11 +359,26 @@
             font-weight: bold
         }
 
+        /* Pin quan sát: đủ 5 viền cam của Chuỗi x → gạch chân cam + neon nhẹ */
+        #right tr.chuoi-main-row td:first-child span.chuoi-observe-pin {
+            text-decoration: underline;
+            text-decoration-color: #ea580c;
+            text-decoration-thickness: 2px;
+            text-underline-offset: 2px;
+            text-shadow: 0 0 4px rgba(234, 88, 12, 0.45);
+            filter: drop-shadow(0 0 2px rgba(234, 88, 12, 0.35));
+        }
+
         /* Keep Chuoi label readable on neon submit rows */
         td.answer-neon>span {
             color: #000000 !important;
             font-weight: bold;
             text-shadow: none;
+        }
+
+        /* Pin cam: giữ glow nhẹ khi hàng đang submit neon */
+        td.answer-neon>span.chuoi-observe-pin {
+            text-shadow: 0 0 4px rgba(234, 88, 12, 0.45);
         }
 
         /* Neon glow for submitted answers (table 2) — stronger and faster animations */
@@ -5533,7 +5548,135 @@
         }
 
         // Helper utilities used by renderTable1/renderTable2
-        /** Click nhãn Chuỗi x → thay toàn bộ viền cam quan sát bằng 5 số của chuỗi đó. */
+        /** Nhãn Chuỗi đang pin (1 = sát kỳ). Chỉ xóa khi bấm tắt/đổi Chuỗi — không xóa vì Ctrl+Shift hay race đổi id. */
+        var observeChuoiPinLabel = null;
+        /** Snapshot viền cam gần nhất từ tracking (để quyết định hiện/ẩn gạch chân). */
+        var observeChuoiLastFocusSet = new Set();
+        /** Trong cửa sổ sync đổi id: bỏ qua event thiếu số (tránh mất pin/gạch chân do race). */
+        var observeChuoiPinIgnoreStaleUntil = 0;
+
+        function getChuoiNumsForLabel(label) {
+            var lab = Math.floor(Number(label));
+            if (!Number.isFinite(lab) || lab < 1) {
+                return [];
+            }
+            var displayLines = getRawDisplayLines();
+            if (!displayLines || !displayLines.length) {
+                return [];
+            }
+            var idx = displayLines.length - lab;
+            if (idx < 0 || idx >= displayLines.length || !displayLines[idx]) {
+                return [];
+            }
+            return getNumsFromLineObj(displayLines[idx]).filter(function (n) {
+                return !isNaN(n) && n >= 1 && n <= 35;
+            });
+        }
+
+        function focusSetFromNums(rawNums) {
+            var focusSet = new Set();
+            (Array.isArray(rawNums) ? rawNums : []).forEach(function (x) {
+                var n = Math.floor(Number(x));
+                if (Number.isFinite(n)) {
+                    focusSet.add(n);
+                }
+            });
+            return focusSet;
+        }
+
+        function isObserveChuoiPinSatisfied(focusSet) {
+            if (observeChuoiPinLabel == null) {
+                return false;
+            }
+            var set = focusSet || observeChuoiLastFocusSet;
+            var pinNums = getChuoiNumsForLabel(observeChuoiPinLabel);
+            if (!pinNums.length) {
+                return false;
+            }
+            for (var pi = 0; pi < pinNums.length; pi++) {
+                if (!set.has(pinNums[pi])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /** Gạch chân cam chỉ khi pin còn và đủ 5 viền cam của chuỗi đó. */
+        function applyObserveChuoiPinUnderline() {
+            var right = document.getElementById('right');
+            if (!right) {
+                return;
+            }
+            var showLabel = isObserveChuoiPinSatisfied() ? observeChuoiPinLabel : null;
+            var spans = right.querySelectorAll('tr.chuoi-main-row td:first-child span[data-chuoi-label]');
+            for (var si = 0; si < spans.length; si++) {
+                var span = spans[si];
+                var lab = parseInt(span.getAttribute('data-chuoi-label') || '', 10);
+                span.classList.toggle('chuoi-observe-pin', showLabel != null && lab === showLabel);
+            }
+        }
+
+        function clearObserveChuoiPin() {
+            observeChuoiPinLabel = null;
+            observeChuoiPinIgnoreStaleUntil = 0;
+            applyObserveChuoiPinUnderline();
+        }
+
+        function setObserveChuoiPin(label, numsForOptimistic) {
+            var lab = Math.floor(Number(label));
+            observeChuoiPinLabel = (Number.isFinite(lab) && lab >= 1) ? lab : null;
+            if (observeChuoiPinLabel != null) {
+                var nums = Array.isArray(numsForOptimistic)
+                    ? numsForOptimistic
+                    : getChuoiNumsForLabel(observeChuoiPinLabel);
+                observeChuoiLastFocusSet = focusSetFromNums(nums);
+            }
+            applyObserveChuoiPinUnderline();
+        }
+
+        /** Đổi id: nếu còn pin → gán lại 5 viền cam của Chuỗi đó (+ giữ gạch chân). */
+        function syncObserveChuoiPinFocusNums() {
+            if (observeChuoiPinLabel == null) {
+                applyObserveChuoiPinUnderline();
+                return;
+            }
+            var nums = getChuoiNumsForLabel(observeChuoiPinLabel);
+            if (!nums.length) {
+                applyObserveChuoiPinUnderline();
+                return;
+            }
+            observeChuoiPinIgnoreStaleUntil = Date.now() + 400;
+            observeChuoiLastFocusSet = focusSetFromNums(nums);
+            applyObserveChuoiPinUnderline();
+            try {
+                window.parent.postMessage({
+                    type: 'setTrackingBarObserveFocus',
+                    nums: nums,
+                    force: true
+                }, '*');
+            } catch (eSyncPin) { /* ignore */ }
+        }
+
+        /**
+         * Viền cam đổi: ẩn gạch chân nếu thiếu số; không xóa pin
+         * (để Ctrl+Shift bật lại / sync id vẫn trả gạch chân khi đủ 5).
+         */
+        function onTrackingObserveFocusNumsChanged(rawNums) {
+            var next = focusSetFromNums(rawNums);
+            if (
+                observeChuoiPinLabel != null
+                && Date.now() < observeChuoiPinIgnoreStaleUntil
+                && isObserveChuoiPinSatisfied(observeChuoiLastFocusSet)
+                && !isObserveChuoiPinSatisfied(next)
+            ) {
+                /* Event cũ thiếu số lúc đang sync id — bỏ qua */
+                return;
+            }
+            observeChuoiLastFocusSet = next;
+            applyObserveChuoiPinUnderline();
+        }
+
+        /** Click nhãn Chuỗi x → thay toàn bộ viền cam quan sát bằng 5 số của chuỗi đó + gạch chân cam. */
         function toggleChuoi(i) {
             if (!raw) {
                 return;
@@ -5543,13 +5686,26 @@
                 if (!displayLines || !displayLines[i]) {
                     return;
                 }
+                var label = displayLines.length - i;
                 var nums = getNumsFromLineObj(displayLines[i]).filter(function (n) {
                     return !isNaN(n) && n >= 1 && n <= 35;
                 });
                 if (!nums.length) {
                     return;
                 }
-                window.parent.postMessage({ type: 'setTrackingBarObserveFocus', nums: nums }, '*');
+                if (observeChuoiPinLabel === label) {
+                    /* Bấm lại cùng Chuỗi → tắt (toggle bộ số) + bỏ pin/gạch chân */
+                    clearObserveChuoiPin();
+                    window.parent.postMessage({ type: 'setTrackingBarObserveFocus', nums: nums }, '*');
+                } else {
+                    setObserveChuoiPin(label, nums);
+                    observeChuoiPinIgnoreStaleUntil = Date.now() + 400;
+                    window.parent.postMessage({
+                        type: 'setTrackingBarObserveFocus',
+                        nums: nums,
+                        force: true
+                    }, '*');
+                }
             } catch (eChuoi) { /* ignore */ }
         }
         function matchSearchPattern(pattern, searchDigitsCached) {
@@ -8112,7 +8268,7 @@
 
                 // Main row
                 html += `<tr class="chuoi-main-row">`;
-                html += `<td style="${labelStyle};${labelVars}position:relative" class="${chuoiTdClass}"><span onclick="toggleChuoi(${i})" style="cursor:pointer;position:relative;z-index:2" title="Viền cam = 5 số chuỗi này (bấm lại để tắt)">Chuỗi ${displayLines.length - i}</span></td>`;
+                html += `<td style="${labelStyle};${labelVars}position:relative" class="${chuoiTdClass}"><span onclick="toggleChuoi(${i})" data-chuoi-label="${displayLines.length - i}" style="cursor:pointer;position:relative;z-index:2" title="Viền cam = 5 số chuỗi này (bấm lại để tắt)">Chuỗi ${displayLines.length - i}</span></td>`;
                 html += `<td style='font-size:13px;position:relative;'>` + nums.map(n => {
                     let cls = selected.has(n) ? ' selected' : '';
                     if (noteSet.indexOf(n) !== -1) cls += ' note-highlight';
@@ -8149,6 +8305,7 @@
                 }
             } catch (eOv2) { /* ignore */ }
             try { syncChuoiIndexSemanticStylesInDOM(); } catch (eIdx) { /* ignore */ }
+            try { applyObserveChuoiPinUnderline(); } catch (ePinUl) { /* ignore */ }
             if (!trackingFrameStepProcess) {
                 setTimeout(function () { scheduleComputeAndApplyHeights(); }, 0);
             }
@@ -11489,6 +11646,13 @@
                     return;
                 }
 
+                if (msg.type === 'trackingObserveFocusNumsChanged') {
+                    try {
+                        onTrackingObserveFocusNumsChanged(msg.nums);
+                    } catch (eObs) { /* ignore */ }
+                    return;
+                }
+
                 if (msg.type === 'periodFilterNavMode') {
                     window.__periodFilterNavMode = !!msg.active;
                     return;
@@ -11623,6 +11787,17 @@
                     preserveSubmitOnNextProcess = false;
                     preserveSelectionOnNextProcess = false;
                     trackingFrameStepProcess = false;
+
+                    /* Pin Chuỗi còn on → đổi id: gắn lại 5 viền cam của Chuỗi đó trên id mới */
+                    if (isFocusArrival && observeChuoiPinLabel != null && !msg.trackingFrameStep) {
+                        try {
+                            syncObserveChuoiPinFocusNums();
+                        } catch (ePinSync) { /* ignore */ }
+                    } else {
+                        try {
+                            applyObserveChuoiPinUnderline();
+                        } catch (ePinUl2) { /* ignore */ }
+                    }
 
                     if (newFk && !msg.trackingFrameStep) {
                         lastAutoRingFocusKey = newFk;

@@ -18726,6 +18726,27 @@
             return !!sheetManager.toggleTrackingBarObserveFocusAll();
         }
 
+        /** Đồng bộ danh sách viền cam → nửa trái (gạch chân Chuỗi pin). */
+        function notifyLeftTrackingObserveFocusNums(nums) {
+            const frame = el('okFrame');
+            if (!frame || !frame.contentWindow) {
+                return;
+            }
+            let list = nums;
+            if (!Array.isArray(list) && sheetManager && typeof sheetManager.getTrackingBarObserveFocusNums === 'function') {
+                list = sheetManager.getTrackingBarObserveFocusNums();
+            }
+            if (!Array.isArray(list)) {
+                list = [];
+            }
+            try {
+                frame.contentWindow.postMessage({
+                    type: 'trackingObserveFocusNumsChanged',
+                    nums: list
+                }, '*');
+            } catch (e) { /* ignore */ }
+        }
+
         /**
          * Ctrl+Shift: tắt/khôi phục toàn bộ viền cam quan sát.
          * Fire theo modifier trên từng keydown (không track ctrlDown) — giữ Ctrl + nhấn/nhả Shift nhiều lần vẫn được.
@@ -19494,6 +19515,13 @@
             initFloatingPopupDockStacking();
             loadData();
 
+            window.addEventListener('trackingObserveFocusNumsChanged', (ev) => {
+                const nums = ev && ev.detail && Array.isArray(ev.detail.nums)
+                    ? ev.detail.nums
+                    : null;
+                notifyLeftTrackingObserveFocusNums(nums);
+            });
+
             // Listen for sheet changes
             window.addEventListener('sheetChanged', (e) => {
                 const finishSheetChanged = () => {
@@ -19874,7 +19902,9 @@
                         return;
                     }
                     if (sheetManager && typeof sheetManager.setTrackingBarObserveFocusNums === 'function') {
-                        sheetManager.setTrackingBarObserveFocusNums(msg.nums);
+                        sheetManager.setTrackingBarObserveFocusNums(msg.nums, {
+                            force: !!msg.force
+                        });
                     }
                     return;
                 }
