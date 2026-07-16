@@ -2783,6 +2783,22 @@
             min-width: 0;
         }
 
+        .chat-file-thumb-btn {
+            display: block;
+            border: 0;
+            padding: 0;
+            margin: 0;
+            background: transparent;
+            cursor: zoom-in;
+            line-height: 0;
+        }
+
+        .chat-file-thumb-btn:focus-visible {
+            outline: 2px solid #2563eb;
+            outline-offset: 2px;
+            border-radius: 6px;
+        }
+
         .chat-file-thumb {
             display: block;
             max-width: 180px;
@@ -2790,6 +2806,78 @@
             border-radius: 6px;
             object-fit: cover;
             border: 1px solid rgba(15, 23, 42, 0.08);
+            pointer-events: none;
+        }
+
+        .chat-file-name {
+            font: 600 12px/1.3 Segoe UI, Arial, sans-serif;
+            word-break: break-word;
+        }
+
+        .chat-image-preview-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 250;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px 16px;
+            background: rgba(15, 23, 42, 0.88);
+            backdrop-filter: blur(2px);
+        }
+
+        .chat-image-preview-modal[hidden] {
+            display: none !important;
+        }
+
+        .chat-image-preview-card {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+            max-width: min(96vw, 920px);
+            max-height: 92vh;
+        }
+
+        .chat-image-preview-img {
+            display: block;
+            max-width: min(96vw, 920px);
+            max-height: calc(92vh - 48px);
+            object-fit: contain;
+            border-radius: 8px;
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.35);
+        }
+
+        .chat-image-preview-caption {
+            max-width: min(96vw, 920px);
+            font: 500 13px/1.35 Segoe UI, Arial, sans-serif;
+            color: #e2e8f0;
+            text-align: center;
+            word-break: break-word;
+        }
+
+        .chat-image-preview-caption[hidden] {
+            display: none !important;
+        }
+
+        .chat-image-preview-close {
+            position: absolute;
+            top: -8px;
+            right: -8px;
+            z-index: 1;
+            width: 36px;
+            height: 36px;
+            border: 0;
+            border-radius: 999px;
+            background: rgba(15, 23, 42, 0.72);
+            color: #fff;
+            font: 700 22px/1 Segoe UI, Arial, sans-serif;
+            cursor: pointer;
+        }
+
+        .chat-image-preview-close:hover {
+            background: rgba(15, 23, 42, 0.92);
         }
 
         .chat-file-link {
@@ -7323,7 +7411,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716idleWipe"></script>
-    <script src="chat.js?v=20260716imageViewDirect"></script>
+    <script src="chat.js?v=20260716imageLightbox"></script>
     <script src="right-pane-sheets.js?v=20260716filterScrollCenter"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>

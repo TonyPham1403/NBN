@@ -1070,12 +1070,12 @@
         const isImg = String(f.mime || '').indexOf('image/') === 0 && (href || f.path);
         if (isImg) {
             const src = href || 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
-            body += '<a class="chat-file-link"' + (href ? ' href="' + href + '"' : '') +
-                ' target="_blank" rel="noopener noreferrer">' +
+            body += '<button type="button" class="chat-file-thumb-btn" data-chat-image-preview="1" ' +
+                'title="Xem ảnh" aria-label="Xem ảnh">' +
                 '<img class="chat-file-thumb" src="' + src + '"' + pathAttr +
                 ' alt="' + escapeHtml(f.name || 'image') + '" />' +
-                '</a>';
-            body += '<div class="chat-file-link">🖼 ' + escapeHtml(f.name || 'image') + '</div>';
+                '</button>';
+            body += '<div class="chat-file-name">🖼 ' + escapeHtml(f.name || 'image') + '</div>';
         } else if (f.url) {
             body += '<a class="chat-file-link" href="' + escapeHtml(f.url) +
                 '" target="_blank" rel="noopener noreferrer" download="' +
@@ -1376,6 +1376,80 @@
         setThread(peerId, t);
         refreshThreadUi(peerId);
         pushMailboxToPeer(peerId, t.messages, { force: true, pins: true });
+    }
+
+    let imagePreviewEscHandler = null;
+
+    function ensureImagePreviewModal() {
+        let modal = el('chatImagePreviewModal');
+        if (modal) {
+            return modal;
+        }
+        modal = document.createElement('div');
+        modal.id = 'chatImagePreviewModal';
+        modal.className = 'chat-image-preview-modal';
+        modal.hidden = true;
+        modal.innerHTML = '<div class="chat-image-preview-card" role="dialog" aria-modal="true" ' +
+            'aria-label="Xem ảnh">' +
+            '<button type="button" class="chat-image-preview-close" data-chat-image-preview-close="1" ' +
+            'aria-label="Đóng">×</button>' +
+            '<img class="chat-image-preview-img" data-chat-image-preview-img alt="" />' +
+            '<div class="chat-image-preview-caption" data-chat-image-preview-caption></div></div>';
+        document.body.appendChild(modal);
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal || (e.target && e.target.getAttribute &&
+                e.target.getAttribute('data-chat-image-preview-close') === '1')) {
+                closeImagePreview();
+            }
+        });
+        return modal;
+    }
+
+    function closeImagePreview() {
+        const modal = el('chatImagePreviewModal');
+        if (!modal) {
+            return;
+        }
+        modal.hidden = true;
+        const img = modal.querySelector('[data-chat-image-preview-img]');
+        if (img) {
+            img.removeAttribute('src');
+            img.alt = '';
+        }
+        const cap = modal.querySelector('[data-chat-image-preview-caption]');
+        if (cap) {
+            cap.textContent = '';
+        }
+        if (imagePreviewEscHandler) {
+            document.removeEventListener('keydown', imagePreviewEscHandler);
+            imagePreviewEscHandler = null;
+        }
+    }
+
+    function openImagePreview(src, alt) {
+        if (!src) {
+            return;
+        }
+        const modal = ensureImagePreviewModal();
+        const img = modal.querySelector('[data-chat-image-preview-img]');
+        const cap = modal.querySelector('[data-chat-image-preview-caption]');
+        if (img) {
+            img.src = src;
+            img.alt = alt || 'image';
+        }
+        if (cap) {
+            cap.textContent = alt || '';
+            cap.hidden = !alt;
+        }
+        modal.hidden = false;
+        if (!imagePreviewEscHandler) {
+            imagePreviewEscHandler = (e) => {
+                if (e.key === 'Escape') {
+                    closeImagePreview();
+                }
+            };
+            document.addEventListener('keydown', imagePreviewEscHandler);
+        }
     }
 
     function ensurePinModal() {
@@ -2348,6 +2422,16 @@
                 return;
             }
             e.stopPropagation();
+            const imagePreview = t.closest('[data-chat-image-preview]');
+            if (imagePreview) {
+                e.preventDefault();
+                const img = imagePreview.querySelector('.chat-file-thumb');
+                const src = img && (img.currentSrc || img.src);
+                if (src) {
+                    openImagePreview(src, img.alt || '');
+                }
+                return;
+            }
             const pinsOpen = t.closest('[data-chat-pins-open]');
             if (pinsOpen) {
                 openPinnedModal(pinsOpen.getAttribute('data-chat-pins-open'));
