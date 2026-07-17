@@ -5549,11 +5549,11 @@
 
         // Helper utilities used by renderTable1/renderTable2
         /**
-         * Nhãn Chuỗi follow khi đổi id (1 = sát kỳ).
-         * Gạch chân không phụ thuộc pin: bất cứ Chuỗi nào đủ 5 viền cam đều được gạch.
+         * Gạch chân Chuỗi + follow đổi id: luôn theo viền cam BASIC (tách biệt special).
+         * Sang special không mất gạch chân nếu basic vẫn đủ 5.
          */
         var observeChuoiPinLabel = null;
-        /** Snapshot viền cam gần nhất từ tracking. */
+        /** Snapshot viền cam basic gần nhất (không dùng special). */
         var observeChuoiLastFocusSet = new Set();
         /** Đang sync 5 số theo id — bỏ qua event thiếu số (race). */
         var observeChuoiPinSyncing = false;
@@ -5631,7 +5631,7 @@
         }
 
         /**
-         * Gạch chân cam trên mọi Chuỗi đang đủ 5 viền cam.
+         * Gạch chân cam trên mọi Chuỗi đang đủ 5 viền cam basic.
          * Follow đổi id chỉ khi đang có gạch chân; mất gạch chân (cố ý) → xóa follow.
          */
         function applyObserveChuoiPinUnderline() {
@@ -5680,7 +5680,7 @@
         }
 
         /**
-         * Đổi id: chỉ khi TRƯỚC đó đang có gạch chân (followLabel).
+         * Đổi id: chỉ khi TRƯỚC đó đang có gạch chân (followLabel) — ghi vào viền cam basic.
          * Mất gạch chân rồi thì không tự gắn lại.
          */
         function syncObserveChuoiPinFocusNums(followLabel) {
@@ -5704,14 +5704,26 @@
                 window.parent.postMessage({
                     type: 'setTrackingBarObserveFocus',
                     nums: nums,
-                    force: true
+                    force: true,
+                    mode: 'basic'
                 }, '*');
             } catch (eSyncPin) { /* ignore */ }
         }
 
-        /** Viền cam đổi → gạch chân mọi Chuỗi đủ 5 số (kể cả sau Ctrl+Shift restore). */
-        function onTrackingObserveFocusNumsChanged(rawNums) {
-            var next = focusSetFromNums(rawNums);
+        /**
+         * Viền cam đổi → gạch chân theo basicNums (bỏ qua bộ special).
+         * Đổi sang special không đụng gạch chân nếu basic vẫn đủ 5.
+         */
+        function onTrackingObserveFocusNumsChanged(rawNums, viewMode, basicNums) {
+            var sourceNums = Array.isArray(basicNums)
+                ? basicNums
+                : (viewMode === 'special' ? null : rawNums);
+            if (sourceNums == null) {
+                /* Special emit thiếu basicNums — giữ snapshot basic hiện tại */
+                applyObserveChuoiPinUnderline();
+                return;
+            }
+            var next = focusSetFromNums(sourceNums);
             var prevSatisfied = getFullyObservedChuoiLabels(observeChuoiLastFocusSet);
             var nextSatisfied = getFullyObservedChuoiLabels(next);
             if (
@@ -5726,7 +5738,7 @@
             applyObserveChuoiPinUnderline();
         }
 
-        /** Click nhãn Chuỗi x → thay toàn bộ viền cam quan sát bằng 5 số của chuỗi đó + gạch chân cam. */
+        /** Click nhãn Chuỗi x → gắn/tắt 5 viền cam BASIC + gạch chân (không đụng special). */
         function toggleChuoi(i) {
             if (!raw) {
                 return;
@@ -5749,18 +5761,23 @@
                     && nums.every(function (n) { return observeChuoiLastFocusSet.has(n); })
                 );
                 if (focusIsExactlyThisChuoi) {
-                    /* Bấm lại khi đang đúng bộ 5 số chuỗi này → tắt */
+                    /* Bấm lại khi đang đúng bộ 5 số chuỗi này → tắt basic */
                     clearObserveChuoiPin();
                     observeChuoiLastFocusSet = new Set();
                     applyObserveChuoiPinUnderline();
-                    window.parent.postMessage({ type: 'setTrackingBarObserveFocus', nums: nums }, '*');
+                    window.parent.postMessage({
+                        type: 'setTrackingBarObserveFocus',
+                        nums: nums,
+                        mode: 'basic'
+                    }, '*');
                 } else {
                     setObserveChuoiPin(label, nums);
                     beginObserveChuoiPinSyncGuard();
                     window.parent.postMessage({
                         type: 'setTrackingBarObserveFocus',
                         nums: nums,
-                        force: true
+                        force: true,
+                        mode: 'basic'
                     }, '*');
                 }
             } catch (eChuoi) { /* ignore */ }
@@ -11705,7 +11722,7 @@
 
                 if (msg.type === 'trackingObserveFocusNumsChanged') {
                     try {
-                        onTrackingObserveFocusNumsChanged(msg.nums);
+                        onTrackingObserveFocusNumsChanged(msg.nums, msg.viewMode, msg.basicNums);
                     } catch (eObs) { /* ignore */ }
                     return;
                 }
@@ -11838,7 +11855,7 @@
                             }
                         } catch (e) { }
                     }
-                    /* Chỉ follow khi ĐANG có gạch chân (đủ 5) — bắt trước process vì sang id mới bộ số cũ không còn khớp */
+                    /* Đang có gạch chân (đủ 5 basic) — bắt trước process vì sang id mới bộ số cũ không còn khớp */
                     var chuoiFollowAcrossId = null;
                     if (isFocusArrival && !msg.trackingFrameStep) {
                         try {

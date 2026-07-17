@@ -18726,8 +18726,8 @@
             return !!sheetManager.toggleTrackingBarObserveFocusAll();
         }
 
-        /** Đồng bộ danh sách viền cam → nửa trái (gạch chân Chuỗi pin). */
-        function notifyLeftTrackingObserveFocusNums(nums) {
+        /** Đồng bộ viền cam → nửa trái. Gạch chân Chuỗi luôn theo basicNums (tách special). */
+        function notifyLeftTrackingObserveFocusNums(nums, viewMode, basicNums) {
             const frame = el('okFrame');
             if (!frame || !frame.contentWindow) {
                 return;
@@ -18739,10 +18739,25 @@
             if (!Array.isArray(list)) {
                 list = [];
             }
+            let mode = viewMode;
+            if (mode !== 'basic' && mode !== 'special'
+                && sheetManager && typeof sheetManager.getActiveTrackingViewMode === 'function') {
+                mode = sheetManager.getActiveTrackingViewMode();
+            }
+            let basicList = basicNums;
+            if (!Array.isArray(basicList)
+                && sheetManager && typeof sheetManager.getTrackingBarObserveFocusNumsForMode === 'function') {
+                basicList = sheetManager.getTrackingBarObserveFocusNumsForMode('basic');
+            }
+            if (!Array.isArray(basicList)) {
+                basicList = mode === 'basic' ? list : [];
+            }
             try {
                 frame.contentWindow.postMessage({
                     type: 'trackingObserveFocusNumsChanged',
-                    nums: list
+                    nums: list,
+                    viewMode: mode === 'special' ? 'special' : 'basic',
+                    basicNums: basicList
                 }, '*');
             } catch (e) { /* ignore */ }
         }
@@ -19516,10 +19531,11 @@
             loadData();
 
             window.addEventListener('trackingObserveFocusNumsChanged', (ev) => {
-                const nums = ev && ev.detail && Array.isArray(ev.detail.nums)
-                    ? ev.detail.nums
-                    : null;
-                notifyLeftTrackingObserveFocusNums(nums);
+                const detail = ev && ev.detail ? ev.detail : {};
+                const nums = Array.isArray(detail.nums) ? detail.nums : null;
+                const viewMode = detail.viewMode || null;
+                const basicNums = Array.isArray(detail.basicNums) ? detail.basicNums : null;
+                notifyLeftTrackingObserveFocusNums(nums, viewMode, basicNums);
             });
 
             // Listen for sheet changes
@@ -19902,8 +19918,12 @@
                         return;
                     }
                     if (sheetManager && typeof sheetManager.setTrackingBarObserveFocusNums === 'function') {
+                        const targetMode = (msg.mode === 'special' || msg.targetMode === 'special')
+                            ? 'special'
+                            : 'basic';
                         sheetManager.setTrackingBarObserveFocusNums(msg.nums, {
-                            force: !!msg.force
+                            force: !!msg.force,
+                            mode: targetMode
                         });
                     }
                     return;

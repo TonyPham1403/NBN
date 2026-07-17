@@ -13077,6 +13077,9 @@ class RightPaneSheetManager {
                     sheet._trackingFocusSourceRowIndex = anchorRow;
                 }
                 this.renderTable(tableWrap);
+                try {
+                    this.emitTrackingObserveFocusChanged();
+                } catch (eModeEmit) { /* ignore */ }
             });
         }
 
@@ -13312,8 +13315,12 @@ class RightPaneSheetManager {
         tableWrap.__trackingGetFrameIndex = () => frameIndex;
         const setObserveFocusNums = (rawNums, options) => {
             const force = !!(options && options.force);
-            const maxN = isBasic ? 35 : 12;
-            const mode = isBasic ? 'basic' : 'special';
+            const mode = (options && options.mode === 'special')
+                ? 'special'
+                : (options && options.mode === 'basic')
+                    ? 'basic'
+                    : (isBasic ? 'basic' : 'special');
+            const maxN = mode === 'basic' ? 35 : 12;
             if (!this._trackingObserveFocusStashByMode) {
                 this._trackingObserveFocusStashByMode = { basic: null, special: null };
             }
@@ -13324,7 +13331,7 @@ class RightPaneSheetManager {
                     next.add(n);
                 }
             });
-            const focusNums = getFocusNums();
+            const focusNums = focusNumsByMode[mode];
             let same = focusNums.size === next.size && next.size > 0;
             if (same) {
                 next.forEach((n) => {
@@ -13353,25 +13360,42 @@ class RightPaneSheetManager {
         tableWrap.__trackingSetObserveFocusNums = setObserveFocusNums;
     }
 
-    /** Số đang có viền cam quan sát (mode tracking hiện tại). */
-    getTrackingBarObserveFocusNums() {
+    /** Số đang có viền cam quan sát theo mode ('basic' | 'special'). */
+    getTrackingBarObserveFocusNumsForMode(mode) {
         const sheet = this.sheets[TRACKING_SHEET_ID] || this.sheets.specialtracking;
         if (!sheet || sheet.kind !== TRACKING_KIND) {
             return [];
         }
-        const viewMode = this.getTrackingViewMode(sheet);
-        const mode = viewMode === 'basic' ? 'basic' : 'special';
+        const key = mode === 'special' ? 'special' : 'basic';
         const byMode = RightPaneSheetManager.readTrackingFocusNumsByMode(
             sheet.trackingUi || {}
         );
-        return Array.from(byMode[mode] || []).sort((a, b) => a - b);
+        return Array.from(byMode[key] || []).sort((a, b) => a - b);
     }
 
-    /** Báo nửa trái kiểm tra gạch chân Chuỗi pin còn đủ 5 viền cam không. */
+    /** Số đang có viền cam quan sát (mode tracking hiện tại). */
+    getTrackingBarObserveFocusNums() {
+        return this.getTrackingBarObserveFocusNumsForMode(this.getActiveTrackingViewMode());
+    }
+
+    /** basic | special — mode tracking đang xem. */
+    getActiveTrackingViewMode() {
+        const sheet = this.sheets[TRACKING_SHEET_ID] || this.sheets.specialtracking;
+        if (!sheet || sheet.kind !== TRACKING_KIND) {
+            return 'basic';
+        }
+        return this.getTrackingViewMode(sheet);
+    }
+
+    /** Báo nửa trái: gạch chân Chuỗi luôn theo basicNums (tách biệt special). */
     emitTrackingObserveFocusChanged() {
         try {
             window.dispatchEvent(new CustomEvent('trackingObserveFocusNumsChanged', {
-                detail: { nums: this.getTrackingBarObserveFocusNums() }
+                detail: {
+                    nums: this.getTrackingBarObserveFocusNums(),
+                    viewMode: this.getActiveTrackingViewMode(),
+                    basicNums: this.getTrackingBarObserveFocusNumsForMode('basic')
+                }
             }));
         } catch (e) { /* ignore */ }
     }
@@ -13432,9 +13456,9 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Thay toàn bộ viền cam quan sát (mode hiện tại) bằng danh sách số (vd. 5 số Chuỗi x).
+     * Thay toàn bộ viền cam quan sát bằng danh sách số (vd. 5 số Chuỗi x → mode basic).
      * @param {number[]} rawNums
-     * @param {{ force?: boolean }} [options] force=true: luôn gán (không toggle tắt khi trùng bộ)
+     * @param {{ force?: boolean, mode?: 'basic'|'special' }} [options]
      * @returns {boolean}
      */
     setTrackingBarObserveFocusNums(rawNums, options) {
@@ -13453,7 +13477,11 @@ class RightPaneSheetManager {
             this._trackingObserveFocusStashByMode = { basic: null, special: null };
         }
         const viewMode = this.getTrackingViewMode(sheet);
-        const mode = viewMode === 'basic' ? 'basic' : 'special';
+        const mode = (options && options.mode === 'special')
+            ? 'special'
+            : (options && options.mode === 'basic')
+                ? 'basic'
+                : (viewMode === 'basic' ? 'basic' : 'special');
         const maxN = mode === 'basic' ? 35 : 12;
         const byMode = RightPaneSheetManager.readTrackingFocusNumsByMode(
             sheet.trackingUi || {}
