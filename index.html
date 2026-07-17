@@ -16472,6 +16472,7 @@
             }
             const start = Math.max(0, idx - 10);
             const end = idx;
+            const nextWin = { start, end, target: idx };
             const win = sheetManager.activeWindowRange;
             if (!win || win.start !== start || win.end !== end || win.target !== idx) {
                 const tableWrap = el('tableWrap');
@@ -16481,22 +16482,34 @@
                         skipCenter: true,
                         tableWrapEl: tableWrap
                     });
+                } else if (typeof sheetManager.commitSourceSheetWindowRangeForIndex === 'function') {
+                    sheetManager.commitSourceSheetWindowRangeForIndex(idx);
                 }
             }
             const indices = new Set();
             const prev = filterAllModeNonexistRefreshPrev;
-            if (prev && typeof prev.start === 'number' && typeof prev.end === 'number') {
+            if (prev && typeof sheetManager.collectNonexistBoostRefreshRowIndices === 'function') {
+                sheetManager.collectNonexistBoostRefreshRowIndices({
+                    start: prev.start,
+                    end: prev.end,
+                    target: prev.target != null ? prev.target : prev.end
+                }).forEach((i) => indices.add(i));
+            } else if (prev && typeof prev.start === 'number' && typeof prev.end === 'number') {
                 for (let i = prev.start; i <= prev.end; i++) {
                     indices.add(i);
                 }
             }
-            for (let i = start; i <= end; i++) {
-                indices.add(i);
+            if (typeof sheetManager.collectNonexistBoostRefreshRowIndices === 'function') {
+                sheetManager.collectNonexistBoostRefreshRowIndices(nextWin).forEach((i) => indices.add(i));
+            } else {
+                for (let i = start; i <= end; i++) {
+                    indices.add(i);
+                }
             }
             filterAllModeNonexistRefreshPrev = null;
             sheetManager.refreshNonexistCellsForRowIndices(wrap, indices, {
                 forFilterPopup: true,
-                windowRange: { start, end, target: idx }
+                windowRange: nextWin
             });
         }
 
@@ -16510,10 +16523,20 @@
                     prev.end
                 );
                 if (sheetManager) {
-                    const indices = [];
-                    for (let i = prev.start; i <= prev.end; i++) {
-                        indices.push(i);
-                    }
+                    const indices = typeof sheetManager.collectNonexistBoostRefreshRowIndices === 'function'
+                        ? Array.from(sheetManager.collectNonexistBoostRefreshRowIndices({
+                            start: prev.start,
+                            end: prev.end,
+                            target: prev.target != null ? prev.target : prev.end
+                        }))
+                        : (() => {
+                            const list = [];
+                            for (let i = prev.start; i <= prev.end; i++) {
+                                list.push(i);
+                            }
+                            return list;
+                        })();
+                    /* Clear boost: không truyền windowRange */
                     sheetManager.refreshNonexistCellsForRowIndices(wrap, indices, { forFilterPopup: true });
                 }
             }
@@ -16534,7 +16557,7 @@
             const end = idx;
             const prev = filterAllModeWindowRange;
             filterAllModeNonexistRefreshPrev = prev
-                ? { start: prev.start, end: prev.end }
+                ? { start: prev.start, end: prev.end, target: prev.target }
                 : null;
             if (prev) {
                 clearFilterAllModeWindowOnRows(wrap, prev.start, prev.end);

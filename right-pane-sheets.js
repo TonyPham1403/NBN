@@ -4017,6 +4017,20 @@ class RightPaneSheetManager {
 
         if (maskChanged) {
             this.applyIdBackgroundsForAnswerPopupMask(tableWrap);
+            /* Mask đổi → trail tím/đỏ ngoài chuỗi 10 đổi theo; clear cache + refresh */
+            this._focusNonexistTrailKey = null;
+            this._focusNonexistTrailSet = null;
+            const win = this.activeWindowRange;
+            if (win && typeof win.start === 'number' && typeof win.end === 'number') {
+                this.refreshNonexistCellsForRowIndices(
+                    tableWrap,
+                    this.collectNonexistBoostRefreshRowIndices(win),
+                    {
+                        forFilterPopup: tableWrap.id === 'filterTableWrap',
+                        windowRange: win
+                    }
+                );
+            }
         }
     }
 
@@ -4035,7 +4049,12 @@ class RightPaneSheetManager {
             return;
         }
         nonexistCell.classList.toggle('answer-popup-focus-nonexist', masked);
-        nonexistCell.innerHTML = this.renderSourceRowNonexistCellHtml(rowIndex, row);
+        const win = this.activeWindowRange;
+        nonexistCell.innerHTML = this.renderSourceRowNonexistCellHtml(rowIndex, row, {
+            windowRange: (win && typeof win.start === 'number' && typeof win.end === 'number')
+                ? win
+                : null
+        });
     }
 
     setAnswerPopupFocusMaskOnRowDom(tableWrap, rowIndex, masked) {
@@ -6165,24 +6184,99 @@ class RightPaneSheetManager {
         return out;
     }
 
+    /**
+     * Số nonexist tím/đỏ trên hàng focus (rỗng/mask → tính như chưa result; có result → kind thật).
+     * Dùng để tìm “vàng gần nhất” ngoài chuỗi 10 và gắn x1.5.
+     */
+    getFocusRowPurpleRedNonexistTrailNums(focusRowIndex) {
+        const rows = this.getSourceSheetRows();
+        if (focusRowIndex < 0 || focusRowIndex >= rows.length) {
+            return new Set();
+        }
+        if (!this.nonexistCache || this.nonexistCache.length !== rows.length) {
+            this.refreshDerivedState();
+        }
+        const row = rows[focusRowIndex];
+        if (!row) {
+            return new Set();
+        }
+        const rawRes = String(row.result || row.Result || '').trim();
+        const treatAsEmpty = !rawRes
+            || this.isEmptyResultRow(row)
+            || this.shouldAnswerPopupMaskSheet1Row(focusRowIndex);
+        const rowForMeta = treatAsEmpty
+            ? Object.assign({}, row, { result: '', Result: '' })
+            : row;
+        const resForKind = treatAsEmpty ? '' : rawRes;
+        const nonexistMeta = this.getNonexistMetaForSourceRow(focusRowIndex, rowForMeta);
+        const nx = String(nonexistMeta.text || '').trim();
+        if (!nx || nx === 'N/A') {
+            return new Set();
+        }
+        const state = this.computeNonexistVisualState(focusRowIndex, nx, resForKind);
+        const out = new Set();
+        const candidates = this.parseNums(nx);
+        for (let i = 0; i < candidates.length; i++) {
+            const num = candidates[i];
+            const kind = this.getNonexistDisplayKindForNumber(
+                focusRowIndex,
+                num,
+                nx,
+                resForKind,
+                state
+            );
+            if (kind === 'purple' || kind === 'red') {
+                out.add(num);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Hàng ngoài cửa sổ 10 (idx < windowStart) gần cửa nhất mà `num` đang vàng trong nonexist.
+     * VD: focus 761 đỏ 18 → 729 (vàng gần nhất của 18 ngoài cửa).
+     */
+    findNearestOutsideYellowNonexistRow(num, windowStart) {
+        const start = Math.floor(Number(windowStart));
+        if (!Number.isFinite(start) || start <= 0) {
+            return -1;
+        }
+        const rows = this.getSourceSheetRows();
+        if (!this.nonexistCache || this.nonexistCache.length !== rows.length) {
+            this.refreshDerivedState();
+        }
+        for (let i = start - 1; i >= 0; i--) {
+            if (this.isNonexistNumYellowAtRow(i, num)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
     _getFocusNonexistTrailNumsCache() {
         const win = this.activeWindowRange;
         if (!win || typeof win.end !== 'number') {
             return new Set();
         }
         const targetIdx = typeof win.target === 'number' ? win.target : win.end;
-        const key = `${targetIdx}|${win.end}|${win.start}`;
+        const rows = this.getSourceSheetRows();
+        const row = rows[targetIdx];
+        const rawRes = row ? String(row.result || row.Result || '').trim() : '';
+        const treatAsEmpty = !rawRes
+            || (row && this.isEmptyResultRow(row))
+            || this.shouldAnswerPopupMaskSheet1Row(targetIdx);
+        const key = `${targetIdx}|${win.end}|${win.start}|pr|${treatAsEmpty ? 1 : 0}`;
         if (this._focusNonexistTrailKey === key && this._focusNonexistTrailSet) {
             return this._focusNonexistTrailSet;
         }
         this._focusNonexistTrailKey = key;
-        this._focusNonexistTrailSet = this.getFocusRowNonexistNums(targetIdx);
+        this._focusNonexistTrailSet = this.getFocusRowPurpleRedNonexistTrailNums(targetIdx);
         return this._focusNonexistTrailSet;
     }
 
     /**
-     * Boost tạm ngoài cửa sổ 10: số trong nonexist hàng focus (vd 30 @731) → hàng ngoài cửa sổ
-     * mà số đó đang vàng (vd 709).
+     * Boost vàng x1.5 ngoài cửa 10: số tím/đỏ trên focus → đúng hàng
+     * “vàng gần nhất” của số đó phía trên cửa sổ (vd 761 đỏ 18 → 729 vàng 18).
      */
     isOutsideWindowFocusTrailBoost(rowIndex, num, winOverride = null) {
         const win = winOverride || this.activeWindowRange;
@@ -6195,19 +6289,16 @@ class RightPaneSheetManager {
         }
         const targetIdx = typeof win.target === 'number' ? win.target : win.end;
         const trailSet = winOverride
-            ? this.getFocusRowNonexistNums(targetIdx)
+            ? this.getFocusRowPurpleRedNonexistTrailNums(targetIdx)
             : this._getFocusNonexistTrailNumsCache();
         if (!trailSet.has(num)) {
             return false;
         }
-        const streakStart = this.getNonexistStreakStartRow(targetIdx, num);
-        if (streakStart >= 0 && rowIndex < streakStart) {
-            return false;
-        }
-        return this.isNonexistNumYellowAtRow(rowIndex, num);
+        const nearestYellow = this.findNearestOutsideYellowNonexistRow(num, start);
+        return nearestYellow === rowIndex;
     }
 
-    /** Các hàng cần refresh nonexist khi đổi cửa sổ / focus (gồm streak ngoài cửa sổ 10). */
+    /** Các hàng cần refresh nonexist khi đổi cửa sổ / focus (gồm vàng gần nhất ngoài cửa 10). */
     collectNonexistBoostRefreshRowIndices(win) {
         const indices = new Set();
         if (!win || typeof win.start !== 'number' || typeof win.end !== 'number') {
@@ -6225,14 +6316,11 @@ class RightPaneSheetManager {
         if (!this.nonexistCache || this.nonexistCache.length !== this.getSourceSheetRows().length) {
             this.refreshDerivedState();
         }
-        const trailNumsOnFocus = this.getFocusRowNonexistNums(targetIdx);
+        const trailNumsOnFocus = this.getFocusRowPurpleRedNonexistTrailNums(targetIdx);
         for (const num of trailNumsOnFocus) {
-            const streakStart = this.getNonexistStreakStartRow(targetIdx, num);
-            const scanFrom = streakStart >= 0 ? streakStart : 0;
-            for (let i = start - 1; i >= scanFrom; i--) {
-                if (this.isNonexistNumYellowAtRow(i, num)) {
-                    indices.add(i);
-                }
+            const nearestYellow = this.findNearestOutsideYellowNonexistRow(num, start);
+            if (nearestYellow >= 0) {
+                indices.add(nearestYellow);
             }
         }
         return indices;
@@ -6499,9 +6587,22 @@ class RightPaneSheetManager {
         const redLongestStyle = 'color:rgb(255,0,0);font-weight:bold';
         const purpleOutsideStyle = 'color:rgb(148,55,220);font-weight:bold';
 
+        const trailYellowBoostStyle = 'color:rgb(240,200,64);font-weight:bold;font-size:1.5em';
+
         return this.escapeHtml(nonexistText).replace(/\b\d+\b/g, (match) => {
             const value = parseInt(match, 10);
             const displayKind = this.getNonexistDisplayKindForNumber(rowIndex, value, nonexistText, currentResult);
+
+            /* Focus tím/đỏ (chưa result) → ngoài chuỗi 10: ép vàng x1.5 (kể cả hàng đang tím/đỏ) */
+            const isGreenKind = (
+                displayKind === 'green'
+                || displayKind === 'green-ul'
+                || displayKind === 'green-italic'
+                || displayKind === 'green-strike'
+            );
+            if (!isGreenKind && this.isOutsideWindowFocusTrailBoost(rowIndex, value, windowRange)) {
+                return `<span style="${trailYellowBoostStyle}">${value}</span>`;
+            }
 
             if (displayKind === 'red') {
                 return `<span style="${redLongestStyle}">${value}</span>`;
