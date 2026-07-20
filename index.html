@@ -7217,6 +7217,17 @@
                     </div>
                     <button type="button" id="filterPopupHeader2Toggle" class="filter-popup-header2-toggle"
                         aria-pressed="true" title="Tắt lọc thêm 5 ô mẫu (header2)">Mẫu</button>
+                    <div id="filterPopupNoteTagPicker" class="filter-popup-note-tag-picker hidden">
+                        <button type="button" id="filterPopupNoteTagBtn" class="filter-popup-note-tag-btn" disabled
+                            aria-haspopup="listbox" aria-expanded="false" title="Lọc theo nhãn trong note">
+                            <span class="filter-popup-note-tag-btn-emoji" aria-hidden="true">📑</span>
+                            <span id="filterPopupNoteTagBtnLabel">All</span>
+                            <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
+                        </button>
+                        <ul id="filterPopupNoteTagMenu"
+                            class="period-filter-mode-menu filter-popup-note-tag-menu hidden" role="listbox"
+                            aria-label="Lọc note theo khoảng cách"></ul>
+                    </div>
                     <div id="filterPopupNonexistBracketPicker"
                         class="filter-popup-nonexist-bracket filter-popup-intersection-freq hidden" role="group"
                         title="Lọc nonexist: [] đếm số theo màu đã chọn AND số 1–35; ví dụ đỏ []&gt;=1 AND số 7"
@@ -7358,17 +7369,6 @@
                                 class="filter-popup-posnfreq-constraint-btn" hidden aria-pressed="true"
                                 title="Bật/tắt ràng buộc vị trí chuỗi">[—]</button>
                         </span>
-                    </div>
-                    <div id="filterPopupNoteTagPicker" class="filter-popup-note-tag-picker hidden">
-                        <button type="button" id="filterPopupNoteTagBtn" class="filter-popup-note-tag-btn" disabled
-                            aria-haspopup="listbox" aria-expanded="false" title="Lọc theo nhãn trong note">
-                            <span class="filter-popup-note-tag-btn-emoji" aria-hidden="true">📑</span>
-                            <span id="filterPopupNoteTagBtnLabel">All</span>
-                            <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
-                        </button>
-                        <ul id="filterPopupNoteTagMenu"
-                            class="period-filter-mode-menu filter-popup-note-tag-menu hidden" role="listbox"
-                            aria-label="Lọc note theo khoảng cách"></ul>
                     </div>
                     <div id="filterPopupDatebandFreqPicker" class="filter-popup-dateband-freq hidden"
                         aria-hidden="true">
@@ -7697,7 +7697,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260720posnfreqRelCover"></script>
+    <script src="right-pane-sheets.js?v=20260721allNoteTag"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -9747,6 +9747,9 @@
 
         function getFilterNoteTagMaxSelections(mode) {
             const normalized = normalizeFilterMode(mode);
+            if (isAllFilterMode(normalized)) {
+                return FILTER_NOTE_TAG_VALUES.length;
+            }
             if (isDatebandFilterMode(normalized)) {
                 return 1;
             }

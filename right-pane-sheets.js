@@ -1944,7 +1944,13 @@ class RightPaneSheetManager {
         const indices = [];
         const rows = this.getSourceSheetRows();
         if (mode === 'all') {
+            const noteTags = Array.isArray((filterOptions || {}).noteTags)
+                ? (filterOptions.noteTags || []).filter((n) => Number.isFinite(n) && n >= 1 && n <= 10)
+                : [];
             for (let i = 0; i < rows.length; i++) {
+                if (noteTags.length > 0 && !this.rowMatchesNoteTagFilter(i, noteTags)) {
+                    continue;
+                }
                 indices.push(i);
             }
             return indices;
