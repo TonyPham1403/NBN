@@ -1947,8 +1947,12 @@ class RightPaneSheetManager {
             const noteTags = Array.isArray((filterOptions || {}).noteTags)
                 ? (filterOptions.noteTags || []).filter((n) => Number.isFinite(n) && n >= 1 && n <= 10)
                 : [];
+            const noteTRefs = this.parseNoteTRefExps(filterOptions);
             for (let i = 0; i < rows.length; i++) {
                 if (noteTags.length > 0 && !this.rowMatchesNoteTagFilter(i, noteTags)) {
+                    continue;
+                }
+                if (noteTRefs.length > 0 && !this.rowMatchesNoteTRefFilter(i, noteTRefs)) {
                     continue;
                 }
                 indices.push(i);
@@ -2003,6 +2007,7 @@ class RightPaneSheetManager {
         const noteTags = Array.isArray((filterOptions || {}).noteTags)
             ? (filterOptions.noteTags || []).filter((n) => Number.isFinite(n) && n >= 1 && n <= 10)
             : [];
+        const noteTRefs = this.parseNoteTRefExps(filterOptions);
 
         if (mode === 'dateband') {
             const o = filterOptions || {};
@@ -2025,6 +2030,9 @@ class RightPaneSheetManager {
             for (let b = 0; b < base.length; b++) {
                 const i = base[b];
                 if (distFilter !== null && !this.rowMatchesDatebandNoteDistFilter(i, distFilter)) {
+                    continue;
+                }
+                if (noteTRefs.length > 0 && !this.rowMatchesNoteTRefFilter(i, noteTRefs)) {
                     continue;
                 }
                 if (!this.rowMatchesDatebandPairFreqFilter(rows, i, thX, thY, opA, opB)) {
@@ -2059,15 +2067,19 @@ class RightPaneSheetManager {
 
         if (mode === 'connection') {
             const base = this.ensureConnectionFilterIndicesCache();
-            if (noteTags.length === 0) {
+            if (noteTags.length === 0 && noteTRefs.length === 0) {
                 return base.slice();
             }
             const out = [];
             for (let b = 0; b < base.length; b++) {
                 const i = base[b];
-                if (this.rowMatchesNoteTagFilter(i, noteTags)) {
-                    out.push(i);
+                if (noteTags.length > 0 && !this.rowMatchesNoteTagFilter(i, noteTags)) {
+                    continue;
                 }
+                if (noteTRefs.length > 0 && !this.rowMatchesNoteTRefFilter(i, noteTRefs)) {
+                    continue;
+                }
+                out.push(i);
             }
             return out;
         }
@@ -2093,9 +2105,16 @@ class RightPaneSheetManager {
                 if (this.isEmptyResultRow(rows[i])) {
                     continue;
                 }
-                if (this.rowMatchesIntersectionSubmitWindow(rows, i, kind, thX, thY, opA, opB)) {
-                    indices.push(i);
+                if (!this.rowMatchesIntersectionSubmitWindow(rows, i, kind, thX, thY, opA, opB)) {
+                    continue;
                 }
+                if (noteTags.length > 0 && !this.rowMatchesNoteTagFilter(i, noteTags)) {
+                    continue;
+                }
+                if (noteTRefs.length > 0 && !this.rowMatchesNoteTRefFilter(i, noteTRefs)) {
+                    continue;
+                }
+                indices.push(i);
             }
             return indices;
         }
@@ -2127,6 +2146,9 @@ class RightPaneSheetManager {
             }
             if (this.inferModeForRowIndex(i) === mode) {
                 if (noteTags.length > 0 && !this.rowMatchesNoteTagFilter(i, noteTags)) {
+                    continue;
+                }
+                if (noteTRefs.length > 0 && !this.rowMatchesNoteTRefFilter(i, noteTRefs)) {
                     continue;
                 }
                 indices.push(i);
@@ -3613,6 +3635,113 @@ class RightPaneSheetManager {
         }
         for (let i = 0; i < tags.length; i++) {
             if (!this.noteContainsDistColon(noteText, tags[i])) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Parse noteTRef filter option → list of exponents 1–10.
+     * Multi-select = AND (mọi mũ phải có trong note), giống noteTags 📑.
+     */
+    parseNoteTRefExps(filterOptions) {
+        const raw = (filterOptions || {}).noteTRef;
+        if (raw == null || raw === '') {
+            return [];
+        }
+        const list = Array.isArray(raw) ? raw : [raw];
+        const out = [];
+        for (let i = 0; i < list.length; i++) {
+            const n = parseInt(list[i], 10);
+            if (Number.isFinite(n) && n >= 1 && n <= 10 && out.indexOf(n) < 0) {
+                out.push(n);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Decode Unicode superscript digits (¹…⁰) to integer.
+     * Empty / invalid → null (không mặc định 1 — tránh khớp nhầm ngày kiểu 12-05).
+     */
+    decodeNoteRefExponent(supStr) {
+        const map = {
+            '¹': '1', '²': '2', '³': '3', '⁴': '4', '⁵': '5',
+            '⁶': '6', '⁷': '7', '⁸': '8', '⁹': '9', '⁰': '0'
+        };
+        const raw = String(supStr || '');
+        if (!raw.length) {
+            return null;
+        }
+        let digits = '';
+        for (let i = 0; i < raw.length; i++) {
+            const d = map[raw[i]];
+            if (!d) {
+                return null;
+            }
+            digits += d;
+        }
+        const v = parseInt(digits, 10);
+        return Number.isFinite(v) ? v : null;
+    }
+
+    /**
+     * Note có ít nhất một tham chiếu dạng `id-prevIdⁿ=…` với mũ Unicode = exp (1–10).
+     * Chỉ đọc note tính toán (không gộp raw) để tránh khớp nhầm.
+     */
+    noteContainsRefExponent(noteText, exp) {
+        const target = parseInt(exp, 10);
+        if (!noteText || !Number.isFinite(target) || target < 1 || target > 10) {
+            return false;
+        }
+        // Bắt buộc có mũ + dấu = ngay sau (cùng shape buildNoteForRow).
+        const reRef = /([0-9]+)-([0-9]+)([¹²³⁴⁵⁶⁷⁸⁹⁰]+)=/g;
+        let m;
+        while ((m = reRef.exec(noteText)) !== null) {
+            if (this.decodeNoteRefExponent(m[3]) === target) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Row note must contain every selected tRef exponent (AND / ∩), giống 📑 noteTags.
+     * Chọn t^1 và t^2 → note phải có cả mũ ¹ và ² (không phải OR).
+     * @param {number} rowIndex
+     * @param {number|number[]} exps
+     */
+    rowMatchesNoteTRefFilter(rowIndex, exps) {
+        let list;
+        if (Array.isArray(exps)) {
+            list = [];
+            for (let i = 0; i < exps.length; i++) {
+                const n = parseInt(exps[i], 10);
+                if (Number.isFinite(n) && n >= 1 && n <= 10 && list.indexOf(n) < 0) {
+                    list.push(n);
+                }
+            }
+        } else {
+            const n = parseInt(exps, 10);
+            list = Number.isFinite(n) && n >= 1 && n <= 10 ? [n] : [];
+        }
+        if (!list.length) {
+            return true;
+        }
+        const rows = this.getSourceSheetRows();
+        const row = rows[rowIndex];
+        if (!row) {
+            return false;
+        }
+        const meta = this.getComputedNoteMeta(rowIndex, row);
+        const noteText = (meta && meta.text && meta.text !== '?') ? String(meta.text) : '';
+        if (!noteText) {
+            return false;
+        }
+        // AND: thiếu bất kỳ mũ nào → loại
+        for (let i = 0; i < list.length; i++) {
+            if (!this.noteContainsRefExponent(noteText, list[i])) {
                 return false;
             }
         }

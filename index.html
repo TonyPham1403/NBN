@@ -4010,6 +4010,65 @@
             display: none;
         }
 
+        /* 📑 + tRef: cụm pill bo góc dán sát như Chuỗi [] + U */
+        .filter-popup-note-tag-tools {
+            display: inline-flex;
+            align-items: center;
+            align-self: center;
+            height: 24px;
+            flex: 0 0 auto;
+            flex-shrink: 0;
+            margin: 0 0 0 4px;
+            padding: 0;
+            overflow: visible;
+            background: transparent;
+            border: 0;
+        }
+
+        .filter-popup-note-tag-tools.hidden {
+            display: none !important;
+        }
+
+        .filter-popup-note-tag-tools .filter-popup-note-tag-picker {
+            display: inline-flex;
+            align-items: stretch;
+            height: 24px;
+            position: relative;
+        }
+
+        .filter-popup-note-tag-tools .filter-popup-note-tag-picker.hidden {
+            display: none !important;
+        }
+
+        .filter-popup-note-tag-tools .filter-popup-note-tag-btn {
+            height: 24px;
+            min-height: 24px;
+            max-height: 24px;
+            border: 1px solid #004d00;
+            border-radius: 6px;
+            border-left: 1px solid #004d00;
+            padding: 0 7px;
+            background: #006400;
+            color: #ffffff;
+        }
+
+        .filter-popup-note-tag-tools:has(#filterPopupNoteTRefPicker:not(.hidden)) #filterPopupNoteTagBtn {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+
+        .filter-popup-note-tag-tools #filterPopupNoteTRefPicker:not(.hidden) {
+            margin-left: -1px;
+        }
+
+        .filter-popup-note-tag-tools #filterPopupNoteTRefBtn {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            min-width: 44px;
+            max-width: 140px;
+            padding: 0 6px;
+        }
+
         .filter-popup-dateband-freq {
             position: relative;
             height: 100%;
@@ -4184,7 +4243,7 @@
 
         /* Màu rõ ràng — #id + !important tránh bị ghi đè; .is-note-tag-pressing từ pointer (ổn định hơn :active) */
         #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled),
-        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled) {
+        #filterPopupNoteTRefBtn.filter-popup-note-tag-btn:not(:disabled) {
             background: #006400;
             color: #ffffff;
             border-left-color: #004d00;
@@ -4193,8 +4252,8 @@
 
         #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-note-tag-pressing:not(.is-menu-open),
         #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled):active:not(.is-menu-open),
-        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-note-tag-pressing:not(.is-menu-open),
-        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled):active:not(.is-menu-open) {
+        #filterPopupNoteTRefBtn.filter-popup-note-tag-btn:not(:disabled).is-note-tag-pressing:not(.is-menu-open),
+        #filterPopupNoteTRefBtn.filter-popup-note-tag-btn:not(:disabled):active:not(.is-menu-open) {
             background: #facc15 !important;
             color: #1c0a02 !important;
             border-left-color: #a16207 !important;
@@ -4203,15 +4262,15 @@
 
         #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-note-tag-pressing:not(.is-menu-open) .filter-popup-note-tag-btn-emoji,
         #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled):active:not(.is-menu-open) .filter-popup-note-tag-btn-emoji,
-        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-note-tag-pressing:not(.is-menu-open) .filter-popup-note-tag-btn-emoji,
-        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled):active:not(.is-menu-open) .filter-popup-note-tag-btn-emoji {
+        #filterPopupNoteTRefBtn.filter-popup-note-tag-btn:not(:disabled).is-note-tag-pressing:not(.is-menu-open) .filter-popup-note-tag-btn-emoji,
+        #filterPopupNoteTRefBtn.filter-popup-note-tag-btn:not(:disabled):active:not(.is-menu-open) .filter-popup-note-tag-btn-emoji {
             transform: scale(1.12);
             opacity: 1;
             filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
         }
 
         #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open,
-        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open {
+        #filterPopupNoteTRefBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open {
             background: #ccfbf1 !important;
             color: #134e4a !important;
             border-left-color: #0d9488 !important;
@@ -4219,12 +4278,12 @@
         }
 
         #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open .period-filter-mode-caret,
-        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open .period-filter-mode-caret {
+        #filterPopupNoteTRefBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open .period-filter-mode-caret {
             color: #0f766e !important;
         }
 
         #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open .filter-popup-note-tag-btn-emoji,
-        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open .filter-popup-note-tag-btn-emoji {
+        #filterPopupNoteTRefBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open .filter-popup-note-tag-btn-emoji {
             transform: scale(1.12);
             opacity: 1;
             filter: drop-shadow(0 1px 2px rgba(15, 118, 110, 0.45));
@@ -4232,8 +4291,8 @@
 
         #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open.is-note-tag-pressing,
         #filterPopupNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open:active,
-        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open.is-note-tag-pressing,
-        #filterPopupConnectionNoteTagBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open:active {
+        #filterPopupNoteTRefBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open.is-note-tag-pressing,
+        #filterPopupNoteTRefBtn.filter-popup-note-tag-btn:not(:disabled).is-menu-open:active {
             background: #5eead4 !important;
             color: #042f2e !important;
             box-shadow: inset 0 0 0 3px #115e59 !important;
@@ -5021,7 +5080,20 @@
             cursor: grab;
         }
 
-        .filter-popup-filter-tools .period-filter-mode-picker,
+        .filter-popup-filter-tools .period-filter-mode-picker {
+            display: inline-flex;
+            align-items: stretch;
+            align-self: stretch;
+            height: auto;
+        }
+
+        .filter-popup-filter-tools .filter-popup-note-tag-tools:not(.hidden) {
+            display: inline-flex;
+            align-items: center;
+            align-self: center;
+            height: 24px;
+        }
+
         .filter-popup-filter-tools .filter-popup-note-tag-picker:not(.hidden) {
             display: inline-flex;
             align-items: stretch;
@@ -5029,6 +5101,7 @@
             height: auto;
         }
 
+        .filter-popup-filter-tools .filter-popup-note-tag-tools.hidden,
         .filter-popup-filter-tools .filter-popup-note-tag-picker.hidden {
             display: none !important;
         }
@@ -7217,16 +7290,29 @@
                     </div>
                     <button type="button" id="filterPopupHeader2Toggle" class="filter-popup-header2-toggle"
                         aria-pressed="true" title="Tắt lọc thêm 5 ô mẫu (header2)">Mẫu</button>
-                    <div id="filterPopupNoteTagPicker" class="filter-popup-note-tag-picker hidden">
-                        <button type="button" id="filterPopupNoteTagBtn" class="filter-popup-note-tag-btn" disabled
-                            aria-haspopup="listbox" aria-expanded="false" title="Lọc theo nhãn trong note">
-                            <span class="filter-popup-note-tag-btn-emoji" aria-hidden="true">📑</span>
-                            <span id="filterPopupNoteTagBtnLabel">All</span>
-                            <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
-                        </button>
-                        <ul id="filterPopupNoteTagMenu"
-                            class="period-filter-mode-menu filter-popup-note-tag-menu hidden" role="listbox"
-                            aria-label="Lọc note theo khoảng cách"></ul>
+                    <div id="filterPopupNoteTagTools" class="filter-popup-note-tag-tools hidden">
+                        <div id="filterPopupNoteTagPicker" class="filter-popup-note-tag-picker">
+                            <button type="button" id="filterPopupNoteTagBtn" class="filter-popup-note-tag-btn" disabled
+                                aria-haspopup="listbox" aria-expanded="false" title="Lọc theo nhãn trong note">
+                                <span class="filter-popup-note-tag-btn-emoji" aria-hidden="true">📑</span>
+                                <span id="filterPopupNoteTagBtnLabel">All</span>
+                                <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
+                            </button>
+                            <ul id="filterPopupNoteTagMenu"
+                                class="period-filter-mode-menu filter-popup-note-tag-menu hidden" role="listbox"
+                                aria-label="Lọc note theo khoảng cách"></ul>
+                        </div>
+                        <div id="filterPopupNoteTRefPicker" class="filter-popup-note-tag-picker filter-popup-note-tref-picker hidden">
+                            <button type="button" id="filterPopupNoteTRefBtn" class="filter-popup-note-tag-btn" disabled
+                                aria-haspopup="listbox" aria-expanded="false"
+                                title="tRef — lọc note theo mũ tham chiếu (id-prevIdⁿ=…); đa chọn = AND (∩)">
+                                <span id="filterPopupNoteTRefBtnLabel">All</span>
+                                <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
+                            </button>
+                            <ul id="filterPopupNoteTRefMenu"
+                                class="period-filter-mode-menu filter-popup-note-tag-menu hidden" role="listbox"
+                                aria-label="tRef — mũ tham chiếu trong note"></ul>
+                        </div>
                     </div>
                     <div id="filterPopupNonexistBracketPicker"
                         class="filter-popup-nonexist-bracket filter-popup-intersection-freq hidden" role="group"
@@ -7280,19 +7366,6 @@
                         aria-pressed="false" title="U thuận (∪): OR — đáp án trên bất kỳ chuỗi đã chọn">U</button>
                     <div id="filterPopupChainFilterPicker" class="filter-popup-chain-filter-picker hidden" role="group"
                         aria-label="Chọn nhãn chuỗi 1–10"></div>
-                    <div id="filterPopupConnectionNoteTagPicker" class="filter-popup-note-tag-picker hidden"
-                        aria-hidden="true">
-                        <button type="button" id="filterPopupConnectionNoteTagBtn" class="filter-popup-note-tag-btn"
-                            disabled aria-haspopup="listbox" aria-expanded="false"
-                            title="Connection + nhãn trong note (All hoặc một nhãn 1: … 10: dạng N:{…})">
-                            <span class="filter-popup-note-tag-btn-emoji" aria-hidden="true">🔗</span>
-                            <span id="filterPopupConnectionNoteTagBtnLabel">All</span>
-                            <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
-                        </button>
-                        <ul id="filterPopupConnectionNoteTagMenu"
-                            class="period-filter-mode-menu filter-popup-note-tag-menu hidden" role="listbox"
-                            aria-label="Lọc connection theo nhãn trong note"></ul>
-                    </div>
                     <div id="filterPopupIntersectionPicker"
                         class="filter-popup-note-tag-picker filter-popup-intersection-picker hidden" aria-hidden="true">
                         <div class="filter-popup-intersection-toolbar">
@@ -7697,7 +7770,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260721allNoteTag"></script>
+    <script src="right-pane-sheets.js?v=20260721tRefAnd"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -7759,6 +7832,7 @@
             yellow: 'background:rgb(240,200,64)'
         };
         const FILTER_NOTE_TAGS_KEY = 'filterNoteTags';
+        const FILTER_NOTE_TREF_KEY = 'filterNoteTRef';
         const FILTER_HEADER2_NUMS_KEY = 'filterPopupHeader2Nums';
         const FILTER_HEADER2_ENABLED_KEY = 'filterPopupHeader2Enabled';
         const FILTER_CHAIN_FILTER_ENABLED_KEY = 'filterPopupChainFilterEnabled';
@@ -7778,9 +7852,10 @@
             }
             return out;
         })();
-        const FILTER_CONNECTION_NOTE_TAGS_KEY = 'filterConnectionNoteTags';
         const FILTER_NOTE_TAG_ALL = 'all';
         const FILTER_NOTE_TAG_VALUES = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
+        const FILTER_NOTE_TREF_ALL = 'all';
+        const FILTER_NOTE_TREF_VALUES = FILTER_NOTE_TAG_VALUES;
         const FILTER_POPUP_MIN_WIDTH = 228;
         const FILTER_POPUP_MIN_HEIGHT = 160;
         const ANSWER_POPUP_MIN_WIDTH = 228;
@@ -7979,11 +8054,11 @@
         let filterNoteTagMenuCounts = {};
         let filterNoteTagCountRebuildTimer = null;
         let filterNoteTagApplyTimer = null;
-        /** Mode connection: nhãn note 1:…10: (dạng N:{…}) — tách khỏi filterNoteTags của pair/triple. */
-        let filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
-        let filterConnectionNoteTagMenuCounts = {};
-        let filterConnectionNoteTagCountRebuildTimer = null;
-        let filterConnectionNoteTagApplyTimer = null;
+        /** Lọc note theo mũ tham chiếu t^n — cùng mode với 📑; multi-select theo max mode. */
+        let filterNoteTRefs = [FILTER_NOTE_TREF_ALL];
+        let filterNoteTRefMenuCounts = {};
+        let filterNoteTRefApplyTimer = null;
+        let filterNoteTRefCountRebuildTimer = null;
         /** Header2 popup: tối đa 5 ô số 1–35 — lọc thêm trong mẫu kỳ sau header1 */
         let filterPopupHeader2Slots = ['', '', '', '', ''];
         let filterPopupHeader2Suggestions = ['', '', '', '', ''];
@@ -9532,88 +9607,156 @@
             return normalizeFilterMode(mode) === 'all';
         }
 
-        function supportsConnectionNoteTagFilter(mode) {
-            return isConnectionFilterMode(mode);
+        function getFilterNoteTagMaxSelections(mode) {
+            const normalized = normalizeFilterMode(mode);
+            if (isAllFilterMode(normalized)) {
+                return FILTER_NOTE_TAG_VALUES.length;
+            }
+            if (isConnectionFilterMode(normalized) || isIntersectionFilterMode(normalized)) {
+                return 5;
+            }
+            if (isDatebandFilterMode(normalized)) {
+                return 1;
+            }
+            const pairMatch = /^pair(\d+)$/.exec(normalized);
+            if (pairMatch) {
+                return parseInt(pairMatch[1], 10) || 1;
+            }
+            const tripleMatch = /^triple(\d+)$/.exec(normalized);
+            if (tripleMatch) {
+                return parseInt(tripleMatch[1], 10) || 1;
+            }
+            const quadMatch = /^quad(\d+)$/.exec(normalized);
+            if (quadMatch) {
+                return parseInt(quadMatch[1], 10) || 1;
+            }
+            return 0;
         }
 
-        function getActiveConnectionNoteTagFilterValuesForMode(mode) {
-            if (!isConnectionFilterMode(mode)) {
+        function supportsNoteTagFilter(mode) {
+            if (isNonexistFilterMode(mode)) {
+                return false;
+            }
+            if (isPosnfreqFilterMode(mode)) {
+                return false;
+            }
+            return getFilterNoteTagMaxSelections(mode) > 0;
+        }
+
+        function supportsNoteTRefFilter(mode) {
+            return supportsNoteTagFilter(mode);
+        }
+
+function getFilterNoteTRefMaxSelections(mode) {
+            if (!supportsNoteTRefFilter(mode)) {
+                return 0;
+            }
+            if (isAllFilterMode(mode)) {
+                return 5;
+            }
+            return getFilterNoteTagMaxSelections(mode);
+        }
+
+        function normalizeOneFilterNoteTRefToken(value) {
+            const raw = String(value == null ? '' : value).trim().toLowerCase();
+            if (!raw || raw === FILTER_NOTE_TREF_ALL || raw === 'all') {
+                return FILTER_NOTE_TREF_ALL;
+            }
+            const m = /^t\^?(\d+)$/.exec(raw) || /^(\d+)$/.exec(raw);
+            if (m && FILTER_NOTE_TREF_VALUES.includes(m[1])) {
+                return m[1];
+            }
+            return null;
+        }
+
+        function normalizeFilterNoteTRefsForMode(mode) {
+            const max = getFilterNoteTRefMaxSelections(mode);
+            if (max <= 0) {
+                filterNoteTRefs = [FILTER_NOTE_TREF_ALL];
+                return;
+            }
+            if (!Array.isArray(filterNoteTRefs) || filterNoteTRefs.length === 0) {
+                filterNoteTRefs = [FILTER_NOTE_TREF_ALL];
+                return;
+            }
+            if (filterNoteTRefs.includes(FILTER_NOTE_TREF_ALL)) {
+                filterNoteTRefs = [FILTER_NOTE_TREF_ALL];
+                return;
+            }
+            const unique = [];
+            for (const raw of filterNoteTRefs) {
+                const token = normalizeOneFilterNoteTRefToken(raw);
+                if (!token || token === FILTER_NOTE_TREF_ALL || unique.includes(token)) {
+                    continue;
+                }
+                unique.push(token);
+                if (unique.length >= max) {
+                    break;
+                }
+            }
+            filterNoteTRefs = unique.length ? unique : [FILTER_NOTE_TREF_ALL];
+        }
+
+        function getActiveNoteTRefValues() {
+            if (!supportsNoteTRefFilter(periodFilterMode)) {
                 return [];
             }
-            if (!Array.isArray(filterConnectionNoteTags) || filterConnectionNoteTags.includes(FILTER_NOTE_TAG_ALL)) {
+            if (!Array.isArray(filterNoteTRefs) || filterNoteTRefs.includes(FILTER_NOTE_TREF_ALL)) {
                 return [];
             }
-            return filterConnectionNoteTags
+            return filterNoteTRefs
+                .map((v) => normalizeOneFilterNoteTRefToken(v))
+                .filter((v) => v && v !== FILTER_NOTE_TREF_ALL)
+                .map((v) => parseInt(v, 10))
+                .filter((n) => Number.isFinite(n) && n >= 1 && n <= 10);
+        }
+
+        function getFilterNoteTRefButtonLabel() {
+            if (!Array.isArray(filterNoteTRefs)
+                || filterNoteTRefs.includes(FILTER_NOTE_TREF_ALL)
+                || filterNoteTRefs.length === 0) {
+                return 'All';
+            }
+            return filterNoteTRefs
+                .map((v) => normalizeOneFilterNoteTRefToken(v))
+                .filter((v) => v && v !== FILTER_NOTE_TREF_ALL)
+                .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+                .map((v) => `t^${v}`)
+                .join('∩');
+        }
+
+        function getActiveNoteTagFilterValues() {
+            if (!supportsNoteTagFilter(periodFilterMode)) {
+                return [];
+            }
+            if (!Array.isArray(filterNoteTags) || filterNoteTags.some((t) => String(t) === FILTER_NOTE_TAG_ALL)) {
+                return [];
+            }
+            return filterNoteTags
+                .map((tag) => String(tag))
                 .filter((tag) => FILTER_NOTE_TAG_VALUES.includes(tag))
                 .map((tag) => parseInt(tag, 10))
                 .filter((n) => Number.isFinite(n));
         }
 
-        function getActiveConnectionNoteTagFilterValues() {
-            return getActiveConnectionNoteTagFilterValuesForMode(periodFilterMode);
+        function getDatebandFilterOptions(noteTagsOrNull) {
+            const opts = {
+                datebandMinFreqA: filterDatebandFreqX,
+                datebandMinFreqB: filterDatebandFreqY,
+                datebandFreqOpA: normalizeIntersectionFreqOp(filterDatebandOpX),
+                datebandFreqOpB: normalizeIntersectionFreqOp(filterDatebandOpY)
+            };
+            if (Array.isArray(noteTagsOrNull) && noteTagsOrNull.length > 0) {
+                opts.noteTags = noteTagsOrNull.filter((n) => Number.isFinite(n) && n >= 1 && n <= 10);
+            }
+            return opts;
         }
 
-        function normalizeFilterConnectionNoteTags() {
-            if (!Array.isArray(filterConnectionNoteTags) || filterConnectionNoteTags.length === 0) {
-                filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
-                return;
-            }
-            if (filterConnectionNoteTags.includes(FILTER_NOTE_TAG_ALL)) {
-                filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
-                return;
-            }
-            const chosen = filterConnectionNoteTags.find((tag) => FILTER_NOTE_TAG_VALUES.includes(tag));
-            filterConnectionNoteTags = chosen ? [chosen] : [FILTER_NOTE_TAG_ALL];
-        }
-
-        function saveFilterConnectionNoteTagsSettings() {
-            try {
-                localStorage.setItem(FILTER_CONNECTION_NOTE_TAGS_KEY, JSON.stringify(filterConnectionNoteTags));
-            } catch (e) { /* ignore */ }
-        }
-
-        function loadFilterConnectionNoteTagsSettings() {
-            try {
-                const saved = localStorage.getItem(FILTER_CONNECTION_NOTE_TAGS_KEY);
-                if (!saved) {
-                    filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
-                    return;
-                }
-                const parsed = JSON.parse(saved);
-                if (!Array.isArray(parsed) || parsed.length === 0) {
-                    filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
-                    return;
-                }
-                if (parsed.includes(FILTER_NOTE_TAG_ALL)) {
-                    filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
-                    return;
-                }
-                filterConnectionNoteTags = parsed.filter((tag) => tag === FILTER_NOTE_TAG_ALL || FILTER_NOTE_TAG_VALUES.includes(String(tag)));
-                if (!filterConnectionNoteTags.length) {
-                    filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
-                }
-            } catch (e) {
-                filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
-            }
-            normalizeFilterConnectionNoteTags();
-        }
-
-        function getFilterConnectionNoteTagButtonLabel() {
-            if (!Array.isArray(filterConnectionNoteTags) || filterConnectionNoteTags.includes(FILTER_NOTE_TAG_ALL) || filterConnectionNoteTags.length === 0) {
-                return 'All';
-            }
-            return filterConnectionNoteTags
-                .filter((tag) => FILTER_NOTE_TAG_VALUES.includes(tag))
-                .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
-                .map((tag) => `${tag}:`)
-                .join(', ');
-        }
-
-        function isFilterConnectionNoteTagSelected(tag) {
-            if (tag === FILTER_NOTE_TAG_ALL) {
-                return filterConnectionNoteTags.includes(FILTER_NOTE_TAG_ALL);
-            }
-            return !filterConnectionNoteTags.includes(FILTER_NOTE_TAG_ALL) && filterConnectionNoteTags.includes(tag);
+        function getTailFilterOptions() {
+            return {
+                tailMinCount: filterTailCount,
+                tailCountOp: normalizeIntersectionFreqOp(filterTailOp)
+            };
         }
 
         function getPosnfreqMatchConstraintOpts() {
@@ -9636,34 +9779,355 @@
             };
         }
 
-        function isNonexistFilterNumEmpty() {
-            return filterNonexistNum == null;
-        }
-
         function getNonexistFilterOptions() {
             const colors = filterNonexistColors.filter((c) => NONEXIST_FILTER_COLORS.includes(c));
+            const styles = colors.includes('green')
+                ? filterNonexistStyles.filter((s) => NONEXIST_FILTER_STYLES.includes(s))
+                : [];
             return {
                 num: filterNonexistNum,
                 colors,
-                styles: colors.includes('green') ? filterNonexistStyles.slice() : [],
+                styles,
                 nonexistBracketCount: filterNonexistBracketCount,
                 nonexistBracketOp: normalizeIntersectionFreqOp(filterNonexistBracketOp),
-                applyColorStyleFilter: hasNonexistColorStyleSubFilter()
+                applyColorStyleFilter: true
             };
         }
 
-        function isNonexistBracketFilterActive() {
-            return Number.isFinite(filterNonexistBracketCount)
-                && filterNonexistBracketCount >= 0
-                && filterNonexistBracketCount <= NONEXIST_BRACKET_COUNT_MAX;
+        function getFilterOptionsForMode(mode) {
+            if (isNonexistFilterMode(mode)) {
+                return getNonexistFilterOptions();
+            }
+            if (isPosnfreqFilterMode(mode)) {
+                return getPosnfreqFilterOptionsForMatching();
+            }
+            if (isIntersectionFilterMode(mode)) {
+                const opts = {
+                    intersectionKind: filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect',
+                    intersectionMinFreqA: filterIntersectionFreqX,
+                    intersectionMinFreqB: filterIntersectionFreqY,
+                    intersectionFreqOpA: normalizeIntersectionFreqOp(filterIntersectionOpX),
+                    intersectionFreqOpB: normalizeIntersectionFreqOp(filterIntersectionOpY)
+                };
+                const noteTags = getActiveNoteTagFilterValues();
+                if (noteTags.length > 0) {
+                    opts.noteTags = noteTags;
+                }
+                const noteTRefs = getActiveNoteTRefValues();
+                if (noteTRefs.length > 0) {
+                    opts.noteTRef = noteTRefs;
+                }
+                return opts;
+            }
+            if (isDatebandFilterMode(mode)) {
+                const noteTags = getActiveNoteTagFilterValues();
+                const opts = getDatebandFilterOptions(noteTags.length ? noteTags : null);
+                const noteTRefs = getActiveNoteTRefValues();
+                if (noteTRefs.length > 0) {
+                    opts.noteTRef = noteTRefs;
+                }
+                return opts;
+            }
+            if (isTailFilterMode(mode)) {
+                return getTailFilterOptions();
+            }
+            if (isConnectionFilterMode(mode)) {
+                const noteTags = getActiveNoteTagFilterValues();
+                const noteTRefs = getActiveNoteTRefValues();
+                if (noteTags.length === 0 && noteTRefs.length === 0) {
+                    return null;
+                }
+                const opts = {};
+                if (noteTags.length > 0) {
+                    opts.noteTags = noteTags;
+                }
+                if (noteTRefs.length > 0) {
+                    opts.noteTRef = noteTRefs;
+                }
+                return opts;
+            }
+            const noteTags = supportsNoteTagFilter(mode) ? getActiveNoteTagFilterValues() : [];
+            const noteTRefs = supportsNoteTRefFilter(mode) ? getActiveNoteTRefValues() : [];
+            if (noteTags.length > 0 || noteTRefs.length > 0) {
+                const opts = {};
+                if (noteTags.length > 0) {
+                    opts.noteTags = noteTags;
+                }
+                if (noteTRefs.length > 0) {
+                    opts.noteTRef = noteTRefs;
+                }
+                return opts;
+            }
+            return null;
         }
 
-        function isFilterPopupNonexistBracketInputFocused() {
-            const input = el('filterPopupNonexistBracketCount');
-            return !!(input && document.activeElement === input);
+        function getFilterNoteTagButtonLabel() {
+            if (!Array.isArray(filterNoteTags)
+                || filterNoteTags.length === 0
+                || filterNoteTags.some((t) => String(t) === FILTER_NOTE_TAG_ALL)) {
+                return 'All';
+            }
+            return filterNoteTags
+                .map((tag) => String(tag))
+                .filter((tag) => FILTER_NOTE_TAG_VALUES.includes(tag))
+                .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
+                .map((tag) => `${tag}:`)
+                .join('∩');
         }
 
-        function hasNonexistColorStyleSubFilter() {
+
+        function normalizeFilterNoteTagsForMode(mode) {
+            const max = getFilterNoteTagMaxSelections(mode);
+            if (max <= 0) {
+                filterNoteTags = [FILTER_NOTE_TAG_ALL];
+                return;
+            }
+            if (!Array.isArray(filterNoteTags) || filterNoteTags.length === 0) {
+                filterNoteTags = [FILTER_NOTE_TAG_ALL];
+                return;
+            }
+            const coerced = filterNoteTags.map((tag) => String(tag));
+            if (coerced.includes(FILTER_NOTE_TAG_ALL)) {
+                filterNoteTags = [FILTER_NOTE_TAG_ALL];
+                return;
+            }
+            const unique = [];
+            for (const tag of coerced) {
+                if (!FILTER_NOTE_TAG_VALUES.includes(tag) || unique.includes(tag)) {
+                    continue;
+                }
+                unique.push(tag);
+                if (unique.length >= max) {
+                    break;
+                }
+            }
+            filterNoteTags = unique.length ? unique : [FILTER_NOTE_TAG_ALL];
+        }
+
+
+        function saveFilterNoteTagsSettings() {
+            try {
+                localStorage.setItem(FILTER_NOTE_TAGS_KEY, JSON.stringify(filterNoteTags));
+            } catch (e) { }
+        }
+
+
+        function loadFilterNoteTagsSettings() {
+            try {
+                const saved = localStorage.getItem(FILTER_NOTE_TAGS_KEY);
+                if (!saved) {
+                    filterNoteTags = [FILTER_NOTE_TAG_ALL];
+                    return;
+                }
+                const parsed = JSON.parse(saved);
+                if (!Array.isArray(parsed) || parsed.length === 0) {
+                    filterNoteTags = [FILTER_NOTE_TAG_ALL];
+                    return;
+                }
+                if (parsed.includes(FILTER_NOTE_TAG_ALL)) {
+                    filterNoteTags = [FILTER_NOTE_TAG_ALL];
+                    return;
+                }
+                filterNoteTags = parsed
+                    .map((tag) => String(tag))
+                    .filter((tag) => tag === FILTER_NOTE_TAG_ALL || FILTER_NOTE_TAG_VALUES.includes(tag));
+                if (!filterNoteTags.length) {
+                    filterNoteTags = [FILTER_NOTE_TAG_ALL];
+                }
+            } catch (e) {
+                filterNoteTags = [FILTER_NOTE_TAG_ALL];
+            }
+            normalizeFilterNoteTagsForMode(periodFilterMode);
+        }
+
+
+        function isFilterNoteTagSelected(tag) {
+            const token = tag === FILTER_NOTE_TAG_ALL ? FILTER_NOTE_TAG_ALL : String(tag);
+            if (token === FILTER_NOTE_TAG_ALL) {
+                return filterNoteTags.some((t) => String(t) === FILTER_NOTE_TAG_ALL);
+            }
+            if (filterNoteTags.some((t) => String(t) === FILTER_NOTE_TAG_ALL)) {
+                return false;
+            }
+            return filterNoteTags.some((t) => String(t) === token);
+        }
+
+
+        function syncFilterPopupNoteTagUi() {
+            const tools = el('filterPopupNoteTagTools');
+            const picker = el('filterPopupNoteTagPicker');
+            const btn = el('filterPopupNoteTagBtn');
+            const label = el('filterPopupNoteTagBtnLabel');
+            const show = periodFilterEnabled && supportsNoteTagFilter(periodFilterMode);
+            if (!show) {
+                closeFilterPopupNoteTagMenu();
+            }
+            if (tools) {
+                tools.classList.toggle('hidden', !show);
+            }
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+            }
+            if (btn) {
+                btn.disabled = !show;
+                const max = getFilterNoteTagMaxSelections(periodFilterMode);
+                const datebandHint = isDatebandFilterMode(periodFilterMode)
+                    ? 'Lọc dateband theo khoảng pair trong note: All hoặc một nhãn 1: … 10:'
+                    : `Lọc note (chọn tối đa ${max}): All hoặc 1: … 10:; đa chọn = AND (∩)`;
+                btn.setAttribute(
+                    'title',
+                    show ? datebandHint : 'Lọc theo nhãn trong note'
+                );
+            }
+            if (label) {
+                label.textContent = getFilterNoteTagButtonLabel();
+            }
+            highlightFilterPopupNoteTagMenu();
+            // Không gọi sync tRef / dateband / đếm nặng ở đây — tránh đơ UI + double-click gỡ lựa chọn.
+        }
+
+
+        function highlightFilterPopupNoteTagMenu() {
+            const menu = el('filterPopupNoteTagMenu');
+            if (!menu) {
+                return;
+            }
+            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
+                const tag = item.dataset.tag || '';
+                item.classList.toggle('selected', isFilterNoteTagSelected(tag));
+            });
+        }
+
+
+        function buildFilterPopupNoteTagMenu() {
+            const menu = el('filterPopupNoteTagMenu');
+            if (!menu || menu.dataset.built === '1') {
+                highlightFilterPopupNoteTagMenu();
+                return;
+            }
+            menu.dataset.built = '1';
+            menu.innerHTML = '';
+
+            const allItem = document.createElement('li');
+            allItem.className = 'period-filter-mode-item';
+            allItem.setAttribute('role', 'option');
+            allItem.dataset.tag = FILTER_NOTE_TAG_ALL;
+            const allLabel = document.createElement('span');
+            allLabel.className = 'period-filter-mode-item-label';
+            allLabel.textContent = 'All';
+            const allCount = document.createElement('span');
+            allCount.className = 'period-filter-mode-item-count';
+            allCount.textContent = '0';
+            allItem.appendChild(allLabel);
+            allItem.appendChild(allCount);
+            allItem.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                toggleFilterPopupNoteTag(FILTER_NOTE_TAG_ALL);
+            });
+            allItem.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.detail === 0) {
+                    toggleFilterPopupNoteTag(FILTER_NOTE_TAG_ALL);
+                }
+            });
+            menu.appendChild(allItem);
+
+            for (const tag of FILTER_NOTE_TAG_VALUES) {
+                const item = document.createElement('li');
+                item.className = 'period-filter-mode-item';
+                item.setAttribute('role', 'option');
+                item.dataset.tag = tag;
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'period-filter-mode-item-label';
+                labelSpan.textContent = `${tag}:`;
+                const countSpan = document.createElement('span');
+                countSpan.className = 'period-filter-mode-item-count';
+                countSpan.textContent = '0';
+                item.appendChild(labelSpan);
+                item.appendChild(countSpan);
+                item.addEventListener('pointerdown', (event) => {
+                    if (event.button !== 0) {
+                        return;
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    toggleFilterPopupNoteTag(tag);
+                });
+                item.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (event.detail === 0) {
+                        toggleFilterPopupNoteTag(tag);
+                    }
+                });
+                menu.appendChild(item);
+            }
+            highlightFilterPopupNoteTagMenu();
+            updateFilterPopupNoteTagMenuItemCounts();
+        }
+
+
+        function positionFilterPopupNoteTagMenu() {
+            const menu = el('filterPopupNoteTagMenu');
+            const btn = el('filterPopupNoteTagBtn');
+            if (!menu || !btn) {
+                return;
+            }
+            const rect = btn.getBoundingClientRect();
+            menu.style.left = `${Math.max(8, rect.left)}px`;
+            menu.style.top = `${rect.bottom + 2}px`;
+            menu.style.minWidth = `${Math.max(rect.width, 72)}px`;
+        }
+
+
+        function openFilterPopupNoteTagMenu() {
+            closePeriodFilterModeMenu();
+            closeFilterPopupNoteTRefMenu();
+            closeFilterPopupNonexistColorMenu();
+            closeFilterPopupIntersectionKindMenu();
+            const menu = el('filterPopupNoteTagMenu');
+            const btn = el('filterPopupNoteTagBtn');
+            const picker = el('filterPopupNoteTagPicker');
+            if (!menu || !btn || btn.disabled || !picker) {
+                return;
+            }
+            buildFilterPopupNoteTagMenu();
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
+            positionFilterPopupNoteTagMenu();
+            menu.classList.remove('hidden');
+            bumpFloatingOverlayZIndex(menu);
+            scheduleRebuildFilterNoteTagMenuCounts();
+            btn.setAttribute('aria-expanded', 'true');
+            btn.classList.add('is-menu-open');
+        }
+
+
+        function closeFilterPopupNoteTagMenu() {
+            const menu = el('filterPopupNoteTagMenu');
+            const btn = el('filterPopupNoteTagBtn');
+            const picker = el('filterPopupNoteTagPicker');
+            if (menu) {
+                menu.classList.add('hidden');
+                if (picker && menu.parentElement === document.body) {
+                    picker.appendChild(menu);
+                }
+            }
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+                btn.classList.remove('is-menu-open');
+                btn.classList.remove('is-note-tag-pressing');
+            }
+        }
+
+
+        function hasActiveNonexistFilterCriteria() {
             const colors = filterNonexistColors.filter((c) => NONEXIST_FILTER_COLORS.includes(c));
             if (colors.length === 0) {
                 return false;
@@ -9678,8 +10142,26 @@
             return true;
         }
 
+
         function isNonexistGreenFilterSelected() {
             return filterNonexistColors.includes('green');
+        }
+
+        function hasNonexistColorStyleSubFilter() {
+            const colors = filterNonexistColors.filter((c) => NONEXIST_FILTER_COLORS.includes(c));
+            return colors.length > 0;
+        }
+
+        function isNonexistFilterNumEmpty() {
+            return filterNonexistNum == null;
+        }
+
+
+        function getNonexistFilterColorLabelList() {
+            return filterNonexistColors
+                .filter((c) => NONEXIST_FILTER_COLORS.includes(c))
+                .map((c) => NONEXIST_FILTER_COLOR_TITLES[c] || c)
+                .join(', ');
         }
 
         function shouldShowFilterPopupNonexistIdGapBorders() {
@@ -9730,618 +10212,6 @@
                     }
                 }
             }
-        }
-
-        function hasActiveNonexistFilterCriteria() {
-            return hasNonexistColorStyleSubFilter()
-                || isNonexistBracketFilterActive()
-                || !isNonexistFilterNumEmpty();
-        }
-
-        function getNonexistFilterColorLabelList() {
-            return filterNonexistColors
-                .filter((c) => NONEXIST_FILTER_COLORS.includes(c))
-                .map((c) => NONEXIST_FILTER_COLOR_TITLES[c] || c)
-                .join(', ');
-        }
-
-        function getFilterNoteTagMaxSelections(mode) {
-            const normalized = normalizeFilterMode(mode);
-            if (isAllFilterMode(normalized)) {
-                return FILTER_NOTE_TAG_VALUES.length;
-            }
-            if (isDatebandFilterMode(normalized)) {
-                return 1;
-            }
-            const pairMatch = /^pair(\d+)$/.exec(normalized);
-            if (pairMatch) {
-                return parseInt(pairMatch[1], 10) || 1;
-            }
-            const tripleMatch = /^triple(\d+)$/.exec(normalized);
-            if (tripleMatch) {
-                return parseInt(tripleMatch[1], 10) || 1;
-            }
-            const quadMatch = /^quad(\d+)$/.exec(normalized);
-            if (quadMatch) {
-                return parseInt(quadMatch[1], 10) || 1;
-            }
-            return 0;
-        }
-
-        function supportsNoteTagFilter(mode) {
-            if (isNonexistFilterMode(mode)) {
-                return false;
-            }
-            if (isPosnfreqFilterMode(mode)) {
-                return false;
-            }
-            if (isIntersectionFilterMode(mode)) {
-                return false;
-            }
-            return getFilterNoteTagMaxSelections(mode) > 0;
-        }
-
-        function getActiveNoteTagFilterValues() {
-            if (!supportsNoteTagFilter(periodFilterMode)) {
-                return [];
-            }
-            if (!Array.isArray(filterNoteTags) || filterNoteTags.includes(FILTER_NOTE_TAG_ALL)) {
-                return [];
-            }
-            return filterNoteTags
-                .filter((tag) => FILTER_NOTE_TAG_VALUES.includes(tag))
-                .map((tag) => parseInt(tag, 10))
-                .filter((n) => Number.isFinite(n));
-        }
-
-        function getDatebandFilterOptions(noteTags) {
-            const opts = {
-                datebandMinFreqA: filterDatebandFreqX,
-                datebandMinFreqB: filterDatebandFreqY,
-                datebandFreqOpA: normalizeIntersectionFreqOp(filterDatebandOpX),
-                datebandFreqOpB: normalizeIntersectionFreqOp(filterDatebandOpY)
-            };
-            if (Array.isArray(noteTags) && noteTags.length > 0) {
-                opts.noteTags = noteTags.filter((n) => Number.isFinite(n) && n >= 1 && n <= 10);
-            }
-            return opts;
-        }
-
-        function getTailFilterOptions() {
-            return {
-                tailMinCount: filterTailCount,
-                tailCountOp: normalizeIntersectionFreqOp(filterTailOp)
-            };
-        }
-
-        function getFilterOptionsForMode(mode) {
-            if (isNonexistFilterMode(mode)) {
-                return getNonexistFilterOptions();
-            }
-            if (isPosnfreqFilterMode(mode)) {
-                return getPosnfreqFilterOptionsForMatching();
-            }
-            if (isIntersectionFilterMode(mode)) {
-                return {
-                    intersectionKind: filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect',
-                    intersectionMinFreqA: filterIntersectionFreqX,
-                    intersectionMinFreqB: filterIntersectionFreqY,
-                    intersectionFreqOpA: normalizeIntersectionFreqOp(filterIntersectionOpX),
-                    intersectionFreqOpB: normalizeIntersectionFreqOp(filterIntersectionOpY)
-                };
-            }
-            if (isDatebandFilterMode(mode)) {
-                const noteTags = getActiveNoteTagFilterValues();
-                return getDatebandFilterOptions(noteTags.length ? noteTags : null);
-            }
-            if (isTailFilterMode(mode)) {
-                return getTailFilterOptions();
-            }
-            if (isConnectionFilterMode(mode)) {
-                const ctags = getActiveConnectionNoteTagFilterValuesForMode(mode);
-                if (ctags.length > 0) {
-                    return { noteTags: ctags };
-                }
-                return null;
-            }
-            const noteTags = supportsNoteTagFilter(mode) ? getActiveNoteTagFilterValues() : [];
-            if (noteTags.length > 0) {
-                return { noteTags };
-            }
-            return null;
-        }
-
-        function getFilterNoteTagButtonLabel() {
-            if (!Array.isArray(filterNoteTags) || filterNoteTags.includes(FILTER_NOTE_TAG_ALL) || filterNoteTags.length === 0) {
-                return 'All';
-            }
-            return filterNoteTags
-                .filter((tag) => FILTER_NOTE_TAG_VALUES.includes(tag))
-                .sort((a, b) => parseInt(a, 10) - parseInt(b, 10))
-                .map((tag) => `${tag}:`)
-                .join(', ');
-        }
-
-        function normalizeFilterNoteTagsForMode(mode) {
-            const max = getFilterNoteTagMaxSelections(mode);
-            if (max <= 0) {
-                filterNoteTags = [FILTER_NOTE_TAG_ALL];
-                return;
-            }
-            if (!Array.isArray(filterNoteTags) || filterNoteTags.length === 0) {
-                filterNoteTags = [FILTER_NOTE_TAG_ALL];
-                return;
-            }
-            if (filterNoteTags.includes(FILTER_NOTE_TAG_ALL)) {
-                filterNoteTags = [FILTER_NOTE_TAG_ALL];
-                return;
-            }
-            const unique = [];
-            for (const tag of filterNoteTags) {
-                if (!FILTER_NOTE_TAG_VALUES.includes(tag) || unique.includes(tag)) {
-                    continue;
-                }
-                unique.push(tag);
-                if (unique.length >= max) {
-                    break;
-                }
-            }
-            filterNoteTags = unique.length ? unique : [FILTER_NOTE_TAG_ALL];
-        }
-
-        function saveFilterNoteTagsSettings() {
-            try {
-                localStorage.setItem(FILTER_NOTE_TAGS_KEY, JSON.stringify(filterNoteTags));
-            } catch (e) { }
-        }
-
-        function loadFilterNoteTagsSettings() {
-            try {
-                const saved = localStorage.getItem(FILTER_NOTE_TAGS_KEY);
-                if (!saved) {
-                    filterNoteTags = [FILTER_NOTE_TAG_ALL];
-                    return;
-                }
-                const parsed = JSON.parse(saved);
-                if (!Array.isArray(parsed) || parsed.length === 0) {
-                    filterNoteTags = [FILTER_NOTE_TAG_ALL];
-                    return;
-                }
-                if (parsed.includes(FILTER_NOTE_TAG_ALL)) {
-                    filterNoteTags = [FILTER_NOTE_TAG_ALL];
-                    return;
-                }
-                filterNoteTags = parsed.filter((tag) => tag === FILTER_NOTE_TAG_ALL || FILTER_NOTE_TAG_VALUES.includes(String(tag)));
-                if (!filterNoteTags.length) {
-                    filterNoteTags = [FILTER_NOTE_TAG_ALL];
-                }
-            } catch (e) {
-                filterNoteTags = [FILTER_NOTE_TAG_ALL];
-            }
-            normalizeFilterNoteTagsForMode(periodFilterMode);
-        }
-
-        function isFilterNoteTagSelected(tag) {
-            if (tag === FILTER_NOTE_TAG_ALL) {
-                return filterNoteTags.includes(FILTER_NOTE_TAG_ALL);
-            }
-            return !filterNoteTags.includes(FILTER_NOTE_TAG_ALL) && filterNoteTags.includes(tag);
-        }
-
-        function syncFilterPopupNoteTagUi() {
-            const picker = el('filterPopupNoteTagPicker');
-            const btn = el('filterPopupNoteTagBtn');
-            const label = el('filterPopupNoteTagBtnLabel');
-            const show = periodFilterEnabled && supportsNoteTagFilter(periodFilterMode);
-            if (!show) {
-                closeFilterPopupNoteTagMenu();
-            }
-            if (picker) {
-                picker.classList.toggle('hidden', !show);
-            }
-            if (btn) {
-                btn.disabled = !show;
-                const max = getFilterNoteTagMaxSelections(periodFilterMode);
-                const datebandHint = isDatebandFilterMode(periodFilterMode)
-                    ? 'Lọc dateband theo khoảng pair trong note: All hoặc một nhãn 1: … 10:'
-                    : `Lọc note (chọn tối đa ${max}): All hoặc 1: … 10:`;
-                btn.setAttribute(
-                    'title',
-                    show ? datebandHint : 'Lọc theo nhãn trong note'
-                );
-            }
-            if (label) {
-                label.textContent = getFilterNoteTagButtonLabel();
-            }
-            highlightFilterPopupNoteTagMenu();
-            syncFilterPopupDropdownCounts();
-            syncFilterPopupDatebandFreqUi();
-        }
-
-        function highlightFilterPopupNoteTagMenu() {
-            const menu = el('filterPopupNoteTagMenu');
-            if (!menu) {
-                return;
-            }
-            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
-                const tag = item.dataset.tag || '';
-                item.classList.toggle('selected', isFilterNoteTagSelected(tag));
-            });
-        }
-
-        function buildFilterPopupNoteTagMenu() {
-            const menu = el('filterPopupNoteTagMenu');
-            if (!menu || menu.dataset.built === '1') {
-                highlightFilterPopupNoteTagMenu();
-                return;
-            }
-            menu.dataset.built = '1';
-            menu.innerHTML = '';
-
-            const allItem = document.createElement('li');
-            allItem.className = 'period-filter-mode-item';
-            allItem.setAttribute('role', 'option');
-            allItem.dataset.tag = FILTER_NOTE_TAG_ALL;
-            const allLabel = document.createElement('span');
-            allLabel.className = 'period-filter-mode-item-label';
-            allLabel.textContent = 'All';
-            const allCount = document.createElement('span');
-            allCount.className = 'period-filter-mode-item-count';
-            allCount.textContent = '0';
-            allItem.appendChild(allLabel);
-            allItem.appendChild(allCount);
-            allItem.addEventListener('mousedown', (event) => event.preventDefault());
-            allItem.addEventListener('click', () => toggleFilterPopupNoteTag(FILTER_NOTE_TAG_ALL));
-            menu.appendChild(allItem);
-
-            for (const tag of FILTER_NOTE_TAG_VALUES) {
-                const item = document.createElement('li');
-                item.className = 'period-filter-mode-item';
-                item.setAttribute('role', 'option');
-                item.dataset.tag = tag;
-                const labelSpan = document.createElement('span');
-                labelSpan.className = 'period-filter-mode-item-label';
-                labelSpan.textContent = `${tag}:`;
-                const countSpan = document.createElement('span');
-                countSpan.className = 'period-filter-mode-item-count';
-                countSpan.textContent = '0';
-                item.appendChild(labelSpan);
-                item.appendChild(countSpan);
-                item.addEventListener('mousedown', (event) => event.preventDefault());
-                item.addEventListener('click', () => toggleFilterPopupNoteTag(tag));
-                menu.appendChild(item);
-            }
-            highlightFilterPopupNoteTagMenu();
-            updateFilterPopupNoteTagMenuItemCounts();
-        }
-
-        function positionFilterPopupNoteTagMenu() {
-            const menu = el('filterPopupNoteTagMenu');
-            const btn = el('filterPopupNoteTagBtn');
-            if (!menu || !btn) {
-                return;
-            }
-            const rect = btn.getBoundingClientRect();
-            menu.style.left = `${Math.max(8, rect.left)}px`;
-            menu.style.top = `${rect.bottom + 2}px`;
-            menu.style.minWidth = `${Math.max(rect.width, 72)}px`;
-        }
-
-        function openFilterPopupNoteTagMenu() {
-            closePeriodFilterModeMenu();
-            closeFilterPopupNonexistColorMenu();
-            closeFilterPopupIntersectionKindMenu();
-            closeFilterPopupConnectionNoteTagMenu();
-            const menu = el('filterPopupNoteTagMenu');
-            const btn = el('filterPopupNoteTagBtn');
-            const picker = el('filterPopupNoteTagPicker');
-            if (!menu || !btn || btn.disabled || !picker) {
-                return;
-            }
-            buildFilterPopupNoteTagMenu();
-            updateFilterPopupNoteTagMenuItemCounts();
-            if (menu.parentElement !== document.body) {
-                document.body.appendChild(menu);
-            }
-            positionFilterPopupNoteTagMenu();
-            menu.classList.remove('hidden');
-            scheduleRebuildFilterNoteTagMenuCounts();
-            btn.setAttribute('aria-expanded', 'true');
-            btn.classList.add('is-menu-open');
-        }
-
-        function closeFilterPopupNoteTagMenu() {
-            const menu = el('filterPopupNoteTagMenu');
-            const btn = el('filterPopupNoteTagBtn');
-            const picker = el('filterPopupNoteTagPicker');
-            if (menu) {
-                menu.classList.add('hidden');
-                if (picker && menu.parentElement === document.body) {
-                    picker.appendChild(menu);
-                }
-            }
-            if (btn) {
-                btn.setAttribute('aria-expanded', 'false');
-                btn.classList.remove('is-menu-open');
-                btn.classList.remove('is-note-tag-pressing');
-            }
-        }
-
-        function closeFilterPopupConnectionNoteTagMenu() {
-            const menu = el('filterPopupConnectionNoteTagMenu');
-            const btn = el('filterPopupConnectionNoteTagBtn');
-            const picker = el('filterPopupConnectionNoteTagPicker');
-            if (menu) {
-                menu.classList.add('hidden');
-                if (picker && menu.parentElement === document.body) {
-                    picker.appendChild(menu);
-                }
-            }
-            if (btn) {
-                btn.setAttribute('aria-expanded', 'false');
-                btn.classList.remove('is-menu-open');
-                btn.classList.remove('is-note-tag-pressing');
-            }
-        }
-
-        function syncFilterPopupConnectionNoteTagUi() {
-            const picker = el('filterPopupConnectionNoteTagPicker');
-            const btn = el('filterPopupConnectionNoteTagBtn');
-            const label = el('filterPopupConnectionNoteTagBtnLabel');
-            const show = periodFilterEnabled && supportsConnectionNoteTagFilter(periodFilterMode);
-            if (!show) {
-                closeFilterPopupConnectionNoteTagMenu();
-            }
-            if (picker) {
-                picker.classList.toggle('hidden', !show);
-                picker.setAttribute('aria-hidden', show ? 'false' : 'true');
-            }
-            if (btn) {
-                btn.disabled = !show;
-                btn.setAttribute(
-                    'title',
-                    show
-                        ? 'Connection + nhãn trong note: All hoặc một nhãn 1: … 10: (chuỗi note có dạng N:{…}).'
-                        : 'Nhãn note (connection)'
-                );
-            }
-            if (label) {
-                label.textContent = getFilterConnectionNoteTagButtonLabel();
-            }
-            highlightFilterPopupConnectionNoteTagMenu();
-            syncFilterPopupDropdownCounts();
-        }
-
-        function highlightFilterPopupConnectionNoteTagMenu() {
-            const menu = el('filterPopupConnectionNoteTagMenu');
-            if (!menu) {
-                return;
-            }
-            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
-                const tag = item.dataset.tag || '';
-                item.classList.toggle('selected', isFilterConnectionNoteTagSelected(tag));
-            });
-        }
-
-        function buildFilterPopupConnectionNoteTagMenu() {
-            const menu = el('filterPopupConnectionNoteTagMenu');
-            if (!menu || menu.dataset.built === '1') {
-                highlightFilterPopupConnectionNoteTagMenu();
-                return;
-            }
-            menu.dataset.built = '1';
-            menu.innerHTML = '';
-
-            const allItem = document.createElement('li');
-            allItem.className = 'period-filter-mode-item';
-            allItem.setAttribute('role', 'option');
-            allItem.dataset.tag = FILTER_NOTE_TAG_ALL;
-            const allLabel = document.createElement('span');
-            allLabel.className = 'period-filter-mode-item-label';
-            allLabel.textContent = 'All';
-            const allCount = document.createElement('span');
-            allCount.className = 'period-filter-mode-item-count';
-            allCount.textContent = '0';
-            allItem.appendChild(allLabel);
-            allItem.appendChild(allCount);
-            allItem.addEventListener('mousedown', (event) => event.preventDefault());
-            allItem.addEventListener('click', () => toggleFilterPopupConnectionNoteTag(FILTER_NOTE_TAG_ALL));
-            menu.appendChild(allItem);
-
-            for (const tag of FILTER_NOTE_TAG_VALUES) {
-                const item = document.createElement('li');
-                item.className = 'period-filter-mode-item';
-                item.setAttribute('role', 'option');
-                item.dataset.tag = tag;
-                const labelSpan = document.createElement('span');
-                labelSpan.className = 'period-filter-mode-item-label';
-                labelSpan.textContent = `${tag}:`;
-                const countSpan = document.createElement('span');
-                countSpan.className = 'period-filter-mode-item-count';
-                countSpan.textContent = '0';
-                item.appendChild(labelSpan);
-                item.appendChild(countSpan);
-                item.addEventListener('mousedown', (event) => event.preventDefault());
-                item.addEventListener('click', () => toggleFilterPopupConnectionNoteTag(tag));
-                menu.appendChild(item);
-            }
-            highlightFilterPopupConnectionNoteTagMenu();
-            updateFilterPopupConnectionNoteTagMenuItemCounts();
-        }
-
-        function positionFilterPopupConnectionNoteTagMenu() {
-            const menu = el('filterPopupConnectionNoteTagMenu');
-            const btn = el('filterPopupConnectionNoteTagBtn');
-            if (!menu || !btn) {
-                return;
-            }
-            const rect = btn.getBoundingClientRect();
-            menu.style.left = `${Math.max(8, rect.left)}px`;
-            menu.style.top = `${rect.bottom + 2}px`;
-            menu.style.minWidth = `${Math.max(rect.width, 72)}px`;
-        }
-
-        function openFilterPopupConnectionNoteTagMenu() {
-            closePeriodFilterModeMenu();
-            closeFilterPopupNoteTagMenu();
-            closeFilterPopupNonexistColorMenu();
-            closeFilterPopupIntersectionKindMenu();
-            const menu = el('filterPopupConnectionNoteTagMenu');
-            const btn = el('filterPopupConnectionNoteTagBtn');
-            const picker = el('filterPopupConnectionNoteTagPicker');
-            if (!menu || !btn || btn.disabled || !picker) {
-                return;
-            }
-            buildFilterPopupConnectionNoteTagMenu();
-            updateFilterPopupConnectionNoteTagMenuItemCounts();
-            if (menu.parentElement !== document.body) {
-                document.body.appendChild(menu);
-            }
-            positionFilterPopupConnectionNoteTagMenu();
-            menu.classList.remove('hidden');
-            scheduleRebuildFilterNoteTagMenuCounts();
-            btn.setAttribute('aria-expanded', 'true');
-            btn.classList.add('is-menu-open');
-        }
-
-        function applyFilterConnectionNoteTagsFromUi() {
-            saveFilterConnectionNoteTagsSettings();
-            syncFilterPopupConnectionNoteTagUi();
-            clearTimeout(filterConnectionNoteTagApplyTimer);
-            filterConnectionNoteTagApplyTimer = null;
-            deferFilterPopupHeavyWork(() => {
-                if (periodFilterEnabled && isPeriodFilterContextSheet()
-                    && isConnectionFilterMode(periodFilterMode)) {
-                    rebuildFilterPopupAfterParamChange();
-                } else {
-                    try {
-                        updatePeriodFilterMatchCount();
-                    } finally {
-                        clearFilterPopupLoadingState();
-                    }
-                }
-            });
-        }
-
-        function toggleFilterPopupConnectionNoteTag(tag) {
-            if (!supportsConnectionNoteTagFilter(periodFilterMode)) {
-                return;
-            }
-            if (tag === FILTER_NOTE_TAG_ALL) {
-                filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
-            } else if (!FILTER_NOTE_TAG_VALUES.includes(tag)) {
-                return;
-            } else if (filterConnectionNoteTags.length === 1 && filterConnectionNoteTags[0] === tag) {
-                filterConnectionNoteTags = [FILTER_NOTE_TAG_ALL];
-            } else {
-                filterConnectionNoteTags = [tag];
-            }
-            normalizeFilterConnectionNoteTags();
-            applyFilterConnectionNoteTagsFromUi();
-            highlightFilterPopupConnectionNoteTagMenu();
-            scheduleRebuildFilterNoteTagMenuCounts();
-        }
-
-        function getFilterConnectionNoteTagCountForTag(tag) {
-            if (!isPeriodFilterContextSheet()) {
-                return 0;
-            }
-            const mode = periodFilterMode;
-            if (!supportsConnectionNoteTagFilter(mode)) {
-                return 0;
-            }
-            if (tag === FILTER_NOTE_TAG_ALL) {
-                return getFilterParentCountForMode(mode);
-            }
-            const num = parseInt(tag, 10);
-            if (!Number.isFinite(num)) {
-                return 0;
-            }
-            return sheetManager.getFilterMatchingIndices(mode, { noteTags: [num] }).length;
-        }
-
-        function rebuildFilterConnectionNoteTagMenuCounts() {
-            filterConnectionNoteTagMenuCounts = {};
-            if (!isPeriodFilterContextSheet()) {
-                return;
-            }
-            if (!isConnectionFilterMode(periodFilterMode)) {
-                return;
-            }
-            const mode = periodFilterMode;
-            filterConnectionNoteTagMenuCounts[FILTER_NOTE_TAG_ALL] = getFilterParentCountForMode(mode);
-            for (const tag of FILTER_NOTE_TAG_VALUES) {
-                filterConnectionNoteTagMenuCounts[tag] = getFilterConnectionNoteTagCountForTag(tag);
-            }
-        }
-
-        function updateFilterPopupConnectionNoteTagMenuItemCounts() {
-            const menu = el('filterPopupConnectionNoteTagMenu');
-            if (!menu) {
-                return;
-            }
-            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
-                const tag = item.dataset.tag || '';
-                const countSpan = item.querySelector('.period-filter-mode-item-count');
-                if (countSpan) {
-                    const cached = filterConnectionNoteTagMenuCounts[tag];
-                    countSpan.textContent = String(
-                        cached !== undefined ? cached : getFilterConnectionNoteTagCountForTag(tag)
-                    );
-                }
-            });
-        }
-
-        function initFilterPopupConnectionNoteTagControls() {
-            loadFilterConnectionNoteTagsSettings();
-            buildFilterPopupConnectionNoteTagMenu();
-            syncFilterPopupConnectionNoteTagUi();
-
-            const picker = el('filterPopupConnectionNoteTagPicker');
-            const btn = el('filterPopupConnectionNoteTagBtn');
-            const menu = el('filterPopupConnectionNoteTagMenu');
-            if (!picker || !btn || !menu || picker.dataset.bound === '1') {
-                return;
-            }
-            picker.dataset.bound = '1';
-
-            picker.addEventListener('mousedown', (event) => event.stopPropagation());
-            picker.addEventListener('click', (event) => event.stopPropagation());
-
-            btn.addEventListener('mousedown', (event) => event.stopPropagation());
-            btn.addEventListener('pointerdown', (event) => {
-                event.stopPropagation();
-                if (!btn.disabled) {
-                    btn.classList.add('is-note-tag-pressing');
-                }
-            });
-            btn.addEventListener('pointerup', (event) => {
-                event.stopPropagation();
-                btn.classList.remove('is-note-tag-pressing');
-            });
-            btn.addEventListener('pointercancel', () => {
-                btn.classList.remove('is-note-tag-pressing');
-            });
-            btn.addEventListener('click', (event) => {
-                event.preventDefault();
-                event.stopPropagation();
-                if (btn.disabled) {
-                    return;
-                }
-                if (menu.classList.contains('hidden')) {
-                    openFilterPopupConnectionNoteTagMenu();
-                } else {
-                    closeFilterPopupConnectionNoteTagMenu();
-                }
-            });
-
-            menu.addEventListener('click', (event) => event.stopPropagation());
-
-            window.addEventListener('resize', () => {
-                if (!menu.classList.contains('hidden')) {
-                    positionFilterPopupConnectionNoteTagMenu();
-                }
-            });
         }
 
         function loadFilterIntersectionKindSettings() {
@@ -11307,7 +11177,6 @@
         function openFilterPopupIntersectionKindMenu() {
             closePeriodFilterModeMenu();
             closeFilterPopupNoteTagMenu();
-            closeFilterPopupConnectionNoteTagMenu();
             closeFilterPopupNonexistColorMenu();
             const menu = el('filterPopupIntersectionKindMenu');
             const btn = el('filterPopupIntersectionKindBtn');
@@ -11492,23 +11361,26 @@
         }
 
         function applyFilterNoteTagsFromUi() {
+            // 1) Persist + UI ngay (nhãn / selected)
             saveFilterNoteTagsSettings();
             syncFilterPopupNoteTagUi();
+            highlightFilterPopupNoteTagMenu();
+            // 2) Đồng hồ → sau paint mới rebuild nặng; đếm menu để sau, không chặn gesture
             clearTimeout(filterNoteTagApplyTimer);
             filterNoteTagApplyTimer = null;
             deferFilterPopupHeavyWork(() => {
-                if (periodFilterEnabled && isPeriodFilterContextSheet()) {
-                    if (isNonexistFilterMode(periodFilterMode)) {
-                        clearFilterPopupLoadingState();
-                        return;
-                    }
-                    rebuildFilterPopupAfterParamChange();
-                } else {
-                    try {
+                try {
+                    if (periodFilterEnabled && isPeriodFilterContextSheet()) {
+                        if (isNonexistFilterMode(periodFilterMode)) {
+                            return;
+                        }
+                        rebuildFilterPopupAfterParamChange();
+                    } else {
                         updatePeriodFilterMatchCount();
-                    } finally {
-                        clearFilterPopupLoadingState();
                     }
+                } finally {
+                    clearFilterPopupLoadingState();
+                    scheduleRebuildFilterNoteTagMenuCounts();
                 }
             });
         }
@@ -11518,43 +11390,53 @@
             if (max <= 0) {
                 return;
             }
+            const token = tag === FILTER_NOTE_TAG_ALL ? FILTER_NOTE_TAG_ALL : String(tag);
+            const single = isDatebandFilterMode(periodFilterMode) || max === 1;
 
-            if (isDatebandFilterMode(periodFilterMode)) {
-                if (tag === FILTER_NOTE_TAG_ALL) {
+            if (single) {
+                if (token === FILTER_NOTE_TAG_ALL) {
                     filterNoteTags = [FILTER_NOTE_TAG_ALL];
-                } else if (!FILTER_NOTE_TAG_VALUES.includes(tag)) {
+                } else if (!FILTER_NOTE_TAG_VALUES.includes(token)) {
                     return;
-                } else if (filterNoteTags.length === 1 && filterNoteTags[0] === tag) {
+                } else if (filterNoteTags.length === 1 && String(filterNoteTags[0]) === token) {
                     filterNoteTags = [FILTER_NOTE_TAG_ALL];
                 } else {
-                    filterNoteTags = [tag];
+                    filterNoteTags = [token];
                 }
-            } else if (tag === FILTER_NOTE_TAG_ALL) {
+            } else if (token === FILTER_NOTE_TAG_ALL) {
                 filterNoteTags = [FILTER_NOTE_TAG_ALL];
-            } else if (!FILTER_NOTE_TAG_VALUES.includes(tag)) {
+            } else if (!FILTER_NOTE_TAG_VALUES.includes(token)) {
                 return;
             } else {
-                const withoutAll = filterNoteTags.filter((t) => t !== FILTER_NOTE_TAG_ALL);
-                const idx = withoutAll.indexOf(tag);
+                const withoutAll = filterNoteTags
+                    .map((t) => String(t))
+                    .filter((t) => t !== FILTER_NOTE_TAG_ALL);
+                const idx = withoutAll.indexOf(token);
                 if (idx >= 0) {
                     withoutAll.splice(idx, 1);
                 } else if (withoutAll.length < max) {
-                    withoutAll.push(tag);
+                    withoutAll.push(token);
                 } else {
                     withoutAll.shift();
-                    withoutAll.push(tag);
+                    withoutAll.push(token);
                 }
                 filterNoteTags = withoutAll.length ? withoutAll : [FILTER_NOTE_TAG_ALL];
             }
 
             normalizeFilterNoteTagsForMode(periodFilterMode);
+            // UI + đồng hồ trước; đóng menu sau khi nhãn đã cập nhật
             applyFilterNoteTagsFromUi();
-            highlightFilterPopupNoteTagMenu();
-            scheduleRebuildFilterNoteTagMenuCounts();
+            if (single) {
+                closeFilterPopupNoteTagMenu();
+            }
         }
 
         function initFilterPopupNoteTagControls() {
             loadFilterNoteTagsSettings();
+            const menuEl = el('filterPopupNoteTagMenu');
+            if (menuEl) {
+                delete menuEl.dataset.built;
+            }
             buildFilterPopupNoteTagMenu();
             syncFilterPopupNoteTagUi();
 
@@ -11592,9 +11474,9 @@
                         if (b) {
                             b.classList.remove('is-note-tag-pressing');
                         }
-                        const bc = el('filterPopupConnectionNoteTagBtn');
-                        if (bc) {
-                            bc.classList.remove('is-note-tag-pressing');
+                        const bt = el('filterPopupNoteTRefBtn');
+                        if (bt) {
+                            bt.classList.remove('is-note-tag-pressing');
                         }
                     },
                     true
@@ -11618,6 +11500,414 @@
             window.addEventListener('resize', () => {
                 if (!menu.classList.contains('hidden')) {
                     positionFilterPopupNoteTagMenu();
+                }
+            });
+        }
+
+        function saveFilterNoteTRefSettings() {
+            try {
+                localStorage.setItem(FILTER_NOTE_TREF_KEY, JSON.stringify(filterNoteTRefs));
+            } catch (e) { /* ignore */ }
+        }
+
+        function loadFilterNoteTRefSettings() {
+            try {
+                const raw = localStorage.getItem(FILTER_NOTE_TREF_KEY);
+                if (raw == null || raw === '') {
+                    filterNoteTRefs = [FILTER_NOTE_TREF_ALL];
+                } else {
+                    let parsed;
+                    try {
+                        parsed = JSON.parse(raw);
+                    } catch (eParse) {
+                        /* migrate single token "3" / "all" */
+                        parsed = [raw];
+                    }
+                    if (!Array.isArray(parsed)) {
+                        parsed = [parsed];
+                    }
+                    filterNoteTRefs = parsed
+                        .map((v) => normalizeOneFilterNoteTRefToken(v))
+                        .filter(Boolean);
+                    if (!filterNoteTRefs.length) {
+                        filterNoteTRefs = [FILTER_NOTE_TREF_ALL];
+                    }
+                }
+            } catch (e) {
+                filterNoteTRefs = [FILTER_NOTE_TREF_ALL];
+            }
+            normalizeFilterNoteTRefsForMode(periodFilterMode);
+        }
+
+        function isFilterNoteTRefSelected(value) {
+            const token = normalizeOneFilterNoteTRefToken(value);
+            if (!token) {
+                return false;
+            }
+            if (token === FILTER_NOTE_TREF_ALL) {
+                return !Array.isArray(filterNoteTRefs)
+                    || filterNoteTRefs.includes(FILTER_NOTE_TREF_ALL)
+                    || filterNoteTRefs.length === 0;
+            }
+            return Array.isArray(filterNoteTRefs)
+                && !filterNoteTRefs.includes(FILTER_NOTE_TREF_ALL)
+                && filterNoteTRefs.includes(token);
+        }
+
+        function syncFilterPopupNoteTRefUi() {
+            const picker = el('filterPopupNoteTRefPicker');
+            const btn = el('filterPopupNoteTRefBtn');
+            const label = el('filterPopupNoteTRefBtnLabel');
+            const noteToolsVisible = periodFilterEnabled && supportsNoteTagFilter(periodFilterMode);
+            const show = noteToolsVisible && supportsNoteTRefFilter(periodFilterMode);
+            if (!show) {
+                closeFilterPopupNoteTRefMenu();
+            }
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+            }
+            if (btn) {
+                btn.disabled = !show;
+                const max = getFilterNoteTRefMaxSelections(periodFilterMode);
+                btn.setAttribute(
+                    'title',
+                    show
+                        ? `tRef — lọc note theo mũ tham chiếu (chọn tối đa ${max}): All hoặc t^1…t^10; đa chọn = AND (∩), giống 📑.`
+                        : 'tRef (cùng mode với lọc note 📑)'
+                );
+                const active = show && Array.isArray(filterNoteTRefs)
+                    && !filterNoteTRefs.includes(FILTER_NOTE_TREF_ALL)
+                    && filterNoteTRefs.length > 0;
+                btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+            }
+            if (label) {
+                label.textContent = getFilterNoteTRefButtonLabel();
+            }
+            highlightFilterPopupNoteTRefMenu();
+        }
+
+        function highlightFilterPopupNoteTRefMenu() {
+            const menu = el('filterPopupNoteTRefMenu');
+            if (!menu) {
+                return;
+            }
+            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
+                const value = item.dataset.tref || '';
+                item.classList.toggle('selected', isFilterNoteTRefSelected(value));
+            });
+        }
+
+        function buildFilterPopupNoteTRefMenu() {
+            const menu = el('filterPopupNoteTRefMenu');
+            if (!menu || menu.dataset.built === '1') {
+                highlightFilterPopupNoteTRefMenu();
+                return;
+            }
+            menu.dataset.built = '1';
+            menu.innerHTML = '';
+
+            const allItem = document.createElement('li');
+            allItem.className = 'period-filter-mode-item';
+            allItem.setAttribute('role', 'option');
+            allItem.dataset.tref = FILTER_NOTE_TREF_ALL;
+            const allLabel = document.createElement('span');
+            allLabel.className = 'period-filter-mode-item-label';
+            allLabel.textContent = 'All';
+            const allCount = document.createElement('span');
+            allCount.className = 'period-filter-mode-item-count';
+            allCount.textContent = '0';
+            allItem.appendChild(allLabel);
+            allItem.appendChild(allCount);
+            allItem.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                selectFilterPopupNoteTRef(FILTER_NOTE_TREF_ALL);
+            });
+            allItem.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.detail === 0) {
+                    selectFilterPopupNoteTRef(FILTER_NOTE_TREF_ALL);
+                }
+            });
+            menu.appendChild(allItem);
+
+            for (const value of FILTER_NOTE_TREF_VALUES) {
+                const item = document.createElement('li');
+                item.className = 'period-filter-mode-item';
+                item.setAttribute('role', 'option');
+                item.dataset.tref = value;
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'period-filter-mode-item-label';
+                labelSpan.textContent = `t^${value}`;
+                const countSpan = document.createElement('span');
+                countSpan.className = 'period-filter-mode-item-count';
+                countSpan.textContent = '0';
+                item.appendChild(labelSpan);
+                item.appendChild(countSpan);
+                item.addEventListener('pointerdown', (event) => {
+                    if (event.button !== 0) {
+                        return;
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    selectFilterPopupNoteTRef(value);
+                });
+                item.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (event.detail === 0) {
+                        selectFilterPopupNoteTRef(value);
+                    }
+                });
+                menu.appendChild(item);
+            }
+            highlightFilterPopupNoteTRefMenu();
+            updateFilterPopupNoteTRefMenuItemCounts();
+        }
+
+        function positionFilterPopupNoteTRefMenu() {
+            const menu = el('filterPopupNoteTRefMenu');
+            const btn = el('filterPopupNoteTRefBtn');
+            if (!menu || !btn) {
+                return;
+            }
+            const rect = btn.getBoundingClientRect();
+            menu.style.left = `${Math.max(8, rect.left)}px`;
+            menu.style.top = `${rect.bottom + 2}px`;
+            menu.style.minWidth = `${Math.max(rect.width, 72)}px`;
+        }
+
+        function openFilterPopupNoteTRefMenu() {
+            closePeriodFilterModeMenu();
+            closeFilterPopupNoteTagMenu();
+            closeFilterPopupNonexistColorMenu();
+            closeFilterPopupIntersectionKindMenu();
+            const menu = el('filterPopupNoteTRefMenu');
+            const btn = el('filterPopupNoteTRefBtn');
+            const picker = el('filterPopupNoteTRefPicker');
+            if (!menu || !btn || btn.disabled || !picker) {
+                return;
+            }
+            buildFilterPopupNoteTRefMenu();
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
+            positionFilterPopupNoteTRefMenu();
+            menu.classList.remove('hidden');
+            bumpFloatingOverlayZIndex(menu);
+            scheduleRebuildFilterNoteTRefMenuCounts();
+            btn.setAttribute('aria-expanded', 'true');
+            btn.classList.add('is-menu-open');
+        }
+
+        function closeFilterPopupNoteTRefMenu() {
+            const menu = el('filterPopupNoteTRefMenu');
+            const btn = el('filterPopupNoteTRefBtn');
+            const picker = el('filterPopupNoteTRefPicker');
+            if (menu) {
+                menu.classList.add('hidden');
+                if (picker && menu.parentElement === document.body) {
+                    picker.appendChild(menu);
+                }
+            }
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+                btn.classList.remove('is-menu-open');
+                btn.classList.remove('is-note-tag-pressing');
+            }
+        }
+
+        function getFilterNoteTRefCountForValue(value) {
+            if (!isPeriodFilterContextSheet() || !supportsNoteTRefFilter(periodFilterMode)) {
+                return 0;
+            }
+            if (normalizeOneFilterNoteTRefToken(value) === FILTER_NOTE_TREF_ALL) {
+                return getFilterParentCountForMode(periodFilterMode);
+            }
+            const n = parseInt(value, 10);
+            if (!Number.isFinite(n) || n < 1 || n > 10) {
+                return 0;
+            }
+            // AND với các tRef đang chọn khác; đếm nhẹ, không gọi getFilterOptionsForMode đầy đủ.
+            const others = getActiveNoteTRefValues().filter((x) => x !== n);
+            const combined = others.concat([n]);
+            const noteTags = getActiveNoteTagFilterValues();
+            const mode = periodFilterMode;
+            const opts = { noteTRef: combined };
+            if (noteTags.length > 0) {
+                opts.noteTags = noteTags;
+            }
+            if (isDatebandFilterMode(mode)) {
+                Object.assign(opts, getDatebandFilterOptions(noteTags.length ? noteTags : null));
+                opts.noteTRef = combined;
+            } else if (isIntersectionFilterMode(mode)) {
+                opts.intersectionKind = filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
+                opts.intersectionMinFreqA = filterIntersectionFreqX;
+                opts.intersectionMinFreqB = filterIntersectionFreqY;
+                opts.intersectionFreqOpA = normalizeIntersectionFreqOp(filterIntersectionOpX);
+                opts.intersectionFreqOpB = normalizeIntersectionFreqOp(filterIntersectionOpY);
+            }
+            return sheetManager.getFilterMatchingIndices(mode, opts).length;
+        }
+
+        function rebuildFilterNoteTRefMenuCounts() {
+            filterNoteTRefMenuCounts = {};
+            if (!sheetManager || !isPeriodFilterContextSheet() || !supportsNoteTRefFilter(periodFilterMode)) {
+                return;
+            }
+            filterNoteTRefMenuCounts[FILTER_NOTE_TREF_ALL] = getFilterParentCountForMode(periodFilterMode);
+            for (const value of FILTER_NOTE_TREF_VALUES) {
+                filterNoteTRefMenuCounts[value] = getFilterNoteTRefCountForValue(value);
+            }
+        }
+
+        function updateFilterPopupNoteTRefMenuItemCounts() {
+            const menu = el('filterPopupNoteTRefMenu');
+            if (!menu) {
+                return;
+            }
+            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
+                const value = item.dataset.tref || '';
+                const countEl = item.querySelector('.period-filter-mode-item-count');
+                if (!countEl) {
+                    return;
+                }
+                const count = filterNoteTRefMenuCounts[value];
+                countEl.textContent = Number.isFinite(count) ? String(count) : '0';
+            });
+        }
+
+        function scheduleRebuildFilterNoteTRefMenuCounts() {
+            clearTimeout(filterNoteTRefCountRebuildTimer);
+            filterNoteTRefCountRebuildTimer = setTimeout(() => {
+                filterNoteTRefCountRebuildTimer = null;
+                rebuildFilterNoteTRefMenuCounts();
+                updateFilterPopupNoteTRefMenuItemCounts();
+            }, 150);
+        }
+
+        function applyFilterNoteTRefFromUi() {
+            // 1) Persist + UI ngay
+            saveFilterNoteTRefSettings();
+            syncFilterPopupNoteTRefUi();
+            highlightFilterPopupNoteTRefMenu();
+            // 2) Đồng hồ → heavy sau paint
+            clearTimeout(filterNoteTRefApplyTimer);
+            filterNoteTRefApplyTimer = null;
+            deferFilterPopupHeavyWork(() => {
+                try {
+                    if (periodFilterEnabled && isPeriodFilterContextSheet()) {
+                        rebuildFilterPopupAfterParamChange();
+                    } else {
+                        updatePeriodFilterMatchCount();
+                    }
+                } finally {
+                    clearFilterPopupLoadingState();
+                    scheduleRebuildFilterNoteTRefMenuCounts();
+                }
+            });
+        }
+
+        function selectFilterPopupNoteTRef(value) {
+            const max = getFilterNoteTRefMaxSelections(periodFilterMode);
+            if (max <= 0) {
+                return;
+            }
+            const token = normalizeOneFilterNoteTRefToken(value);
+            if (!token) {
+                return;
+            }
+            const single = max === 1;
+
+            if (single) {
+                if (token === FILTER_NOTE_TREF_ALL) {
+                    filterNoteTRefs = [FILTER_NOTE_TREF_ALL];
+                } else if (filterNoteTRefs.length === 1 && String(filterNoteTRefs[0]) === token) {
+                    filterNoteTRefs = [FILTER_NOTE_TREF_ALL];
+                } else {
+                    filterNoteTRefs = [token];
+                }
+            } else if (token === FILTER_NOTE_TREF_ALL) {
+                filterNoteTRefs = [FILTER_NOTE_TREF_ALL];
+            } else {
+                const withoutAll = (Array.isArray(filterNoteTRefs) ? filterNoteTRefs : [])
+                    .map((v) => normalizeOneFilterNoteTRefToken(v))
+                    .filter((v) => v && v !== FILTER_NOTE_TREF_ALL);
+                const idx = withoutAll.indexOf(token);
+                if (idx >= 0) {
+                    withoutAll.splice(idx, 1);
+                } else if (withoutAll.length < max) {
+                    withoutAll.push(token);
+                } else {
+                    withoutAll.shift();
+                    withoutAll.push(token);
+                }
+                filterNoteTRefs = withoutAll.length ? withoutAll : [FILTER_NOTE_TREF_ALL];
+            }
+
+            normalizeFilterNoteTRefsForMode(periodFilterMode);
+            applyFilterNoteTRefFromUi();
+            if (single) {
+                closeFilterPopupNoteTRefMenu();
+            }
+        }
+
+        function initFilterPopupNoteTRefControls() {
+            loadFilterNoteTRefSettings();
+            const menuEl = el('filterPopupNoteTRefMenu');
+            if (menuEl) {
+                delete menuEl.dataset.built;
+            }
+            buildFilterPopupNoteTRefMenu();
+            syncFilterPopupNoteTRefUi();
+
+            const picker = el('filterPopupNoteTRefPicker');
+            const btn = el('filterPopupNoteTRefBtn');
+            const menu = el('filterPopupNoteTRefMenu');
+            if (!picker || !btn || !menu || picker.dataset.bound === '1') {
+                return;
+            }
+            picker.dataset.bound = '1';
+
+            picker.addEventListener('mousedown', (event) => event.stopPropagation());
+            picker.addEventListener('click', (event) => event.stopPropagation());
+
+            btn.addEventListener('mousedown', (event) => event.stopPropagation());
+            btn.addEventListener('pointerdown', (event) => {
+                event.stopPropagation();
+                if (!btn.disabled) {
+                    btn.classList.add('is-note-tag-pressing');
+                }
+            });
+            btn.addEventListener('pointerup', (event) => {
+                event.stopPropagation();
+                btn.classList.remove('is-note-tag-pressing');
+            });
+            btn.addEventListener('pointercancel', () => {
+                btn.classList.remove('is-note-tag-pressing');
+            });
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (btn.disabled) {
+                    return;
+                }
+                if (menu.classList.contains('hidden')) {
+                    openFilterPopupNoteTRefMenu();
+                } else {
+                    closeFilterPopupNoteTRefMenu();
+                }
+            });
+
+            menu.addEventListener('click', (event) => event.stopPropagation());
+
+            window.addEventListener('resize', () => {
+                if (!menu.classList.contains('hidden')) {
+                    positionFilterPopupNoteTRefMenu();
                 }
             });
         }
@@ -11789,7 +12079,6 @@
         function openFilterPopupNonexistColorMenu() {
             closePeriodFilterModeMenu();
             closeFilterPopupNoteTagMenu();
-            closeFilterPopupConnectionNoteTagMenu();
             closeFilterPopupIntersectionKindMenu();
             closeFilterPopupNonexistGreen005Menu();
             const menu = el('filterPopupNonexistColorMenu');
@@ -11894,9 +12183,9 @@
             if (noteTagMenu && !noteTagMenu.classList.contains('hidden')) {
                 positionFilterPopupNoteTagMenu();
             }
-            const connectionNoteTagMenu = el('filterPopupConnectionNoteTagMenu');
-            if (connectionNoteTagMenu && !connectionNoteTagMenu.classList.contains('hidden')) {
-                positionFilterPopupConnectionNoteTagMenu();
+            const noteTRefMenu = el('filterPopupNoteTRefMenu');
+            if (noteTRefMenu && !noteTRefMenu.classList.contains('hidden')) {
+                positionFilterPopupNoteTRefMenu();
             }
             const intersectionKindMenu = el('filterPopupIntersectionKindMenu');
             if (intersectionKindMenu && !intersectionKindMenu.classList.contains('hidden')) {
@@ -14698,10 +14987,29 @@
             if (!Number.isFinite(num)) {
                 return 0;
             }
+            // Đếm nhẹ: chỉ tag này (+ tRef đang chọn nếu có). Không gọi getFilterOptionsForMode
+            // để tránh đơ UI / double-click gỡ lựa chọn.
             if (isDatebandFilterMode(mode)) {
-                return sheetManager.getFilterMatchingIndices(mode, getDatebandFilterOptions([num])).length;
+                const opts = getDatebandFilterOptions([num]);
+                const tRefs = getActiveNoteTRefValues();
+                if (tRefs.length > 0) {
+                    opts.noteTRef = tRefs;
+                }
+                return sheetManager.getFilterMatchingIndices(mode, opts).length;
             }
-            return sheetManager.getFilterMatchingIndices(mode, { noteTags: [num] }).length;
+            const opts = { noteTags: [num] };
+            const tRefs = getActiveNoteTRefValues();
+            if (tRefs.length > 0) {
+                opts.noteTRef = tRefs;
+            }
+            if (isIntersectionFilterMode(mode)) {
+                opts.intersectionKind = filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
+                opts.intersectionMinFreqA = filterIntersectionFreqX;
+                opts.intersectionMinFreqB = filterIntersectionFreqY;
+                opts.intersectionFreqOpA = normalizeIntersectionFreqOp(filterIntersectionOpX);
+                opts.intersectionFreqOpB = normalizeIntersectionFreqOp(filterIntersectionOpY);
+            }
+            return sheetManager.getFilterMatchingIndices(mode, opts).length;
         }
 
         function rebuildFilterNoteTagMenuCounts() {
@@ -14728,9 +15036,7 @@
             filterNoteTagCountRebuildTimer = setTimeout(() => {
                 filterNoteTagCountRebuildTimer = null;
                 rebuildFilterNoteTagMenuCounts();
-                rebuildFilterConnectionNoteTagMenuCounts();
                 updateFilterPopupNoteTagMenuItemCounts();
-                updateFilterPopupConnectionNoteTagMenuItemCounts();
             }, 150);
         }
 
@@ -14753,7 +15059,6 @@
 
         function syncFilterPopupDropdownCounts() {
             updateFilterPopupNoteTagMenuItemCounts();
-            updateFilterPopupConnectionNoteTagMenuItemCounts();
         }
 
         function commitFilterPopupNonexistNumFromUi() {
@@ -14945,9 +15250,15 @@
                 const oxa = normalizeIntersectionFreqOp(filterDatebandOpX);
                 const oya = normalizeIntersectionFreqOp(filterDatebandOpY);
                 const tags = getActiveNoteTagFilterValues();
-                const tagPart = tags.length > 0
-                    ? ` với note ${tags.map((n) => `${n}:`).join(', ')}`
-                    : '';
+                const tRefs = getActiveNoteTRefValues();
+                const noteBits = [];
+                if (tags.length > 0) {
+                    noteBits.push(tags.map((n) => `${n}:`).join('∩'));
+                }
+                if (tRefs.length > 0) {
+                    noteBits.push(tRefs.map((n) => `t^${n}`).join('∩'));
+                }
+                const tagPart = noteBits.length > 0 ? ` với note ${noteBits.join(' + ')}` : '';
                 return `Không có kỳ nào khớp date #00b0f0: cặp cửa sổ 10 khớp đáp án với hai freq khớp ngưỡng x=${filterDatebandFreqX} (${oxa}) và y=${filterDatebandFreqY} (${oya}), không phân thứ tự${tagPart}.`;
             }
             if (isTailFilterMode(normalized)) {
@@ -14955,10 +15266,17 @@
                 return `Không có kỳ nào có đáp án chứa phần tử thuộc tail (cặp tail cửa sổ 10, count ${op}${filterTailCount}).`;
             }
             if (isConnectionFilterMode(normalized)) {
-                const ctags = getActiveConnectionNoteTagFilterValuesForMode(normalized);
-                if (ctags.length > 0) {
-                    const tagLabel = ctags.map((n) => `${n}:`).join(', ');
-                    return `Không có kỳ nào vừa có connection vừa có nhãn ${tagLabel} trong note (dạng N:{…}).`;
+                const tags = getActiveNoteTagFilterValues();
+                const tRefs = getActiveNoteTRefValues();
+                const noteBits = [];
+                if (tags.length > 0) {
+                    noteBits.push(tags.map((n) => `${n}:`).join('∩'));
+                }
+                if (tRefs.length > 0) {
+                    noteBits.push(tRefs.map((n) => `t^${n}`).join('∩'));
+                }
+                if (noteBits.length > 0) {
+                    return `Không có kỳ nào vừa có connection vừa có note ${noteBits.join(' + ')}.`;
                 }
                 return 'Không có kỳ nào note có connection (xuất hiện trong ≥2 cặp {a,b}).';
             }
@@ -14967,9 +15285,16 @@
             }
             const hint = getFilterModeTitleHint(normalized);
             const tags = getActiveNoteTagFilterValues();
+            const tRefs = getActiveNoteTRefValues();
+            const noteBits = [];
             if (tags.length > 0) {
-                const tagLabel = tags.map((n) => `${n}:`).join(', ');
-                return 'Không có kỳ nào khớp ' + hint + ' với note chứa ' + tagLabel + '.';
+                noteBits.push(tags.map((n) => `${n}:`).join('∩'));
+            }
+            if (tRefs.length > 0) {
+                noteBits.push(tRefs.map((n) => `t^${n}`).join('∩'));
+            }
+            if (noteBits.length > 0) {
+                return 'Không có kỳ nào khớp ' + hint + ' với note chứa ' + noteBits.join(' + ') + '.';
             }
             return 'Không có kỳ nào khớp ' + hint + '.';
         }
@@ -15087,7 +15412,6 @@
         function openPeriodFilterModeMenu(anchor) {
             closeSubmitRingModeMenu();
             closeFilterPopupNoteTagMenu();
-            closeFilterPopupConnectionNoteTagMenu();
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupIntersectionKindMenu();
             periodFilterMenuAnchor = anchor === 'popup' ? 'popup' : 'toolbar';
@@ -15177,11 +15501,11 @@
             } catch (e) { }
             normalizeFilterNoteTagsForMode(periodFilterMode);
             saveFilterNoteTagsSettings();
-            normalizeFilterConnectionNoteTags();
-            saveFilterConnectionNoteTagsSettings();
+            normalizeFilterNoteTRefsForMode(periodFilterMode);
+            saveFilterNoteTRefSettings();
             closePeriodFilterModeMenu();
             closeFilterPopupNoteTagMenu();
-            closeFilterPopupConnectionNoteTagMenu();
+            closeFilterPopupNoteTRefMenu();
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupIntersectionKindMenu();
             scheduleRebuildFilterNoteTagMenuCounts();
@@ -15189,7 +15513,7 @@
             if (periodFilterEnabled) {
                 const deferHeavy = isDatebandFilterMode(periodFilterMode)
                     || supportsNoteTagFilter(periodFilterMode)
-                    || supportsConnectionNoteTagFilter(periodFilterMode);
+                    || supportsNoteTRefFilter(periodFilterMode);
                 refreshFilterPopup({
                     syncMain: false,
                     immediateRender: !deferHeavy,
@@ -15225,7 +15549,6 @@
                 filterModeCounts[mode] = getFilterParentCountForMode(mode);
             }
             rebuildFilterNoteTagMenuCounts();
-            rebuildFilterConnectionNoteTagMenuCounts();
             updatePeriodFilterModeMenuItemCounts();
         }
 
@@ -16037,14 +16360,16 @@
                 setFilterPopupPositionInputWidth(positionInput, getFilterPopupPositionText(positionInput));
             }
 
-            const noteTagLabel = getActiveNoteTagFilterValues().map((n) => `${n}:`).join(', ');
+            const noteTagLabel = getActiveNoteTagFilterValues().map((n) => `${n}:`).join('∩');
+            const noteTRefLabel = getActiveNoteTRefValues().map((n) => `t^${n}`).join('∩');
+            const noteParts = [noteTagLabel, noteTRefLabel].filter(Boolean).join(' + ');
             let title = compactFilterCountUi
                 ? `Có ${filteredTotal} kỳ khớp ${label}`
                 : `Có ${filteredTotal} / ${parentTotal} kỳ khớp ${label}`;
-            if (noteTagLabel) {
+            if (noteParts) {
                 title = compactFilterCountUi
-                    ? `Có ${filteredTotal} kỳ (${label}, note ${noteTagLabel})`
-                    : `Có ${filteredTotal} / ${parentTotal} kỳ (${label}, note ${noteTagLabel})`;
+                    ? `Có ${filteredTotal} kỳ (${label}, note ${noteParts})`
+                    : `Có ${filteredTotal} / ${parentTotal} kỳ (${label}, note ${noteParts})`;
             }
             if (isNonexistFilterMode(normalized) && periodFilterEnabled) {
                 const colorLabel = getNonexistFilterColorLabelList();
@@ -16448,7 +16773,7 @@
             syncFilterPopupNonexistToolsUi();
             syncFilterPopupPosnfreqToolsUi();
             syncFilterPopupNoteTagUi();
-            syncFilterPopupConnectionNoteTagUi();
+            syncFilterPopupNoteTRefUi();
             syncFilterPopupIntersectionToolsUi();
             syncFilterPopupTailCountUi();
             syncFilterPopupChainFilterUi();
@@ -16780,7 +17105,7 @@
         function closeAllFilterPopupFloatingMenus() {
             closePeriodFilterModeMenu();
             closeFilterPopupNoteTagMenu();
-            closeFilterPopupConnectionNoteTagMenu();
+            closeFilterPopupNoteTRefMenu();
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupNonexistGreen005Menu();
             closeFilterPopupIntersectionKindMenu();
@@ -16791,19 +17116,21 @@
             if (!(target instanceof Node)) {
                 return false;
             }
+            // Cụm 📑+tRef: giữ mở khi bấm trong tools/picker (menu portaled ra body vẫn check riêng bên dưới)
+            const noteTools = el('filterPopupNoteTagTools');
+            if (noteTools && noteTools.contains(target)) {
+                return true;
+            }
             const pairs = [
                 ['filterPopupNonexistColorMenu', 'filterPopupNonexistColorBtn'],
                 ['filterPopupNonexistGreen005Menu', 'filterPopupNonexistGreen005Btn'],
                 ['filterPopupNoteTagMenu', 'filterPopupNoteTagBtn'],
-                ['filterPopupConnectionNoteTagMenu', 'filterPopupConnectionNoteTagBtn'],
+                ['filterPopupNoteTRefMenu', 'filterPopupNoteTRefBtn'],
                 ['filterPopupIntersectionKindMenu', 'filterPopupIntersectionKindBtn']
             ];
             for (const [menuId, btnId] of pairs) {
                 const menu = el(menuId);
-                if (!menu || menu.classList.contains('hidden')) {
-                    continue;
-                }
-                if (menu.contains(target)) {
+                if (menu && !menu.classList.contains('hidden') && menu.contains(target)) {
                     return true;
                 }
                 const btn = el(btnId);
@@ -18027,7 +18354,19 @@
             }
             const rowLen = (sheetManager.sourceRows || []).length;
             const tags = filterNoteTags.slice().sort().join(',');
-            const connTags = filterConnectionNoteTags.slice().sort().join(',');
+            const tRef = (Array.isArray(filterNoteTRefs) ? filterNoteTRefs : [])
+                .map((v) => normalizeOneFilterNoteTRefToken(v) || '')
+                .filter(Boolean)
+                .sort((a, b) => {
+                    if (a === FILTER_NOTE_TREF_ALL) {
+                        return -1;
+                    }
+                    if (b === FILTER_NOTE_TREF_ALL) {
+                        return 1;
+                    }
+                    return parseInt(a, 10) - parseInt(b, 10);
+                })
+                .join(',');
             const styles = filterNonexistStyles.slice().sort().join(',');
             const colors = filterNonexistColors.slice().sort().join(',');
             const num = filterNonexistNum != null ? String(filterNonexistNum) : '';
@@ -18079,7 +18418,7 @@
             return [
                 periodFilterMode,
                 tags,
-                connTags,
+                `tref:${tRef}`,
                 num,
                 colors,
                 styles,
@@ -18167,8 +18506,16 @@
 
         /**
          * UI đã đổi xong → hiện đồng hồ ngay → sau paint mới chạy work nặng (refresh bảng…).
+         * Caller phải cập nhật nhãn/selected TRƯỚC khi gọi hàm này.
          */
         function deferFilterPopupHeavyWork(workFn) {
+            // Ép layout để browser kịp paint UI mới trước khi overlay/heavy.
+            try {
+                const label = el('filterPopupNoteTagBtnLabel') || el('filterPopupNoteTRefBtnLabel');
+                if (label) {
+                    void label.offsetWidth;
+                }
+            } catch (eForce) { /* ignore */ }
             showFilterPopupLoading();
             const seq = ++filterPopupHeavyRefreshSeq;
             yieldAfterFilterPopupPaint(() => {
@@ -18466,7 +18813,7 @@
             updatePeriodFilterMatchCount();
             syncFilterPopupNonexistToolsUi();
             syncFilterPopupNoteTagUi();
-            syncFilterPopupConnectionNoteTagUi();
+            syncFilterPopupNoteTRefUi();
             syncFilterPopupIntersectionToolsUi();
             syncFilterPopupChainFilterUi();
         }
@@ -19890,7 +20237,7 @@
             initPeriodFilterModePicker();
             initFilterPopupNonexistControls();
             initFilterPopupNoteTagControls();
-            initFilterPopupConnectionNoteTagControls();
+            initFilterPopupNoteTRefControls();
             initFilterPopupIntersectionKindControls();
             initFilterPopupDatebandFreqControls();
             initFilterPopupTailCountControls();
