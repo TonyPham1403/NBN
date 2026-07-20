@@ -6480,8 +6480,9 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Số nonexist tím/đỏ trên hàng focus (rỗng/mask → tính như chưa result; có result → kind thật).
-     * Dùng để tìm “vàng gần nhất” ngoài chuỗi 10 và gắn x1.5.
+     * Số nonexist trên hàng focus dùng để trail vàng x1.5 ngoài cửa sổ 10:
+     * tím/đỏ (chưa result) + xanh gạch ngang / gạch chân (đã khớp).
+     * (rỗng/mask → tính như chưa result; có result → kind thật).
      */
     getFocusRowPurpleRedNonexistTrailNums(focusRowIndex) {
         const rows = this.getSourceSheetRows();
@@ -6520,7 +6521,12 @@ class RightPaneSheetManager {
                 resForKind,
                 state
             );
-            if (kind === 'purple' || kind === 'red') {
+            if (
+                kind === 'purple'
+                || kind === 'red'
+                || kind === 'green-ul'
+                || kind === 'green-strike'
+            ) {
                 out.add(num);
             }
         }
@@ -6560,7 +6566,7 @@ class RightPaneSheetManager {
         const treatAsEmpty = !rawRes
             || (row && this.isEmptyResultRow(row))
             || this.shouldAnswerPopupMaskSheet1Row(targetIdx);
-        const key = `${targetIdx}|${win.end}|${win.start}|pr|${treatAsEmpty ? 1 : 0}`;
+        const key = `${targetIdx}|${win.end}|${win.start}|prg|${treatAsEmpty ? 1 : 0}`;
         if (this._focusNonexistTrailKey === key && this._focusNonexistTrailSet) {
             return this._focusNonexistTrailSet;
         }
@@ -6570,8 +6576,9 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Boost vàng x1.5 ngoài cửa 10: số tím/đỏ trên focus → đúng hàng
-     * “vàng gần nhất” của số đó phía trên cửa sổ (vd 761 đỏ 18 → 729 vàng 18).
+     * Boost vàng x1.5 ngoài cửa 10: số tím/đỏ hoặc xanh gạch ngang/gạch chân trên focus
+     * → đúng hàng “vàng gần nhất” phía trên cửa sổ
+     * (vd 761 đỏ 18 → 729 vàng 18; 317 xanh 7/26 → 305/298 vàng ×1.5).
      */
     isOutsideWindowFocusTrailBoost(rowIndex, num, winOverride = null) {
         const win = winOverride || this.activeWindowRange;
@@ -6888,7 +6895,7 @@ class RightPaneSheetManager {
             const value = parseInt(match, 10);
             const displayKind = this.getNonexistDisplayKindForNumber(rowIndex, value, nonexistText, currentResult);
 
-            /* Focus tím/đỏ (chưa result) → ngoài chuỗi 10: ép vàng x1.5 (kể cả hàng đang tím/đỏ) */
+            /* Focus tím/đỏ / xanh ul|strike → ngoài chuỗi 10: ép vàng x1.5 (kể cả hàng đang tím/đỏ) */
             const isGreenKind = (
                 displayKind === 'green'
                 || displayKind === 'green-ul'
