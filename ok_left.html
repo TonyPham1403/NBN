@@ -11522,7 +11522,8 @@
 
         /**
          * markNums: danh sách m (1..35) cùng pattern; [0] = viền xanh navy, [1].. = viền màu lần lượt.
-         * refSig: multiset Chuỗi; nếu có thì chỉ viền đúng ô trên đúng dòng Chuỗi.
+         * Mỗi số khớp: lục giác trên mọi ô của số đó trong cửa sổ Chuỗi (bảng 2) — dùng vị trí thật
+         * của số trên kỳ đang xem, không gắn cứng refSig tuyệt đối (tránh sót khi khớp tương đối / cha).
          */
         function applyPosnfreqSpecimenMarkersInDom(markNums, refSig) {
             clearPosnfreqSpecimenMarkersInDom();
@@ -11537,6 +11538,7 @@
             if (!nums.length) {
                 return;
             }
+            void refSig;
             var left = document.getElementById('left');
             if (left) {
                 for (var ni = 0; ni < nums.length; ni++) {
@@ -11554,66 +11556,16 @@
                 return;
             }
             var mains = right.querySelectorAll('tr.chuoi-main-row');
-            var useMultiset = refSig && Array.isArray(refSig.positions) && refSig.positions.length > 0;
-            if (!useMultiset) {
-                for (var li2 = 0; li2 < nums.length; li2++) {
-                    var sp2 = nums[li2];
-                    mains.forEach(function (tr) {
-                        tr.querySelectorAll('.cell.num[data-num]').forEach(function (span) {
-                            var v2 = parseInt(span.getAttribute('data-num'), 10);
-                            if (!isNaN(v2) && v2 === sp2) {
-                                posnfreqApplyRingClass(span, li2);
-                            }
-                        });
-                    });
-                }
-                return;
-            }
-            var displayLen = mains.length;
-            try {
-                var dl = getRawDisplayLines();
-                if (dl && dl.length) {
-                    displayLen = dl.length;
-                }
-            } catch (eDl) { /* ignore */ }
-            var needByLabel = {};
-            for (var pi = 0; pi < refSig.positions.length; pi++) {
-                var L = parseInt(refSig.positions[pi], 10);
-                if (!isNaN(L) && L >= 1 && L <= 10) {
-                    needByLabel[L] = (needByLabel[L] || 0) + 1;
-                }
-            }
-            for (var nk = 0; nk < nums.length; nk++) {
-                var mVal = nums[nk];
-                for (var chLabel in needByLabel) {
-                    if (!Object.prototype.hasOwnProperty.call(needByLabel, chLabel)) {
-                        continue;
-                    }
-                    var need = needByLabel[chLabel];
-                    var Lnum = parseInt(chLabel, 10);
-                    var rowIdx = displayLen - Lnum;
-                    if (rowIdx < 0 || rowIdx >= mains.length) {
-                        continue;
-                    }
-                    var tr = mains[rowIdx];
-                    if (!tr) {
-                        continue;
-                    }
-                    var numsTd = tr.children[1];
-                    if (!numsTd) {
-                        continue;
-                    }
-                    var numSpans = numsTd.querySelectorAll('.cell.num[data-num]');
-                    var marked = 0;
-                    for (var si = 0; si < numSpans.length && marked < need; si++) {
-                        var span = numSpans[si];
-                        var v3 = parseInt(span.getAttribute('data-num'), 10);
-                        if (!isNaN(v3) && v3 === mVal) {
-                            posnfreqApplyRingClass(span, nk);
-                            marked++;
+            for (var li2 = 0; li2 < nums.length; li2++) {
+                var sp2 = nums[li2];
+                mains.forEach(function (tr) {
+                    tr.querySelectorAll('.cell.num[data-num]').forEach(function (span) {
+                        var v2 = parseInt(span.getAttribute('data-num'), 10);
+                        if (!isNaN(v2) && v2 === sp2) {
+                            posnfreqApplyRingClass(span, li2);
                         }
-                    }
-                }
+                    });
+                });
             }
         }
 

@@ -5262,12 +5262,66 @@
         }
 
         .filter-popup-posnfreq-meta {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            max-width: 220px;
+            flex-shrink: 0;
+        }
+
+        .filter-popup-posnfreq-constraint-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 22px;
+            min-height: 22px;
+            padding: 0 6px;
+            margin: 0;
             font: 600 11px/1.2 Inter, Segoe UI, Arial, sans-serif;
-            color: #334155;
-            max-width: 200px;
+            border: 1px solid #cbd5e1;
+            border-radius: 5px;
+            background: #ffffff;
+            color: #64748b;
+            cursor: pointer;
+            flex-shrink: 0;
+            user-select: none;
             white-space: nowrap;
+            max-width: 110px;
             overflow: hidden;
             text-overflow: ellipsis;
+        }
+
+        .filter-popup-posnfreq-constraint-btn:hover {
+            border-color: #94a3b8;
+            color: #334155;
+        }
+
+        .filter-popup-posnfreq-constraint-btn[aria-pressed="true"] {
+            border-color: #004d00;
+            background: #006400;
+            color: #ffffff;
+        }
+
+        .filter-popup-posnfreq-constraint-btn[aria-pressed="true"]:hover {
+            background: #005000;
+            border-color: #003d00;
+            color: #ffffff;
+        }
+
+        .filter-popup-posnfreq-constraint-btn.is-posnfreq-relative[aria-pressed="true"] {
+            border-color: #0e7490;
+            background: #0e7490;
+            color: #ffffff;
+        }
+
+        .filter-popup-posnfreq-constraint-btn.is-posnfreq-relative[aria-pressed="true"]:hover {
+            background: #0f766e;
+            border-color: #115e59;
+            color: #ffffff;
+        }
+
+        .filter-popup-posnfreq-constraint-btn[hidden] {
+            display: none;
         }
 
         .filter-popup-posnfreq-source-btn {
@@ -5417,6 +5471,97 @@
             text-align: center;
             color: #64748b;
             font-size: 13px;
+        }
+
+        /* Overlay loading: hiện ngay không xóa DOM bảng (tránh khựng trước khi thấy đồng hồ) */
+        .filter-table-viewport-wrap .filter-popup-loading-overlay {
+            position: absolute;
+            inset: 0;
+            z-index: 30;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(255, 255, 255, 0.9);
+            pointer-events: all;
+        }
+
+        .filter-table-viewport-wrap .filter-popup-loading-overlay[hidden] {
+            display: none !important;
+        }
+
+        .filter-popup-loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 28px 16px;
+            color: #64748b;
+            user-select: none;
+        }
+
+        .filter-popup-loading-clock {
+            position: relative;
+            width: 52px;
+            height: 52px;
+            flex-shrink: 0;
+        }
+
+        .filter-popup-loading-clock-face {
+            position: relative;
+            box-sizing: border-box;
+            width: 100%;
+            height: 100%;
+            border: 3px solid #94a3b8;
+            border-radius: 50%;
+            background: #f8fafc;
+        }
+
+        .filter-popup-loading-clock-face::before,
+        .filter-popup-loading-clock-face::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: 5px;
+            height: 5px;
+            margin: -2.5px 0 0 -2.5px;
+            border-radius: 50%;
+            background: #0f172a;
+            z-index: 2;
+        }
+
+        .filter-popup-loading-clock-hand {
+            position: absolute;
+            left: calc(50% - 1.5px);
+            bottom: 50%;
+            width: 3px;
+            height: 15px;
+            border-radius: 1.5px 1.5px 0 0;
+            background: #0f172a;
+            transform-origin: center bottom;
+            animation: filter-popup-clock-spin 0.85s linear infinite;
+            z-index: 1;
+        }
+
+        .filter-popup-loading-clock-hand--minute {
+            height: 11px;
+            width: 2px;
+            left: calc(50% - 1px);
+            background: #475569;
+            animation-duration: 5.1s;
+        }
+
+        @keyframes filter-popup-clock-spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        .filter-popup-loading-text {
+            font: 600 13px/1.3 Inter, Segoe UI, Arial, sans-serif;
+            color: #475569;
+            letter-spacing: 0.01em;
         }
 
         /* Same table viewport styling as #tableWrap */
@@ -7205,7 +7350,14 @@
                         <button type="button" id="filterPopupPosnfreqHexBtn" class="filter-popup-posnfreq-hex"
                             title="Click nhanh: Mẫu ↔ Số (lọc đúng specimen). Giữ và kéo vào ô số bảng trái để đổi specimen."
                             aria-label="Lục giác posnfreq: click Mẫu hoặc Số, kéo chọn specimen"></button>
-                        <span id="filterPopupPosnfreqMeta" class="filter-popup-posnfreq-meta" aria-live="polite"></span>
+                        <span id="filterPopupPosnfreqMeta" class="filter-popup-posnfreq-meta" aria-live="polite">
+                            <button type="button" id="filterPopupPosnfreqFreqBtn"
+                                class="filter-popup-posnfreq-constraint-btn" hidden aria-pressed="true"
+                                title="Bật/tắt ràng buộc tần suất (f)">f=—</button>
+                            <button type="button" id="filterPopupPosnfreqPosBtn"
+                                class="filter-popup-posnfreq-constraint-btn" hidden aria-pressed="true"
+                                title="Bật/tắt ràng buộc vị trí chuỗi">[—]</button>
+                        </span>
                     </div>
                     <div id="filterPopupNoteTagPicker" class="filter-popup-note-tag-picker hidden">
                         <button type="button" id="filterPopupNoteTagBtn" class="filter-popup-note-tag-btn" disabled
@@ -7441,6 +7593,18 @@
             <div class="filter-popup-body">
                 <div class="right-table-viewport-wrap filter-table-viewport-wrap">
                     <div id="filterTableWrap" class="right-table-viewport" tabindex="0" aria-label="Bảng lọc kỳ"></div>
+                    <div id="filterPopupLoadingOverlay" class="filter-popup-loading-overlay" hidden
+                        aria-hidden="true">
+                        <div class="filter-popup-loading" role="status" aria-live="polite" aria-label="Đang lọc">
+                            <div class="filter-popup-loading-clock" aria-hidden="true">
+                                <div class="filter-popup-loading-clock-face"></div>
+                                <div class="filter-popup-loading-clock-hand filter-popup-loading-clock-hand--minute">
+                                </div>
+                                <div class="filter-popup-loading-clock-hand"></div>
+                            </div>
+                            <div class="filter-popup-loading-text">Đang lọc…</div>
+                        </div>
+                    </div>
                     <div class="right-table-edge-jumps" role="presentation">
                         <button type="button" id="filterTableScrollJumpTopBtn"
                             class="right-table-edge-jump-btn right-table-edge-jump-btn--top"
@@ -7533,7 +7697,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260716filterScrollCenter"></script>
+    <script src="right-pane-sheets.js?v=20260720posnfreqRelCover"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -7736,6 +7900,8 @@
         let filterPopupActiveIdx = -1;
         let filterPopupRenderCacheKey = '';
         let filterPopupHtmlCache = '';
+        /** Chống race khi toggle liên tục trong lúc đang refresh nặng + loading. */
+        let filterPopupHeavyRefreshSeq = 0;
         let filterPopupIndicesCached = [];
         let filterPopupBaseIndicesCached = [];
         /** Cache tập mẫu header2 (mauByRow + rowsByNum) — tính trước khi mở popup / đổi mode. */
@@ -7769,6 +7935,9 @@
         let posnfreqSourceRowIndex = -1;
         /** posnfreq: Số = đúng specimen + cùng f và []; Mẫu = cùng f và [] với số bất kỳ. Chỉ click nhanh lục giác trên header để bật/tắt Số. */
         let posnfreqSpecimenStrict = false;
+        /** posnfreq: nút toggle ràng buộc f=… / […] — positions: 'off' | 'absolute' | 'relative'. */
+        let posnfreqMatchFrequency = true;
+        let posnfreqMatchPositionsMode = 'absolute';
         /** intersection: intersect | nearintersect — cửa sổ 10 chuỗi + 5 số submit */
         let filterIntersectionKind = 'intersect';
         /** Ngưỡng freq trong cửa sổ chuỗi: x cho số a, y cho số b (cặp theo thứ tự 5 số submit, số trước = a). */
@@ -9447,12 +9616,23 @@
             return !filterConnectionNoteTags.includes(FILTER_NOTE_TAG_ALL) && filterConnectionNoteTags.includes(tag);
         }
 
+        function getPosnfreqMatchConstraintOpts() {
+            return {
+                matchFrequency: !!posnfreqMatchFrequency,
+                matchPositionsMode: posnfreqMatchPositionsMode === 'relative'
+                    ? 'relative'
+                    : (posnfreqMatchPositionsMode === 'off' ? 'off' : 'absolute')
+            };
+        }
+
         function getPosnfreqFilterOptionsForMatching() {
             return {
                 specimenNum: posnfreqSpecimenNum,
                 refRowIndex: posnfreqSourceRowIndex,
                 refSignature: posnfreqRefSignature,
-                specimenStrict: posnfreqSpecimenStrict
+                specimenStrict: posnfreqSpecimenStrict,
+                matchFrequency: !!posnfreqMatchFrequency,
+                matchPositionsMode: getPosnfreqMatchConstraintOpts().matchPositionsMode
             };
         }
 
@@ -10025,15 +10205,19 @@
             saveFilterConnectionNoteTagsSettings();
             syncFilterPopupConnectionNoteTagUi();
             clearTimeout(filterConnectionNoteTagApplyTimer);
-            filterConnectionNoteTagApplyTimer = setTimeout(() => {
-                filterConnectionNoteTagApplyTimer = null;
+            filterConnectionNoteTagApplyTimer = null;
+            deferFilterPopupHeavyWork(() => {
                 if (periodFilterEnabled && isPeriodFilterContextSheet()
                     && isConnectionFilterMode(periodFilterMode)) {
-                    refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
+                    rebuildFilterPopupAfterParamChange();
                 } else {
-                    updatePeriodFilterMatchCount();
+                    try {
+                        updatePeriodFilterMatchCount();
+                    } finally {
+                        clearFilterPopupLoadingState();
+                    }
                 }
-            }, 64);
+            });
         }
 
         function toggleFilterPopupConnectionNoteTag(tag) {
@@ -10150,17 +10334,6 @@
 
             menu.addEventListener('click', (event) => event.stopPropagation());
 
-            document.addEventListener('mousedown', (event) => {
-                if (menu.classList.contains('hidden')) {
-                    return;
-                }
-                const target = event.target;
-                if (picker.contains(target) || menu.contains(target)) {
-                    return;
-                }
-                closeFilterPopupConnectionNoteTagMenu();
-            });
-
             window.addEventListener('resize', () => {
                 if (!menu.classList.contains('hidden')) {
                     positionFilterPopupConnectionNoteTagMenu();
@@ -10274,15 +10447,11 @@
             }
             const span = el(isX ? 'filterPopupIntersectionFreqX' : 'filterPopupIntersectionFreqY');
             setFilterPopupPositionText(span, String(next));
-            saveFilterIntersectionFreqSettings();
-            invalidateFilterPopupRenderCache();
             syncFilterPopupIntersectionFreqSpinButtons();
-            if (isPeriodFilterContextSheet()) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
-            } else {
-                rebuildFilterModeCounts();
-                updatePeriodFilterMatchCount();
-            }
+            deferFilterPopupHeavyWork(() => {
+                saveFilterIntersectionFreqSettings();
+                rebuildFilterPopupAfterParamChange();
+            });
             return true;
         }
 
@@ -10310,16 +10479,21 @@
                 filterIntersectionOpY = normalizeIntersectionFreqOp(oy.value);
                 oy.value = filterIntersectionOpY;
             }
-            saveFilterIntersectionFreqSettings();
-            invalidateFilterPopupRenderCache();
             syncFilterPopupIntersectionFreqSpinButtons();
-            if (periodFilterEnabled && isPeriodFilterContextSheet()
-                && isIntersectionFilterMode(periodFilterMode)) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
-            } else {
-                rebuildFilterModeCounts();
-                updatePeriodFilterMatchCount();
-            }
+            deferFilterPopupHeavyWork(() => {
+                saveFilterIntersectionFreqSettings();
+                if (periodFilterEnabled && isPeriodFilterContextSheet()
+                    && isIntersectionFilterMode(periodFilterMode)) {
+                    rebuildFilterPopupAfterParamChange();
+                } else {
+                    try {
+                        rebuildFilterModeCounts();
+                        updatePeriodFilterMatchCount();
+                    } finally {
+                        clearFilterPopupLoadingState();
+                    }
+                }
+            });
         }
 
         function loadFilterDatebandFreqSettings() {
@@ -10404,18 +10578,14 @@
             if (span) {
                 setFilterPopupPositionText(span, String(next));
             }
-            saveFilterDatebandFreqSettings();
-            invalidateFilterPopupRenderCache();
             syncFilterPopupDatebandFreqSpinButtons();
-            if (isPeriodFilterContextSheet()) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
-            } else {
-                rebuildFilterModeCounts();
-                updatePeriodFilterMatchCount();
-            }
-            if (submitRingEnabled && getEffectiveSubmitRingMode() === 'dateband') {
-                sendSubmitRingConfigToIframe();
-            }
+            deferFilterPopupHeavyWork(() => {
+                saveFilterDatebandFreqSettings();
+                rebuildFilterPopupAfterParamChange();
+                if (submitRingEnabled && getEffectiveSubmitRingMode() === 'dateband') {
+                    sendSubmitRingConfigToIframe();
+                }
+            });
             return true;
         }
 
@@ -10443,19 +10613,24 @@
                 filterDatebandOpY = normalizeIntersectionFreqOp(oy.value);
                 oy.value = filterDatebandOpY;
             }
-            saveFilterDatebandFreqSettings();
-            invalidateFilterPopupRenderCache();
             syncFilterPopupDatebandFreqSpinButtons();
-            if (periodFilterEnabled && isPeriodFilterContextSheet()
-                && isDatebandFilterMode(periodFilterMode)) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
-            } else {
-                rebuildFilterModeCounts();
-                updatePeriodFilterMatchCount();
-            }
-            if (submitRingEnabled && getEffectiveSubmitRingMode() === 'dateband') {
-                sendSubmitRingConfigToIframe();
-            }
+            deferFilterPopupHeavyWork(() => {
+                saveFilterDatebandFreqSettings();
+                if (periodFilterEnabled && isPeriodFilterContextSheet()
+                    && isDatebandFilterMode(periodFilterMode)) {
+                    rebuildFilterPopupAfterParamChange();
+                } else {
+                    try {
+                        rebuildFilterModeCounts();
+                        updatePeriodFilterMatchCount();
+                    } finally {
+                        clearFilterPopupLoadingState();
+                    }
+                }
+                if (submitRingEnabled && getEffectiveSubmitRingMode() === 'dateband') {
+                    sendSubmitRingConfigToIframe();
+                }
+            });
         }
 
         function syncFilterPopupDatebandFreqUi() {
@@ -10501,24 +10676,31 @@
             picker.addEventListener('mousedown', (event) => event.stopPropagation());
             picker.addEventListener('click', (event) => event.stopPropagation());
             const bindDatebandSpin = (spinEl, incId, decId, axis) => {
-                const inc = el(incId);
-                const dec = el(decId);
-                if (inc) {
-                    inc.addEventListener('mousedown', (event) => event.stopPropagation());
-                    inc.addEventListener('click', (event) => {
+                const bindBtn = (btn, delta) => {
+                    if (!btn) {
+                        return;
+                    }
+                    const run = () => {
+                        bumpFilterPopupDatebandFreq(axis, delta);
+                    };
+                    btn.addEventListener('pointerdown', (event) => {
+                        if (event.button !== 0) {
+                            return;
+                        }
                         event.preventDefault();
                         event.stopPropagation();
-                        bumpFilterPopupDatebandFreq(axis, 1);
+                        run();
                     });
-                }
-                if (dec) {
-                    dec.addEventListener('mousedown', (event) => event.stopPropagation());
-                    dec.addEventListener('click', (event) => {
+                    btn.addEventListener('click', (event) => {
                         event.preventDefault();
                         event.stopPropagation();
-                        bumpFilterPopupDatebandFreq(axis, -1);
+                        if (event.detail === 0) {
+                            run();
+                        }
                     });
-                }
+                };
+                bindBtn(el(incId), 1);
+                bindBtn(el(decId), -1);
             };
             bindDatebandSpin(el('filterPopupDatebandFreqXSpin'), 'filterPopupDatebandFreqXInc', 'filterPopupDatebandFreqXDec', 'x');
             bindDatebandSpin(el('filterPopupDatebandFreqYSpin'), 'filterPopupDatebandFreqYInc', 'filterPopupDatebandFreqYDec', 'y');
@@ -10590,15 +10772,11 @@
             if (span) {
                 setFilterPopupPositionText(span, String(next));
             }
-            saveFilterTailCountSettings();
-            invalidateFilterPopupRenderCache();
             syncFilterPopupTailCountSpinButtons();
-            if (isPeriodFilterContextSheet()) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
-            } else {
-                rebuildFilterModeCounts();
-                updatePeriodFilterMatchCount();
-            }
+            deferFilterPopupHeavyWork(() => {
+                saveFilterTailCountSettings();
+                rebuildFilterPopupAfterParamChange();
+            });
             return true;
         }
 
@@ -10616,16 +10794,21 @@
                 filterTailOp = normalizeIntersectionFreqOp(opEl.value);
                 opEl.value = filterTailOp;
             }
-            saveFilterTailCountSettings();
-            invalidateFilterPopupRenderCache();
             syncFilterPopupTailCountSpinButtons();
-            if (periodFilterEnabled && isPeriodFilterContextSheet()
-                && isTailFilterMode(periodFilterMode)) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
-            } else {
-                rebuildFilterModeCounts();
-                updatePeriodFilterMatchCount();
-            }
+            deferFilterPopupHeavyWork(() => {
+                saveFilterTailCountSettings();
+                if (periodFilterEnabled && isPeriodFilterContextSheet()
+                    && isTailFilterMode(periodFilterMode)) {
+                    rebuildFilterPopupAfterParamChange();
+                } else {
+                    try {
+                        rebuildFilterModeCounts();
+                        updatePeriodFilterMatchCount();
+                    } finally {
+                        clearFilterPopupLoadingState();
+                    }
+                }
+            });
         }
 
         function syncFilterPopupTailCountUi() {
@@ -10661,22 +10844,31 @@
             picker.addEventListener('click', (event) => event.stopPropagation());
             const inc = el('filterPopupTailCountInc');
             const dec = el('filterPopupTailCountDec');
-            if (inc) {
-                inc.addEventListener('mousedown', (event) => event.stopPropagation());
-                inc.addEventListener('click', (event) => {
+            const bindTailBtn = (btn, delta) => {
+                if (!btn) {
+                    return;
+                }
+                const run = () => {
+                    bumpFilterPopupTailCount(delta);
+                };
+                btn.addEventListener('pointerdown', (event) => {
+                    if (event.button !== 0) {
+                        return;
+                    }
                     event.preventDefault();
                     event.stopPropagation();
-                    bumpFilterPopupTailCount(1);
+                    run();
                 });
-            }
-            if (dec) {
-                dec.addEventListener('mousedown', (event) => event.stopPropagation());
-                dec.addEventListener('click', (event) => {
+                btn.addEventListener('click', (event) => {
                     event.preventDefault();
                     event.stopPropagation();
-                    bumpFilterPopupTailCount(-1);
+                    if (event.detail === 0) {
+                        run();
+                    }
                 });
-            }
+            };
+            bindTailBtn(inc, 1);
+            bindTailBtn(dec, -1);
             if (opEl) {
                 opEl.addEventListener('change', () => scheduleApplyTailCountFromUi());
             }
@@ -10761,15 +10953,11 @@
             if (span) {
                 setFilterPopupPositionText(span, String(next));
             }
-            saveFilterNonexistBracketSettings();
-            invalidateFilterPopupRenderCache();
             syncFilterPopupNonexistBracketSpinButtons();
-            if (isPeriodFilterContextSheet()) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
-            } else {
-                rebuildFilterModeCounts();
-                updatePeriodFilterMatchCount();
-            }
+            deferFilterPopupHeavyWork(() => {
+                saveFilterNonexistBracketSettings();
+                rebuildFilterPopupAfterParamChange();
+            });
             return true;
         }
 
@@ -10786,16 +10974,21 @@
                 filterNonexistBracketOp = normalizeIntersectionFreqOp(opEl.value);
                 opEl.value = filterNonexistBracketOp;
             }
-            saveFilterNonexistBracketSettings();
-            invalidateFilterPopupRenderCache();
             syncFilterPopupNonexistBracketSpinButtons();
-            if (periodFilterEnabled && isPeriodFilterContextSheet()
-                && isNonexistFilterMode(periodFilterMode)) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
-            } else {
-                rebuildFilterModeCounts();
-                updatePeriodFilterMatchCount();
-            }
+            deferFilterPopupHeavyWork(() => {
+                saveFilterNonexistBracketSettings();
+                if (periodFilterEnabled && isPeriodFilterContextSheet()
+                    && isNonexistFilterMode(periodFilterMode)) {
+                    rebuildFilterPopupAfterParamChange();
+                } else {
+                    try {
+                        rebuildFilterModeCounts();
+                        updatePeriodFilterMatchCount();
+                    } finally {
+                        clearFilterPopupLoadingState();
+                    }
+                }
+            });
         }
 
         function syncFilterPopupNonexistBracketUi() {
@@ -10850,14 +11043,20 @@
             setFilterPopupPositionText(input, String(nextNum));
             setFilterPopupPositionInputWidth(input, String(nextNum));
             filterNonexistBracketCount = nextNum;
-            saveFilterNonexistBracketSettings();
-            if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true });
-            } else {
-                rebuildNonexistFilterModeCountOnly();
-                updatePeriodFilterMatchCount();
-            }
             syncFilterPopupNonexistBracketSpinButtons();
+            deferFilterPopupHeavyWork(() => {
+                saveFilterNonexistBracketSettings();
+                if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
+                    rebuildFilterPopupAfterParamChange();
+                } else {
+                    try {
+                        rebuildNonexistFilterModeCountOnly();
+                        updatePeriodFilterMatchCount();
+                    } finally {
+                        clearFilterPopupLoadingState();
+                    }
+                }
+            });
             return true;
         }
 
@@ -10869,14 +11068,20 @@
             setFilterPopupPositionText(input, '0');
             setFilterPopupPositionInputWidth(input, '0');
             filterNonexistBracketCount = 0;
-            saveFilterNonexistBracketSettings();
-            if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true });
-            } else {
-                rebuildNonexistFilterModeCountOnly();
-                updatePeriodFilterMatchCount();
-            }
             syncFilterPopupNonexistBracketSpinButtons();
+            deferFilterPopupHeavyWork(() => {
+                saveFilterNonexistBracketSettings();
+                if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
+                    rebuildFilterPopupAfterParamChange();
+                } else {
+                    try {
+                        rebuildNonexistFilterModeCountOnly();
+                        updatePeriodFilterMatchCount();
+                    } finally {
+                        clearFilterPopupLoadingState();
+                    }
+                }
+            });
             return true;
         }
 
@@ -10892,22 +11097,31 @@
                 picker.addEventListener('click', (event) => event.stopPropagation());
                 const inc = el('filterPopupNonexistBracketCountInc');
                 const dec = el('filterPopupNonexistBracketCountDec');
-                if (inc) {
-                    inc.addEventListener('mousedown', (event) => event.stopPropagation());
-                    inc.addEventListener('click', (event) => {
+                const bindBracketBtn = (btn, delta) => {
+                    if (!btn) {
+                        return;
+                    }
+                    const run = () => {
+                        bumpFilterPopupNonexistBracketCount(delta);
+                    };
+                    btn.addEventListener('pointerdown', (event) => {
+                        if (event.button !== 0) {
+                            return;
+                        }
                         event.preventDefault();
                         event.stopPropagation();
-                        bumpFilterPopupNonexistBracketCount(1);
+                        run();
                     });
-                }
-                if (dec) {
-                    dec.addEventListener('mousedown', (event) => event.stopPropagation());
-                    dec.addEventListener('click', (event) => {
+                    btn.addEventListener('click', (event) => {
                         event.preventDefault();
                         event.stopPropagation();
-                        bumpFilterPopupNonexistBracketCount(-1);
+                        if (event.detail === 0) {
+                            run();
+                        }
                     });
-                }
+                };
+                bindBracketBtn(inc, 1);
+                bindBracketBtn(dec, -1);
                 if (opEl) {
                     opEl.addEventListener('change', () => scheduleApplyNonexistBracketFromUi());
                 }
@@ -11131,21 +11345,26 @@
                 return;
             }
             filterIntersectionKind = next;
-            saveFilterIntersectionKindSettings();
             const label = el('filterPopupIntersectionKindBtnLabel');
             if (label) {
                 label.textContent = getFilterIntersectionKindButtonLabel();
             }
             highlightFilterPopupIntersectionKindMenu();
             closeFilterPopupIntersectionKindMenu();
-            invalidateFilterPopupRenderCache();
-            if (periodFilterEnabled && isPeriodFilterContextSheet()
-                && isIntersectionFilterMode(periodFilterMode)) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
-            } else {
-                rebuildFilterModeCounts();
-                updatePeriodFilterMatchCount();
-            }
+            deferFilterPopupHeavyWork(() => {
+                saveFilterIntersectionKindSettings();
+                if (periodFilterEnabled && isPeriodFilterContextSheet()
+                    && isIntersectionFilterMode(periodFilterMode)) {
+                    rebuildFilterPopupAfterParamChange();
+                } else {
+                    try {
+                        rebuildFilterModeCounts();
+                        updatePeriodFilterMatchCount();
+                    } finally {
+                        clearFilterPopupLoadingState();
+                    }
+                }
+            });
         }
 
         function syncFilterPopupIntersectionToolsUi() {
@@ -11226,34 +11445,34 @@
                     return;
                 }
                 spinEl.dataset.spinBound = '1';
-                const inc = el(incId);
-                const dec = el(decId);
-                if (inc) {
-                    inc.addEventListener('mousedown', (event) => {
+                const bindBtn = (btn, delta) => {
+                    if (!btn) {
+                        return;
+                    }
+                    const run = () => {
+                        if (btn.disabled) {
+                            return;
+                        }
+                        bumpFilterPopupIntersectionFreq(axis, delta);
+                    };
+                    btn.addEventListener('pointerdown', (event) => {
+                        if (event.button !== 0) {
+                            return;
+                        }
                         event.preventDefault();
                         event.stopPropagation();
+                        run();
                     });
-                    inc.addEventListener('click', (event) => {
+                    btn.addEventListener('click', (event) => {
                         event.preventDefault();
                         event.stopPropagation();
-                        if (!inc.disabled) {
-                            bumpFilterPopupIntersectionFreq(axis, 1);
+                        if (event.detail === 0) {
+                            run();
                         }
                     });
-                }
-                if (dec) {
-                    dec.addEventListener('mousedown', (event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                    });
-                    dec.addEventListener('click', (event) => {
-                        event.preventDefault();
-                        event.stopPropagation();
-                        if (!dec.disabled) {
-                            bumpFilterPopupIntersectionFreq(axis, -1);
-                        }
-                    });
-                }
+                };
+                bindBtn(el(incId), 1);
+                bindBtn(el(decId), -1);
             };
             bindIntersectionSpin(el('filterPopupIntersectionFreqXSpin'), 'filterPopupIntersectionFreqXInc', 'filterPopupIntersectionFreqXDec', 'x');
             bindIntersectionSpin(el('filterPopupIntersectionFreqYSpin'), 'filterPopupIntersectionFreqYInc', 'filterPopupIntersectionFreqYDec', 'y');
@@ -11262,16 +11481,6 @@
                 ox.addEventListener('change', onOp);
                 oy.addEventListener('change', onOp);
             }
-            document.addEventListener('mousedown', (event) => {
-                if (menu.classList.contains('hidden')) {
-                    return;
-                }
-                const target = event.target;
-                if (picker.contains(target) || menu.contains(target)) {
-                    return;
-                }
-                closeFilterPopupIntersectionKindMenu();
-            });
             window.addEventListener('resize', () => {
                 if (!menu.classList.contains('hidden')) {
                     positionFilterPopupIntersectionKindMenu();
@@ -11283,17 +11492,22 @@
             saveFilterNoteTagsSettings();
             syncFilterPopupNoteTagUi();
             clearTimeout(filterNoteTagApplyTimer);
-            filterNoteTagApplyTimer = setTimeout(() => {
-                filterNoteTagApplyTimer = null;
+            filterNoteTagApplyTimer = null;
+            deferFilterPopupHeavyWork(() => {
                 if (periodFilterEnabled && isPeriodFilterContextSheet()) {
                     if (isNonexistFilterMode(periodFilterMode)) {
+                        clearFilterPopupLoadingState();
                         return;
                     }
-                    refreshFilterPopup({ syncMain: false, immediateRender: true, clearPopupNav: true });
+                    rebuildFilterPopupAfterParamChange();
                 } else {
-                    updatePeriodFilterMatchCount();
+                    try {
+                        updatePeriodFilterMatchCount();
+                    } finally {
+                        clearFilterPopupLoadingState();
+                    }
                 }
-            }, 64);
+            });
         }
 
         function toggleFilterPopupNoteTag(tag) {
@@ -11397,17 +11611,6 @@
             });
 
             menu.addEventListener('click', (event) => event.stopPropagation());
-
-            document.addEventListener('mousedown', (event) => {
-                if (menu.classList.contains('hidden')) {
-                    return;
-                }
-                const target = event.target;
-                if (picker.contains(target) || menu.contains(target)) {
-                    return;
-                }
-                closeFilterPopupNoteTagMenu();
-            });
 
             window.addEventListener('resize', () => {
                 if (!menu.classList.contains('hidden')) {
@@ -11585,6 +11788,7 @@
             closeFilterPopupNoteTagMenu();
             closeFilterPopupConnectionNoteTagMenu();
             closeFilterPopupIntersectionKindMenu();
+            closeFilterPopupNonexistGreen005Menu();
             const menu = el('filterPopupNonexistColorMenu');
             const btn = el('filterPopupNonexistColorBtn');
             const picker = el('filterPopupNonexistColorPicker');
@@ -11644,16 +11848,6 @@
                 }
             });
             menu.addEventListener('click', (event) => event.stopPropagation());
-            document.addEventListener('mousedown', (event) => {
-                if (menu.classList.contains('hidden')) {
-                    return;
-                }
-                const target = event.target;
-                if (picker.contains(target) || menu.contains(target)) {
-                    return;
-                }
-                closeFilterPopupNonexistColorMenu();
-            });
             window.addEventListener('resize', () => {
                 if (!menu.classList.contains('hidden')) {
                     positionFilterPopupNonexistColorMenu();
@@ -11664,8 +11858,12 @@
         function closeFilterPopupNonexistGreen005Menu() {
             const menu = el('filterPopupNonexistGreen005Menu');
             const btn = el('filterPopupNonexistGreen005Btn');
+            const picker = el('filterPopupNonexistGreen005Picker');
             if (menu) {
                 menu.classList.add('hidden');
+                if (picker && menu.parentElement === document.body) {
+                    picker.appendChild(menu);
+                }
             }
             if (btn) {
                 btn.setAttribute('aria-expanded', 'false');
@@ -11773,15 +11971,20 @@
                 return;
             }
             filterNonexistGreen005000 = next;
-            saveFilterNonexistSettings();
-            invalidateFilterPopupRenderCache();
             syncFilterPopupNonexistGreen005PickerUi();
             highlightFilterPopupNonexistGreen005Menu();
-            if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true });
-            } else {
-                updateFilterPopupNonexist005ObservationHeader();
-            }
+            deferFilterPopupHeavyWork(() => {
+                saveFilterNonexistSettings();
+                if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
+                    rebuildFilterPopupAfterParamChange();
+                } else {
+                    try {
+                        updateFilterPopupNonexist005ObservationHeader();
+                    } finally {
+                        clearFilterPopupLoadingState();
+                    }
+                }
+            });
         }
 
         function isNonexist005000ObservationUiActive() {
@@ -12016,10 +12219,14 @@
             buildFilterPopupNonexistGreen005Menu();
             const menu = el('filterPopupNonexistGreen005Menu');
             const btn = el('filterPopupNonexistGreen005Btn');
-            if (!menu || !btn) {
+            const picker = el('filterPopupNonexistGreen005Picker');
+            if (!menu || !btn || !picker) {
                 return;
             }
             closeFilterPopupNonexistColorMenu();
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
             highlightFilterPopupNonexistGreen005Menu();
             positionFilterPopupNonexistGreen005Menu();
             menu.classList.remove('hidden');
@@ -12050,16 +12257,6 @@
                 }
             });
             menu.addEventListener('click', (event) => event.stopPropagation());
-            document.addEventListener('mousedown', (event) => {
-                if (menu.classList.contains('hidden')) {
-                    return;
-                }
-                const target = event.target;
-                if (picker.contains(target) || menu.contains(target)) {
-                    return;
-                }
-                closeFilterPopupNonexistGreen005Menu();
-            });
             window.addEventListener('resize', () => {
                 if (!menu.classList.contains('hidden')) {
                     positionFilterPopupNonexistGreen005Menu();
@@ -12116,7 +12313,9 @@
                 if (fi < 0) {
                     skipMarkers = true;
                 } else if (typeof sheetManager.findAllPosnfreqMatchingNumbers === 'function') {
-                    markNums = sheetManager.findAllPosnfreqMatchingNumbers(rows, fi, posnfreqRefSignature);
+                    markNums = sheetManager.findAllPosnfreqMatchingNumbers(
+                        rows, fi, posnfreqRefSignature, getPosnfreqMatchConstraintOpts()
+                    );
                     if (!markNums.length) {
                         skipMarkers = true;
                     }
@@ -12126,7 +12325,9 @@
             } else {
                 const spec = posnfreqSpecimenNum;
                 if (fi >= 0 && typeof sheetManager.findAllPosnfreqMatchingNumbers === 'function') {
-                    const all = sheetManager.findAllPosnfreqMatchingNumbers(rows, fi, posnfreqRefSignature);
+                    const all = sheetManager.findAllPosnfreqMatchingNumbers(
+                        rows, fi, posnfreqRefSignature, getPosnfreqMatchConstraintOpts()
+                    );
                     if (all.includes(spec)) {
                         markNums = [spec, ...all.filter((m) => m !== spec)];
                     } else if (all.length) {
@@ -12184,19 +12385,36 @@
             const meta = el('filterPopupPosnfreqMeta');
             const hex = el('filterPopupPosnfreqHexBtn');
             const srcBtn = el('filterPopupPosnfreqSourceBtn');
+            const freqBtn = el('filterPopupPosnfreqFreqBtn');
+            const posBtn = el('filterPopupPosnfreqPosBtn');
             try {
                 if (!meta || !hex || !srcBtn) {
                     return;
                 }
                 if (!isPosnfreqFilterMode(periodFilterMode)) {
                     srcBtn.hidden = true;
+                    if (freqBtn) {
+                        freqBtn.hidden = true;
+                    }
+                    if (posBtn) {
+                        posBtn.hidden = true;
+                    }
                     return;
                 }
                 if (posnfreqSpecimenNum == null || !posnfreqRefSignature) {
-                    meta.textContent = '';
                     hex.textContent = '';
                     hex.classList.remove('posnfreq-specimen-strict');
                     hex.removeAttribute('aria-pressed');
+                    if (freqBtn) {
+                        freqBtn.hidden = true;
+                        freqBtn.textContent = 'f=—';
+                    }
+                    if (posBtn) {
+                        posBtn.hidden = true;
+                        posBtn.textContent = '[—]';
+                        posBtn.classList.remove('is-posnfreq-relative');
+                        posBtn.setAttribute('aria-pressed', 'false');
+                    }
                     srcBtn.textContent = formatPosnfreqSourceRowLabel(posnfreqSourceRowIndex);
                     srcBtn.hidden = true;
                     syncPosnfreqSpecimenToggleUi();
@@ -12205,7 +12423,35 @@
                 hex.textContent = String(posnfreqSpecimenNum);
                 const pf = posnfreqRefSignature.frequency;
                 const plist = (posnfreqRefSignature.positions || []).join(',');
-                meta.textContent = `f=${pf} · [${plist}]`;
+                if (freqBtn) {
+                    freqBtn.hidden = false;
+                    freqBtn.textContent = `f=${pf}`;
+                    freqBtn.setAttribute('aria-pressed', posnfreqMatchFrequency ? 'true' : 'false');
+                    freqBtn.title = posnfreqMatchFrequency
+                        ? 'Đang lọc theo tần suất — click để tắt'
+                        : 'Không lọc theo tần suất — click để bật';
+                }
+                if (posBtn) {
+                    posBtn.hidden = false;
+                    const mode = posnfreqMatchPositionsMode === 'relative'
+                        ? 'relative'
+                        : (posnfreqMatchPositionsMode === 'off' ? 'off' : 'absolute');
+                    posBtn.textContent = mode === 'relative' ? `~[${plist}]` : `[${plist}]`;
+                    posBtn.classList.toggle('is-posnfreq-relative', mode === 'relative');
+                    posBtn.setAttribute('aria-pressed', mode === 'off' ? 'false' : 'true');
+                    posBtn.dataset.posnfreqPosMode = mode;
+                    if (mode === 'off') {
+                        posBtn.title = 'Không lọc theo vị trí — click: tuyệt đối → tương đối → tắt';
+                    } else if (mode === 'relative') {
+                        posBtn.title = posnfreqMatchFrequency
+                            ? 'Vị trí tương đối (cùng hình lệch, vd [1,6,9]≡[2,7,10]) — click để tắt'
+                            : 'Vị trí tương đối ít nhất (cho phép cha) — click để tắt';
+                    } else if (posnfreqMatchFrequency) {
+                        posBtn.title = 'Vị trí tuyệt đối khớp đúng — click: sang tương đối';
+                    } else {
+                        posBtn.title = 'Vị trí tuyệt đối ít nhất (cho phép cha) — click: sang tương đối';
+                    }
+                }
                 srcBtn.textContent = formatPosnfreqSourceRowLabel(posnfreqSourceRowIndex);
                 srcBtn.hidden = false;
                 syncPosnfreqSpecimenToggleUi();
@@ -12296,6 +12542,13 @@
         function schedulePosnfreqDeferredHeavyUi() {
             cancelPosnfreqPhase2Scheduling();
             const seq = ++posnfreqDeferredHeavyUiSeq;
+            const dockEarly = el('filterPopupDock');
+            const popupOpen = !!(periodFilterEnabled && dockEarly && !dockEarly.classList.contains('hidden'));
+            try {
+                if (popupOpen) {
+                    showFilterPopupLoading();
+                }
+            } catch (eLoad) { /* ignore */ }
             const runPhase2 = () => {
                 posnfreqPhase2IdleId = 0;
                 posnfreqPhase2TimeoutId = 0;
@@ -12324,7 +12577,7 @@
                             clearFilterPopupRowFocus();
                             resetFilterPopupPositionUi();
                         } catch (eClr) {
-                            /* ignore */
+                            /* ignore */ 
                         }
                         updatePeriodFilterMatchCount();
                         syncPeriodFilterNavModeToIframe();
@@ -12339,6 +12592,14 @@
                     /* ignore */
                 }
             };
+            // Popup mở: đợi paint overlay xong (setTimeout) rồi mới nặng — không dùng rAF (rAF trước paint).
+            if (popupOpen) {
+                posnfreqPhase2TimeoutId = setTimeout(() => {
+                    posnfreqPhase2TimeoutId = 0;
+                    runPhase2();
+                }, 0);
+                return;
+            }
             posnfreqPhase2BarrierRaf1 = requestAnimationFrame(() => {
                 posnfreqPhase2BarrierRaf1 = 0;
                 if (seq !== posnfreqDeferredHeavyUiSeq) {
@@ -12522,8 +12783,16 @@
                 if (dist < 8) {
                     if (posnfreqSpecimenNum != null && Number.isFinite(posnfreqSpecimenNum) && posnfreqRefSignature) {
                         posnfreqSpecimenStrict = !posnfreqSpecimenStrict;
-                        syncPosnfreqMetaText();
-                        schedulePosnfreqDeferredHeavyUi();
+                        try {
+                            syncPosnfreqSpecimenToggleUi();
+                            showFilterPopupLoading();
+                        } catch (eShow) { /* ignore */ }
+                        yieldAfterFilterPopupPaint(() => {
+                            try {
+                                syncPosnfreqMetaText();
+                            } catch (eSync) { /* ignore */ }
+                            schedulePosnfreqDeferredHeavyUi();
+                        });
                     }
                 } else {
                     const hit = elementFromPointInOkFrame(cx, cy);
@@ -12593,6 +12862,92 @@
                     syncMainRowFromFilter(posnfreqSourceRowIndex, { full: true });
                 });
             }
+
+            /** Cập nhật tức thì chỉ 2 nút f / [] — không broadcast / không logic nặng. */
+            const paintPosnfreqConstraintButtonsNow = () => {
+                const freqBtnNow = el('filterPopupPosnfreqFreqBtn');
+                const posBtnNow = el('filterPopupPosnfreqPosBtn');
+                if (!posnfreqRefSignature) {
+                    return;
+                }
+                const pf = posnfreqRefSignature.frequency;
+                const plist = (posnfreqRefSignature.positions || []).join(',');
+                if (freqBtnNow) {
+                    freqBtnNow.hidden = false;
+                    freqBtnNow.textContent = `f=${pf}`;
+                    freqBtnNow.setAttribute('aria-pressed', posnfreqMatchFrequency ? 'true' : 'false');
+                }
+                if (posBtnNow) {
+                    const mode = posnfreqMatchPositionsMode === 'relative'
+                        ? 'relative'
+                        : (posnfreqMatchPositionsMode === 'off' ? 'off' : 'absolute');
+                    posBtnNow.hidden = false;
+                    posBtnNow.textContent = mode === 'relative' ? `~[${plist}]` : `[${plist}]`;
+                    posBtnNow.classList.toggle('is-posnfreq-relative', mode === 'relative');
+                    posBtnNow.setAttribute('aria-pressed', mode === 'off' ? 'false' : 'true');
+                    posBtnNow.dataset.posnfreqPosMode = mode;
+                }
+            };
+
+            const togglePosnfreqConstraint = (kind) => {
+                if (!isPosnfreqFilterMode(periodFilterMode) || !periodFilterEnabled) {
+                    return;
+                }
+                if (posnfreqSpecimenNum == null || !posnfreqRefSignature) {
+                    return;
+                }
+                if (kind === 'frequency') {
+                    posnfreqMatchFrequency = !posnfreqMatchFrequency;
+                } else if (kind === 'positions') {
+                    if (posnfreqMatchPositionsMode === 'absolute') {
+                        posnfreqMatchPositionsMode = 'relative';
+                    } else if (posnfreqMatchPositionsMode === 'relative') {
+                        posnfreqMatchPositionsMode = 'off';
+                    } else {
+                        posnfreqMatchPositionsMode = 'absolute';
+                    }
+                } else {
+                    return;
+                }
+                // Sync trong cùng gesture: tô nút + đồng hồ trước khi yield.
+                paintPosnfreqConstraintButtonsNow();
+                try {
+                    showFilterPopupLoading();
+                } catch (eShow) { /* ignore */ }
+                yieldAfterFilterPopupPaint(() => {
+                    try {
+                        syncPosnfreqMetaText();
+                    } catch (eSync) { /* ignore */ }
+                    schedulePosnfreqDeferredHeavyUi();
+                });
+            };
+
+            const bindPosnfreqConstraintBtn = (btn, kind) => {
+                if (!btn || btn.dataset.posnfreqConstraintWired === '1') {
+                    return;
+                }
+                btn.dataset.posnfreqConstraintWired = '1';
+                // pointerdown: phản hồi trước click (tránh khựng rồi mới thấy xanh / đồng hồ).
+                btn.addEventListener('pointerdown', (ev) => {
+                    if (ev.button !== 0) {
+                        return;
+                    }
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    togglePosnfreqConstraint(kind);
+                });
+                btn.addEventListener('click', (ev) => {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    // Bàn phím (Enter/Space): detail === 0
+                    if (ev.detail === 0) {
+                        togglePosnfreqConstraint(kind);
+                    }
+                });
+            };
+
+            bindPosnfreqConstraintBtn(el('filterPopupPosnfreqFreqBtn'), 'frequency');
+            bindPosnfreqConstraintBtn(el('filterPopupPosnfreqPosBtn'), 'positions');
         }
 
         function onPosnfreqMainFocusRowChanged(focusIdx) {
@@ -13308,7 +13663,9 @@
                 return null;
             }
             const refSig = posnfreqRefSignature || null;
-            filterHeader2MauCacheRef = sheetManager.ensureFilterRowMauSetsCache(base, refSig);
+            filterHeader2MauCacheRef = sheetManager.ensureFilterRowMauSetsCache(
+                base, refSig, getPosnfreqMatchConstraintOpts()
+            );
             return filterHeader2MauCacheRef;
         }
 
@@ -13842,17 +14199,33 @@
                 updateFilterPopupMatchCount();
                 return;
             }
-            if (options.forceHeavy) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true });
-                return;
-            }
-            const wrap = el('filterTableWrap');
-            const hasTable = wrap && wrap.querySelector('table.sheet-data-table');
-            if (hasTable && filterPopupHasLiveTable(wrap, getFilterPopupRenderCacheKey())) {
-                applyFilterHeader2LiveFilter(options);
-                return;
-            }
-            refreshFilterPopup({ syncMain: false, immediateRender: true });
+            showFilterPopupLoading();
+            yieldAfterFilterPopupPaint(() => {
+                try {
+                    if (options.forceHeavy) {
+                        invalidateFilterPopupRenderCache();
+                        const wrapHeavy = el('filterTableWrap');
+                        if (wrapHeavy) {
+                            wrapHeavy.innerHTML = '';
+                        }
+                        refreshFilterPopupHeavy({ syncMain: false, clearPopupNav: true });
+                        return;
+                    }
+                    const wrap = el('filterTableWrap');
+                    const hasTable = wrap && wrap.querySelector('table.sheet-data-table');
+                    if (hasTable && filterPopupHasLiveTable(wrap, getFilterPopupRenderCacheKey())) {
+                        applyFilterHeader2LiveFilter(options);
+                        return;
+                    }
+                    invalidateFilterPopupRenderCache();
+                    if (wrap) {
+                        wrap.innerHTML = '';
+                    }
+                    refreshFilterPopupHeavy({ syncMain: false, clearPopupNav: true });
+                } finally {
+                    clearFilterPopupLoadingState();
+                }
+            });
         }
 
         function getFilterRowMauNumberSet(rowIndex) {
@@ -13864,7 +14237,7 @@
                 return [...cache.get(rowIndex)];
             }
             const refSig = posnfreqRefSignature || null;
-            return sheetManager.getFilterRowMauNumbers(rowIndex, refSig);
+            return sheetManager.getFilterRowMauNumbers(rowIndex, refSig, getPosnfreqMatchConstraintOpts());
         }
 
         function rowMatchesFilterHeader2(rowIndex) {
@@ -14406,14 +14779,20 @@
             }
             setFilterPopupPositionText(input, nextText);
             filterNonexistNum = nextNum;
-            saveFilterNonexistSettings();
-            if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true });
-            } else {
-                rebuildNonexistFilterModeCountOnly();
-                updatePeriodFilterMatchCount();
-            }
             syncFilterPopupNonexistSpinButtons();
+            deferFilterPopupHeavyWork(() => {
+                saveFilterNonexistSettings();
+                if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
+                    rebuildFilterPopupAfterParamChange();
+                } else {
+                    try {
+                        rebuildNonexistFilterModeCountOnly();
+                        updatePeriodFilterMatchCount();
+                    } finally {
+                        clearFilterPopupLoadingState();
+                    }
+                }
+            });
             return true;
         }
 
@@ -14428,14 +14807,20 @@
             if (filterNonexistNum == null && filterNonexistGreen005000) {
                 filterNonexistGreen005000 = false;
             }
-            saveFilterNonexistSettings();
-            if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true });
-            } else {
-                rebuildNonexistFilterModeCountOnly();
-                updatePeriodFilterMatchCount();
-            }
             syncFilterPopupNonexistSpinButtons();
+            deferFilterPopupHeavyWork(() => {
+                saveFilterNonexistSettings();
+                if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
+                    rebuildFilterPopupAfterParamChange();
+                } else {
+                    try {
+                        rebuildNonexistFilterModeCountOnly();
+                        updatePeriodFilterMatchCount();
+                    } finally {
+                        clearFilterPopupLoadingState();
+                    }
+                }
+            });
             return true;
         }
 
@@ -14489,25 +14874,33 @@
             if (filterNonexistNum == null && filterNonexistGreen005000) {
                 filterNonexistGreen005000 = false;
             }
-            saveFilterNonexistSettings();
             syncFilterPopupNonexistSpinButtons();
-            refreshFilterPopup({ syncMain: false, immediateRender: true });
+            deferFilterPopupHeavyWork(() => {
+                saveFilterNonexistSettings();
+                rebuildFilterPopupAfterParamChange();
+            });
             return true;
         }
 
         function applyNonexistFilterSettingsFromUi() {
             commitFilterPopupNonexistNumFromUi();
             commitFilterPopupNonexistBracketFromUi();
-            saveFilterNonexistSettings();
-            saveFilterNonexistBracketSettings();
             syncFilterPopupNonexistSpinButtons();
             syncFilterPopupNonexistBracketSpinButtons();
-            if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true });
-            } else {
-                rebuildNonexistFilterModeCountOnly();
-                updatePeriodFilterMatchCount();
-            }
+            deferFilterPopupHeavyWork(() => {
+                saveFilterNonexistSettings();
+                saveFilterNonexistBracketSettings();
+                if (periodFilterEnabled && isNonexistFilterMode(periodFilterMode)) {
+                    rebuildFilterPopupAfterParamChange();
+                } else {
+                    try {
+                        rebuildNonexistFilterModeCountOnly();
+                        updatePeriodFilterMatchCount();
+                    } finally {
+                        clearFilterPopupLoadingState();
+                    }
+                }
+            });
         }
 
         function getFilterPopupEmptyMessage(mode) {
@@ -15230,22 +15623,42 @@
             filterPopupPosnfreqGreenOnly = next;
             const wrap = el('filterTableWrap');
             const btn = el('filterPopupPosnfreqOverlapPct');
-            if (wrap) {
-                wrap.classList.toggle('filter-popup-posnfreq-green-only', next);
-            }
             if (btn && !btn.hidden) {
                 btn.setAttribute('aria-pressed', next ? 'true' : 'false');
             }
-            if (!opts.skipReconcile) {
-                reconcileFilterPopupActiveAfterSubfilterToggle();
+            const applyHeavy = () => {
+                const live = !!filterPopupPosnfreqGreenOnly;
+                if (wrap) {
+                    wrap.classList.toggle('filter-popup-posnfreq-green-only', live);
+                }
+                if (btn && !btn.hidden) {
+                    btn.setAttribute('aria-pressed', live ? 'true' : 'false');
+                }
+                if (!opts.skipReconcile) {
+                    reconcileFilterPopupActiveAfterSubfilterToggle();
+                }
+                if (!opts.skipCounts) {
+                    updateFilterPopupMatchCount();
+                    syncPeriodFilterNavModeToIframe();
+                }
+                requestAnimationFrame(() => {
+                    if (filterPopupActiveIdx >= 0) {
+                        scrollFilterPopupRowIntoView();
+                    }
+                });
+            };
+            if (opts.skipReconcile && opts.skipCounts) {
+                if (wrap) {
+                    wrap.classList.toggle('filter-popup-posnfreq-green-only', next);
+                }
+                return;
             }
-            if (!opts.skipCounts) {
-                updateFilterPopupMatchCount();
-                syncPeriodFilterNavModeToIframe();
-            }
-            requestAnimationFrame(() => {
-                if (filterPopupActiveIdx >= 0) {
-                    scrollFilterPopupRowIntoView();
+            showFilterPopupLoading();
+            yieldAfterFilterPopupPaint(() => {
+                try {
+                    applyHeavy();
+                } finally {
+                    clearFilterPopupLoadingState();
                 }
             });
         }
@@ -15256,15 +15669,26 @@
                 return;
             }
             btn.dataset.greenOnlyBound = '1';
-            btn.addEventListener('mousedown', (event) => {
-                event.stopPropagation();
-            });
-            btn.addEventListener('click', (event) => {
-                event.stopPropagation();
+            const run = () => {
                 if (btn.hidden) {
                     return;
                 }
                 setFilterPopupPosnfreqGreenOnly(!filterPopupPosnfreqGreenOnly);
+            };
+            btn.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                run();
+            });
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.detail === 0) {
+                    run();
+                }
             });
         }
 
@@ -15273,22 +15697,42 @@
             filterPopupConn3WindowOnly = next;
             const wrap = el('filterTableWrap');
             const btn = el('filterPopupConn3OverlapPct');
-            if (wrap) {
-                wrap.classList.toggle('filter-popup-posnfreq-green-only', next);
-            }
             if (btn && !btn.hidden) {
                 btn.setAttribute('aria-pressed', next ? 'true' : 'false');
             }
-            if (!opts.skipReconcile) {
-                reconcileFilterPopupActiveAfterSubfilterToggle();
+            const applyHeavy = () => {
+                const live = !!filterPopupConn3WindowOnly;
+                if (wrap) {
+                    wrap.classList.toggle('filter-popup-posnfreq-green-only', live);
+                }
+                if (btn && !btn.hidden) {
+                    btn.setAttribute('aria-pressed', live ? 'true' : 'false');
+                }
+                if (!opts.skipReconcile) {
+                    reconcileFilterPopupActiveAfterSubfilterToggle();
+                }
+                if (!opts.skipCounts) {
+                    updateFilterPopupMatchCount();
+                    syncPeriodFilterNavModeToIframe();
+                }
+                requestAnimationFrame(() => {
+                    if (filterPopupActiveIdx >= 0) {
+                        scrollFilterPopupRowIntoView();
+                    }
+                });
+            };
+            if (opts.skipReconcile && opts.skipCounts) {
+                if (wrap) {
+                    wrap.classList.toggle('filter-popup-posnfreq-green-only', next);
+                }
+                return;
             }
-            if (!opts.skipCounts) {
-                updateFilterPopupMatchCount();
-                syncPeriodFilterNavModeToIframe();
-            }
-            requestAnimationFrame(() => {
-                if (filterPopupActiveIdx >= 0) {
-                    scrollFilterPopupRowIntoView();
+            showFilterPopupLoading();
+            yieldAfterFilterPopupPaint(() => {
+                try {
+                    applyHeavy();
+                } finally {
+                    clearFilterPopupLoadingState();
                 }
             });
         }
@@ -15299,15 +15743,26 @@
                 return;
             }
             btn.dataset.conn3WindowBound = '1';
-            btn.addEventListener('mousedown', (event) => {
-                event.stopPropagation();
-            });
-            btn.addEventListener('click', (event) => {
-                event.stopPropagation();
+            const run = () => {
                 if (btn.hidden) {
                     return;
                 }
                 setFilterPopupConn3WindowOnly(!filterPopupConn3WindowOnly);
+            };
+            btn.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                run();
+            });
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.detail === 0) {
+                    run();
+                }
             });
         }
 
@@ -15316,20 +15771,40 @@
             filterPopupFollowSubfilter = next;
             const wrap = el('filterTableWrap');
             const btn = el('filterPopupFollowOverlapPct');
-            applyFilterPopupFollowSubfilterWrapClasses(wrap, next);
             if (btn && !btn.hidden) {
                 applyFilterPopupFollowSubfilterButtonUi(btn, next, filterPopupFollowDeterminedPct);
             }
-            if (!opts.skipReconcile) {
-                reconcileFilterPopupActiveAfterSubfilterToggle();
+            const applyHeavy = () => {
+                const live = filterPopupFollowSubfilter === 'determined' || filterPopupFollowSubfilter === 'undetermined'
+                    ? filterPopupFollowSubfilter
+                    : 'off';
+                applyFilterPopupFollowSubfilterWrapClasses(wrap, live);
+                if (btn && !btn.hidden) {
+                    applyFilterPopupFollowSubfilterButtonUi(btn, live, filterPopupFollowDeterminedPct);
+                }
+                if (!opts.skipReconcile) {
+                    reconcileFilterPopupActiveAfterSubfilterToggle();
+                }
+                if (!opts.skipCounts) {
+                    updateFilterPopupMatchCount();
+                    syncPeriodFilterNavModeToIframe();
+                }
+                requestAnimationFrame(() => {
+                    if (filterPopupActiveIdx >= 0) {
+                        scrollFilterPopupRowIntoView();
+                    }
+                });
+            };
+            if (opts.skipReconcile && opts.skipCounts) {
+                applyFilterPopupFollowSubfilterWrapClasses(wrap, next);
+                return;
             }
-            if (!opts.skipCounts) {
-                updateFilterPopupMatchCount();
-                syncPeriodFilterNavModeToIframe();
-            }
-            requestAnimationFrame(() => {
-                if (filterPopupActiveIdx >= 0) {
-                    scrollFilterPopupRowIntoView();
+            showFilterPopupLoading();
+            yieldAfterFilterPopupPaint(() => {
+                try {
+                    applyHeavy();
+                } finally {
+                    clearFilterPopupLoadingState();
                 }
             });
         }
@@ -15339,20 +15814,40 @@
             filterPopupConnectionSubfilter = next;
             const wrap = el('filterTableWrap');
             const btn = el('filterPopupConnectionOverlapPct');
-            applyFilterPopupConnectionSubfilterWrapClasses(wrap, next);
             if (btn && !btn.hidden) {
                 applyFilterPopupConnectionSubfilterButtonUi(btn, next, filterPopupConnectionUniquePct);
             }
-            if (!opts.skipReconcile) {
-                reconcileFilterPopupActiveAfterSubfilterToggle();
+            const applyHeavy = () => {
+                const live = filterPopupConnectionSubfilter === 'unique' || filterPopupConnectionSubfilter === 'duplicate'
+                    ? filterPopupConnectionSubfilter
+                    : 'off';
+                applyFilterPopupConnectionSubfilterWrapClasses(wrap, live);
+                if (btn && !btn.hidden) {
+                    applyFilterPopupConnectionSubfilterButtonUi(btn, live, filterPopupConnectionUniquePct);
+                }
+                if (!opts.skipReconcile) {
+                    reconcileFilterPopupActiveAfterSubfilterToggle();
+                }
+                if (!opts.skipCounts) {
+                    updateFilterPopupMatchCount();
+                    syncPeriodFilterNavModeToIframe();
+                }
+                requestAnimationFrame(() => {
+                    if (filterPopupActiveIdx >= 0) {
+                        scrollFilterPopupRowIntoView();
+                    }
+                });
+            };
+            if (opts.skipReconcile && opts.skipCounts) {
+                applyFilterPopupConnectionSubfilterWrapClasses(wrap, next);
+                return;
             }
-            if (!opts.skipCounts) {
-                updateFilterPopupMatchCount();
-                syncPeriodFilterNavModeToIframe();
-            }
-            requestAnimationFrame(() => {
-                if (filterPopupActiveIdx >= 0) {
-                    scrollFilterPopupRowIntoView();
+            showFilterPopupLoading();
+            yieldAfterFilterPopupPaint(() => {
+                try {
+                    applyHeavy();
+                } finally {
+                    clearFilterPopupLoadingState();
                 }
             });
         }
@@ -15363,15 +15858,26 @@
                 return;
             }
             btn.dataset.followDeterminedBound = '1';
-            btn.addEventListener('mousedown', (event) => {
-                event.stopPropagation();
-            });
-            btn.addEventListener('click', (event) => {
-                event.stopPropagation();
+            const run = () => {
                 if (btn.hidden) {
                     return;
                 }
                 setFilterPopupFollowSubfilter(getNextFilterPopupFollowSubfilter(filterPopupFollowSubfilter));
+            };
+            btn.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                run();
+            });
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.detail === 0) {
+                    run();
+                }
             });
         }
 
@@ -15381,15 +15887,26 @@
                 return;
             }
             btn.dataset.connectionOverlapBound = '1';
-            btn.addEventListener('mousedown', (event) => {
-                event.stopPropagation();
-            });
-            btn.addEventListener('click', (event) => {
-                event.stopPropagation();
+            const run = () => {
                 if (btn.hidden) {
                     return;
                 }
                 setFilterPopupConnectionSubfilter(getNextFilterPopupConnectionSubfilter(filterPopupConnectionSubfilter));
+            };
+            btn.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                run();
+            });
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.detail === 0) {
+                    run();
+                }
             });
         }
 
@@ -15878,31 +16395,6 @@
                 event.stopPropagation();
             });
 
-            const dismissPeriodFilterModeMenuUnlessControl = (event) => {
-                if (menu.classList.contains('hidden')) {
-                    return;
-                }
-                const target = event.target;
-                if (isFloatingPopupInteractionTarget(target)) {
-                    closePeriodFilterModeMenu();
-                    return;
-                }
-                const toolbar = getPeriodFilterPicker('toolbar');
-                const popup = getPeriodFilterPicker('popup');
-                const ixPicker = el('filterPopupIntersectionPicker');
-                const connPicker = el('filterPopupConnectionNoteTagPicker');
-                if ((toolbar.picker && toolbar.picker.contains(target))
-                    || (popup.picker && popup.picker.contains(target))
-                    || (ixPicker && ixPicker.contains(target))
-                    || (connPicker && connPicker.contains(target))
-                    || menu.contains(target)) {
-                    return;
-                }
-                closePeriodFilterModeMenu();
-            };
-            document.addEventListener('pointerdown', dismissPeriodFilterModeMenuUnlessControl, true);
-            document.addEventListener('mousedown', dismissPeriodFilterModeMenuUnlessControl, true);
-
             window.addEventListener('resize', () => {
                 if (!menu.classList.contains('hidden')) {
                     positionPeriodFilterModeMenu();
@@ -16291,9 +16783,101 @@
             closeFilterPopupIntersectionKindMenu();
         }
 
+        /** true nếu click nằm trên menu đang mở hoặc nút mở của nó — không dismiss. */
+        function isFilterPopupFloatingMenuKeepOpenTarget(target) {
+            if (!(target instanceof Node)) {
+                return false;
+            }
+            const pairs = [
+                ['filterPopupNonexistColorMenu', 'filterPopupNonexistColorBtn'],
+                ['filterPopupNonexistGreen005Menu', 'filterPopupNonexistGreen005Btn'],
+                ['filterPopupNoteTagMenu', 'filterPopupNoteTagBtn'],
+                ['filterPopupConnectionNoteTagMenu', 'filterPopupConnectionNoteTagBtn'],
+                ['filterPopupIntersectionKindMenu', 'filterPopupIntersectionKindBtn']
+            ];
+            for (const [menuId, btnId] of pairs) {
+                const menu = el(menuId);
+                if (!menu || menu.classList.contains('hidden')) {
+                    continue;
+                }
+                if (menu.contains(target)) {
+                    return true;
+                }
+                const btn = el(btnId);
+                if (btn && btn.contains(target)) {
+                    return true;
+                }
+            }
+            const periodMenu = typeof getPeriodFilterMenu === 'function' ? getPeriodFilterMenu() : el('periodFilterModeMenu');
+            if (periodMenu && !periodMenu.classList.contains('hidden')) {
+                if (periodMenu.contains(target)) {
+                    return true;
+                }
+                for (const which of ['toolbar', 'popup']) {
+                    const pickerInfo = typeof getPeriodFilterPicker === 'function'
+                        ? getPeriodFilterPicker(which)
+                        : { picker: null, modeBtn: null };
+                    if (pickerInfo.modeBtn && pickerInfo.modeBtn.contains(target)) {
+                        return true;
+                    }
+                    if (pickerInfo.picker && pickerInfo.picker.contains(target)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function dismissFilterPopupFloatingMenusIfOutside(event) {
+            const target = event && event.target;
+            if (isFilterPopupFloatingMenuKeepOpenTarget(target)) {
+                return;
+            }
+            closeAllFilterPopupFloatingMenus();
+        }
+
+        function bindOkFrameFilterPopupMenuDismiss() {
+            const frame = el('okFrame');
+            if (!frame) {
+                return;
+            }
+            const bindDoc = () => {
+                try {
+                    const doc = frame.contentDocument;
+                    if (!doc || !doc.documentElement || doc.documentElement.dataset.filterPopupMenuDismissBound === '1') {
+                        return;
+                    }
+                    doc.documentElement.dataset.filterPopupMenuDismissBound = '1';
+                    doc.addEventListener('pointerdown', dismissFilterPopupFloatingMenusIfOutside, true);
+                    doc.addEventListener('mousedown', dismissFilterPopupFloatingMenusIfOutside, true);
+                } catch (e) { /* ignore */ }
+            };
+            frame.addEventListener('load', bindDoc);
+            bindDoc();
+        }
+
+        function initFilterPopupFloatingMenusOutsideDismiss() {
+            if (document.documentElement.dataset.filterPopupFloatingMenuDismissBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.filterPopupFloatingMenuDismissBound = '1';
+            document.addEventListener('pointerdown', dismissFilterPopupFloatingMenusIfOutside, true);
+            document.addEventListener('mousedown', dismissFilterPopupFloatingMenusIfOutside, true);
+            window.addEventListener('blur', () => {
+                setTimeout(() => {
+                    if (document.activeElement === el('okFrame')) {
+                        closeAllFilterPopupFloatingMenus();
+                    }
+                }, 0);
+            });
+            bindOkFrameFilterPopupMenuDismiss();
+        }
+
         function closeFilterPopup() {
             hideFilterPopupNonexist005PctTooltip();
             closeAllFilterPopupFloatingMenus();
+            filterPopupHeavyRefreshSeq++;
+            clearFilterPopupLoadingState();
             const dock = el('filterPopupDock');
             if (!dock) {
                 return;
@@ -17453,11 +18037,15 @@
                     ? String(posnfreqSourceRowIndex)
                     : 'x';
                 const strict = posnfreqSpecimenStrict ? '1' : '0';
+                const mf = posnfreqMatchFrequency ? '1' : '0';
+                const mp = posnfreqMatchPositionsMode === 'relative'
+                    ? 'rel'
+                    : (posnfreqMatchPositionsMode === 'off' ? '0' : 'abs');
                 let sig = 'x';
                 if (posnfreqRefSignature && Array.isArray(posnfreqRefSignature.positions)) {
                     sig = `${posnfreqRefSignature.frequency}:${posnfreqRefSignature.positions.join('.')}`;
                 }
-                posnfreqKey = `pf:${sn}:${src}:${strict}:${sig}`;
+                posnfreqKey = `pf:${sn}:${src}:${strict}:${mf}${mp}:${sig}`;
             }
             const ixKind = filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
             const opTok = (op) => {
@@ -17519,6 +18107,138 @@
             filterPopupIndicesCached = [];
             filterPopupBaseIndicesCached = [];
             invalidateFilterHeader2MauCache();
+        }
+
+        function getFilterPopupLoadingHtml() {
+            return (
+                '<div class="filter-popup-loading" role="status" aria-live="polite" aria-label="Đang lọc">'
+                + '<div class="filter-popup-loading-clock" aria-hidden="true">'
+                + '<div class="filter-popup-loading-clock-face"></div>'
+                + '<div class="filter-popup-loading-clock-hand filter-popup-loading-clock-hand--minute"></div>'
+                + '<div class="filter-popup-loading-clock-hand"></div>'
+                + '</div>'
+                + '<div class="filter-popup-loading-text">Đang lọc…</div>'
+                + '</div>'
+            );
+        }
+
+        /**
+         * Hiện overlay loading ngay (không xóa DOM bảng, không ép reflow).
+         * @returns {boolean}
+         */
+        function showFilterPopupLoading() {
+            const wrap = el('filterTableWrap');
+            const dock = el('filterPopupDock');
+            const overlay = el('filterPopupLoadingOverlay');
+            if (!wrap || !dock || dock.classList.contains('hidden') || !overlay) {
+                return false;
+            }
+            wrap.setAttribute('aria-busy', 'true');
+            overlay.hidden = false;
+            overlay.setAttribute('aria-hidden', 'false');
+            return true;
+        }
+
+        function clearFilterPopupLoadingState(wrapEl) {
+            const wrap = wrapEl || el('filterTableWrap');
+            const overlay = el('filterPopupLoadingOverlay');
+            if (wrap) {
+                wrap.removeAttribute('aria-busy');
+            }
+            if (overlay) {
+                overlay.hidden = true;
+                overlay.setAttribute('aria-hidden', 'true');
+            }
+        }
+
+        /**
+         * Chạy cb sau paint (macrotask). Không dùng rAF — rAF chạy trước paint.
+         */
+        function yieldAfterFilterPopupPaint(cb) {
+            setTimeout(() => {
+                try {
+                    cb();
+                } catch (eCb) { /* ignore */ }
+            }, 0);
+        }
+
+        /**
+         * UI đã đổi xong → hiện đồng hồ ngay → sau paint mới chạy work nặng (refresh bảng…).
+         */
+        function deferFilterPopupHeavyWork(workFn) {
+            showFilterPopupLoading();
+            const seq = ++filterPopupHeavyRefreshSeq;
+            yieldAfterFilterPopupPaint(() => {
+                if (seq !== filterPopupHeavyRefreshSeq) {
+                    return;
+                }
+                try {
+                    workFn();
+                } catch (eWork) { /* ignore */ }
+            });
+        }
+
+        /** Sau khi đổi tham số lọc: rebuild bảng (loading đã hiện bởi deferFilterPopupHeavyWork). */
+        function rebuildFilterPopupAfterParamChange() {
+            if (isPeriodFilterContextSheet()) {
+                invalidateFilterPopupRenderCache();
+                const wrap = el('filterTableWrap');
+                if (wrap) {
+                    wrap.innerHTML = '';
+                }
+                try {
+                    refreshFilterPopupHeavy({
+                        syncMain: false,
+                        clearPopupNav: true
+                    });
+                } finally {
+                    clearFilterPopupLoadingState();
+                }
+            } else {
+                try {
+                    rebuildFilterModeCounts();
+                    updatePeriodFilterMatchCount();
+                } finally {
+                    clearFilterPopupLoadingState();
+                }
+            }
+        }
+
+        /**
+         * Hiện overlay ngay → sau paint mới reset DOM + chạy heavy (mọi mode).
+         */
+        function scheduleFilterPopupHeavyRefresh(options = {}) {
+            const syncMain = options.syncMain === true;
+            const clearPopupNav = options.clearPopupNav === true;
+            showFilterPopupLoading();
+            const seq = ++filterPopupHeavyRefreshSeq;
+            yieldAfterFilterPopupPaint(() => {
+                if (seq !== filterPopupHeavyRefreshSeq) {
+                    return;
+                }
+                try {
+                    invalidateFilterPopupRenderCache();
+                    const wrap = el('filterTableWrap');
+                    if (wrap) {
+                        wrap.innerHTML = '';
+                    }
+                } catch (eClr) { /* ignore */ }
+                yieldAfterFilterPopupPaint(() => {
+                    if (seq !== filterPopupHeavyRefreshSeq) {
+                        return;
+                    }
+                    try {
+                        refreshFilterPopupHeavy({
+                            syncMain,
+                            clearPopupNav
+                        });
+                    } finally {
+                        if (seq === filterPopupHeavyRefreshSeq) {
+                            clearFilterPopupLoadingState();
+                        }
+                    }
+                });
+            });
         }
 
         function filterPopupHasLiveTable(wrap, cacheKey) {
@@ -17668,7 +18388,7 @@
             }
             if (!domMatchesFresh) {
                 invalidateFilterPopupRenderCache();
-                refreshFilterPopupHeavy({
+                scheduleFilterPopupHeavyRefresh({
                     syncMain: options.syncMain === true,
                     clearPopupNav: options.clearPopupNav === true
                 });
@@ -17679,7 +18399,7 @@
                     wrap.innerHTML = filterPopupHtmlCache;
                 } else {
                     invalidateFilterPopupRenderCache();
-                    refreshFilterPopupHeavy({
+                    scheduleFilterPopupHeavyRefresh({
                         syncMain: options.syncMain === true,
                         clearPopupNav: options.clearPopupNav === true
                     });
@@ -17800,7 +18520,9 @@
                     return;
                 }
                 const allM = typeof sheetManager.findAllPosnfreqMatchingNumbers === 'function'
-                    ? sheetManager.findAllPosnfreqMatchingNumbers(rows, idx, posnfreqRefSignature)
+                    ? sheetManager.findAllPosnfreqMatchingNumbers(
+                        rows, idx, posnfreqRefSignature, getPosnfreqMatchConstraintOpts()
+                    )
                     : [];
                 if (!allM.length) {
                     return;
@@ -18185,7 +18907,6 @@
             const syncMain = options.syncMain === true;
             const forceRender = options.forceRender === true;
             const dock = el('filterPopupDock');
-            const popupWasHidden = !dock || dock.classList.contains('hidden');
 
             if (!periodFilterEnabled) {
                 closeFilterPopup();
@@ -18214,15 +18935,8 @@
                 return;
             }
 
-            if (!options.immediateRender && (popupWasHidden || options.deferHeavy)) {
-                requestAnimationFrame(() => refreshFilterPopupHeavy({
-                    syncMain,
-                    clearPopupNav: options.clearPopupNav === true
-                }));
-                return;
-            }
-
-            refreshFilterPopupHeavy({
+            // Mọi mode: reset bảng + loading kim đồng hồ, rồi mới tính lọc (tránh đơ UI khi toggle).
+            scheduleFilterPopupHeavyRefresh({
                 syncMain,
                 clearPopupNav: options.clearPopupNav === true
             });
@@ -19551,6 +20265,7 @@
             initAnswerPopupResize();
             initAnswerPopupLayoutOnWindowResize();
             initFloatingPopupDockStacking();
+            initFilterPopupFloatingMenusOutsideDismiss();
             loadData();
 
             window.addEventListener('trackingObserveFocusNumsChanged', (ev) => {
@@ -19879,8 +20594,16 @@
                         return;
                     }
                     posnfreqSpecimenStrict = !posnfreqSpecimenStrict;
-                    syncPosnfreqMetaText();
-                    schedulePosnfreqDeferredHeavyUi();
+                    try {
+                        syncPosnfreqSpecimenToggleUi();
+                        showFilterPopupLoading();
+                    } catch (eShow) { /* ignore */ }
+                    yieldAfterFilterPopupPaint(() => {
+                        try {
+                            syncPosnfreqMetaText();
+                        } catch (eSync) { /* ignore */ }
+                        schedulePosnfreqDeferredHeavyUi();
+                    });
                     return;
                 }
                 if (msg.type === 'rightPaneNavKey') {
@@ -20034,6 +20757,7 @@
                     applyLeftCircledNumsToComboH1(msg.nums);
                 } else if (msg.type === 'childFocus' && msg.region === 'left') {
                     rememberKeyboardFocusTarget('left');
+                    closeAllFilterPopupFloatingMenus();
                 }
             });
             // left controls live inside the iframe now; guard bindings in parent

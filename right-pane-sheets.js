@@ -1481,11 +1481,178 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Khóa vị trí tương đối: trừ min → cùng “hình” lệch nhau cùng khóa
+     * (vd [1,6,9] và [2,7,10] → "0,5,8"; [5,7] và [1,3] → "0,2").
+     */
+    posnfreqRelativeKey(positions) {
+        const arr = this.posnfreqNormalizePositionsList(positions);
+        if (!arr.length) {
+            return '';
+        }
+        const min = arr[0];
+        let out = '0';
+        for (let i = 1; i < arr.length; i++) {
+            out += `,${arr[i] - min}`;
+        }
+        return out;
+    }
+
+    /** Copy + số hóa + sort tăng dần nhãn Chuỗi. */
+    posnfreqNormalizePositionsList(positions) {
+        const src = Array.isArray(positions) ? positions : [];
+        const out = [];
+        for (let i = 0; i < src.length; i++) {
+            const n = Number(src[i]);
+            if (Number.isFinite(n)) {
+                out.push(n);
+            }
+        }
+        out.sort((a, b) => a - b);
+        return out;
+    }
+
+    /**
+     * Multiset bao hàm tuyệt đối: ref ⊆ cand (vd [1,6,9] ⊆ [1,2,6,9]).
+     */
+    posnfreqPositionsCover(candPositions, refPositions) {
+        const cand = this.posnfreqNormalizePositionsList(candPositions);
+        const ref = this.posnfreqNormalizePositionsList(refPositions);
+        if (ref.length === 0) {
+            return true;
+        }
+        if (cand.length < ref.length) {
+            return false;
+        }
+        const need = new Map();
+        for (let i = 0; i < ref.length; i++) {
+            const p = ref[i];
+            need.set(p, (need.get(p) || 0) + 1);
+        }
+        for (let i = 0; i < cand.length; i++) {
+            const p = cand[i];
+            const left = need.get(p);
+            if (left == null) {
+                continue;
+            }
+            if (left <= 1) {
+                need.delete(p);
+            } else {
+                need.set(p, left - 1);
+            }
+        }
+        return need.size === 0;
+    }
+
+    /**
+     * Bao hàm tương đối (khi tắt f): tồn tại tập con trong cand cùng khóa tương đối với ref.
+     * vd ref [5,7] ≡ hình "0,2" → [1,3], [2,4], … và cha [1,3,10] (có [1,3]) đều thỏa.
+     */
+    posnfreqRelativeCover(candPositions, refPositions) {
+        const cand = this.posnfreqNormalizePositionsList(candPositions);
+        const ref = this.posnfreqNormalizePositionsList(refPositions);
+        if (ref.length === 0) {
+            return true;
+        }
+        if (cand.length < ref.length) {
+            return false;
+        }
+        const refKey = this.posnfreqRelativeKey(ref);
+        if (cand.length === ref.length) {
+            return this.posnfreqRelativeKey(cand) === refKey;
+        }
+        // Nhanh: mẫu 2 điểm — chỉ cần một cặp cùng hiệu số (vd [5,7] → diff 2).
+        if (ref.length === 2) {
+            const diff = ref[1] - ref[0];
+            for (let i = 0; i < cand.length; i++) {
+                for (let j = i + 1; j < cand.length; j++) {
+                    if (cand[j] - cand[i] === diff) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        const need = ref.length;
+        const path = [];
+        const dfs = (start) => {
+            if (path.length === need) {
+                return this.posnfreqRelativeKey(path) === refKey;
+            }
+            const remain = need - path.length;
+            for (let i = start; i <= cand.length - remain; i++) {
+                path.push(cand[i]);
+                if (dfs(i + 1)) {
+                    return true;
+                }
+                path.pop();
+            }
+            return false;
+        };
+        return dfs(0);
+    }
+
+    /**
+     * @param {{ matchFrequency?: boolean, matchPositionsMode?: string, matchPositions?: boolean|string }|null|undefined} matchOpts
+     *   matchPositionsMode: 'off' | 'absolute' | 'relative' (mặc định absolute).
+     */
+    normalizePosnfreqMatchOpts(matchOpts) {
+        const o = matchOpts && typeof matchOpts === 'object' ? matchOpts : {};
+        let mode = o.matchPositionsMode;
+        if (mode !== 'off' && mode !== 'absolute' && mode !== 'relative') {
+            if (o.matchPositions === false || o.matchPositions === 'off') {
+                mode = 'off';
+            } else if (o.matchPositions === 'relative') {
+                mode = 'relative';
+            } else {
+                mode = 'absolute';
+            }
+        }
+        const hasFreq = Object.prototype.hasOwnProperty.call(o, 'matchFrequency');
+        return {
+            matchFrequency: hasFreq ? !!o.matchFrequency : true,
+            matchPositionsMode: mode
+        };
+    }
+
+    /**
+     * So khớp chữ ký posnfreq theo từng ràng buộc (f / positions) có thể tắt độc lập.
+     * - matchFrequency: đúng bằng f của mẫu.
+     * - absolute: vị trí tuyệt đối (có f → khớp đúng []; tắt f → ⊆).
+     * - relative: cùng hình lệch (vd [5,7]≡[1,3]≡[2,4]); tắt f → ⊆ tương đối (vd [1,3,10] ok).
+     */
+    posnfreqSignatureMatches(sig, refSig, matchOpts) {
+        if (!sig || sig.frequency === 0) {
+            return false;
+        }
+        if (!refSig || !Number.isFinite(refSig.frequency)) {
+            return false;
+        }
+        const opts = this.normalizePosnfreqMatchOpts(matchOpts);
+        if (opts.matchFrequency && sig.frequency !== refSig.frequency) {
+            return false;
+        }
+        const mode = opts.matchPositionsMode;
+        if (mode === 'off') {
+            return true;
+        }
+        if (mode === 'relative') {
+            // Có f: cùng độ dài → cover ≡ khớp đúng hình lệch.
+            // Tắt f: cho phép cha dài hơn miễn còn một tập con cùng hình.
+            return this.posnfreqRelativeCover(sig.positions, refSig.positions);
+        }
+        if (opts.matchFrequency) {
+            return this.posnfreqPositionsKey(sig) === this.posnfreqPositionsKey(refSig);
+        }
+        return this.posnfreqPositionsCover(sig.positions, refSig.positions);
+    }
+
+    /**
      * @param {object|null} refSig — chữ ký đầy đủ cửa sổ 10 chuỗi của specimen trên kỳ mẫu (f + multiset nhãn Chuỗi)
      * @param {boolean} specimenStrict — true (Số): chỉ số specimen có cùng refSig;
      *                                   false (Mẫu): tồn tại m ∈ [1..35] có cùng refSig (lục giác có thể “đặt” lên m)
+     * @param {{ matchFrequency?: boolean, matchPositions?: boolean }|null|undefined} [matchOpts]
      */
-    rowMatchesPosnfreqFilter(rows, rowIndex, specimenNum, refSig, specimenStrict) {
+    rowMatchesPosnfreqFilter(rows, rowIndex, specimenNum, refSig, specimenStrict, matchOpts) {
         const row = rows[rowIndex];
         if (!row || this.isEmptyResultRow(row)) {
             return false;
@@ -1495,19 +1662,11 @@ class RightPaneSheetManager {
         }
         if (specimenStrict) {
             const sig = this.computePosnfreqSignature(rows, rowIndex, specimenNum);
-            if (!sig || sig.frequency === 0) {
-                return false;
-            }
-            return sig.frequency === refSig.frequency
-                && this.posnfreqPositionsKey(sig) === this.posnfreqPositionsKey(refSig);
+            return this.posnfreqSignatureMatches(sig, refSig, matchOpts);
         }
         for (let m = 1; m <= 35; m++) {
             const sig = this.computePosnfreqSignature(rows, rowIndex, m);
-            if (!sig || sig.frequency === 0) {
-                continue;
-            }
-            if (sig.frequency === refSig.frequency
-                && this.posnfreqPositionsKey(sig) === this.posnfreqPositionsKey(refSig)) {
+            if (this.posnfreqSignatureMatches(sig, refSig, matchOpts)) {
                 return true;
             }
         }
@@ -1516,8 +1675,9 @@ class RightPaneSheetManager {
 
     /**
      * Mọi m ∈ [1..35] có chữ ký posnfreq trùng refSig trên rowIndex (đã sort tăng dần).
+     * @param {{ matchFrequency?: boolean, matchPositions?: boolean }|null|undefined} [matchOpts]
      */
-    findAllPosnfreqMatchingNumbers(rows, rowIndex, refSig) {
+    findAllPosnfreqMatchingNumbers(rows, rowIndex, refSig, matchOpts) {
         if (!refSig || !Number.isFinite(refSig.frequency)) {
             return [];
         }
@@ -1528,11 +1688,7 @@ class RightPaneSheetManager {
         const out = [];
         for (let m = 1; m <= 35; m++) {
             const sig = this.computePosnfreqSignature(list, rowIndex, m);
-            if (!sig || sig.frequency === 0) {
-                continue;
-            }
-            if (sig.frequency === refSig.frequency
-                && this.posnfreqPositionsKey(sig) === this.posnfreqPositionsKey(refSig)) {
+            if (this.posnfreqSignatureMatches(sig, refSig, matchOpts)) {
                 out.push(m);
             }
         }
@@ -1542,8 +1698,8 @@ class RightPaneSheetManager {
     /**
      * Số nhỏ nhất m sao cho chữ ký posnfreq của m trên rowIndex khớp refSig (dùng cho viền lục giác Mẫu).
      */
-    findPosnfreqMatchingNumber(rows, rowIndex, refSig) {
-        const all = this.findAllPosnfreqMatchingNumbers(rows, rowIndex, refSig);
+    findPosnfreqMatchingNumber(rows, rowIndex, refSig, matchOpts) {
+        const all = this.findAllPosnfreqMatchingNumbers(rows, rowIndex, refSig, matchOpts);
         return all.length ? all[0] : null;
     }
 
@@ -1551,15 +1707,16 @@ class RightPaneSheetManager {
      * Tập số "mẫu" của một kỳ cho lọc header2 popup: posnfreq refSig nếu có, không thì 5 số chính result.
      * @param {number} rowIndex
      * @param {object|null} [refSignature]
+     * @param {{ matchFrequency?: boolean, matchPositions?: boolean }|null|undefined} [matchOpts]
      * @returns {number[]}
      */
-    getFilterRowMauNumbers(rowIndex, refSignature = null) {
+    getFilterRowMauNumbers(rowIndex, refSignature = null, matchOpts = null) {
         const rows = this.getSourceSheetRows();
         if (!Array.isArray(rows) || rowIndex < 0 || rowIndex >= rows.length) {
             return [];
         }
         if (refSignature && typeof this.findAllPosnfreqMatchingNumbers === 'function') {
-            return this.findAllPosnfreqMatchingNumbers(rows, rowIndex, refSignature);
+            return this.findAllPosnfreqMatchingNumbers(rows, rowIndex, refSignature, matchOpts);
         }
         const row = rows[rowIndex];
         if (!row) {
@@ -1572,13 +1729,15 @@ class RightPaneSheetManager {
      * Tập mẫu theo kỳ cho lọc header2 — tính trước (posnfreq: tối đa 35 chữ ký / kỳ).
      * @param {number[]} indices
      * @param {object|null} [refSignature]
+     * @param {{ matchFrequency?: boolean, matchPositions?: boolean }|null|undefined} [matchOpts]
      * @returns {{ mauByRow: Map<number, Set<number>>, rowsByNum: Set<number>[] }}
      */
-    ensureFilterRowMauSetsCache(indices, refSignature = null) {
+    ensureFilterRowMauSetsCache(indices, refSignature = null, matchOpts = null) {
         const rows = this.getSourceSheetRows();
         const list = Array.isArray(indices) ? indices : [];
+        const opts = this.normalizePosnfreqMatchOpts(matchOpts);
         const sigPart = refSignature && Number.isFinite(refSignature.frequency)
-            ? `pnf:${refSignature.frequency}:${this.posnfreqPositionsKey(refSignature)}`
+            ? `pnf:${refSignature.frequency}:${this.posnfreqPositionsKey(refSignature)}:${opts.matchFrequency ? '1' : '0'}:${opts.matchPositionsMode}`
             : 'main';
         const cacheKey = `${rows.length}|${sigPart}|${list.length}:${list[0] ?? ''}:${list[list.length - 1] ?? ''}`;
         if (this._filterRowMauSetsCache && this._filterRowMauSetsCacheKey === cacheKey) {
@@ -1588,7 +1747,7 @@ class RightPaneSheetManager {
         const rowsByNum = Array.from({ length: 36 }, () => new Set());
         for (let i = 0; i < list.length; i++) {
             const rowIndex = list[i];
-            const nums = this.getFilterRowMauNumbers(rowIndex, refSignature);
+            const nums = this.getFilterRowMauNumbers(rowIndex, refSignature, matchOpts);
             const set = new Set(nums);
             mauByRow.set(rowIndex, set);
             for (let u = 0; u < nums.length; u++) {
@@ -1943,12 +2102,13 @@ class RightPaneSheetManager {
             }
             const refRow = Number.isFinite(o.refRowIndex) ? o.refRowIndex : -1;
             const specimenStrict = !!o.specimenStrict;
+            const matchOpts = this.normalizePosnfreqMatchOpts(o);
             let refSig = o.refSignature;
             if (!refSig && refRow >= 0) {
                 refSig = this.computePosnfreqSignature(rows, refRow, specimen);
             }
             for (let i = 0; i < rows.length; i++) {
-                if (this.rowMatchesPosnfreqFilter(rows, i, specimen, refSig, specimenStrict)) {
+                if (this.rowMatchesPosnfreqFilter(rows, i, specimen, refSig, specimenStrict, matchOpts)) {
                     indices.push(i);
                 }
             }
