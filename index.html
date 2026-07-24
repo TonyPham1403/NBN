@@ -3212,20 +3212,20 @@
             color: #ffffff;
         }
 
-        #phaseModeSelect {
+        .phase-mode-btn {
             position: absolute;
             inset: 0;
-            width: 100%;
-            height: 100%;
-            opacity: 0;
-            cursor: pointer;
+            z-index: 4;
+            margin: 0;
             padding: 0;
             border: 0;
-            border-radius: 0;
             background: transparent;
-            appearance: none;
-            -webkit-appearance: none;
-            -moz-appearance: none;
+            cursor: pointer;
+        }
+
+        .phase-mode-btn:focus-visible {
+            outline: 2px solid #7c3aed;
+            outline-offset: -2px;
         }
 
         .phase-controls .sheet-tools-mode-value {
@@ -3236,6 +3236,22 @@
             white-space: nowrap;
             text-transform: none;
             font-size: 9px;
+        }
+
+        #phaseModeMenu {
+            z-index: 1150;
+            min-width: 72px;
+        }
+
+        #phaseModeMenu .period-filter-mode-item {
+            justify-content: center;
+            gap: 0;
+            padding: 3px 8px;
+        }
+
+        #phaseModeMenu .period-filter-mode-item.selected {
+            background: #f3e8ff;
+            color: #5b21b6;
         }
 
         .sheet-tools-toggle.active::before {
@@ -7134,7 +7150,7 @@
 <body>
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20250712checknotePairNeon"
+            <iframe id="okFrame" src="ok_left.html?v=20260725menuDismiss"
                 style="width:100%;height:100%;border:0"></iframe>
         </section>
 
@@ -7203,20 +7219,15 @@
                             aria-label="Toggle phase chain highlight (Alt)"></button>
                         <div id="phaseControls" class="phase-controls">
                             <div id="phaseModeWrap" class="sheet-tools-mode-wrap phase-mode-wrap"
-                                title="Chọn phase 1–10">
+                                title="Chọn phase 1–10 (đa giá trị)">
                                 <span id="phaseModeValue" class="sheet-tools-mode-value">PHASE 1</span>
-                                <select id="phaseModeSelect" aria-label="Chọn phase chuỗi 1–10">
-                                    <option value="1">PHASE 1</option>
-                                    <option value="2">PHASE 2</option>
-                                    <option value="3">PHASE 3</option>
-                                    <option value="4">PHASE 4</option>
-                                    <option value="5">PHASE 5</option>
-                                    <option value="6">PHASE 6</option>
-                                    <option value="7">PHASE 7</option>
-                                    <option value="8">PHASE 8</option>
-                                    <option value="9">PHASE 9</option>
-                                    <option value="10">PHASE 10</option>
-                                </select>
+                                <button type="button" id="phaseModeBtn" class="phase-mode-btn"
+                                    aria-haspopup="listbox" aria-expanded="false"
+                                    title="Chọn phase chuỗi 1–10 (đa giá trị)"
+                                    aria-label="Chọn phase chuỗi 1–10"></button>
+                                <ul id="phaseModeMenu" class="period-filter-mode-menu phase-mode-menu hidden"
+                                    role="listbox" aria-multiselectable="true"
+                                    aria-label="Phase chuỗi 1–10"></ul>
                             </div>
                         </div>
                     </div>
@@ -7788,6 +7799,7 @@
         const SUBMIT_RING_CHAIN_LABEL = 'Chuỗi []';
         const PHASE_ENABLED_KEY = 'phaseToolbarEnabled';
         const PHASE_CHAIN_LABEL_KEY = 'phaseChainLabel';
+        const PHASE_CHAIN_SELECTED_KEY = 'phaseChainSelected';
         const SUBMIT_RING_CHAIN_SELECTED_KEY = 'submitRingChainSelected';
         const SUBMIT_RING_CHAIN_COMBINE_AND_KEY = 'submitRingChainCombineAnd';
         /** Uflip: chữ U xoay 180° — intersection, cùng cap-height với C */
@@ -7963,9 +7975,10 @@
         let submitRingChainCombineAnd = false;
         /** Giá trị x (1–35) khi autoring chế độ custom */
         let submitRingCustomX = 15;
-        /** Phase toolbar: tô vuông tím 5 số theo chuỗi 1–10 */
+        /** Phase toolbar: tô vuông tím 5 số theo chuỗi 1–10 (đa chọn) */
         let phaseToolbarEnabled = false;
-        let phaseChainLabel = 1;
+        /** boolean[10] — phase 1..10 đang chọn */
+        let phaseChainSelected = [true, false, false, false, false, false, false, false, false, false];
         /** Chỉ số hàng sheet1 đang focus (để tính nhãn C/Uflip autoring). */
         let mainSheet1FocusRowIndex = -1;
         let periodFilterEnabled = false;
@@ -8867,6 +8880,7 @@
 
         function openSubmitRingModeMenu() {
             closePeriodFilterModeMenu();
+            closePhaseModeMenu();
             const menu = el('submitRingModeMenu');
             const modeWrap = el('submitRingModeWrap');
             const modeBtn = el('submitRingModeBtn');
@@ -9025,13 +9039,63 @@
             return n;
         }
 
-        function getPhaseDisplayLabel(label) {
-            return `PHASE ${clampPhaseChainLabel(label)}`;
+        function getPhaseChainSelectedLabels() {
+            const out = [];
+            const sel = Array.isArray(phaseChainSelected) ? phaseChainSelected : [];
+            for (let i = 0; i < 10; i++) {
+                if (sel[i]) {
+                    out.push(i + 1);
+                }
+            }
+            return out;
+        }
+
+        function getPhaseDisplayLabel(labels) {
+            const list = Array.isArray(labels) ? labels : getPhaseChainSelectedLabels();
+            if (!list.length) {
+                return 'PHASE —';
+            }
+            if (list.length === 1) {
+                return `PHASE ${list[0]}`;
+            }
+            if (list.length <= 3) {
+                return `PHASE ${list.join(',')}`;
+            }
+            return `PHASE ×${list.length}`;
         }
 
         function persistPhaseSettings() {
             try {
                 localStorage.setItem(PHASE_ENABLED_KEY, phaseToolbarEnabled ? '1' : '0');
+                localStorage.setItem(PHASE_CHAIN_SELECTED_KEY, JSON.stringify(phaseChainSelected));
+            } catch (e) { /* ignore */ }
+        }
+
+        function loadPhaseChainSelectedSettings() {
+            try {
+                const savedSel = localStorage.getItem(PHASE_CHAIN_SELECTED_KEY);
+                if (savedSel) {
+                    const parsed = JSON.parse(savedSel);
+                    if (Array.isArray(parsed) && parsed.length === 10) {
+                        phaseChainSelected = parsed.map((v) => !!v);
+                        return;
+                    }
+                    if (Array.isArray(parsed) && parsed.length > 0) {
+                        const next = [false, false, false, false, false, false, false, false, false, false];
+                        parsed.forEach((v) => {
+                            const n = clampPhaseChainLabel(v);
+                            next[n - 1] = true;
+                        });
+                        phaseChainSelected = next;
+                        return;
+                    }
+                }
+                const legacy = localStorage.getItem(PHASE_CHAIN_LABEL_KEY);
+                if (legacy != null && legacy !== '') {
+                    const n = clampPhaseChainLabel(legacy);
+                    phaseChainSelected = [false, false, false, false, false, false, false, false, false, false];
+                    phaseChainSelected[n - 1] = true;
+                }
             } catch (e) { /* ignore */ }
         }
 
@@ -9040,20 +9104,92 @@
             if (!frame || !frame.contentWindow) {
                 return;
             }
+            const labels = getPhaseChainSelectedLabels();
             frame.contentWindow.postMessage({
                 type: 'phaseChanged',
                 enabled: !!phaseToolbarEnabled,
-                chainLabel: clampPhaseChainLabel(phaseChainLabel)
+                chainLabels: labels.slice(),
+                chainLabel: labels.length ? labels[0] : 1
             }, '*');
+        }
+
+        let phaseModeMenuOpen = false;
+
+        function positionPhaseModeMenu() {
+            const menu = el('phaseModeMenu');
+            const modeWrap = el('phaseModeWrap');
+            if (!menu || !modeWrap) {
+                return;
+            }
+            const rect = modeWrap.getBoundingClientRect();
+            menu.style.left = `${Math.max(8, rect.left)}px`;
+            menu.style.top = `${rect.bottom + 2}px`;
+            menu.style.minWidth = `${Math.max(rect.width, 72)}px`;
+        }
+
+        function closePhaseModeMenu() {
+            const menu = el('phaseModeMenu');
+            const modeBtn = el('phaseModeBtn');
+            if (!menu) {
+                phaseModeMenuOpen = false;
+                if (modeBtn) {
+                    modeBtn.setAttribute('aria-expanded', 'false');
+                }
+                return;
+            }
+            menu.classList.add('hidden');
+            phaseModeMenuOpen = false;
+            if (modeBtn) {
+                modeBtn.setAttribute('aria-expanded', 'false');
+            }
+        }
+
+        function highlightPhaseModeMenu() {
+            const menu = el('phaseModeMenu');
+            if (!menu) {
+                return;
+            }
+            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
+                const label = parseInt(item.dataset.phaseLabel || '0', 10);
+                const on = label >= 1 && label <= 10 && !!phaseChainSelected[label - 1];
+                item.classList.toggle('selected', on);
+                item.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+        }
+
+        function openPhaseModeMenu() {
+            closeSubmitRingModeMenu();
+            closePeriodFilterModeMenu();
+            const menu = el('phaseModeMenu');
+            const modeWrap = el('phaseModeWrap');
+            const modeBtn = el('phaseModeBtn');
+            if (!menu || !modeWrap) {
+                return;
+            }
+            if (!menu.querySelector('.period-filter-mode-item')) {
+                buildPhaseModeMenu();
+            } else {
+                highlightPhaseModeMenu();
+            }
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
+            positionPhaseModeMenu();
+            menu.classList.remove('hidden');
+            bumpFloatingOverlayZIndex(menu);
+            phaseModeMenuOpen = true;
+            if (modeBtn) {
+                modeBtn.setAttribute('aria-expanded', 'true');
+            }
         }
 
         function syncPhaseToolbarUi() {
             const toggleBtn = el('phaseToggleBtn');
             const modeWrap = el('phaseModeWrap');
             const modeValue = el('phaseModeValue');
-            const modeSelect = el('phaseModeSelect');
-            const label = clampPhaseChainLabel(phaseChainLabel);
-            const labelText = getPhaseDisplayLabel(label);
+            const modeBtn = el('phaseModeBtn');
+            const labels = getPhaseChainSelectedLabels();
+            const labelText = getPhaseDisplayLabel(labels);
             if (toggleBtn) {
                 toggleBtn.classList.toggle('active', !!phaseToolbarEnabled);
                 toggleBtn.setAttribute(
@@ -9065,14 +9201,21 @@
             }
             if (modeWrap) {
                 modeWrap.classList.toggle('enabled', !!phaseToolbarEnabled);
-                modeWrap.setAttribute('title', `Chọn phase chuỗi 1–10 (hiện: ${labelText})`);
+                modeWrap.setAttribute(
+                    'title',
+                    labels.length
+                        ? `Phase đang chọn: ${labels.join(', ')} — mở menu để bật/tắt từng giá trị`
+                        : 'Chưa chọn phase — mở menu để chọn (đa giá trị)'
+                );
             }
             if (modeValue) {
                 modeValue.textContent = labelText;
             }
-            if (modeSelect) {
-                modeSelect.value = String(label);
+            if (modeBtn) {
+                modeBtn.setAttribute('aria-expanded', phaseModeMenuOpen ? 'true' : 'false');
+                modeBtn.title = modeWrap ? modeWrap.getAttribute('title') : 'Chọn phase 1–10';
             }
+            highlightPhaseModeMenu();
         }
 
         function togglePhaseToolbar() {
@@ -9082,10 +9225,44 @@
             sendPhaseConfigToIframe();
         }
 
-        function selectPhaseChainLabel(raw) {
-            phaseChainLabel = clampPhaseChainLabel(raw);
+        function togglePhaseChainLabel(raw) {
+            const n = clampPhaseChainLabel(raw);
+            phaseChainSelected[n - 1] = !phaseChainSelected[n - 1];
+            persistPhaseSettings();
             syncPhaseToolbarUi();
             sendPhaseConfigToIframe();
+        }
+
+        function buildPhaseModeMenu() {
+            const menu = el('phaseModeMenu');
+            if (!menu) {
+                return;
+            }
+            menu.innerHTML = '';
+            for (let n = 1; n <= 10; n++) {
+                const item = document.createElement('li');
+                item.className = 'period-filter-mode-item';
+                item.setAttribute('role', 'option');
+                item.dataset.phaseLabel = String(n);
+                item.innerHTML = `<span class="period-filter-mode-item-label">PHASE ${n}</span>`;
+                item.addEventListener('pointerdown', (event) => {
+                    if (event.button !== 0) {
+                        return;
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    togglePhaseChainLabel(n);
+                });
+                item.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (event.detail === 0) {
+                        togglePhaseChainLabel(n);
+                    }
+                });
+                menu.appendChild(item);
+            }
+            highlightPhaseModeMenu();
         }
 
         function initPhaseAltShortcut() {
@@ -9139,7 +9316,8 @@
         }
 
         function initPhaseToolbar() {
-            phaseChainLabel = 1;
+            phaseChainSelected = [true, false, false, false, false, false, false, false, false, false];
+            loadPhaseChainSelectedSettings();
             try {
                 const savedEnabled = localStorage.getItem(PHASE_ENABLED_KEY);
                 const savedRingMode = localStorage.getItem(SUBMIT_RING_MODE_KEY);
@@ -9153,7 +9331,7 @@
             }
 
             const toggleBtn = el('phaseToggleBtn');
-            const modeSelect = el('phaseModeSelect');
+            const modeBtn = el('phaseModeBtn');
             if (toggleBtn) {
                 toggleBtn.addEventListener('mousedown', (e) => {
                     e.preventDefault();
@@ -9162,11 +9340,49 @@
                     togglePhaseToolbar();
                 });
             }
-            if (modeSelect) {
-                modeSelect.addEventListener('change', () => {
-                    selectPhaseChainLabel(modeSelect.value);
+            if (modeBtn && modeBtn.dataset.phaseMenuBound !== '1') {
+                modeBtn.dataset.phaseMenuBound = '1';
+                modeBtn.addEventListener('mousedown', (event) => {
+                    event.stopPropagation();
+                });
+                modeBtn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (phaseModeMenuOpen) {
+                        closePhaseModeMenu();
+                    } else {
+                        openPhaseModeMenu();
+                    }
                 });
             }
+            if (!document.documentElement.dataset.phaseModeMenuDismissBound) {
+                document.documentElement.dataset.phaseModeMenuDismissBound = '1';
+                const dismissPhaseModeMenuUnlessControl = (event) => {
+                    if (isFloatingPopupInteractionTarget(event.target)) {
+                        closePhaseModeMenu();
+                        return;
+                    }
+                    const menu = el('phaseModeMenu');
+                    if (!phaseModeMenuOpen && menu && menu.classList.contains('hidden')) {
+                        return;
+                    }
+                    const wrap = el('phaseModeWrap');
+                    const btn = el('phaseModeBtn');
+                    if (menu && menu.contains(event.target)) {
+                        return;
+                    }
+                    if (btn && btn.contains(event.target)) {
+                        return;
+                    }
+                    if (wrap && wrap.contains(event.target)) {
+                        return;
+                    }
+                    closePhaseModeMenu();
+                };
+                document.addEventListener('pointerdown', dismissPhaseModeMenuUnlessControl, true);
+                document.addEventListener('mousedown', dismissPhaseModeMenuUnlessControl, true);
+            }
+            buildPhaseModeMenu();
             initPhaseAltShortcut();
             syncPhaseToolbarUi();
             sendPhaseConfigToIframe();
@@ -9309,9 +9525,10 @@
                 if (savedMode === 'chain1') {
                     applyLoadedSubmitRingMode('max');
                     phaseToolbarEnabled = savedEnabled === '1';
-                    phaseChainLabel = 1;
+                    phaseChainSelected = [true, false, false, false, false, false, false, false, false, false];
                     try {
                         localStorage.setItem(PHASE_ENABLED_KEY, phaseToolbarEnabled ? '1' : '0');
+                        localStorage.setItem(PHASE_CHAIN_SELECTED_KEY, JSON.stringify(phaseChainSelected));
                         localStorage.setItem(SUBMIT_RING_MODE_KEY, 'max');
                     } catch (eMigrate) { /* ignore */ }
                 } else if (SUBMIT_RING_VALID_MODES.includes(savedMode)) {
@@ -15411,6 +15628,7 @@ function getFilterNoteTRefMaxSelections(mode) {
 
         function openPeriodFilterModeMenu(anchor) {
             closeSubmitRingModeMenu();
+            closePhaseModeMenu();
             closeFilterPopupNoteTagMenu();
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupIntersectionKindMenu();
@@ -15478,6 +15696,31 @@ function getFilterNoteTRefMaxSelections(mode) {
         function closeToolbarModeDropdownMenus() {
             closeSubmitRingModeMenu();
             closePeriodFilterModeMenu();
+            closePhaseModeMenu();
+        }
+
+        /** Click/focus nửa trái (iframe) không bubble lên document phải — đóng menu toolbar thủ công. */
+        function initToolbarMenuDismissFromLeftPane() {
+            if (document.documentElement.dataset.toolbarMenuLeftDismissBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.toolbarMenuLeftDismissBound = '1';
+            const frame = el('okFrame');
+            if (frame) {
+                const dismiss = () => {
+                    closeToolbarModeDropdownMenus();
+                };
+                frame.addEventListener('pointerdown', dismiss, true);
+                frame.addEventListener('mousedown', dismiss, true);
+                frame.addEventListener('focus', dismiss, true);
+            }
+            window.addEventListener('blur', () => {
+                setTimeout(() => {
+                    if (document.activeElement === el('okFrame')) {
+                        closeToolbarModeDropdownMenus();
+                    }
+                }, 0);
+            });
         }
 
         function selectPeriodFilterMode(mode) {
@@ -20606,6 +20849,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             initAnswerTableScrollEdgeJumps();
             initSubmitRingToolbar();
             initPhaseToolbar();
+            initToolbarMenuDismissFromLeftPane();
             initSubmitRingShiftShortcut();
             initCtrlShiftObserveFocusShortcut();
             initSheetTabToggleShortcut();
@@ -21105,9 +21349,12 @@ function getFilterNoteTRefMaxSelections(mode) {
                         return;
                     }
                     applyLeftCircledNumsToComboH1(msg.nums);
+                } else if (msg.type === 'dismissParentToolbarMenus') {
+                    closeToolbarModeDropdownMenus();
                 } else if (msg.type === 'childFocus' && msg.region === 'left') {
                     rememberKeyboardFocusTarget('left');
                     closeAllFilterPopupFloatingMenus();
+                    closeToolbarModeDropdownMenus();
                 }
             });
             // left controls live inside the iframe now; guard bindings in parent

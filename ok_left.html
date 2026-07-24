@@ -2171,6 +2171,8 @@
         /** Phase toolbar: viền vuông tím chuỗi N — không vào selected / autoRingPicked. */
         let phaseToolbarEnabled = false;
         let phaseChainLabel = 1;
+        /** Multi-select phase labels 1–10 (sorted unique). Empty = không tô. */
+        let phaseChainLabels = [1];
         let phaseMarkedNums = new Set();
         /** Số freq cao nhất duy nhất trong phaseMarkedNums — viền neon quay; null nếu hòa ≥2. */
         let phaseMaxFreqNum = null;
@@ -2768,6 +2770,24 @@
             return n;
         }
 
+        function normalizePhaseChainLabels(raw) {
+            if (!Array.isArray(raw)) {
+                return [];
+            }
+            var out = [];
+            for (var i = 0; i < raw.length; i++) {
+                var n = parseInt(raw[i], 10);
+                if (!isNaN(n) && n >= 1 && n <= 10 && out.indexOf(n) === -1) {
+                    out.push(n);
+                }
+            }
+            return out.sort(function (a, b) { return a - b; });
+        }
+
+        function syncPhaseChainLabelCompat() {
+            phaseChainLabel = phaseChainLabels.length ? phaseChainLabels[0] : 1;
+        }
+
         function isPhaseToolbarActive() {
             return !!phaseToolbarEnabled;
         }
@@ -2873,10 +2893,10 @@
         function applyPhaseVisualOnly(circleNums) {
             phaseMarkedNums.clear();
             phaseMaxFreqNum = null;
-            (circleNums || getPhaseCircleNums()).filter(function (n) { return !isNaN(n); }).slice(0, MAX_PICK_NUMBERS).forEach(function (n) {
+            (circleNums || getPhaseCircleNums()).filter(function (n) { return !isNaN(n); }).forEach(function (n) {
                 phaseMarkedNums.add(n);
             });
-            phaseMaxFreqNum = resolvePhaseMaxFreqHighlightNum(getPhaseChainNumsRawForLabel(phaseChainLabel));
+            phaseMaxFreqNum = resolvePhaseMaxFreqHighlightNum(getPhaseChainNumsRawSelected());
             syncPhaseToolbarBodyClass();
             applyPhaseVisualInDOM();
             return phaseMarkedNums.size > 0 || phaseMaxFreqNum != null;
@@ -2889,8 +2909,12 @@
             if (typeof msg.enabled === 'boolean') {
                 phaseToolbarEnabled = msg.enabled;
             }
-            if (msg.chainLabel != null && msg.chainLabel !== '') {
-                phaseChainLabel = clampPhaseChainLabel(msg.chainLabel);
+            if (Array.isArray(msg.chainLabels)) {
+                phaseChainLabels = normalizePhaseChainLabels(msg.chainLabels);
+                syncPhaseChainLabelCompat();
+            } else if (msg.chainLabel != null && msg.chainLabel !== '') {
+                phaseChainLabels = [clampPhaseChainLabel(msg.chainLabel)];
+                syncPhaseChainLabelCompat();
             }
             if (!phaseToolbarEnabled) {
                 clearPhaseVisualOnly();
@@ -3048,21 +3072,34 @@
             }).slice(0, 5);
         }
 
-        /** 5 số đáp án ở chuỗi N (nhãn 1..10) trong cửa sổ trượt 10 hiện tại — chỉ freq ≥ 2. */
-        function getPhaseCircleNumsForLabel(label) {
-            var nums = getPhaseChainNumsRawForLabel(label);
-            if (raw && raw.freq) {
-                nums = nums.filter(function (n) {
-                    return (parseInt(raw.freq[n], 10) || 0) >= 2;
-                });
-            } else {
-                nums = [];
+        /** Union raw nums của mọi phase đang chọn. */
+        function getPhaseChainNumsRawSelected() {
+            var labels = Array.isArray(phaseChainLabels) ? phaseChainLabels : [];
+            if (!labels.length) {
+                return [];
             }
-            return nums;
+            var out = [];
+            var seen = {};
+            for (var i = 0; i < labels.length; i++) {
+                var nums = getPhaseChainNumsRawForLabel(labels[i]);
+                for (var j = 0; j < nums.length; j++) {
+                    var n = nums[j];
+                    if (!seen[n]) {
+                        seen[n] = true;
+                        out.push(n);
+                    }
+                }
+            }
+            return out;
+        }
+
+        /** 5 số đáp án ở chuỗi N (nhãn 1..10) trong cửa sổ trượt 10 hiện tại. */
+        function getPhaseCircleNumsForLabel(label) {
+            return getPhaseChainNumsRawForLabel(label);
         }
 
         function getPhaseCircleNums() {
-            return getPhaseCircleNumsForLabel(phaseChainLabel);
+            return getPhaseChainNumsRawSelected();
         }
 
         function clampSubmitAutoCircleDatebandFreq(v) {
@@ -8678,6 +8715,24 @@
             r.addEventListener('scroll', function () { updateFloatingCopyButtons(); try { updateFocusIndicator(); } catch (e) { } });
         }
         (function () { bindRightScrollHandlers(); })();
+
+        /** Click bất kỳ trong nửa trái → báo parent đóng dropdown toolbar (autoring / phase / filter). */
+        (function bindDismissParentToolbarMenusOnPointer() {
+            if (document.documentElement.dataset.dismissParentToolbarBound === '1') {
+                return;
+            }
+            document.documentElement.dataset.dismissParentToolbarBound = '1';
+            var notify = function () {
+                try {
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage({ type: 'dismissParentToolbarMenus' }, '*');
+                    }
+                } catch (e) { /* ignore */ }
+            };
+            document.addEventListener('pointerdown', notify, true);
+            document.addEventListener('mousedown', notify, true);
+        })();
+
         document.addEventListener('DOMContentLoaded', function () {
             updateRender();
             computeAndApplyHeights();
