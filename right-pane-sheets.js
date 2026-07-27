@@ -9339,9 +9339,10 @@ class RightPaneSheetManager {
                 const rowIndex = dataStart + offset;
                 const res = r.result || r.Result || '';
                 const noteMeta = this.getComputedNoteMeta(rowIndex, r);
-                const note = noteMeta.text;
+                const note = noteMeta.text == null ? '' : String(noteMeta.text);
                 const nonexist = this.isEmptyResultRow(r) ? '' : this.getComputedNonexistMeta(rowIndex, r).text;
-                lines.push([res, note, nonexist].filter(Boolean).join('\t'));
+                // Luôn gửi đủ 3 cột (kể cả note="?") — không filter(Boolean) kẻo lệch cột.
+                lines.push([res, note, nonexist == null ? '' : String(nonexist)].join('\t'));
                 selectedLines.push({
                     date: r.date || '',
                     id: r.id || '',

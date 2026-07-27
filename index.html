@@ -7150,7 +7150,7 @@
 <body>
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20260725menuDismiss"
+            <iframe id="okFrame" src="ok_left.html?v=20260727chuoiNoteQ3"
                 style="width:100%;height:100%;border:0"></iframe>
         </section>
 
@@ -7781,7 +7781,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260721nxGreenTrail"></script>
+    <script src="right-pane-sheets.js?v=20260727chuoiNoteQ2"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -21000,12 +21000,12 @@ function getFilterNoteTRefMaxSelections(mode) {
                     // and break cyan/yellow highlights on freq==1 numbers.
                     const lines = selectedLines.map(row => {
                         const result = row.result || row.Result || '';
-                        const note = row.note || row.Note || '';
-                        const nonexist = row.nonexist || row.Nonexist || '';
-                        let line = result;
-                        if (note) line += '\t' + note;
-                        if (nonexist) line += '\t' + nonexist;
-                        return line;
+                        const note = row.note != null ? String(row.note) : (row.Note != null ? String(row.Note) : '');
+                        const nonexist = row.nonexist != null
+                            ? String(row.nonexist)
+                            : (row.Nonexist != null ? String(row.Nonexist) : '');
+                        // Luôn 3 cột TSV — note "?" phải tới đúng cột 2.
+                        return [result, note, nonexist].join('\t');
                     });
                     const isFocusEmpty = selectedLines.length > 0 && !(String(selectedLines[selectedLines.length - 1].result || '').trim());
                     noteMainFocusEmptyTransition(isFocusEmpty);

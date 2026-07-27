@@ -870,6 +870,11 @@
             box-shadow: inset -3px 0 0 0 var(--chuoi-pair-tracked-frame), inset 0 -3px 0 0 var(--chuoi-pair-tracked-frame);
         }
 
+        /* Viền đỏ thường chỉ quanh ô nhãn "Chuỗi x" khi note = "?" — không neon, không bọc ô số/pattern */
+        #right tr.chuoi-main-row.chuoi-note-q>td:first-child {
+            box-shadow: inset 0 0 0 3px #e00 !important;
+        }
+
         /*
          * Viền kép + chéo: nền lavender ở vành (padding-box), trắng ở vùng chữ (content-box);
          * ::before chỉ vẽ viền trong — không che số index.
@@ -8370,8 +8375,12 @@
                 // by applySubmitState() via createNeonSvgElement(i) so we intentionally
                 // do not emit the SVG markup here.
 
+                const noteRaw = (lineObj && lineObj.note != null) ? String(lineObj.note).trim() : '';
+                const isNoteQ = noteRaw === '?' || noteRaw === '？';
+                const noteQClass = isNoteQ ? ' chuoi-note-q' : '';
+
                 // Main row
-                html += `<tr class="chuoi-main-row">`;
+                html += `<tr class="chuoi-main-row${noteQClass}">`;
                 html += `<td style="${labelStyle};${labelVars}position:relative" class="${chuoiTdClass}"><span onclick="toggleChuoi(${i})" data-chuoi-label="${displayLines.length - i}" style="cursor:pointer;position:relative;z-index:2" title="Thêm/gỡ 5 viền cam chuỗi này (có thể chọn nhiều chuỗi)">Chuỗi ${displayLines.length - i}</span></td>`;
                 html += `<td style='font-size:13px;position:relative;'>` + nums.map(n => {
                     let cls = selected.has(n) ? ' selected' : '';
