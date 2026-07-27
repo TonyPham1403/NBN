@@ -7150,7 +7150,7 @@
 <body>
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20260727chuoiNoteQ3"
+            <iframe id="okFrame" src="ok_left.html?v=20260727connMultiChain"
                 style="width:100%;height:100%;border:0"></iframe>
         </section>
 
@@ -7781,7 +7781,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260727chuoiNoteQ2"></script>
+    <script src="right-pane-sheets.js?v=20260727connMultiChain"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -9774,7 +9774,7 @@
                 return 'posnfreq (position + frequency)';
             }
             if (normalizeFilterMode(mode) === 'connection') {
-                return 'Note có số connection (xuất hiện trong ≥2 cặp {a,b})';
+                return 'Connection: một số đáp án thuộc ≥2 cặp trên ≥2 chuỗi khác nhau (cửa sổ 10)';
             }
             if (isConn3FilterMode(mode)) {
                 return 'Bộ 3: mỗi cặp là cặp chuỗi trên 3 chuỗi khác nhau, freq ≥2';
@@ -15495,7 +15495,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (noteBits.length > 0) {
                     return `Không có kỳ nào vừa có connection vừa có note ${noteBits.join(' + ')}.`;
                 }
-                return 'Không có kỳ nào note có connection (xuất hiện trong ≥2 cặp {a,b}).';
+                return 'Không có kỳ nào có Connection (một số đáp án thuộc ≥2 cặp trên ≥2 chuỗi khác nhau).';
             }
             if (isConn3FilterMode(normalized)) {
                 return 'Không có kỳ nào có bộ 3-connection (3 cặp chuỗi trên 3 chuỗi khác nhau, freq ≥2).';

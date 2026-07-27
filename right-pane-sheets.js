@@ -2334,7 +2334,8 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Note có "connection": một số xuất hiện trong ≥2 cặp `{a,b}` — mọi cặp trong mỗi khối `{…}` của note.
+     * Legacy: đếm cặp trong note text `{…}` — không dùng cho filter connection nữa
+     * (connection = cặp trên ≥2 chuỗi trong cửa sổ 10).
      * @param {string} noteText
      * @returns {boolean}
      */
@@ -2734,11 +2735,11 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Cặp [a,b] theo từng chuỗi: mọi cặp hai số pick cùng nằm trên một dòng (thứ tự trên dòng).
+     * Cặp [a,b,chainLabel] theo từng chuỗi: mọi cặp hai số pick cùng nằm trên một dòng.
      * @param {object[]} rows
      * @param {number} rowIndex
      * @param {number[]} pickNums
-     * @returns {number[][]}
+     * @returns {number[][]} — mỗi phần tử [a, b, chainLabel]
      */
     buildChainPairsFromPickSet(rows, rowIndex, pickNums) {
         const effective = new Set(Array.isArray(pickNums) ? pickNums : []);
@@ -2748,10 +2749,11 @@ class RightPaneSheetManager {
         const lines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
         const pairs = [];
         for (let li = 0; li < lines.length; li++) {
+            const chainLabel = lines[li].label;
             const selInLine = lines[li].nums.filter((n) => effective.has(n));
             for (let i = 0; i < selInLine.length; i++) {
                 for (let j = i + 1; j < selInLine.length; j++) {
-                    pairs.push([selInLine[i], selInLine[j]]);
+                    pairs.push([selInLine[i], selInLine[j], chainLabel]);
                 }
             }
         }
@@ -3150,12 +3152,20 @@ class RightPaneSheetManager {
         return this._conn3WindowExistIndicesCache;
     }
 
+    /**
+     * Connection: một số nằm trong ≥2 cặp, và các cặp đó phải thuộc ≥2 chuỗi khác nhau.
+     * (3 số cùng một chuỗi → nhiều cặp nhưng không phải connection.)
+     * @param {number[][]} pairList — [a,b] hoặc [a,b,chainLabel]
+     * @returns {boolean}
+     */
     pairListSatisfiesConnection(pairList) {
         if (!pairList || pairList.length < 2) {
             return false;
         }
         /** @type {Map<number, Set<number>>} */
         const numToPairIdx = new Map();
+        /** @type {Map<number, Set<number>>} */
+        const numToChains = new Map();
         for (let pairIndex = 0; pairIndex < pairList.length; pairIndex++) {
             const pr = pairList[pairIndex];
             if (!pr || pr.length < 2) {
@@ -3166,22 +3176,56 @@ class RightPaneSheetManager {
             if (!Number.isFinite(a) || !Number.isFinite(b)) {
                 continue;
             }
+            const chainLabel = pr.length >= 3 && Number.isFinite(pr[2]) ? pr[2] : null;
             for (let k = 0; k < 2; k++) {
                 const n = k === 0 ? a : b;
-                let set = numToPairIdx.get(n);
-                if (!set) {
-                    set = new Set();
-                    numToPairIdx.set(n, set);
+                let pairSet = numToPairIdx.get(n);
+                if (!pairSet) {
+                    pairSet = new Set();
+                    numToPairIdx.set(n, pairSet);
                 }
-                set.add(pairIndex);
+                pairSet.add(pairIndex);
+                if (chainLabel != null) {
+                    let chainSet = numToChains.get(n);
+                    if (!chainSet) {
+                        chainSet = new Set();
+                        numToChains.set(n, chainSet);
+                    }
+                    chainSet.add(chainLabel);
+                }
             }
         }
-        for (const s of numToPairIdx.values()) {
-            if (s.size >= 2) {
+        for (const [n, pairSet] of numToPairIdx.entries()) {
+            if (pairSet.size < 2) {
+                continue;
+            }
+            const chainSet = numToChains.get(n);
+            if (chainSet && chainSet.size >= 2) {
                 return true;
             }
         }
         return false;
+    }
+
+    /**
+     * Kỳ có Connection trên đáp án + cửa sổ 10 chuỗi (không dựa note text).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {object} [row]
+     * @returns {boolean}
+     */
+    rowHasConnection(rows, rowIndex, row) {
+        const r = row || (Array.isArray(rows) ? rows[rowIndex] : null);
+        if (!r || this.isEmptyResultRow(r)) {
+            return false;
+        }
+        const pickNums = this.parseMainNums(r.result || r.Result || '');
+        if (pickNums.length < 2) {
+            return false;
+        }
+        return this.pairListSatisfiesConnection(
+            this.buildChainPairsFromPickSet(rows, rowIndex, pickNums)
+        );
     }
 
     /**
@@ -3439,7 +3483,7 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Số trong đáp án tham gia Connection (≥2 cặp trên 10 chuỗi).
+     * Số trong đáp án tham gia Connection (≥2 cặp trên ≥2 chuỗi khác nhau).
      * @param {object[]} rows
      * @param {number} rowIndex
      * @param {number[]} pickNums
@@ -3452,11 +3496,14 @@ class RightPaneSheetManager {
         }
         /** @type {Map<number, Set<number>>} */
         const numToPairIdx = new Map();
+        /** @type {Map<number, Set<number>>} */
+        const numToChains = new Map();
         for (let pairIndex = 0; pairIndex < pairs.length; pairIndex++) {
             const pr = pairs[pairIndex];
             if (!pr || pr.length < 2) {
                 continue;
             }
+            const chainLabel = pr.length >= 3 && Number.isFinite(pr[2]) ? pr[2] : null;
             for (let k = 0; k < 2; k++) {
                 const n = pr[k];
                 if (!Number.isFinite(n)) {
@@ -3468,11 +3515,23 @@ class RightPaneSheetManager {
                     numToPairIdx.set(n, set);
                 }
                 set.add(pairIndex);
+                if (chainLabel != null) {
+                    let chainSet = numToChains.get(n);
+                    if (!chainSet) {
+                        chainSet = new Set();
+                        numToChains.set(n, chainSet);
+                    }
+                    chainSet.add(chainLabel);
+                }
             }
         }
         const out = [];
         for (const [n, s] of numToPairIdx.entries()) {
-            if (s.size >= 2) {
+            if (s.size < 2) {
+                continue;
+            }
+            const chainSet = numToChains.get(n);
+            if (chainSet && chainSet.size >= 2) {
                 out.push(n);
             }
         }
@@ -3565,33 +3624,28 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Danh sách chỉ số dòng có note connection — cache theo noteCache + độ dài sheet (tránh quét lặp).
+     * Danh sách chỉ số dòng có Connection (đáp án + ≥2 chuỗi) — cache theo độ dài sheet.
      * @returns {number[]}
      */
     ensureConnectionFilterIndicesCache() {
         const rows = this.getSourceSheetRows();
         const n = rows.length;
-        const nc = this.noteCache;
         if (
             this._connectionFilterIndicesCache
             && this._connectionFilterIndicesCacheRowLen === n
-            && this._connectionFilterNoteCacheRef === nc
+            && this._connectionFilterNoteCacheRef === rows
         ) {
             return this._connectionFilterIndicesCache;
         }
         const indices = [];
         for (let i = 0; i < n; i++) {
-            if (this.isEmptyResultRow(rows[i])) {
-                continue;
-            }
-            const noteText = this.getNoteTextForRowFilter(i);
-            if (this.noteTextHasConnectionPairing(noteText)) {
+            if (this.rowHasConnection(rows, i)) {
                 indices.push(i);
             }
         }
         this._connectionFilterIndicesCache = indices;
         this._connectionFilterIndicesCacheRowLen = n;
-        this._connectionFilterNoteCacheRef = nc;
+        this._connectionFilterNoteCacheRef = rows;
         return this._connectionFilterIndicesCache;
     }
 

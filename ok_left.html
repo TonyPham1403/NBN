@@ -6615,7 +6615,7 @@
             return effective;
         }
 
-        /** Cặp [a,b] theo từng dòng 10 chuỗi: hai số khoanh đầu tiên trên dòng (giống recomputePairsFromSelected). */
+        /** Cặp [a,b,chainLabel] theo từng dòng 10 chuỗi: hai số khoanh trên cùng dòng. */
         function computeChainPairsFromEffectiveSelection() {
             const pairs = [];
             if (!raw) {
@@ -6625,26 +6625,30 @@
             if (!effective || effective.size < 2) {
                 return pairs;
             }
-            getRawDisplayLines().forEach(function (line) {
+            const displayLines = getRawDisplayLines();
+            const limit = displayLines.length;
+            displayLines.forEach(function (line, di) {
+                const chainLabel = limit - di;
                 const nums = getNumsFromLineObj(line);
                 const selInLine = nums.filter(function (x) {
                     return effective.has(x);
                 });
                 for (let i = 0; i < selInLine.length; i++) {
                     for (let j = i + 1; j < selInLine.length; j++) {
-                        pairs.push([selInLine[i], selInLine[j]]);
+                        pairs.push([selInLine[i], selInLine[j], chainLabel]);
                     }
                 }
             });
             return pairs;
         }
 
-        /** Giống noteTextHasConnectionPairing (RightPane): một số nằm trong ≥2 cặp. */
+        /** Connection: một số nằm trong ≥2 cặp thuộc ≥2 chuỗi khác nhau. */
         function pickPairsSatisfyConnection(pairList) {
             if (!pairList || pairList.length < 2) {
                 return false;
             }
             const numToPairIdx = new Map();
+            const numToChains = new Map();
             for (let pairIndex = 0; pairIndex < pairList.length; pairIndex++) {
                 const pr = pairList[pairIndex];
                 if (!pr || pr.length < 2) {
@@ -6655,18 +6659,31 @@
                 if (!Number.isFinite(a) || !Number.isFinite(b)) {
                     continue;
                 }
+                const chainLabel = pr.length >= 3 && Number.isFinite(pr[2]) ? pr[2] : null;
                 for (let k = 0; k < 2; k++) {
                     const n = k === 0 ? a : b;
-                    let set = numToPairIdx.get(n);
-                    if (!set) {
-                        set = new Set();
-                        numToPairIdx.set(n, set);
+                    let pairSet = numToPairIdx.get(n);
+                    if (!pairSet) {
+                        pairSet = new Set();
+                        numToPairIdx.set(n, pairSet);
                     }
-                    set.add(pairIndex);
+                    pairSet.add(pairIndex);
+                    if (chainLabel != null) {
+                        let chainSet = numToChains.get(n);
+                        if (!chainSet) {
+                            chainSet = new Set();
+                            numToChains.set(n, chainSet);
+                        }
+                        chainSet.add(chainLabel);
+                    }
                 }
             }
-            for (const s of numToPairIdx.values()) {
-                if (s.size >= 2) {
+            for (const [n, pairSet] of numToPairIdx.entries()) {
+                if (pairSet.size < 2) {
+                    continue;
+                }
+                const chainSet = numToChains.get(n);
+                if (chainSet && chainSet.size >= 2) {
                     return true;
                 }
             }
