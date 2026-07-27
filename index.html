@@ -7781,7 +7781,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260727connMultiChain"></script>
+    <script src="right-pane-sheets.js?v=20260728noteGap4"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -20766,7 +20766,7 @@ function getFilterNoteTRefMaxSelections(mode) {
 
         function shouldHighlightNote(noteText) {
             if (!noteText || noteText === '?') return false;
-            const noteParts = String(noteText).split('   ');
+            const noteParts = String(noteText).split(/\s{4,}/);
             for (const part of noteParts) {
                 const openBrace = part.indexOf('{');
                 const closeBrace = part.indexOf('}', openBrace + 1);
@@ -20779,14 +20779,31 @@ function getFilterNoteTRefMaxSelections(mode) {
             return false;
         }
 
-        function renderGeneratedNoteHtml(noteText) {
-            const escaped = escapeHtml(noteText || '');
-            return escaped.replace(/\|([^|]*)\|/g, (match, inner) => {
-                const highlightedInner = inner.replace(/\b\d+\b/g, (num) => {
-                    return `<span style="color:rgb(0,80,0);font-weight:bold">${num}</span>`;
+        function renderGeneratedNoteHtml(noteText, connectionNums) {
+            let html = escapeHtml(noteText || '');
+            html = html.replace(/ {4}/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
+            const connSet = new Set();
+            if (Array.isArray(connectionNums)) {
+                for (let i = 0; i < connectionNums.length; i++) {
+                    const n = parseInt(connectionNums[i], 10);
+                    if (Number.isFinite(n)) {
+                        connSet.add(n);
+                    }
+                }
+            }
+            if (connSet.size > 0) {
+                html = html.replace(/\{([^}]*)\}/g, (match, inner) => {
+                    const colored = String(inner).replace(/\b\d+\b/g, (numStr) => {
+                        const n = parseInt(numStr, 10);
+                        if (connSet.has(n)) {
+                            return `<span style="color:#006400;font-weight:800;background:#b7f7c4;padding:0 2px;border-radius:2px">${numStr}</span>`;
+                        }
+                        return numStr;
+                    });
+                    return `{${colored}}`;
                 });
-                return `|${highlightedInner}|`;
-            });
+            }
+            return html;
         }
 
         function renderSelectedLines() {

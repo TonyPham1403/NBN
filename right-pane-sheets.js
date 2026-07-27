@@ -4450,7 +4450,11 @@ class RightPaneSheetManager {
             const dateBg = this.shouldHighlightDateByPairWindow(displayRows, i) ? ' style="background:#00b0f0;color:#000;font-weight:bold;"' : '';
 
             let resultHtml = this.highlightResultByFrequency(result);
-            let noteHtml = this.renderNoteHtml(noteMeta.text, noteMeta.highlightYellow);
+            const pickNums = isEmptyResultRow ? [] : this.parseMainNums(result);
+            const connectionNums = isEmptyResultRow
+                ? []
+                : this.getConnectionCircleNumsFromPickSet(displayRows, i, pickNums);
+            let noteHtml = this.renderNoteHtml(noteMeta.text, noteMeta.highlightYellow, connectionNums);
             const noteStyle = noteMeta.highlightYellow ? ' style="background:#ff0;"' : '';
             const nonexistMeta = this.getNonexistMetaForSourceRow(i, row);
             let nonexistHtml = this.renderNonexistHtml(i, nonexistMeta.text, result);
@@ -6244,7 +6248,6 @@ class RightPaneSheetManager {
 
         const startIndex = Math.max(0, rowIndex - 10);
         const matchedNumbersByPrevId = new Map();
-        const sourceRowIndexByPrevId = new Map();
 
         for (let prevIndex = startIndex; prevIndex < rowIndex; prevIndex++) {
             const prevRow = rows[prevIndex] || {};
@@ -6260,7 +6263,6 @@ class RightPaneSheetManager {
                     if (this.pairExists(prevNums, currentNums[a], currentNums[b])) {
                         if (!matchedNumbersByPrevId.has(prevId)) {
                             matchedNumbersByPrevId.set(prevId, new Set());
-                            sourceRowIndexByPrevId.set(prevId, prevIndex);
                         }
                         matchedNumbersByPrevId.get(prevId).add(currentNums[a]);
                         matchedNumbersByPrevId.get(prevId).add(currentNums[b]);
@@ -6272,23 +6274,12 @@ class RightPaneSheetManager {
         let noteText = '';
         for (const [prevId, matchedNumberSet] of matchedNumbersByPrevId.entries()) {
             const matchedNumbers = Array.from(matchedNumberSet);
-            const sourceIndex = sourceRowIndexByPrevId.get(prevId);
-            const prevNums = sourceIndex !== undefined ? this.parseMainNums(rows[sourceIndex].result || rows[sourceIndex].Result || '') : [];
-            const idxList = [];
-
-            for (const num of matchedNumbers) {
-                for (let prevPos = 0; prevPos < prevNums.length; prevPos++) {
-                    if (prevNums[prevPos] === num) {
-                        idxList.push(String(prevPos + 1));
-                    }
-                }
-            }
-
             const previousCount = referenceCounts.get(prevId) || 0;
             const expo = this.toSuperscript(previousCount + 1);
             const diff = currentId - prevId;
 
-            noteText += `${currentId}-${prevId}${expo}=${diff}:{${matchedNumbers.join(',')}}|${idxList.join(';')}|   `;
+            // Cụm note: không kèm |idx;…|; cách nhau 4 khoảng trắng.
+            noteText += `${currentId}-${prevId}${expo}=${diff}:{${matchedNumbers.join(',')}}    `;
             referenceCounts.set(prevId, previousCount + 1);
         }
 
@@ -6361,22 +6352,37 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Highlight note text using the same rules as Module4 HighlightNoteCell.
+     * Highlight note: số connection trong {} → xanh lá (khi kỳ có nhãn Connection).
+     * @param {string} noteText
+     * @param {boolean} highlightYellow
+     * @param {number[]} [connectionNums]
      */
-    renderNoteHtml(noteText, highlightYellow) {
-        const escaped = this.escapeHtml(noteText || '');
-        const styledPipeSegments = escaped.replace(/\|([^|]*)\|/g, (match, inner) => {
-            const highlightedInner = inner.replace(/\b\d+\b/g, (num) => {
-                return `<span style="color:rgb(0,80,0);font-weight:bold">${num}</span>`;
-            });
-            return `|${highlightedInner}|`;
-        });
-
-        if (!highlightYellow) {
-            return styledPipeSegments;
+    renderNoteHtml(noteText, highlightYellow, connectionNums) {
+        let html = this.escapeHtml(noteText || '');
+        // HTML gom khoảng trắng — giữ đúng 4 space giữa cụm tham khảo.
+        html = html.replace(/ {4}/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
+        const connSet = new Set();
+        if (Array.isArray(connectionNums)) {
+            for (let i = 0; i < connectionNums.length; i++) {
+                const n = parseInt(connectionNums[i], 10);
+                if (Number.isFinite(n)) {
+                    connSet.add(n);
+                }
+            }
         }
-
-        return styledPipeSegments;
+        if (connSet.size > 0) {
+            html = html.replace(/\{([^}]*)\}/g, (match, inner) => {
+                const colored = String(inner).replace(/\b\d+\b/g, (numStr) => {
+                    const n = parseInt(numStr, 10);
+                    if (connSet.has(n)) {
+                        return `<span style="color:#006400;font-weight:800;background:#b7f7c4;padding:0 2px;border-radius:2px">${numStr}</span>`;
+                    }
+                    return numStr;
+                });
+                return `{${colored}}`;
+            });
+        }
+        return html;
     }
 
     /**
@@ -6997,7 +7003,7 @@ class RightPaneSheetManager {
     shouldHighlightNote(noteText) {
         if (!noteText || noteText === '?') return false;
 
-        const noteParts = String(noteText).split('   ');
+        const noteParts = String(noteText).split(/\s{4,}/);
         for (const part of noteParts) {
             const openBrace = part.indexOf('{');
             const closeBrace = part.indexOf('}', openBrace + 1);
