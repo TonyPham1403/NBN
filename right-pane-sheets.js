@@ -450,6 +450,11 @@ class RightPaneSheetManager {
         this.leftSpecialPreviewPickHistory = [];
         /** Bar giả lập focus cho chuột phải — theo thứ tự chuỗi pick, không phải bar vừa bỏ. */
         this.lastTrackingPreviewBarNum = null;
+        /**
+         * Special-only: bar giả lập gần nhất (Q / chuột phải).
+         * Tách khỏi lastTrackingPreviewBarNum — khoanh nửa trái (1–35) không được ghi đè.
+         */
+        this.lastSpecialTrackingPreviewBarNum = null;
         /** Ctrl+Shift: stash viền cam quan sát (basic/special) để tắt hết rồi khôi phục. */
         this._trackingObserveFocusStashByMode = { basic: null, special: null };
         /** Tăng mỗi lần setLeftBasicPreviewPickNums đổi — chặn response requestLeftCircledNums cũ. */
@@ -10525,6 +10530,27 @@ class RightPaneSheetManager {
         layer.appendChild(frag);
     }
 
+    /**
+     * Số vừa pick ở kỳ (frame draw) liền trước frame hiện tại — bỏ holdFrame.
+     * @returns {number|null}
+     */
+    static getTrackingPreviousPeriodJustDrawn(frames, frameIndex) {
+        if (!Array.isArray(frames) || frameIndex < 1) {
+            return null;
+        }
+        for (let i = frameIndex - 1; i >= 0; i--) {
+            const fr = frames[i];
+            if (!fr || fr.holdFrame) {
+                continue;
+            }
+            const n = fr.justDrawn != null ? (fr.justDrawn | 0) : null;
+            if (n != null && n >= 1) {
+                return n;
+            }
+        }
+        return null;
+    }
+
     /** @deprecated */
     static syncBasicTrackingFreqBraces(layer, groups, slotCount) {
         RightPaneSheetManager.syncTrackingFreqBraces(layer, groups, slotCount);
@@ -10648,8 +10674,75 @@ class RightPaneSheetManager {
     /** Special tracking: click bar giả lập — reset khi đổi id (không đụng shift+click quan sát). */
     clearLeftSpecialBarPreviewPickOnFocusChange() {
         this.leftSpecialPreviewPickHistory = [];
-        this.lastTrackingPreviewBarNum = null;
+        this.lastSpecialTrackingPreviewBarNum = null;
         return this.setLeftSpecialPreviewPickNum(null);
+    }
+
+    /**
+     * Số bar special để Q / chuột phải bật-tắt giả lập.
+     * Ưu tiên số đang giả lập; không dùng lastTrackingPreviewBarNum (bị khoanh trái ghi đè).
+     */
+    resolveSpecialTrackingPreviewToggleNum() {
+        const maxN = 12;
+        const current = this.leftSpecialPreviewPickNum;
+        if (Number.isFinite(current) && current >= 1 && current <= maxN) {
+            return current;
+        }
+        const focus = this.lastSpecialTrackingPreviewBarNum;
+        if (Number.isFinite(focus) && focus >= 1 && focus <= maxN) {
+            return focus;
+        }
+        const hist = Array.isArray(this.leftSpecialPreviewPickHistory)
+            ? this.leftSpecialPreviewPickHistory
+            : [];
+        if (hist.length) {
+            const tip = hist[hist.length - 1];
+            if (Number.isFinite(tip) && tip >= 1 && tip <= maxN) {
+                return tip;
+            }
+        }
+        return null;
+    }
+
+    /**
+     * Phím Q — chỉ tracking special: bật/tắt số giả lập (độc lập nửa trái).
+     * Gọi từ keydown parent hoặc postMessage khi Q nhấn trong iframe trái.
+     */
+    tryToggleSpecialTrackingPreviewFromQKey() {
+        if (this.activeSheet !== TRACKING_SHEET_ID && this.activeSheet !== 'specialtracking') {
+            return false;
+        }
+        const sheet = this.sheets[TRACKING_SHEET_ID] || this.sheets.specialtracking;
+        if (!sheet || this.getTrackingViewMode(sheet) !== 'special') {
+            return false;
+        }
+        const tableWrap = typeof document !== 'undefined'
+            ? document.getElementById('tableWrap')
+            : null;
+        if (!tableWrap || !tableWrap.classList.contains('table-wrap--tracking')) {
+            return false;
+        }
+        let frameIndex = -1;
+        if (typeof tableWrap.__trackingGetFrameIndex === 'function') {
+            frameIndex = tableWrap.__trackingGetFrameIndex();
+        } else if (sheet.trackingUi && typeof sheet.trackingUi.frameIndex === 'number') {
+            frameIndex = sheet.trackingUi.frameIndex;
+        }
+        if (!Number.isFinite(frameIndex) || frameIndex < 0) {
+            return false;
+        }
+        if (!this.isSpecialTrackingFramePreviewEligible(sheet, frameIndex)) {
+            return false;
+        }
+        const n = this.resolveSpecialTrackingPreviewToggleNum();
+        if (n == null) {
+            return false;
+        }
+        if (!this.toggleSpecialTrackingBarPick(n, { retainFocus: true })) {
+            return false;
+        }
+        this.requestTrackingUiRepaintIfActive();
+        return true;
     }
 
     requestTrackingUiRepaintIfActive() {
@@ -10811,7 +10904,7 @@ class RightPaneSheetManager {
                 hist.pop();
             }
             this.leftSpecialPreviewPickHistory = hist;
-            this.lastTrackingPreviewBarNum = retainFocus
+            this.lastSpecialTrackingPreviewBarNum = retainFocus
                 ? num
                 : (hist.length ? hist[hist.length - 1] : null);
             return this.setLeftSpecialPreviewPickNum(null);
@@ -10823,7 +10916,7 @@ class RightPaneSheetManager {
             hist.push(num);
         }
         this.leftSpecialPreviewPickHistory = hist;
-        this.lastTrackingPreviewBarNum = num;
+        this.lastSpecialTrackingPreviewBarNum = num;
         return this.setLeftSpecialPreviewPickNum(num);
     }
 
@@ -11408,6 +11501,294 @@ class RightPaneSheetManager {
                 continue;
             }
             const yPx = Math.round((slot / slotCount) * layerHeight);
+            el.style.top = `${yPx}px`;
+        }
+    }
+
+    /** Key ổn định cho tập liền nhau (sort số tăng dần). */
+    static trackingContiguousSetKey(nums) {
+        return (Array.isArray(nums) ? nums.slice() : [])
+            .map((n) => n | 0)
+            .filter((n) => n > 0)
+            .sort((a, b) => a - b)
+            .join(',');
+    }
+
+    /**
+     * Tập liền nhau = các số freq>0 nằm giữa 2 freq-gap line liên tiếp (hoặc mép stack).
+     * @returns {Array<{ nums: number[], numSet: Set<number>, key: string,
+     *   minSlot: number, maxSlot: number, topSlot: number, bottomSlot: number,
+     *   hasUpperGap: boolean, hasLowerGap: boolean }>}
+     */
+    static computeTrackingFreqGapContiguousSets(counts, slotByNum, numMax, minGap = 2) {
+        const ranked = [];
+        for (let n = 1; n <= numMax; n++) {
+            const freq = (counts && counts[n]) || 0;
+            if (freq <= 0) {
+                continue;
+            }
+            ranked.push({
+                n,
+                freq: freq | 0,
+                slot: (slotByNum && slotByNum[n]) ?? numMax
+            });
+        }
+        if (!ranked.length) {
+            return [];
+        }
+        ranked.sort((a, b) => a.slot - b.slot || a.n - b.n);
+        const threshold = Math.max(2, minGap | 0);
+        const cutAfter = new Set();
+        for (let i = 0; i < ranked.length - 1; i++) {
+            if (Math.abs(ranked[i].freq - ranked[i + 1].freq) >= threshold) {
+                cutAfter.add(i);
+            }
+        }
+        const sets = [];
+        let start = 0;
+        for (let end = 0; end < ranked.length; end++) {
+            if (!cutAfter.has(end) && end !== ranked.length - 1) {
+                continue;
+            }
+            const slice = ranked.slice(start, end + 1);
+            const nums = slice.map((x) => x.n);
+            const minSlot = slice[0].slot;
+            const maxSlot = slice[slice.length - 1].slot;
+            sets.push({
+                nums,
+                numSet: new Set(nums),
+                key: RightPaneSheetManager.trackingContiguousSetKey(nums),
+                minSlot,
+                maxSlot,
+                topSlot: minSlot,
+                bottomSlot: end < ranked.length - 1 ? ranked[end + 1].slot : (maxSlot + 1),
+                hasUpperGap: start > 0,
+                hasLowerGap: end < ranked.length - 1
+            });
+            start = end + 1;
+        }
+        return sets;
+    }
+
+    /**
+     * Nhãn 4 góc: số lần pick liên tiếp trên tập liền nhau gần nhất.
+     * Submit OFF: chỉ tập vừa bị pick gần nhất (không tính pick kỳ hiện tại đã rollback).
+     * Submit ON + split: tập chứa pick = 1; tập remnant hiện lại tích lũy trước split.
+     * Split gồm vỡ subset trong preSet, hoặc pick nhập tập ngoài còn remnant preSet.
+     */
+    static computeSpecialTrackingContiguousSetCornerLabels(
+        series,
+        frames,
+        frameIndex,
+        leftSubmitOn,
+        previewPickNum
+    ) {
+        const out = [];
+        if (!frames || !frames.length || frameIndex < 0 || frameIndex >= frames.length) {
+            return out;
+        }
+        const hasPreview = Number.isFinite(previewPickNum)
+            && previewPickNum >= 1
+            && previewPickNum <= 12;
+        const applyCurrentPick = !!leftSubmitOn || hasPreview;
+        const lastApply = applyCurrentPick ? frameIndex : frameIndex - 1;
+
+        let streakKey = '';
+        let streakCount = 0;
+        /** @type {Array<{ key: string, count: number }>} */
+        let remnantLabels = [];
+        let splitOnAppliedCurrent = false;
+
+        for (let i = 0; i <= lastApply; i++) {
+            const fr = frames[i];
+            if (!fr || fr.holdFrame) {
+                continue;
+            }
+            let pick = fr.justDrawn;
+            if (i === frameIndex && hasPreview) {
+                pick = previewPickNum;
+            }
+            if (pick == null || !Number.isFinite(pick)) {
+                continue;
+            }
+
+            const preLayout = RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
+                series,
+                fr,
+                false,
+                null
+            );
+            const postLayout = (i === frameIndex && hasPreview)
+                ? RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
+                    series,
+                    fr,
+                    false,
+                    previewPickNum
+                )
+                : RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
+                    series,
+                    fr,
+                    true,
+                    null
+                );
+            const preSets = RightPaneSheetManager.computeTrackingFreqGapContiguousSets(
+                preLayout.counts,
+                preLayout.slotByNum,
+                12
+            );
+            const postSets = RightPaneSheetManager.computeTrackingFreqGapContiguousSets(
+                postLayout.counts,
+                postLayout.slotByNum,
+                12
+            );
+            const preSet = preSets.find((s) => s.numSet.has(pick));
+            const postSet = postSets.find((s) => s.numSet.has(pick));
+            if (!postSet) {
+                streakKey = '';
+                streakCount = 0;
+                remnantLabels = [];
+                splitOnAppliedCurrent = false;
+                continue;
+            }
+
+            let isSplit = false;
+            /** @type {typeof postSets} */
+            let remnantSets = [];
+            if (preSet) {
+                // Post-sets còn toàn số thuộc preSet (không gồm tập pick nếu pick đã nhập số ngoài).
+                const subsetChildren = postSets.filter(
+                    (s) => s.nums.length && s.nums.every((n) => preSet.numSet.has(n))
+                );
+                remnantSets = subsetChildren.filter((s) => s.key !== postSet.key);
+                // (1) Classic: preSet vỡ ≥2 subset — thí dụ {1,9,10,5,8}→{1,9,10}+{5,8}
+                // (2) Migrate: pick rời/nhập tập ngoài, remnant preSet còn lại —
+                //     thí dụ {12,1,9,10,8,5} pick 12 → {3,11,12} + remnant {1,9,10,8,5}
+                const classicSplit = subsetChildren.length >= 2;
+                const migrateSplit = remnantSets.length >= 1 && postSet.key !== preSet.key;
+                isSplit = classicSplit || migrateSplit;
+            }
+
+            const isCurrentFrame = i === frameIndex;
+            if (isSplit && preSet) {
+                const remAccum = streakKey === preSet.key ? streakCount : 0;
+                streakKey = postSet.key;
+                streakCount = 1;
+                if (isCurrentFrame && applyCurrentPick && remAccum > 0) {
+                    remnantLabels = remnantSets.map((c) => ({ key: c.key, count: remAccum }));
+                    splitOnAppliedCurrent = true;
+                } else {
+                    remnantLabels = [];
+                    splitOnAppliedCurrent = false;
+                }
+            } else {
+                if (streakKey
+                    && ((preSet && streakKey === preSet.key) || streakKey === postSet.key)) {
+                    streakCount += 1;
+                } else {
+                    streakCount = 1;
+                }
+                streakKey = postSet.key;
+                remnantLabels = [];
+                splitOnAppliedCurrent = false;
+            }
+        }
+
+        const curFr = frames[frameIndex];
+        const displayLayout = RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
+            series,
+            curFr,
+            leftSubmitOn,
+            hasPreview ? previewPickNum : null
+        );
+        const displaySets = RightPaneSheetManager.computeTrackingFreqGapContiguousSets(
+            displayLayout.counts,
+            displayLayout.slotByNum,
+            12
+        );
+
+        const pushLabel = (key, count) => {
+            if (!key || !(count > 0)) {
+                return;
+            }
+            let set = displaySets.find((d) => d.key === key);
+            if (!set) {
+                const nums = key.split(',').map((x) => parseInt(x, 10)).filter((n) => n > 0);
+                set = displaySets.find(
+                    (d) => nums.length
+                        && d.nums.length === nums.length
+                        && nums.every((n) => d.numSet.has(n))
+                );
+            }
+            if (set) {
+                out.push({ set, count });
+            }
+        };
+
+        pushLabel(streakKey, streakCount);
+        if (applyCurrentPick && splitOnAppliedCurrent) {
+            for (let r = 0; r < remnantLabels.length; r++) {
+                pushLabel(remnantLabels[r].key, remnantLabels[r].count);
+            }
+        }
+        return out;
+    }
+
+    /** Vẽ nhãn 4 góc pick-count trên tập liền nhau (special). */
+    static syncTrackingFreqGapCornerLabels(layer, labels, slotCount) {
+        if (!layer) {
+            return;
+        }
+        const list = Array.isArray(labels) ? labels : [];
+        const sig = !list.length
+            ? ''
+            : list.map((L) => `${L.set.key}@${L.set.topSlot}-${L.set.bottomSlot}:${L.count}`).join('|');
+        if (layer.dataset.stFreqGapCornerSig !== sig) {
+            layer.dataset.stFreqGapCornerSig = sig;
+            layer.replaceChildren();
+            if (!list.length || !slotCount) {
+                return;
+            }
+            const frag = document.createDocumentFragment();
+            const corners = ['tl', 'tr', 'bl', 'br'];
+            for (let i = 0; i < list.length; i++) {
+                const L = list[i];
+                const countText = String(L.count);
+                for (let c = 0; c < corners.length; c++) {
+                    const corner = corners[c];
+                    const el = document.createElement('div');
+                    el.className = `special-tracking-freq-gap-corner special-tracking-freq-gap-corner--${corner}`;
+                    el.dataset.stFreqGapCorner = corner;
+                    el.dataset.stFreqGapCornerTop = String(L.set.topSlot);
+                    el.dataset.stFreqGapCornerBottom = String(L.set.bottomSlot);
+                    el.textContent = countText;
+                    el.setAttribute('aria-hidden', 'true');
+                    frag.appendChild(el);
+                }
+            }
+            layer.appendChild(frag);
+        }
+        RightPaneSheetManager.layoutTrackingFreqGapCornerLabels(layer, slotCount);
+    }
+
+    static layoutTrackingFreqGapCornerLabels(layer, slotCount) {
+        if (!layer || !slotCount) {
+            return;
+        }
+        const layerHeight = layer.clientHeight;
+        if (layerHeight <= 0) {
+            return;
+        }
+        const kids = layer.children;
+        for (let i = 0; i < kids.length; i++) {
+            const el = kids[i];
+            const corner = el.dataset.stFreqGapCorner;
+            const topSlot = parseInt(el.dataset.stFreqGapCornerTop, 10);
+            const bottomSlot = parseInt(el.dataset.stFreqGapCornerBottom, 10);
+            if (!Number.isFinite(topSlot) || !Number.isFinite(bottomSlot)) {
+                continue;
+            }
+            const ySlot = (corner === 'tl' || corner === 'tr') ? topSlot : bottomSlot;
+            const yPx = Math.round((ySlot / slotCount) * layerHeight);
             el.style.top = `${yPx}px`;
         }
     }
@@ -12122,6 +12503,7 @@ class RightPaneSheetManager {
             + '<div class="special-tracking-freq-brace-layer special-tracking-freq-brace-layer--ghost" data-st-freq-braces-ghost aria-hidden="true"></div>'
             + '<div class="special-tracking-freq-brace-layer" data-st-freq-braces aria-hidden="true"></div>'
             + '<div class="special-tracking-freq-gap-layer" data-st-freq-gap-dividers aria-hidden="true"></div>'
+            + '<div class="special-tracking-freq-gap-corner-layer" data-st-freq-gap-corners aria-hidden="true"></div>'
             + '</div>'
             + '</div>'
             + '</div>'
@@ -12424,6 +12806,7 @@ class RightPaneSheetManager {
         const freqBraceLayer = root.querySelector('[data-st-freq-braces]');
         const freqBraceGhostLayer = root.querySelector('[data-st-freq-braces-ghost]');
         const freqGapLayer = root.querySelector('[data-st-freq-gap-dividers]');
+        const freqGapCornerLayer = root.querySelector('[data-st-freq-gap-corners]');
 
         let tlRectCache = null;
         const refreshTlRect = () => {
@@ -12506,7 +12889,7 @@ class RightPaneSheetManager {
             }
             specialPreviewAnchorSourceRow = row;
             this.leftSpecialPreviewPickHistory = [];
-            this.lastTrackingPreviewBarNum = null;
+            this.lastSpecialTrackingPreviewBarNum = null;
             return this.setLeftSpecialPreviewPickNum(null);
         };
         const clearTimer = () => {
@@ -12597,6 +12980,9 @@ class RightPaneSheetManager {
                 ? fr.justDrawnNums
                 : (fr.justDrawn != null ? [fr.justDrawn] : []);
             const justSet = new Set(justNums);
+            const prevPeriodJustDrawn = !isBasic
+                ? RightPaneSheetManager.getTrackingPreviousPeriodJustDrawn(frames, frameIndex)
+                : null;
             const leftSubmitOn = !!this.leftSubmitActive;
             const basicDraws = isBasic ? (sheet.basicDraws || []) : [];
             const freqPreviewLayout = isBasic
@@ -12869,6 +13255,10 @@ class RightPaneSheetManager {
                     'special-tracking-rank-bar--just',
                     !isBasic && leftSubmitOn && isJust && !actualAnswer && !autoringBarLabel
                 );
+                el.classList.toggle(
+                    'special-tracking-rank-bar--prev-period-pick',
+                    !isBasic && prevPeriodJustDrawn != null && n === prevPeriodJustDrawn
+                );
                 const userClickFocus = getFocusNums().has(n);
                 el.classList.toggle('special-tracking-rank-bar--click-focus', userClickFocus);
                 el.classList.toggle(
@@ -12905,6 +13295,8 @@ class RightPaneSheetManager {
                     aria = isBasic
                         ? `Số ${n}, trong đáp án 5 số chính kỳ hiện tại (id), Shift+click để viền cam`
                         : `Số ${n}, đáp án kỳ hiện tại (id), Shift+click để viền cam`;
+                } else if (!isBasic && prevPeriodJustDrawn != null && n === prevPeriodJustDrawn) {
+                    aria = `Số ${n}, pick kỳ liền trước`;
                 } else if (pr) {
                     aria = predictHit
                         ? `Số ${n}, ứng viên dự đoán hạng ${pr}, trùng đáp án kỳ tiếp theo (id+1)`
@@ -13037,6 +13429,28 @@ class RightPaneSheetManager {
                     gapDividers,
                     slotCount
                 );
+            }
+            if (freqGapCornerLayer) {
+                if (isBasic || !specialDisplay) {
+                    RightPaneSheetManager.syncTrackingFreqGapCornerLabels(
+                        freqGapCornerLayer,
+                        [],
+                        slotCount
+                    );
+                } else {
+                    const cornerLabels = RightPaneSheetManager.computeSpecialTrackingContiguousSetCornerLabels(
+                        sheet.specialSeries || sheet.series || [],
+                        frames,
+                        frameIndex,
+                        leftSubmitOn,
+                        specialPreviewActive ? specialPreviewPick : null
+                    );
+                    RightPaneSheetManager.syncTrackingFreqGapCornerLabels(
+                        freqGapCornerLayer,
+                        cornerLabels,
+                        slotCount
+                    );
+                }
             }
             syncTimelineUi();
         };
@@ -13429,8 +13843,8 @@ class RightPaneSheetManager {
         const rightPaneEl = tableWrap.closest('.pane.right')
             || document.querySelector('.pane.right');
         const resolveLastPreviewBarToToggle = () => {
-            let n = this.lastTrackingPreviewBarNum;
             if (isBasic) {
+                let n = this.lastTrackingPreviewBarNum;
                 const maxN = 35;
                 const picks = this.leftBasicPreviewPickNums || [];
                 if (Number.isFinite(n) && n >= 1 && n <= maxN) {
@@ -13445,19 +13859,7 @@ class RightPaneSheetManager {
                 }
                 return null;
             }
-            const maxN = 12;
-            if (Number.isFinite(n) && n >= 1 && n <= maxN) {
-                return n;
-            }
-            const hist = this.leftSpecialPreviewPickHistory || [];
-            if (hist.length) {
-                const tip = hist[hist.length - 1];
-                if (Number.isFinite(tip) && tip >= 1 && tip <= maxN) {
-                    return tip;
-                }
-            }
-            n = this.leftSpecialPreviewPickNum;
-            return (Number.isFinite(n) && n >= 1 && n <= maxN) ? n : null;
+            return this.resolveSpecialTrackingPreviewToggleNum();
         };
         const handleRightPanePreviewToggle = (e) => {
             const eligible = isBasic
@@ -13591,6 +13993,28 @@ class RightPaneSheetManager {
         };
         window.addEventListener('keydown', onTrackingArrowNav, true);
 
+        /** Phím Q — special tracking: bật/tắt giả lập; không chặn Q nửa trái (cả hai chạy độc lập). */
+        const onTrackingSpecialPreviewQ = (ev) => {
+            if (isBasic) {
+                return;
+            }
+            if (!tableWrap.classList.contains('table-wrap--tracking')) {
+                return;
+            }
+            if (!((ev.code === 'KeyQ' || ev.key === 'q' || ev.key === 'Q')
+                && !ev.ctrlKey && !ev.metaKey && !ev.altKey)) {
+                return;
+            }
+            const t = ev.target;
+            if (t instanceof Element && t.closest('input, textarea, select, [contenteditable="true"]')) {
+                return;
+            }
+            if (this.tryToggleSpecialTrackingPreviewFromQKey()) {
+                rememberMainKeyboardFocus();
+            }
+        };
+        window.addEventListener('keydown', onTrackingSpecialPreviewQ, true);
+
         const onLeftSubmitStateChanged = () => {
             paint();
         };
@@ -13706,6 +14130,7 @@ class RightPaneSheetManager {
                 labelToggle.removeEventListener('click', onLabelToggle);
             }
             window.removeEventListener('keydown', onTrackingArrowNav, true);
+            window.removeEventListener('keydown', onTrackingSpecialPreviewQ, true);
             window.removeEventListener('leftSubmitStateChanged', onLeftSubmitStateChanged);
             window.removeEventListener('leftAutoringStateChanged', onLeftAutoringStateChanged);
             window.removeEventListener('leftCircledNumsChanged', onLeftCircledNumsChanged);

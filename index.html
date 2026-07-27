@@ -683,6 +683,35 @@
             filter: saturate(1.12) brightness(1.06);
         }
 
+        /*
+         * Special: pick kỳ liền trước — cảnh sáng trong cột freq tích lũy (meta),
+         * không phủ bar fill; text freq nằm trên (z-index) nên không bị đè.
+         */
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-bar--prev-period-pick .special-tracking-rank-meta {
+            position: relative;
+            isolation: isolate;
+            overflow: hidden;
+            background-color: #e0f2fe;
+            background-image: url('st-prev-pick-scene.svg');
+            background-size: auto 100%;
+            background-repeat: no-repeat;
+            background-position: center center;
+            border-radius: 2px;
+        }
+
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-bar--prev-period-pick .special-tracking-rank-count,
+        .special-tracking-root:not(.special-tracking-root--basic) .special-tracking-rank-bar--prev-period-pick .special-tracking-rank-prio {
+            position: relative;
+            z-index: 4;
+            text-shadow:
+                0 0 2px rgba(255, 255, 255, 1),
+                0 0 5px rgba(255, 255, 255, 0.95),
+                -1px 0 0 rgba(255, 255, 255, 0.9),
+                1px 0 0 rgba(255, 255, 255, 0.9),
+                0 -1px 0 rgba(255, 255, 255, 0.9),
+                0 1px 0 rgba(255, 255, 255, 0.9);
+        }
+
         .special-tracking-rank-fill .special-tracking-rank-num,
         .special-tracking-rank-track--main>.special-tracking-rank-num,
         .special-tracking-rank-track--label>.special-tracking-rank-num {
@@ -824,7 +853,8 @@
         .special-tracking-root--mount-snap .special-tracking-rank-bar,
         .special-tracking-root--mount-snap .special-tracking-rank-fill,
         .special-tracking-root--mount-snap .special-tracking-freq-brace,
-        .special-tracking-root--mount-snap .special-tracking-freq-gap-divider {
+        .special-tracking-root--mount-snap .special-tracking-freq-gap-divider,
+        .special-tracking-root--mount-snap .special-tracking-freq-gap-corner {
             transition: none !important;
         }
 
@@ -1561,8 +1591,64 @@
         }
 
         .special-tracking-root--scrubbing .special-tracking-freq-gap-divider,
-        .special-tracking-root--playing .special-tracking-freq-gap-divider {
+        .special-tracking-root--playing .special-tracking-freq-gap-divider,
+        .special-tracking-root--scrubbing .special-tracking-freq-gap-corner,
+        .special-tracking-root--playing .special-tracking-freq-gap-corner {
             transition-duration: 0s;
+        }
+
+        /* Nhãn 4 góc: số lần pick trên tập liền nhau (freq-gap) */
+        .special-tracking-freq-gap-corner-layer {
+            position: absolute;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            width: calc(var(--st-freq-brace-w, clamp(28px, 5vw, 38px)) * 2);
+            z-index: 7;
+            pointer-events: none;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .special-tracking-root--label-in .special-tracking-freq-gap-corner-layer {
+            width: var(--st-freq-brace-w, clamp(28px, 5vw, 38px));
+        }
+
+        .special-tracking-root--basic .special-tracking-freq-gap-corner-layer {
+            display: none;
+        }
+
+        .special-tracking-freq-gap-corner {
+            position: absolute;
+            font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+            font-size: 10px;
+            font-weight: 700;
+            line-height: 1;
+            color: #111;
+            text-shadow: 0 0 2px rgba(255, 255, 255, 0.95), 0 0 4px rgba(255, 255, 255, 0.7);
+            pointer-events: none;
+            user-select: none;
+            transition: top 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+        }
+
+        .special-tracking-freq-gap-corner--tl {
+            left: 2px;
+            transform: translateY(3px);
+        }
+
+        .special-tracking-freq-gap-corner--tr {
+            right: 2px;
+            transform: translateY(3px);
+        }
+
+        .special-tracking-freq-gap-corner--bl {
+            left: 2px;
+            transform: translateY(calc(-100% - 3px));
+        }
+
+        .special-tracking-freq-gap-corner--br {
+            right: 2px;
+            transform: translateY(calc(-100% - 3px));
         }
 
         /* Tên bụng mờ: đối xứng gương qua mép ghost|solid (right:50% ↔ left:50%, đảo shift-x) */
@@ -21087,6 +21173,19 @@ function getFilterNoteTRefMaxSelections(mode) {
                     try {
                         frame.contentWindow.postMessage({ type: 'checknotePopupData', data, nonce: msg.nonce }, '*');
                     } catch (e) { /* ignore */ }
+                    return;
+                }
+                if (msg.type === 'toggleSpecialTrackingPreviewQ') {
+                    const frame = el('okFrame');
+                    if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
+                        return;
+                    }
+                    try {
+                        if (sheetManager
+                            && typeof sheetManager.tryToggleSpecialTrackingPreviewFromQKey === 'function') {
+                            sheetManager.tryToggleSpecialTrackingPreviewFromQKey();
+                        }
+                    } catch (eSpQ) { /* ignore */ }
                     return;
                 }
                 if (msg.type === 'togglePeriodFilter') {

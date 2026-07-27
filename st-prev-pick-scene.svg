@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="paradise">
+  <defs>
+    <linearGradient id="sky" x1="16" y1="0" x2="16" y2="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#fffbeb"/>
+      <stop offset="50%" stop-color="#e0f2fe"/>
+      <stop offset="100%" stop-color="#bae6fd"/>
+    </linearGradient>
+    <radialGradient id="sun" cx="74%" cy="20%" r="30%">
+      <stop offset="0%" stop-color="#fffef5"/>
+      <stop offset="40%" stop-color="#fde047"/>
+      <stop offset="100%" stop-color="#fbbf24" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="farHill" x1="0" y1="12" x2="0" y2="22" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#a7f3d0"/>
+      <stop offset="100%" stop-color="#6ee7b7"/>
+    </linearGradient>
+    <linearGradient id="nearHill" x1="0" y1="18" x2="0" y2="26" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#4ade80"/>
+      <stop offset="100%" stop-color="#22c55e"/>
+    </linearGradient>
+    <linearGradient id="grass" x1="0" y1="22" x2="0" y2="27" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#86efac"/>
+      <stop offset="100%" stop-color="#4ade80"/>
+    </linearGradient>
+    <linearGradient id="water" x1="0" y1="26" x2="0" y2="32" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#7dd3fc"/>
+      <stop offset="45%" stop-color="#38bdf8"/>
+      <stop offset="100%" stop-color="#0284c7"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="7.6" fill="url(#sky)"/>
+  <circle cx="24" cy="7.5" r="6.5" fill="url(#sun)"/>
+  <circle cx="24" cy="7.5" r="2.8" fill="#fef9c3"/>
+  <path d="M0 20 L6 13 L11 17 L16 10 L22 16 L27 12 L32 15 L32 24 L0 24 Z" fill="url(#farHill)"/>
+  <path d="M0 23 L5 18 L10 21 L15 16 L21 20 L28 17 L32 19 L32 26 L0 26 Z" fill="url(#nearHill)"/>
+  <path d="M0 24 Q8 22.2 14 24 Q20 25.8 32 23.2 L32 27 L0 27 Z" fill="url(#grass)"/>
+  <path d="M2 24.6 L2.7 22 L3.3 24.6 Z" fill="#15803d"/>
+  <path d="M6 25 L6.8 21.8 L7.5 25 Z" fill="#166534"/>
+  <path d="M11 24.5 L11.8 21.6 L12.5 24.5 Z" fill="#15803d"/>
+  <path d="M17 25 L17.8 22 L18.5 25 Z" fill="#166534"/>
+  <path d="M22 24.4 L22.7 21.7 L23.4 24.4 Z" fill="#15803d"/>
+  <path d="M0 26.2 Q10 25 16 26.6 Q24 28.2 32 25.8 L32 32 L0 32 Z" fill="url(#water)"/>
+  <path d="M1 28.2 Q9 27.2 16 28.6" fill="none" stroke="#e0f2fe" stroke-width="0.6" opacity="0.9"/>
+  <path d="M5 29.8 Q14 28.8 24 30.2" fill="none" stroke="#f0f9ff" stroke-width="0.5" opacity="0.75"/>
+  <path d="M12 31 Q20 30 30 31.2" fill="none" stroke="#bae6fd" stroke-width="0.45" opacity="0.8"/>
+  <rect x="6.55" y="18.2" width="1.15" height="5.4" rx="0.35" fill="#92400e"/>
+  <ellipse cx="7.15" cy="16" rx="3.1" ry="2.55" fill="#14532d"/>
+  <ellipse cx="5.5" cy="17" rx="2.1" ry="1.65" fill="#22c55e"/>
+  <ellipse cx="8.6" cy="16.5" rx="2" ry="1.55" fill="#4ade80"/>
+  <rect x="15.15" y="15.4" width="1.4" height="7.4" rx="0.4" fill="#78350f"/>
+  <ellipse cx="15.85" cy="12.9" rx="4" ry="3.25" fill="#14532d"/>
+  <ellipse cx="13.5" cy="14.3" rx="2.55" ry="2" fill="#15803d"/>
+  <ellipse cx="17.9" cy="13.9" rx="2.75" ry="2.15" fill="#22c55e"/>
+  <ellipse cx="15.85" cy="12" rx="2.15" ry="1.65" fill="#86efac"/>
+  <rect x="24.2" y="17.5" width="1.2" height="5.9" rx="0.35" fill="#92400e"/>
+  <ellipse cx="24.8" cy="15.1" rx="3.25" ry="2.65" fill="#166534"/>
+  <ellipse cx="23.1" cy="16.1" rx="2.15" ry="1.75" fill="#22c55e"/>
+  <ellipse cx="26.4" cy="15.7" rx="2.05" ry="1.65" fill="#4ade80"/>
+  <rect width="32" height="32" rx="7.6" fill="none" stroke="#fefce8" stroke-width="0.85" opacity="0.7"/>
+</svg>

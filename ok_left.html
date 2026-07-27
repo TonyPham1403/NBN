@@ -10830,6 +10830,9 @@
                     try {
                         toggleClearSelection();
                     } catch (eQ) { /* ignore */ }
+                    try {
+                        window.parent.postMessage({ type: 'toggleSpecialTrackingPreviewQ' }, '*');
+                    } catch (eQSp) { /* ignore */ }
                     e.preventDefault();
                     return;
                 }
@@ -12180,6 +12183,9 @@
                             try {
                                 toggleClearSelection();
                             } catch (e0) { /* ignore */ }
+                            try {
+                                window.parent.postMessage({ type: 'toggleSpecialTrackingPreviewQ' }, '*');
+                            } catch (e0sp) { /* ignore */ }
                             return;
                         }
                         if (e.code === 'Space' || e.key === ' ') {
