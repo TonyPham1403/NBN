@@ -11601,11 +11601,16 @@ class RightPaneSheetManager {
 
         for (let i = 0; i <= lastApply; i++) {
             const fr = frames[i];
-            if (!fr || fr.holdFrame) {
+            if (!fr) {
+                continue;
+            }
+            // Kỳ id rỗng (holdFrame): vẫn áp dụng click giả lập ở frame hiện tại.
+            const isPreviewOnFrame = i === frameIndex && hasPreview;
+            if (fr.holdFrame && !isPreviewOnFrame) {
                 continue;
             }
             let pick = fr.justDrawn;
-            if (i === frameIndex && hasPreview) {
+            if (isPreviewOnFrame) {
                 pick = previewPickNum;
             }
             if (pick == null || !Number.isFinite(pick)) {
@@ -11618,7 +11623,7 @@ class RightPaneSheetManager {
                 false,
                 null
             );
-            const postLayout = (i === frameIndex && hasPreview)
+            const postLayout = isPreviewOnFrame
                 ? RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
                     series,
                     fr,
