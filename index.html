@@ -1171,9 +1171,9 @@
             border-color: #ca8a04;
         }
 
-        .special-tracking-label-toggle {
+        .special-tracking-action-toggle {
             flex: 0 0 auto;
-            min-width: 3.2rem;
+            min-width: 3.6rem;
             font-size: clamp(9px, 1.05vh, 11px);
             font-weight: 800;
             text-transform: lowercase;
@@ -1187,15 +1187,56 @@
             line-height: 1.2;
         }
 
-        .special-tracking-label-toggle:hover {
+        .special-tracking-action-toggle:hover {
             border-color: #475569;
             background: #f8fafc;
         }
 
-        .special-tracking-label-toggle[aria-pressed="true"] {
+        .special-tracking-action-toggle.is-on,
+        .special-tracking-action-toggle[aria-pressed="true"] {
             background: #93c5fd;
             color: #0f172a;
             border-color: #3b82f6;
+        }
+
+        .special-tracking-root--basic .special-tracking-action-toggle {
+            display: none;
+        }
+
+        .special-tracking-rank-action {
+            position: absolute;
+            right: 12px;
+            top: 50%;
+            transform: translateY(-50%);
+            z-index: 4;
+            pointer-events: none;
+            font-family: "Segoe UI", "Helvetica Neue", sans-serif;
+            font-size: clamp(8px, 1.05vh, 10px);
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            line-height: 1;
+            white-space: nowrap;
+            text-shadow: 0 0 2px rgba(255, 255, 255, 0.95), 0 0 4px rgba(255, 255, 255, 0.75);
+        }
+
+        .special-tracking-rank-action[hidden] {
+            display: none !important;
+        }
+
+        .special-tracking-rank-action--plain {
+            color: #000000;
+        }
+
+        .special-tracking-rank-action--merge {
+            color: #00e000;
+        }
+
+        .special-tracking-rank-action--split {
+            color: #ff0000;
+        }
+
+        .special-tracking-rank-action--trans {
+            color: #0050ff;
         }
 
         .special-tracking-root--basic {
@@ -4914,6 +4955,88 @@
             color: #422006;
         }
 
+        .filter-popup-special-kinds-picker {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            flex: 0 0 auto;
+            margin-left: 4px;
+        }
+
+        .filter-popup-special-kinds-picker.hidden {
+            display: none !important;
+        }
+
+        .filter-popup-special-kind-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 28px;
+            height: 20px;
+            padding: 0 6px;
+            margin: 0;
+            font: 800 10px/1 Inter, Segoe UI, Arial, sans-serif;
+            letter-spacing: 0.03em;
+            border: 1px solid #cbd5e1;
+            border-radius: 3px;
+            background: #ffffff;
+            color: #64748b;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .filter-popup-special-kind-btn:hover {
+            border-color: #94a3b8;
+            color: #334155;
+        }
+
+        .filter-popup-special-kind-btn[aria-pressed="true"] {
+            border-color: #334155;
+            background: #e2e8f0;
+            color: #0f172a;
+        }
+
+        .filter-popup-special-kind-btn[data-special-kind="all"][aria-pressed="true"] {
+            border-color: #004d00;
+            background: #006400;
+            color: #ffffff;
+        }
+
+        .filter-popup-special-kind-btn[data-special-kind="plain"][aria-pressed="true"] {
+            border-color: #000000;
+            background: #111111;
+            color: #ffffff;
+        }
+
+        .filter-popup-special-kind-btn[data-special-kind="merge"][aria-pressed="true"] {
+            border-color: #008000;
+            background: #00e000;
+            color: #003300;
+        }
+
+        .filter-popup-special-kind-btn[data-special-kind="split"][aria-pressed="true"] {
+            border-color: #990000;
+            background: #ff0000;
+            color: #ffffff;
+        }
+
+        .filter-popup-special-kind-btn[data-special-kind="trans"][aria-pressed="true"] {
+            border-color: #003399;
+            background: #0050ff;
+            color: #ffffff;
+        }
+
+        #filterTableWrap tbody tr.filter-popup-special-disabled {
+            opacity: 0.22;
+            filter: grayscale(0.35);
+            pointer-events: none;
+            cursor: default;
+        }
+
+        #filterTableWrap tbody tr.filter-popup-special-disabled td {
+            pointer-events: none;
+        }
+
         .filter-popup-header2.hidden {
             display: none !important;
         }
@@ -5869,6 +5992,7 @@
 
         #filterTableWrap .sheet-data-table td.cell-date,
         #filterTableWrap .sheet-data-table td.cell-id,
+        #filterTableWrap .sheet-data-table td.cell-special,
         #filterTableWrap .sheet-data-table td.cell-pick-label,
         #filterTableWrap .sheet-data-table td.cell-follow,
         #filterTableWrap .sheet-data-table td.cell-result,
@@ -5876,7 +6000,8 @@
         #filterTableWrap .sheet-data-table thead th:nth-child(2),
         #filterTableWrap .sheet-data-table thead th:nth-child(3),
         #filterTableWrap .sheet-data-table thead th:nth-child(4),
-        #filterTableWrap .sheet-data-table thead th:nth-child(5) {
+        #filterTableWrap .sheet-data-table thead th:nth-child(5),
+        #filterTableWrap .sheet-data-table thead th:nth-child(6) {
             white-space: nowrap;
             width: 1%;
         }
@@ -5889,8 +6014,8 @@
 
         #filterTableWrap .sheet-data-table td.cell-note,
         #filterTableWrap .sheet-data-table td.cell-nonexist,
-        #filterTableWrap .sheet-data-table thead th:nth-child(6),
-        #filterTableWrap .sheet-data-table thead th:nth-child(7) {
+        #filterTableWrap .sheet-data-table thead th:nth-child(7),
+        #filterTableWrap .sheet-data-table thead th:nth-child(8) {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -5950,6 +6075,41 @@
             vertical-align: middle;
             white-space: nowrap;
             width: 1%;
+        }
+
+        .sheet-data-table td.cell-special {
+            padding: 2px 6px;
+            text-align: center;
+            vertical-align: middle;
+            white-space: nowrap;
+            width: 1%;
+        }
+
+        .sheet-data-table .cell-special-val {
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            line-height: 1.2;
+        }
+
+        .sheet-data-table .cell-special-val--plain {
+            color: #000000;
+        }
+
+        .sheet-data-table .cell-special-val--merge {
+            color: #00e000;
+        }
+
+        .sheet-data-table .cell-special-val--split {
+            color: #ff0000;
+        }
+
+        .sheet-data-table .cell-special-val--trans {
+            color: #0050ff;
+        }
+
+        .sheet-data-table th.cell-special-h {
+            cursor: default;
         }
 
         .sheet-data-table td.cell-follow,
@@ -6268,6 +6428,28 @@
         .prev-recall-fold-tooltip.is-visible {
             opacity: 1;
             visibility: visible;
+        }
+
+        .prev-recall-fold-tooltip .special-tip-line {
+            font-weight: 800;
+            letter-spacing: 0.03em;
+            line-height: 1.4;
+        }
+
+        .prev-recall-fold-tooltip .special-tip-plain {
+            color: #000000;
+        }
+
+        .prev-recall-fold-tooltip .special-tip-merge {
+            color: #00e000;
+        }
+
+        .prev-recall-fold-tooltip .special-tip-split {
+            color: #ff0000;
+        }
+
+        .prev-recall-fold-tooltip .special-tip-trans {
+            color: #0050ff;
         }
 
         /* L+V #005000: tooltip tùy chỉnh (tham khảo corner fold) */
@@ -7463,6 +7645,9 @@
                         aria-pressed="false" title="U thuận (∪): OR — đáp án trên bất kỳ chuỗi đã chọn">U</button>
                     <div id="filterPopupChainFilterPicker" class="filter-popup-chain-filter-picker hidden" role="group"
                         aria-label="Chọn nhãn chuỗi 1–10"></div>
+                    <div id="filterPopupSpecialKindsPicker" class="filter-popup-special-kinds-picker hidden"
+                        role="group" aria-label="Lọc special: All / PLAIN / MERGE / SPLIT / TRANS"
+                        aria-hidden="true"></div>
                     <div id="filterPopupIntersectionPicker"
                         class="filter-popup-note-tag-picker filter-popup-intersection-picker hidden" aria-hidden="true">
                         <div class="filter-popup-intersection-toolbar">
@@ -7867,7 +8052,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260728noteGap4"></script>
+    <script src="right-pane-sheets.js?v=20260730actionOn1"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -7989,8 +8174,12 @@
             nonexist: 'nonexist',
             connection: 'connection',
             intersection: 'intersection',
-            posnfreq: 'posnfreq'
+            posnfreq: 'posnfreq',
+            special: 'special'
         };
+        const FILTER_SPECIAL_KINDS_KEY = 'filterSpecialKinds';
+        const FILTER_SPECIAL_ALL = 'all';
+        const FILTER_SPECIAL_KIND_VALUES = ['plain', 'merge', 'split', 'trans'];
         const DATEBAND_FILTER_MODE = 'dateband';
         const TAIL_FILTER_MODE = 'tail';
         const VALID_FILTER_MODES = Object.keys(FILTER_MODE_LABELS);
@@ -8088,6 +8277,8 @@
         let filterPopupFollowDeterminedPct = 0;
         let filterPopupConnectionSubfilter = 'off';
         let filterPopupConnectionUniquePct = 0;
+        /** Mode special: ['all'] hoặc ≥1 trong plain/merge/split/trans */
+        let filterSpecialKinds = [FILTER_SPECIAL_ALL];
         let filterModeCounts = {};
         let filterPopupLayoutSaveTimer = null;
         let filterPopupResizeActive = false;
@@ -9868,6 +10059,9 @@
             if (normalizeFilterMode(mode) === 'intersection') {
                 return 'intersection (giao / gần giao chuỗi trên 5 số submit + 10 chuỗi)';
             }
+            if (isSpecialFilterMode(mode)) {
+                return 'special: lọc theo plain / merge / split / trans (cột special)';
+            }
             return getFilterModeLabel(mode);
         }
 
@@ -9896,6 +10090,10 @@
 
         function isConn3FilterMode(mode) {
             return normalizeFilterMode(mode) === 'conn3';
+        }
+
+        function isSpecialFilterMode(mode) {
+            return normalizeFilterMode(mode) === 'special';
         }
 
         function isAllFilterMode(mode) {
@@ -9941,6 +10139,9 @@
                 return false;
             }
             if (isPosnfreqFilterMode(mode)) {
+                return false;
+            }
+            if (isSpecialFilterMode(mode)) {
                 return false;
             }
             return getFilterNoteTagMaxSelections(mode) > 0;
@@ -13900,6 +14101,210 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
         }
 
+        function normalizeOneFilterSpecialKindToken(value) {
+            const raw = String(value == null ? '' : value).trim().toLowerCase();
+            if (!raw || raw === FILTER_SPECIAL_ALL) {
+                return FILTER_SPECIAL_ALL;
+            }
+            if (FILTER_SPECIAL_KIND_VALUES.includes(raw)) {
+                return raw;
+            }
+            return null;
+        }
+
+        function normalizeFilterSpecialKinds() {
+            if (!Array.isArray(filterSpecialKinds) || filterSpecialKinds.length === 0) {
+                filterSpecialKinds = [FILTER_SPECIAL_ALL];
+                return;
+            }
+            if (filterSpecialKinds.includes(FILTER_SPECIAL_ALL)
+                || filterSpecialKinds.some((v) => normalizeOneFilterSpecialKindToken(v) === FILTER_SPECIAL_ALL)) {
+                filterSpecialKinds = [FILTER_SPECIAL_ALL];
+                return;
+            }
+            const unique = [];
+            for (const raw of filterSpecialKinds) {
+                const token = normalizeOneFilterSpecialKindToken(raw);
+                if (!token || token === FILTER_SPECIAL_ALL || unique.includes(token)) {
+                    continue;
+                }
+                unique.push(token);
+            }
+            filterSpecialKinds = unique.length ? unique : [FILTER_SPECIAL_ALL];
+        }
+
+        function saveFilterSpecialKindsSettings() {
+            try {
+                localStorage.setItem(FILTER_SPECIAL_KINDS_KEY, JSON.stringify(filterSpecialKinds));
+            } catch (e) { /* ignore */ }
+        }
+
+        function loadFilterSpecialKindsSettings() {
+            try {
+                const raw = localStorage.getItem(FILTER_SPECIAL_KINDS_KEY);
+                if (!raw) {
+                    filterSpecialKinds = [FILTER_SPECIAL_ALL];
+                    return;
+                }
+                const parsed = JSON.parse(raw);
+                filterSpecialKinds = Array.isArray(parsed) ? parsed : [FILTER_SPECIAL_ALL];
+            } catch (e) {
+                filterSpecialKinds = [FILTER_SPECIAL_ALL];
+            }
+            normalizeFilterSpecialKinds();
+        }
+
+        function isFilterSpecialKindsAllSelected() {
+            normalizeFilterSpecialKinds();
+            return filterSpecialKinds.length === 1 && filterSpecialKinds[0] === FILTER_SPECIAL_ALL;
+        }
+
+        function getActiveFilterSpecialKinds() {
+            normalizeFilterSpecialKinds();
+            if (isFilterSpecialKindsAllSelected()) {
+                return [];
+            }
+            return filterSpecialKinds.filter((k) => FILTER_SPECIAL_KIND_VALUES.includes(k));
+        }
+
+        function isFilterSpecialKindsSubfilterActive() {
+            return periodFilterEnabled
+                && isSpecialFilterMode(periodFilterMode)
+                && getActiveFilterSpecialKinds().length > 0;
+        }
+
+        function toggleFilterSpecialKind(kind) {
+            const token = normalizeOneFilterSpecialKindToken(kind);
+            if (!token) {
+                return;
+            }
+            if (token === FILTER_SPECIAL_ALL) {
+                filterSpecialKinds = [FILTER_SPECIAL_ALL];
+            } else {
+                const cur = getActiveFilterSpecialKinds();
+                const idx = cur.indexOf(token);
+                if (idx >= 0) {
+                    cur.splice(idx, 1);
+                } else {
+                    cur.push(token);
+                }
+                filterSpecialKinds = cur.length ? cur : [FILTER_SPECIAL_ALL];
+            }
+            normalizeFilterSpecialKinds();
+            saveFilterSpecialKindsSettings();
+            syncFilterPopupSpecialKindsUi();
+            applyFilterPopupSpecialKindsRowClasses();
+            reconcileFilterPopupActiveAfterSubfilterToggle();
+            updateFilterPopupMatchCount();
+            syncPeriodFilterNavModeToIframe();
+        }
+
+        function syncFilterPopupSpecialKindsUi() {
+            const picker = el('filterPopupSpecialKindsPicker');
+            const show = periodFilterEnabled && isSpecialFilterMode(periodFilterMode);
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+                picker.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+            if (!picker) {
+                return;
+            }
+            normalizeFilterSpecialKinds();
+            const allOn = isFilterSpecialKindsAllSelected();
+            const active = new Set(getActiveFilterSpecialKinds());
+            picker.querySelectorAll('.filter-popup-special-kind-btn').forEach((btn) => {
+                const kind = normalizeOneFilterSpecialKindToken(btn.dataset.specialKind);
+                let pressed = false;
+                if (kind === FILTER_SPECIAL_ALL) {
+                    pressed = allOn;
+                } else if (kind) {
+                    pressed = !allOn && active.has(kind);
+                }
+                btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+            });
+        }
+
+        function buildFilterPopupSpecialKindsButtons() {
+            const picker = el('filterPopupSpecialKindsPicker');
+            if (!picker || picker.dataset.specialKindsBuilt === '1') {
+                return;
+            }
+            picker.dataset.specialKindsBuilt = '1';
+            picker.innerHTML = '';
+            const items = [
+                { kind: FILTER_SPECIAL_ALL, label: 'All', title: 'Tất cả giá trị special' },
+                { kind: 'plain', label: 'PLAIN', title: 'Lọc PLAIN' },
+                { kind: 'merge', label: 'MERGE', title: 'Lọc MERGE' },
+                { kind: 'split', label: 'SPLIT', title: 'Lọc SPLIT' },
+                { kind: 'trans', label: 'TRANS', title: 'Lọc TRANS' }
+            ];
+            for (const item of items) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'filter-popup-special-kind-btn';
+                btn.dataset.specialKind = item.kind;
+                btn.textContent = item.label;
+                btn.setAttribute('aria-pressed', item.kind === FILTER_SPECIAL_ALL ? 'true' : 'false');
+                btn.setAttribute('aria-label', item.title);
+                btn.title = item.title;
+                btn.addEventListener('mousedown', (event) => event.stopPropagation());
+                btn.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    toggleFilterSpecialKind(item.kind);
+                });
+                picker.appendChild(btn);
+            }
+        }
+
+        function initFilterPopupSpecialKindsControls() {
+            loadFilterSpecialKindsSettings();
+            buildFilterPopupSpecialKindsButtons();
+            syncFilterPopupSpecialKindsUi();
+        }
+
+        function collectFilterPopupSpecialHitIndicesOrdered(wrap) {
+            const root = wrap || el('filterTableWrap');
+            if (!root) {
+                return [];
+            }
+            return [...root.querySelectorAll('tbody tr.filter-popup-special-hit[data-idx]')]
+                .map((tr) => Number(tr.dataset.idx))
+                .filter((idx) => Number.isFinite(idx));
+        }
+
+        function applyFilterPopupSpecialKindsRowClasses(wrapArg) {
+            const wrap = wrapArg || el('filterTableWrap');
+            if (!wrap) {
+                return;
+            }
+            wrap.querySelectorAll('tbody tr.filter-popup-special-hit, tbody tr.filter-popup-special-disabled')
+                .forEach((tr) => {
+                    tr.classList.remove('filter-popup-special-hit', 'filter-popup-special-disabled');
+                });
+            if (!periodFilterEnabled || !isSpecialFilterMode(periodFilterMode) || !sheetManager) {
+                return;
+            }
+            const wanted = getActiveFilterSpecialKinds();
+            const kindsActive = wanted.length > 0;
+            const rows = getFilterSourceSheetRows();
+            const kinds = typeof sheetManager.getSheet1SpecialContiguousKinds === 'function'
+                ? sheetManager.getSheet1SpecialContiguousKinds(rows)
+                : [];
+            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                const idx = Number(tr.dataset.idx);
+                if (!Number.isFinite(idx) || idx < 0) {
+                    return;
+                }
+                const kind = kinds[idx] || '';
+                const match = !kindsActive || (kind && wanted.includes(kind));
+                if (match) {
+                    tr.classList.add('filter-popup-special-hit');
+                } else if (kindsActive) {
+                    tr.classList.add('filter-popup-special-disabled');
+                }
+            });
+        }
+
         function computeFilterChainMatchingIndices(baseIndices, selectedLabels) {
             const base = Array.isArray(baseIndices) ? baseIndices : [];
             const labels = Array.isArray(selectedLabels) ? selectedLabels : [];
@@ -15543,6 +15948,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
                 return 'Không có kỳ nào khớp posnfreq với specimen hiện tại.';
             }
+            if (isSpecialFilterMode(normalized)) {
+                return 'Không có kỳ nào có giá trị special (plain/merge/split/trans).';
+            }
             if (isIntersectionFilterMode(normalized)) {
                 const k = filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
                 const oxa = normalizeIntersectionFreqOp(filterIntersectionOpX);
@@ -16084,7 +16492,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             return (filterPopupPosnfreqGreenOnly && isPosnfreqFilterMode(periodFilterMode))
                 || (filterPopupConn3WindowOnly && isConn3FilterMode(periodFilterMode))
                 || isFilterPopupFollowSubfilterActive()
-                || isFilterPopupConnectionSubfilterActive();
+                || isFilterPopupConnectionSubfilterActive()
+                || isFilterSpecialKindsSubfilterActive();
         }
 
         function getFilterPopupEffectiveListIndices() {
@@ -16117,6 +16526,10 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (filterPopupConn3WindowOnly && periodFilterEnabled && isConn3FilterMode(periodFilterMode)) {
                 conn3Hits = collectFilterPopupPosnfreqGreenHitIndicesOrdered(wrap);
             }
+            let specialHits = null;
+            if (isFilterSpecialKindsSubfilterActive()) {
+                specialHits = collectFilterPopupSpecialHitIndicesOrdered(wrap);
+            }
 
             let list = null;
             if (followHits !== null) {
@@ -16135,6 +16548,14 @@ function getFilterNoteTRefMaxSelections(mode) {
                     list = conn3Hits;
                 } else {
                     const setB = new Set(conn3Hits);
+                    list = list.filter((idx) => setB.has(idx));
+                }
+            }
+            if (specialHits !== null) {
+                if (list === null) {
+                    list = specialHits;
+                } else {
+                    const setB = new Set(specialHits);
                     list = list.filter((idx) => setB.has(idx));
                 }
             }
@@ -16162,6 +16583,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return getFilterPopupNavListLength();
             }
             if (isFilterPopupConnectionSubfilterActive()) {
+                return getFilterPopupNavListLength();
+            }
+            if (isFilterSpecialKindsSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
             return getFilterPopupTableIndices().length;
@@ -16576,6 +17000,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return getFilterPopupNavListLength();
             }
             if (isFilterPopupConnectionSubfilterActive()) {
+                return getFilterPopupNavListLength();
+            }
+            if (isFilterSpecialKindsSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
             if (periodFilterEnabled && isPeriodFilterContextSheet()) {
@@ -17106,6 +17533,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupIntersectionToolsUi();
             syncFilterPopupTailCountUi();
             syncFilterPopupChainFilterUi();
+            syncFilterPopupSpecialKindsUi();
 
             if (light) {
                 return;
@@ -18068,6 +18496,14 @@ function getFilterNoteTRefMaxSelections(mode) {
                 centerFilterPopupAllModeWindowInView();
                 return;
             }
+            // Các mode khác (gồm special): căn hàng focus theo split 60/40 như pane phải chính.
+            if (sheetManager && typeof sheetManager.centerActiveWindowInView === 'function') {
+                sheetManager.centerActiveWindowInView(wrap, {
+                    startIdx: filterPopupActiveIdx,
+                    endIdx: filterPopupActiveIdx
+                });
+                return;
+            }
             const tr = wrap.querySelector(`tbody tr[data-idx="${filterPopupActiveIdx}"]`);
             if (!tr) {
                 return;
@@ -18947,6 +19383,10 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!sheetManager || typeof idx !== 'number' || idx < 0) {
                 return;
             }
+            const list = getFilterPopupEffectiveListIndices();
+            if (!list.includes(idx)) {
+                return;
+            }
             const wrap = el('filterTableWrap');
             rememberKeyboardFocusTarget('filter');
             filterPopupActiveIdx = idx;
@@ -19047,7 +19487,16 @@ function getFilterNoteTRefMaxSelections(mode) {
             const indices = displayIdx.length
                 ? displayIdx
                 : [...wrap.querySelectorAll('tbody tr[data-idx]')].map(tr => Number(tr.dataset.idx));
-            sheetManager.applyPrevPeriodRecallFoldTooltips(wrap, getFilterSourceSheetRows(), indices);
+            const rows = getFilterSourceSheetRows();
+            sheetManager.applyPrevPeriodRecallFoldTooltips(wrap, rows, indices);
+            if (typeof sheetManager.applySheet1SpecialHeaderTooltip === 'function'
+                && typeof sheetManager.getSheet1SpecialContiguousKinds === 'function') {
+                sheetManager.applySheet1SpecialHeaderTooltip(
+                    wrap,
+                    sheetManager.getSheet1SpecialContiguousKinds(rows),
+                    indices
+                );
+            }
         }
 
         function applyFilterPopupFastOpen(wrap, options = {}) {
@@ -19097,6 +19546,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupConn3WindowOverlap();
             syncFilterPopupFollowDeterminedOverlap();
             syncFilterPopupConnectionOverlap();
+            applyFilterPopupSpecialKindsRowClasses(wrap);
             applyFilterPopupNonexist005000RowBorders(wrap);
             reconcileFilterPopupFocusAfterListChange(getFilterPopupDisplayIndices(), options);
             syncFilterPopupHeaderUi();
@@ -19145,6 +19595,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupNoteTRefUi();
             syncFilterPopupIntersectionToolsUi();
             syncFilterPopupChainFilterUi();
+            syncFilterPopupSpecialKindsUi();
         }
 
         function syncFilterPopupPosnfreqSubmitOverlap() {
@@ -19495,6 +19946,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupConn3WindowOverlap();
             syncFilterPopupFollowDeterminedOverlap();
             syncFilterPopupConnectionOverlap();
+            applyFilterPopupSpecialKindsRowClasses(wrap);
             applyFilterPopupNonexist005000RowBorders(wrap);
             filterPopupRenderCacheKey = cacheKey;
             if (isAllLikeFilterMode(periodFilterMode)) {
@@ -20578,6 +21030,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             initFilterPopupPositionInput();
             initFilterPopupHeader2Controls();
             initFilterPopupChainFilterControls();
+            initFilterPopupSpecialKindsControls();
             initGlobalPlusMinusShortcuts();
             initPeriodFilterCtrlShortcut();
             syncPeriodFilterToolbarUi();
