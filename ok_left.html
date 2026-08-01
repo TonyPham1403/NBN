@@ -11884,9 +11884,10 @@
                             }
                         } catch (e) { }
                     }
-                    /* Đang có gạch chân (nhiều Chuỗi) — bắt trước process vì sang id mới bộ số cũ không còn khớp */
+                    /* Đang có gạch chân (nhiều Chuỗi) — bắt trước process vì sang id mới bộ số cũ không còn khớp.
+                     * Cả click lẫn arrow/trackingFrameStep: follow theo nhãn chuỗi tương đối (Chuỗi 1 giữ Chuỗi 1). */
                     var chuoiFollowAcrossIds = [];
-                    if (isFocusArrival && !msg.trackingFrameStep) {
+                    if (isFocusArrival) {
                         try {
                             chuoiFollowAcrossIds = getFullyObservedChuoiLabels(observeChuoiLastFocusSet);
                         } catch (eFollowCap) {
