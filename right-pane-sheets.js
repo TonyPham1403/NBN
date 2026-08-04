@@ -4500,9 +4500,20 @@ class RightPaneSheetManager {
                 : '';
             const pickLabelHtml = isEmptyResultRow ? '' : this.getRowPickPropertyLabelHtml(displayRows, i, row);
             const followValue = this.computeFollowCellValue(displayRows, i);
-            const followHtml = followValue === '?'
-                ? '<span class="cell-follow-undetermined" title="≥2 số cùng freq cao nhất ở chuỗi 1">?</span>'
-                : this.escapeHtml(followValue);
+            let followHtml = '';
+            if (followValue === '?') {
+                followHtml = '<span class="cell-follow-undetermined" title="≥2 số cùng freq cao nhất ở chuỗi 1">?</span>';
+            } else if (followValue) {
+                const followNum = parseInt(followValue, 10);
+                const followInResult = !isEmptyResultRow
+                    && Number.isFinite(followNum)
+                    && followNum >= 1
+                    && followNum <= 35
+                    && pickNums.includes(followNum);
+                followHtml = followInResult
+                    ? `<span class="cell-follow-in-result">${this.escapeHtml(followValue)}</span>`
+                    : this.escapeHtml(followValue);
+            }
             const specialKind = specialKinds[i] || '';
             const specialHtml = specialKind
                 ? `<span class="cell-special-val cell-special-val--${specialKind}">${String(specialKind).toUpperCase()}</span>`
