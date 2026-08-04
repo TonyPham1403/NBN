@@ -1203,24 +1203,46 @@
             display: none;
         }
 
-        .special-tracking-rank-action {
+        .special-tracking-rank-labels {
             position: absolute;
             right: 12px;
             top: 50%;
             transform: translateY(-50%);
             z-index: 4;
             pointer-events: none;
+            display: inline-flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 5px;
+            max-width: calc(100% - 16px);
+        }
+
+        .special-tracking-rank-trend,
+        .special-tracking-rank-action {
             font-family: "Segoe UI", "Helvetica Neue", sans-serif;
-            font-size: clamp(8px, 1.05vh, 10px);
-            font-weight: 800;
-            letter-spacing: 0.04em;
+            font-size: clamp(11px, 1.45vh, 14px);
+            font-weight: 900;
+            letter-spacing: 0.02em;
             line-height: 1;
             white-space: nowrap;
             text-shadow: 0 0 2px rgba(255, 255, 255, 0.95), 0 0 4px rgba(255, 255, 255, 0.75);
         }
 
+        .special-tracking-rank-trend[hidden],
         .special-tracking-rank-action[hidden] {
             display: none !important;
+        }
+
+        .special-tracking-rank-trend--up {
+            color: #006400;
+        }
+
+        .special-tracking-rank-trend--flat {
+            color: #000000;
+        }
+
+        .special-tracking-rank-trend--down {
+            color: #ff0000;
         }
 
         .special-tracking-rank-action--plain {
@@ -4963,8 +4985,92 @@
             margin-left: 4px;
         }
 
-        .filter-popup-special-kinds-picker.hidden {
+        .filter-popup-special-trends-picker {
+            display: inline-flex;
+            align-items: center;
+            align-self: center;
+            height: 24px;
+            flex: 0 0 auto;
+            flex-shrink: 0;
+            margin-left: 4px;
+            padding: 0;
+            overflow: visible;
+            background: transparent;
+            border: 0;
+        }
+
+        .filter-popup-special-kinds-picker.hidden,
+        .filter-popup-special-trends-picker.hidden {
             display: none !important;
+        }
+
+        .filter-popup-special-trends-picker .filter-popup-special-trend-dir-picker,
+        .filter-popup-special-trends-picker .filter-popup-special-trend-streak-picker {
+            display: inline-flex;
+            align-items: stretch;
+            height: 24px;
+            position: relative;
+        }
+
+        .filter-popup-special-trends-picker .filter-popup-special-trend-streak-picker {
+            margin-left: -1px;
+        }
+
+        .filter-popup-special-trends-picker .period-filter-mode-btn {
+            height: 24px;
+            min-height: 24px;
+            max-height: 24px;
+            min-width: 44px;
+            padding: 0 7px;
+            border: 1px solid #004d00;
+            border-radius: 6px;
+            background: #006400;
+            color: #ffffff;
+            font-size: 11px;
+            font-weight: 800;
+            letter-spacing: 0.03em;
+        }
+
+        .filter-popup-special-trends-picker .filter-popup-special-trend-dir-picker .period-filter-mode-btn {
+            border-top-right-radius: 0;
+            border-bottom-right-radius: 0;
+        }
+
+        .filter-popup-special-trends-picker .filter-popup-special-trend-streak-picker .period-filter-mode-btn {
+            border-top-left-radius: 0;
+            border-bottom-left-radius: 0;
+            min-width: 52px;
+            padding: 0 6px;
+        }
+
+        .filter-popup-special-trends-picker .period-filter-mode-btn:disabled {
+            opacity: 1;
+            color: #64748b;
+            cursor: not-allowed;
+            background: #f1f5f9;
+            border-color: #cbd5e1;
+        }
+
+        .filter-popup-special-trends-picker .period-filter-mode-btn[data-dir="up"]:not(:disabled) {
+            border-color: #004d00;
+            background: #006400;
+            color: #ffffff;
+        }
+
+        .filter-popup-special-trends-picker .period-filter-mode-btn[data-dir="down"]:not(:disabled) {
+            border-color: #990000;
+            background: #ff0000;
+            color: #ffffff;
+        }
+
+        .filter-popup-special-trends-picker .period-filter-mode-btn[data-dir="flat"]:not(:disabled) {
+            border-color: #000000;
+            background: #111111;
+            color: #ffffff;
+        }
+
+        .filter-popup-special-trends-picker .period-filter-mode-btn.is-menu-open {
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
         }
 
         .filter-popup-special-kind-btn {
@@ -5993,6 +6099,7 @@
         #filterTableWrap .sheet-data-table td.cell-date,
         #filterTableWrap .sheet-data-table td.cell-id,
         #filterTableWrap .sheet-data-table td.cell-special,
+        #filterTableWrap .sheet-data-table td.cell-trend,
         #filterTableWrap .sheet-data-table td.cell-pick-label,
         #filterTableWrap .sheet-data-table td.cell-follow,
         #filterTableWrap .sheet-data-table td.cell-result,
@@ -6001,7 +6108,8 @@
         #filterTableWrap .sheet-data-table thead th:nth-child(3),
         #filterTableWrap .sheet-data-table thead th:nth-child(4),
         #filterTableWrap .sheet-data-table thead th:nth-child(5),
-        #filterTableWrap .sheet-data-table thead th:nth-child(6) {
+        #filterTableWrap .sheet-data-table thead th:nth-child(6),
+        #filterTableWrap .sheet-data-table thead th:nth-child(7) {
             white-space: nowrap;
             width: 1%;
         }
@@ -6014,8 +6122,8 @@
 
         #filterTableWrap .sheet-data-table td.cell-note,
         #filterTableWrap .sheet-data-table td.cell-nonexist,
-        #filterTableWrap .sheet-data-table thead th:nth-child(7),
-        #filterTableWrap .sheet-data-table thead th:nth-child(8) {
+        #filterTableWrap .sheet-data-table thead th:nth-child(8),
+        #filterTableWrap .sheet-data-table thead th:nth-child(9) {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -6108,8 +6216,37 @@
             color: #0050ff;
         }
 
-        .sheet-data-table th.cell-special-h {
+        .sheet-data-table th.cell-special-h,
+        .sheet-data-table th.cell-trend-h {
             cursor: default;
+        }
+
+        #filterTableWrap .sheet-data-table td.cell-trend,
+        .sheet-data-table td.cell-trend {
+            padding: 2px 6px;
+            text-align: center;
+            vertical-align: middle;
+            white-space: nowrap;
+            width: 1%;
+        }
+
+        .sheet-data-table .cell-trend-val {
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            line-height: 1.2;
+        }
+
+        .sheet-data-table .cell-trend-val--up {
+            color: #006400;
+        }
+
+        .sheet-data-table .cell-trend-val--down {
+            color: #ff0000;
+        }
+
+        .sheet-data-table .cell-trend-val--flat {
+            color: #000000;
         }
 
         .sheet-data-table td.cell-follow,
@@ -6436,20 +6573,44 @@
             line-height: 1.4;
         }
 
-        .prev-recall-fold-tooltip .special-tip-plain {
-            color: #000000;
+        .prev-recall-fold-tooltip .special-tip-line--streak {
+            padding-left: 0.65em;
+            font-weight: 700;
         }
 
-        .prev-recall-fold-tooltip .special-tip-merge {
-            color: #00e000;
+        .prev-recall-fold-tooltip .special-tip-plain,
+        .prev-recall-fold-tooltip--special .special-tip-plain {
+            color: #000000 !important;
         }
 
-        .prev-recall-fold-tooltip .special-tip-split {
-            color: #ff0000;
+        .prev-recall-fold-tooltip .special-tip-merge,
+        .prev-recall-fold-tooltip--special .special-tip-merge {
+            color: #00e000 !important;
         }
 
-        .prev-recall-fold-tooltip .special-tip-trans {
-            color: #0050ff;
+        .prev-recall-fold-tooltip .special-tip-split,
+        .prev-recall-fold-tooltip--special .special-tip-split {
+            color: #ff0000 !important;
+        }
+
+        .prev-recall-fold-tooltip .special-tip-trans,
+        .prev-recall-fold-tooltip--special .special-tip-trans {
+            color: #0050ff !important;
+        }
+
+        .prev-recall-fold-tooltip .special-tip-up,
+        .prev-recall-fold-tooltip--special .special-tip-up {
+            color: #006400 !important;
+        }
+
+        .prev-recall-fold-tooltip .special-tip-down,
+        .prev-recall-fold-tooltip--special .special-tip-down {
+            color: #ff0000 !important;
+        }
+
+        .prev-recall-fold-tooltip .special-tip-flat,
+        .prev-recall-fold-tooltip--special .special-tip-flat {
+            color: #000000 !important;
         }
 
         /* L+V #005000: tooltip tùy chỉnh (tham khảo corner fold) */
@@ -7646,8 +7807,36 @@
                     <div id="filterPopupChainFilterPicker" class="filter-popup-chain-filter-picker hidden" role="group"
                         aria-label="Chọn nhãn chuỗi 1–10"></div>
                     <div id="filterPopupSpecialKindsPicker" class="filter-popup-special-kinds-picker hidden"
-                        role="group" aria-label="Lọc special: All / PLAIN / MERGE / SPLIT / TRANS"
+                        role="group" aria-label="Lọc special action: All / PLAIN / MERGE / SPLIT / TRANS"
                         aria-hidden="true"></div>
+                    <div id="filterPopupSpecialTrendsPicker" class="filter-popup-special-trends-picker hidden"
+                        role="group" aria-label="Lọc special trend: hướng + streak"
+                        aria-hidden="true">
+                        <div id="filterPopupSpecialTrendDirPicker"
+                            class="period-filter-mode-picker filter-popup-special-trend-dir-picker">
+                            <button type="button" id="filterPopupSpecialTrendDirBtn" class="period-filter-mode-btn"
+                                aria-haspopup="listbox" aria-expanded="false" data-dir="all"
+                                title="Hướng trend: All / UP / DOWN / FLAT">
+                                <span id="filterPopupSpecialTrendDirBtnLabel">All</span>
+                                <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
+                            </button>
+                            <ul id="filterPopupSpecialTrendDirMenu"
+                                class="period-filter-mode-menu filter-popup-special-trend-menu hidden" role="listbox"
+                                aria-label="Hướng trend"></ul>
+                        </div>
+                        <div id="filterPopupSpecialTrendStreakPicker"
+                            class="period-filter-mode-picker filter-popup-special-trend-streak-picker">
+                            <button type="button" id="filterPopupSpecialTrendStreakBtn" class="period-filter-mode-btn"
+                                aria-haspopup="listbox" aria-expanded="false" data-dir="all" disabled
+                                title="Chọn số streak đi kèm hướng">
+                                <span id="filterPopupSpecialTrendStreakBtnLabel">streak</span>
+                                <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
+                            </button>
+                            <ul id="filterPopupSpecialTrendStreakMenu"
+                                class="period-filter-mode-menu filter-popup-special-trend-menu hidden" role="listbox"
+                                aria-label="Số streak"></ul>
+                        </div>
+                    </div>
                     <div id="filterPopupIntersectionPicker"
                         class="filter-popup-note-tag-picker filter-popup-intersection-picker hidden" aria-hidden="true">
                         <div class="filter-popup-intersection-toolbar">
@@ -8052,7 +8241,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260730actionOn1"></script>
+    <script src="right-pane-sheets.js?v=20260805trendTipStreak"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -8178,8 +8367,12 @@
             special: 'special'
         };
         const FILTER_SPECIAL_KINDS_KEY = 'filterSpecialKinds';
+        const FILTER_SPECIAL_TREND_DIR_KEY = 'filterSpecialTrendDir';
+        const FILTER_SPECIAL_TREND_STREAK_KEY = 'filterSpecialTrendStreak';
         const FILTER_SPECIAL_ALL = 'all';
         const FILTER_SPECIAL_KIND_VALUES = ['plain', 'merge', 'split', 'trans'];
+        const FILTER_SPECIAL_TREND_DIRS = ['up', 'down', 'flat'];
+        const FILTER_SPECIAL_TREND_STREAK_MAX_FALLBACK = 20;
         const DATEBAND_FILTER_MODE = 'dateband';
         const TAIL_FILTER_MODE = 'tail';
         const VALID_FILTER_MODES = Object.keys(FILTER_MODE_LABELS);
@@ -8279,6 +8472,9 @@
         let filterPopupConnectionUniquePct = 0;
         /** Mode special: ['all'] hoặc ≥1 trong plain/merge/split/trans */
         let filterSpecialKinds = [FILTER_SPECIAL_ALL];
+        /** Mode special trend: hướng all|up|down|flat + streak (0 = mọi x của hướng) */
+        let filterSpecialTrendDir = FILTER_SPECIAL_ALL;
+        let filterSpecialTrendStreak = 0;
         let filterModeCounts = {};
         let filterPopupLayoutSaveTimer = null;
         let filterPopupResizeActive = false;
@@ -10594,6 +10790,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             closeFilterPopupNoteTRefMenu();
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupIntersectionKindMenu();
+            closeFilterPopupSpecialTrendMenus();
             const menu = el('filterPopupNoteTagMenu');
             const btn = el('filterPopupNoteTagBtn');
             const picker = el('filterPopupNoteTagPicker');
@@ -11682,6 +11879,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             closePeriodFilterModeMenu();
             closeFilterPopupNoteTagMenu();
             closeFilterPopupNonexistColorMenu();
+            closeFilterPopupSpecialTrendMenus();
             const menu = el('filterPopupIntersectionKindMenu');
             const btn = el('filterPopupIntersectionKindBtn');
             const picker = el('filterPopupIntersectionPicker');
@@ -14133,9 +14331,48 @@ function getFilterNoteTRefMaxSelections(mode) {
             filterSpecialKinds = unique.length ? unique : [FILTER_SPECIAL_ALL];
         }
 
+        function normalizeFilterSpecialTrendDir(value) {
+            const raw = String(value == null ? '' : value).trim().toLowerCase();
+            if (!raw || raw === FILTER_SPECIAL_ALL) {
+                return FILTER_SPECIAL_ALL;
+            }
+            if (FILTER_SPECIAL_TREND_DIRS.includes(raw)) {
+                return raw;
+            }
+            return FILTER_SPECIAL_ALL;
+        }
+
+        function normalizeFilterSpecialTrendStreak(value) {
+            const n = parseInt(value, 10);
+            if (!Number.isFinite(n) || n < 1) {
+                return 0;
+            }
+            return Math.min(FILTER_SPECIAL_TREND_STREAK_MAX_FALLBACK, n);
+        }
+
+        function normalizeFilterSpecialTrendSelection() {
+            filterSpecialTrendDir = normalizeFilterSpecialTrendDir(filterSpecialTrendDir);
+            if (filterSpecialTrendDir === FILTER_SPECIAL_ALL) {
+                filterSpecialTrendStreak = 0;
+                return;
+            }
+            filterSpecialTrendStreak = normalizeFilterSpecialTrendStreak(filterSpecialTrendStreak);
+            const maxStreak = getMaxFilterSpecialTrendStreakForDir(filterSpecialTrendDir);
+            if (filterSpecialTrendStreak > maxStreak) {
+                filterSpecialTrendStreak = 0;
+            }
+        }
+
         function saveFilterSpecialKindsSettings() {
             try {
                 localStorage.setItem(FILTER_SPECIAL_KINDS_KEY, JSON.stringify(filterSpecialKinds));
+            } catch (e) { /* ignore */ }
+        }
+
+        function saveFilterSpecialTrendsSettings() {
+            try {
+                localStorage.setItem(FILTER_SPECIAL_TREND_DIR_KEY, filterSpecialTrendDir);
+                localStorage.setItem(FILTER_SPECIAL_TREND_STREAK_KEY, String(filterSpecialTrendStreak));
             } catch (e) { /* ignore */ }
         }
 
@@ -14154,9 +14391,29 @@ function getFilterNoteTRefMaxSelections(mode) {
             normalizeFilterSpecialKinds();
         }
 
+        function loadFilterSpecialTrendsSettings() {
+            try {
+                filterSpecialTrendDir = normalizeFilterSpecialTrendDir(
+                    localStorage.getItem(FILTER_SPECIAL_TREND_DIR_KEY)
+                );
+                filterSpecialTrendStreak = normalizeFilterSpecialTrendStreak(
+                    localStorage.getItem(FILTER_SPECIAL_TREND_STREAK_KEY)
+                );
+            } catch (e) {
+                filterSpecialTrendDir = FILTER_SPECIAL_ALL;
+                filterSpecialTrendStreak = 0;
+            }
+            normalizeFilterSpecialTrendSelection();
+        }
+
         function isFilterSpecialKindsAllSelected() {
             normalizeFilterSpecialKinds();
             return filterSpecialKinds.length === 1 && filterSpecialKinds[0] === FILTER_SPECIAL_ALL;
+        }
+
+        function isFilterSpecialTrendsAllSelected() {
+            normalizeFilterSpecialTrendSelection();
+            return filterSpecialTrendDir === FILTER_SPECIAL_ALL;
         }
 
         function getActiveFilterSpecialKinds() {
@@ -14167,10 +14424,99 @@ function getFilterNoteTRefMaxSelections(mode) {
             return filterSpecialKinds.filter((k) => FILTER_SPECIAL_KIND_VALUES.includes(k));
         }
 
+        /** Token active: [] | ['up'] | ['down:2'] … */
+        function getActiveFilterSpecialTrends() {
+            normalizeFilterSpecialTrendSelection();
+            if (filterSpecialTrendDir === FILTER_SPECIAL_ALL) {
+                return [];
+            }
+            if (filterSpecialTrendStreak >= 1) {
+                return [filterSpecialTrendDir + ':' + filterSpecialTrendStreak];
+            }
+            return [filterSpecialTrendDir];
+        }
+
         function isFilterSpecialKindsSubfilterActive() {
             return periodFilterEnabled
                 && isSpecialFilterMode(periodFilterMode)
-                && getActiveFilterSpecialKinds().length > 0;
+                && (getActiveFilterSpecialKinds().length > 0 || getActiveFilterSpecialTrends().length > 0);
+        }
+
+        function rowMatchesFilterSpecialTrend(meta, wantedTokens) {
+            const wanted = Array.isArray(wantedTokens) ? wantedTokens : [];
+            if (!wanted.length) {
+                return true;
+            }
+            if (!meta || !meta.trend) {
+                return false;
+            }
+            const dir = String(meta.trend).toLowerCase();
+            if (!FILTER_SPECIAL_TREND_DIRS.includes(dir)) {
+                return false;
+            }
+            const streak = Math.max(1, (meta.streak | 0) || 1);
+            const exact = dir + ':' + streak;
+            for (let i = 0; i < wanted.length; i++) {
+                const token = wanted[i];
+                if (token === dir || token === exact) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function getMaxFilterSpecialTrendStreakForDir(dir) {
+            const wantDir = normalizeFilterSpecialTrendDir(dir);
+            let max = 0;
+            if (!sheetManager || typeof sheetManager.getSheet1SpecialPickTrends !== 'function') {
+                return FILTER_SPECIAL_TREND_STREAK_MAX_FALLBACK;
+            }
+            const rows = getFilterSourceSheetRows();
+            const trends = sheetManager.getSheet1SpecialPickTrends(rows) || [];
+            for (let i = 0; i < trends.length; i++) {
+                const t = trends[i];
+                if (!t || !t.trend) {
+                    continue;
+                }
+                const d = String(t.trend).toLowerCase();
+                if (!FILTER_SPECIAL_TREND_DIRS.includes(d)) {
+                    continue;
+                }
+                if (wantDir !== FILTER_SPECIAL_ALL && d !== wantDir) {
+                    continue;
+                }
+                max = Math.max(max, Math.max(1, (t.streak | 0) || 1));
+            }
+            return max > 0 ? max : FILTER_SPECIAL_TREND_STREAK_MAX_FALLBACK;
+        }
+
+        function applyFilterSpecialTrendSelectionAndRefresh() {
+            normalizeFilterSpecialTrendSelection();
+            saveFilterSpecialTrendsSettings();
+            syncFilterPopupSpecialTrendsUi();
+            applyFilterPopupSpecialKindsRowClasses();
+            reconcileFilterPopupActiveAfterSubfilterToggle();
+            updateFilterPopupMatchCount();
+            syncPeriodFilterNavModeToIframe();
+        }
+
+        function setFilterSpecialTrendDir(dir) {
+            const next = normalizeFilterSpecialTrendDir(dir);
+            const dirChanged = next !== normalizeFilterSpecialTrendDir(filterSpecialTrendDir);
+            filterSpecialTrendDir = next;
+            if (filterSpecialTrendDir === FILTER_SPECIAL_ALL || dirChanged) {
+                filterSpecialTrendStreak = 0;
+            }
+            applyFilterSpecialTrendSelectionAndRefresh();
+        }
+
+        function setFilterSpecialTrendStreak(streak) {
+            if (normalizeFilterSpecialTrendDir(filterSpecialTrendDir) === FILTER_SPECIAL_ALL) {
+                filterSpecialTrendStreak = 0;
+            } else {
+                filterSpecialTrendStreak = normalizeFilterSpecialTrendStreak(streak);
+            }
+            applyFilterSpecialTrendSelectionAndRefresh();
         }
 
         function toggleFilterSpecialKind(kind) {
@@ -14206,6 +14552,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 picker.classList.toggle('hidden', !show);
                 picker.setAttribute('aria-hidden', show ? 'false' : 'true');
             }
+            syncFilterPopupSpecialTrendsUi();
             if (!picker) {
                 return;
             }
@@ -14222,6 +14569,249 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
                 btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
             });
+        }
+
+        function getFilterSpecialTrendDirButtonLabel() {
+            const dir = normalizeFilterSpecialTrendDir(filterSpecialTrendDir);
+            return dir === FILTER_SPECIAL_ALL ? 'All' : dir.toUpperCase();
+        }
+
+        function getFilterSpecialTrendStreakButtonLabel() {
+            const streak = normalizeFilterSpecialTrendStreak(filterSpecialTrendStreak);
+            return streak >= 1 ? String(streak) : 'streak';
+        }
+
+        function highlightFilterPopupSpecialTrendDirMenu() {
+            const menu = el('filterPopupSpecialTrendDirMenu');
+            if (!menu) {
+                return;
+            }
+            const cur = normalizeFilterSpecialTrendDir(filterSpecialTrendDir);
+            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
+                item.classList.toggle('selected', (item.dataset.dir || '') === cur);
+            });
+        }
+
+        function highlightFilterPopupSpecialTrendStreakMenu() {
+            const menu = el('filterPopupSpecialTrendStreakMenu');
+            if (!menu) {
+                return;
+            }
+            const cur = String(normalizeFilterSpecialTrendStreak(filterSpecialTrendStreak));
+            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
+                item.classList.toggle('selected', String(item.dataset.streak || '0') === cur);
+            });
+        }
+
+        function buildFilterPopupSpecialTrendDirMenu() {
+            const menu = el('filterPopupSpecialTrendDirMenu');
+            if (!menu) {
+                return;
+            }
+            if (menu.dataset.built === '1') {
+                highlightFilterPopupSpecialTrendDirMenu();
+                return;
+            }
+            menu.dataset.built = '1';
+            menu.innerHTML = '';
+            const items = [
+                { dir: FILTER_SPECIAL_ALL, label: 'All' },
+                { dir: 'up', label: 'UP' },
+                { dir: 'down', label: 'DOWN' },
+                { dir: 'flat', label: 'FLAT' }
+            ];
+            for (let i = 0; i < items.length; i++) {
+                const item = document.createElement('li');
+                item.className = 'period-filter-mode-item';
+                item.setAttribute('role', 'option');
+                item.dataset.dir = items[i].dir;
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'period-filter-mode-item-label';
+                labelSpan.textContent = items[i].label;
+                item.appendChild(labelSpan);
+                item.addEventListener('mousedown', (event) => event.preventDefault());
+                item.addEventListener('click', () => {
+                    closeFilterPopupSpecialTrendDirMenu();
+                    setFilterSpecialTrendDir(items[i].dir);
+                });
+                menu.appendChild(item);
+            }
+            highlightFilterPopupSpecialTrendDirMenu();
+        }
+
+        function rebuildFilterPopupSpecialTrendStreakMenu() {
+            const menu = el('filterPopupSpecialTrendStreakMenu');
+            if (!menu) {
+                return;
+            }
+            const dir = normalizeFilterSpecialTrendDir(filterSpecialTrendDir);
+            const maxStreak = dir === FILTER_SPECIAL_ALL
+                ? 0
+                : getMaxFilterSpecialTrendStreakForDir(dir);
+            const keep = dir === FILTER_SPECIAL_ALL
+                ? 0
+                : normalizeFilterSpecialTrendStreak(filterSpecialTrendStreak);
+            const clamped = keep > maxStreak ? 0 : keep;
+            filterSpecialTrendStreak = clamped;
+            menu.innerHTML = '';
+            for (let n = 1; n <= maxStreak; n++) {
+                const streak = n;
+                const item = document.createElement('li');
+                item.className = 'period-filter-mode-item';
+                item.setAttribute('role', 'option');
+                item.dataset.streak = String(streak);
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'period-filter-mode-item-label';
+                labelSpan.textContent = String(streak);
+                item.appendChild(labelSpan);
+                item.addEventListener('mousedown', (event) => event.preventDefault());
+                item.addEventListener('click', () => {
+                    closeFilterPopupSpecialTrendStreakMenu();
+                    // Chọn lại cùng số → về mọi streak của hướng (nút hiện "streak")
+                    if (normalizeFilterSpecialTrendStreak(filterSpecialTrendStreak) === streak) {
+                        setFilterSpecialTrendStreak(0);
+                    } else {
+                        setFilterSpecialTrendStreak(streak);
+                    }
+                });
+                menu.appendChild(item);
+            }
+            highlightFilterPopupSpecialTrendStreakMenu();
+        }
+
+        function positionFilterPopupSpecialTrendMenu(menuId, btnId) {
+            const menu = el(menuId);
+            const btn = el(btnId);
+            if (!menu || !btn) {
+                return;
+            }
+            const rect = btn.getBoundingClientRect();
+            menu.style.left = `${Math.max(8, rect.left)}px`;
+            menu.style.top = `${rect.bottom + 2}px`;
+            menu.style.minWidth = `${Math.max(rect.width, 72)}px`;
+        }
+
+        function closeFilterPopupSpecialTrendDirMenu() {
+            const menu = el('filterPopupSpecialTrendDirMenu');
+            const btn = el('filterPopupSpecialTrendDirBtn');
+            const picker = el('filterPopupSpecialTrendDirPicker');
+            if (menu) {
+                menu.classList.add('hidden');
+                if (picker && menu.parentElement === document.body) {
+                    picker.appendChild(menu);
+                }
+            }
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+                btn.classList.remove('is-menu-open');
+            }
+        }
+
+        function closeFilterPopupSpecialTrendStreakMenu() {
+            const menu = el('filterPopupSpecialTrendStreakMenu');
+            const btn = el('filterPopupSpecialTrendStreakBtn');
+            const picker = el('filterPopupSpecialTrendStreakPicker');
+            if (menu) {
+                menu.classList.add('hidden');
+                if (picker && menu.parentElement === document.body) {
+                    picker.appendChild(menu);
+                }
+            }
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+                btn.classList.remove('is-menu-open');
+            }
+        }
+
+        function closeFilterPopupSpecialTrendMenus() {
+            closeFilterPopupSpecialTrendDirMenu();
+            closeFilterPopupSpecialTrendStreakMenu();
+        }
+
+        function openFilterPopupSpecialTrendDirMenu() {
+            closePeriodFilterModeMenu();
+            closeFilterPopupNoteTagMenu();
+            closeFilterPopupNoteTRefMenu();
+            closeFilterPopupNonexistColorMenu();
+            closeFilterPopupIntersectionKindMenu();
+            closeFilterPopupSpecialTrendStreakMenu();
+            const menu = el('filterPopupSpecialTrendDirMenu');
+            const btn = el('filterPopupSpecialTrendDirBtn');
+            const picker = el('filterPopupSpecialTrendDirPicker');
+            if (!menu || !btn || btn.disabled || !picker) {
+                return;
+            }
+            buildFilterPopupSpecialTrendDirMenu();
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
+            positionFilterPopupSpecialTrendMenu('filterPopupSpecialTrendDirMenu', 'filterPopupSpecialTrendDirBtn');
+            menu.classList.remove('hidden');
+            btn.setAttribute('aria-expanded', 'true');
+            btn.classList.add('is-menu-open');
+        }
+
+        function openFilterPopupSpecialTrendStreakMenu() {
+            closePeriodFilterModeMenu();
+            closeFilterPopupNoteTagMenu();
+            closeFilterPopupNoteTRefMenu();
+            closeFilterPopupNonexistColorMenu();
+            closeFilterPopupIntersectionKindMenu();
+            closeFilterPopupSpecialTrendDirMenu();
+            const menu = el('filterPopupSpecialTrendStreakMenu');
+            const btn = el('filterPopupSpecialTrendStreakBtn');
+            const picker = el('filterPopupSpecialTrendStreakPicker');
+            if (!menu || !btn || btn.disabled || !picker) {
+                return;
+            }
+            rebuildFilterPopupSpecialTrendStreakMenu();
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
+            positionFilterPopupSpecialTrendMenu('filterPopupSpecialTrendStreakMenu', 'filterPopupSpecialTrendStreakBtn');
+            menu.classList.remove('hidden');
+            btn.setAttribute('aria-expanded', 'true');
+            btn.classList.add('is-menu-open');
+        }
+
+        function syncFilterPopupSpecialTrendsUi() {
+            const picker = el('filterPopupSpecialTrendsPicker');
+            const dirBtn = el('filterPopupSpecialTrendDirBtn');
+            const streakBtn = el('filterPopupSpecialTrendStreakBtn');
+            const dirLabel = el('filterPopupSpecialTrendDirBtnLabel');
+            const streakLabel = el('filterPopupSpecialTrendStreakBtnLabel');
+            const show = periodFilterEnabled && isSpecialFilterMode(periodFilterMode);
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+                picker.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+            if (!show) {
+                closeFilterPopupSpecialTrendMenus();
+            }
+            normalizeFilterSpecialTrendSelection();
+            rebuildFilterPopupSpecialTrendStreakMenu();
+            const dirActive = filterSpecialTrendDir !== FILTER_SPECIAL_ALL;
+            if (dirBtn) {
+                dirBtn.disabled = !show;
+                dirBtn.dataset.dir = filterSpecialTrendDir;
+                dirBtn.title = 'Hướng trend: All / UP / DOWN / FLAT';
+            }
+            if (dirLabel) {
+                dirLabel.textContent = getFilterSpecialTrendDirButtonLabel();
+            }
+            if (streakBtn) {
+                streakBtn.disabled = !show || !dirActive;
+                streakBtn.dataset.dir = dirActive ? filterSpecialTrendDir : 'all';
+                streakBtn.title = dirActive
+                    ? ('Số streak cho ' + filterSpecialTrendDir.toUpperCase()
+                        + ' (nút "streak" = mọi streak; chọn lại số đang chọn để về mọi streak)')
+                    : 'Chọn hướng UP/DOWN/FLAT trước';
+            }
+            if (streakLabel) {
+                streakLabel.textContent = getFilterSpecialTrendStreakButtonLabel();
+            }
+            highlightFilterPopupSpecialTrendDirMenu();
+            highlightFilterPopupSpecialTrendStreakMenu();
         }
 
         function buildFilterPopupSpecialKindsButtons() {
@@ -14256,9 +14846,55 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
         }
 
+        function initFilterPopupSpecialTrendsControls() {
+            const root = el('filterPopupSpecialTrendsPicker');
+            const dirBtn = el('filterPopupSpecialTrendDirBtn');
+            const streakBtn = el('filterPopupSpecialTrendStreakBtn');
+            const dirMenu = el('filterPopupSpecialTrendDirMenu');
+            const streakMenu = el('filterPopupSpecialTrendStreakMenu');
+            if (!root || !dirBtn || !streakBtn || !dirMenu || !streakMenu || root.dataset.bound === '1') {
+                return;
+            }
+            root.dataset.bound = '1';
+            root.addEventListener('mousedown', (event) => event.stopPropagation());
+            root.addEventListener('click', (event) => event.stopPropagation());
+            buildFilterPopupSpecialTrendDirMenu();
+            rebuildFilterPopupSpecialTrendStreakMenu();
+            dirBtn.addEventListener('mousedown', (event) => event.stopPropagation());
+            dirBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (dirBtn.disabled) {
+                    return;
+                }
+                if (dirMenu.classList.contains('hidden')) {
+                    openFilterPopupSpecialTrendDirMenu();
+                } else {
+                    closeFilterPopupSpecialTrendDirMenu();
+                }
+            });
+            streakBtn.addEventListener('mousedown', (event) => event.stopPropagation());
+            streakBtn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (streakBtn.disabled) {
+                    return;
+                }
+                if (streakMenu.classList.contains('hidden')) {
+                    openFilterPopupSpecialTrendStreakMenu();
+                } else {
+                    closeFilterPopupSpecialTrendStreakMenu();
+                }
+            });
+            dirMenu.addEventListener('click', (event) => event.stopPropagation());
+            streakMenu.addEventListener('click', (event) => event.stopPropagation());
+        }
+
         function initFilterPopupSpecialKindsControls() {
             loadFilterSpecialKindsSettings();
+            loadFilterSpecialTrendsSettings();
             buildFilterPopupSpecialKindsButtons();
+            initFilterPopupSpecialTrendsControls();
             syncFilterPopupSpecialKindsUi();
         }
 
@@ -14284,11 +14920,20 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!periodFilterEnabled || !isSpecialFilterMode(periodFilterMode) || !sheetManager) {
                 return;
             }
-            const wanted = getActiveFilterSpecialKinds();
-            const kindsActive = wanted.length > 0;
+            const wantedKinds = getActiveFilterSpecialKinds();
+            const wantedTrends = getActiveFilterSpecialTrends();
+            const kindsActive = wantedKinds.length > 0;
+            const trendsActive = wantedTrends.length > 0;
+            const subActive = kindsActive || trendsActive;
+            if (!subActive) {
+                return;
+            }
             const rows = getFilterSourceSheetRows();
             const kinds = typeof sheetManager.getSheet1SpecialContiguousKinds === 'function'
                 ? sheetManager.getSheet1SpecialContiguousKinds(rows)
+                : [];
+            const trends = typeof sheetManager.getSheet1SpecialPickTrends === 'function'
+                ? sheetManager.getSheet1SpecialPickTrends(rows)
                 : [];
             wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
                 const idx = Number(tr.dataset.idx);
@@ -14296,10 +14941,11 @@ function getFilterNoteTRefMaxSelections(mode) {
                     return;
                 }
                 const kind = kinds[idx] || '';
-                const match = !kindsActive || (kind && wanted.includes(kind));
-                if (match) {
+                const kindMatch = !kindsActive || (kind && wantedKinds.includes(kind));
+                const trendMatch = !trendsActive || rowMatchesFilterSpecialTrend(trends[idx], wantedTrends);
+                if (kindMatch && trendMatch) {
                     tr.classList.add('filter-popup-special-hit');
-                } else if (kindsActive) {
+                } else {
                     tr.classList.add('filter-popup-special-disabled');
                 }
             });
@@ -16126,6 +16772,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             closeFilterPopupNoteTagMenu();
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupIntersectionKindMenu();
+            closeFilterPopupSpecialTrendMenus();
             periodFilterMenuAnchor = anchor === 'popup' ? 'popup' : 'toolbar';
             const menu = getPeriodFilterMenu();
             const { modeBtn, picker } = getPeriodFilterPicker(periodFilterMenuAnchor);
@@ -17866,6 +18513,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupNonexistGreen005Menu();
             closeFilterPopupIntersectionKindMenu();
+            closeFilterPopupSpecialTrendMenus();
         }
 
         /** true nếu click nằm trên menu đang mở hoặc nút mở của nó — không dismiss. */
@@ -17883,8 +18531,14 @@ function getFilterNoteTRefMaxSelections(mode) {
                 ['filterPopupNonexistGreen005Menu', 'filterPopupNonexistGreen005Btn'],
                 ['filterPopupNoteTagMenu', 'filterPopupNoteTagBtn'],
                 ['filterPopupNoteTRefMenu', 'filterPopupNoteTRefBtn'],
-                ['filterPopupIntersectionKindMenu', 'filterPopupIntersectionKindBtn']
+                ['filterPopupIntersectionKindMenu', 'filterPopupIntersectionKindBtn'],
+                ['filterPopupSpecialTrendDirMenu', 'filterPopupSpecialTrendDirBtn'],
+                ['filterPopupSpecialTrendStreakMenu', 'filterPopupSpecialTrendStreakBtn']
             ];
+            const specialTrendsPicker = el('filterPopupSpecialTrendsPicker');
+            if (specialTrendsPicker && specialTrendsPicker.contains(target)) {
+                return true;
+            }
             for (const [menuId, btnId] of pairs) {
                 const menu = el(menuId);
                 if (menu && !menu.classList.contains('hidden') && menu.contains(target)) {
@@ -19494,6 +20148,14 @@ function getFilterNoteTRefMaxSelections(mode) {
                 sheetManager.applySheet1SpecialHeaderTooltip(
                     wrap,
                     sheetManager.getSheet1SpecialContiguousKinds(rows),
+                    indices
+                );
+            }
+            if (typeof sheetManager.applySheet1TrendHeaderTooltip === 'function'
+                && typeof sheetManager.getSheet1SpecialPickTrends === 'function') {
+                sheetManager.applySheet1TrendHeaderTooltip(
+                    wrap,
+                    sheetManager.getSheet1SpecialPickTrends(rows),
                     indices
                 );
             }

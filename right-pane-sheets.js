@@ -471,6 +471,9 @@ class RightPaneSheetManager {
         /** Cache cột sheet1 `special` (plain/merge/split/trans). */
         this._sheet1SpecialContiguousKindsCache = null;
         this._sheet1SpecialContiguousKindsCacheKey = '';
+        /** Cache cột sheet1 `trend` (up/down/flat + streak). */
+        this._sheet1SpecialPickTrendsCache = null;
+        this._sheet1SpecialPickTrendsCacheKey = '';
         this.frequencyMap = {};
         this.colorPalette = [
             'rgb(255, 192, 0)',    // Gold
@@ -615,6 +618,8 @@ class RightPaneSheetManager {
         this._filterRowMauSetsCacheKey = '';
         this._sheet1SpecialContiguousKindsCache = null;
         this._sheet1SpecialContiguousKindsCacheKey = '';
+        this._sheet1SpecialPickTrendsCache = null;
+        this._sheet1SpecialPickTrendsCacheKey = '';
     }
 
     /** Rows used for sheet1 / nonexist filter (independent of active combo tab). */
@@ -1171,7 +1176,8 @@ class RightPaneSheetManager {
             return false;
         }
         if (!String(this._sheet1DomCache.html || '').includes('sheet1-source-table')
-            || !String(this._sheet1DomCache.html || '').includes('cell-special-h')) {
+            || !String(this._sheet1DomCache.html || '').includes('cell-special-h')
+            || !String(this._sheet1DomCache.html || '').includes('cell-trend-h')) {
             this.invalidateSheet1TableDomCache();
             return false;
         }
@@ -4452,12 +4458,15 @@ class RightPaneSheetManager {
         const prevRecallFoldPctAttr = this.encodePrevPeriodRecallFoldTooltipAttr(prevRecallFoldPctLabel);
         const specialKinds = this.getSheet1SpecialContiguousKinds(displayRows);
         const specialKindCounts = this.countSheet1SpecialContiguousKinds(specialKinds, rowIndices);
-        const specialStatsLabel = this.formatSheet1SpecialContiguousKindsTooltip(specialKindCounts);
-        const specialStatsAttr = this.encodeSheet1SpecialStatsTooltipAttr(specialStatsLabel);
+        const specialStatsAttr = this.encodeSheet1SpecialStatsTooltipAttr(specialKindCounts);
+        const specialTrends = this.getSheet1SpecialPickTrends(displayRows);
+        const trendDetailed = this.countSheet1SpecialPickTrendsDetailed(specialTrends, rowIndices);
+        const trendStatsAttr = this.encodeSheet1TrendStatsTooltipAttr(trendDetailed);
 
         let html = '<table class="sheet-data-table sheet1-source-table"><thead><tr>'
             + '<th>date</th><th>id</th>'
             + `<th class="cell-special-h" data-special-stats="${specialStatsAttr}">special</th>`
+            + `<th class="cell-trend-h" data-trend-stats="${trendStatsAttr}">trend</th>`
             + '<th class="cell-pick-label-h">label</th><th class="cell-follow-h">follow</th>'
             + '<th>result</th><th>note</th><th>nonexist</th></tr></thead><tbody>';
 
@@ -4498,11 +4507,18 @@ class RightPaneSheetManager {
             const specialHtml = specialKind
                 ? `<span class="cell-special-val cell-special-val--${specialKind}">${String(specialKind).toUpperCase()}</span>`
                 : '';
+            const trendMeta = specialTrends[i];
+            const trendKind = trendMeta && trendMeta.trend ? trendMeta.trend : '';
+            const trendStreak = trendMeta && trendMeta.streak > 0 ? trendMeta.streak : 0;
+            const trendHtml = trendKind
+                ? `<span class="cell-trend-val cell-trend-val--${trendKind}">${String(trendKind).toUpperCase()} ${trendStreak}</span>`
+                : '';
 
             html += `<tr data-idx="${i}" class="data-row${activeClass}" data-has-result="${!!result}" data-empty="${isEmptyResultRow ? '1' : '0'}">
                 <td class="cell-date"${dateBg}>${date}</td>
                 <td class="cell-id"${idStyle}>${id}</td>
                 <td class="cell-special">${specialHtml}</td>
+                <td class="cell-trend">${trendHtml}</td>
                 <td class="cell-pick-label">${pickLabelHtml}</td>
                 <td class="cell-follow">${followHtml}</td>
                 <td class="${resultCellClass}">${prevRecallFoldHit}${resultHtml}</td>
@@ -10574,6 +10590,126 @@ class RightPaneSheetManager {
         return null;
     }
 
+    /**
+     * Frame draw liền trước `frameIndex` (bỏ holdFrame) — dùng để lấy pick trước đó nữa.
+     * @returns {number} index hoặc -1
+     */
+    static getTrackingPreviousPeriodFrameIndex(frames, frameIndex) {
+        if (!Array.isArray(frames) || frameIndex < 1) {
+            return -1;
+        }
+        for (let i = frameIndex - 1; i >= 0; i--) {
+            const fr = frames[i];
+            if (!fr || fr.holdFrame) {
+                continue;
+            }
+            const n = fr.justDrawn != null ? (fr.justDrawn | 0) : null;
+            if (n != null && n >= 1) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * UP / FLAT / DOWN của bar vừa pick so với pick kỳ trước (theo freq tại thời điểm pick).
+     * FLAT = cùng số hoặc cùng freq; UP/DOWN = freq cao/thấp hơn.
+     * `streak` = số lần liên tiếp cùng chiều (vd. DOWN2).
+     * @returns {{ num: number, trend: 'up'|'flat'|'down', streak: number }|null}
+     */
+    static computeSpecialTrackingPickFreqTrend(
+        series,
+        frames,
+        frameIndex,
+        applyCurrentPick,
+        previewPickNum
+    ) {
+        if (!Array.isArray(frames) || frameIndex < 0 || frameIndex >= frames.length) {
+            return null;
+        }
+        const hasPreview = Number.isFinite(previewPickNum)
+            && previewPickNum >= 1
+            && previewPickNum <= 12;
+        let endIdx = frameIndex;
+        let previewAtEnd = null;
+        if (hasPreview) {
+            previewAtEnd = previewPickNum | 0;
+        } else if (!applyCurrentPick) {
+            endIdx = RightPaneSheetManager.getTrackingPreviousPeriodFrameIndex(
+                frames,
+                frameIndex
+            );
+            if (endIdx < 0) {
+                return null;
+            }
+        }
+
+        const list = Array.isArray(series) ? series : [];
+        /** @type {Array<{ pick: number, counts: number[]|object }>} */
+        const picks = [];
+        for (let i = 0; i <= endIdx; i++) {
+            const fr = frames[i];
+            if (!fr || fr.holdFrame) {
+                continue;
+            }
+            const isEnd = i === endIdx;
+            if (isEnd && previewAtEnd != null) {
+                const layout = RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
+                    list,
+                    fr,
+                    false,
+                    previewAtEnd
+                );
+                picks.push({ pick: previewAtEnd, counts: layout.counts });
+                continue;
+            }
+            if (fr.justDrawn == null || !Number.isFinite(fr.justDrawn)) {
+                continue;
+            }
+            const pick = fr.justDrawn | 0;
+            if (!(pick >= 1)) {
+                continue;
+            }
+            const layout = RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
+                list,
+                fr,
+                true,
+                null
+            );
+            picks.push({ pick, counts: layout.counts });
+        }
+        if (picks.length < 2) {
+            return null;
+        }
+
+        const stepTrend = (curr, prevPick) => {
+            if (curr.pick === prevPick) {
+                return 'flat';
+            }
+            const cFreq = (curr.counts && curr.counts[curr.pick]) || 0;
+            const pFreq = (curr.counts && curr.counts[prevPick]) || 0;
+            if (cFreq > pFreq) {
+                return 'up';
+            }
+            if (cFreq < pFreq) {
+                return 'down';
+            }
+            return 'flat';
+        };
+
+        const last = picks[picks.length - 1];
+        const trend = stepTrend(last, picks[picks.length - 2].pick);
+        let streak = 1;
+        for (let i = picks.length - 2; i >= 1; i--) {
+            const t = stepTrend(picks[i], picks[i - 1].pick);
+            if (t !== trend) {
+                break;
+            }
+            streak += 1;
+        }
+        return { num: last.pick, trend, streak };
+    }
+
     /** @deprecated */
     static syncBasicTrackingFreqBraces(layer, groups, slotCount) {
         RightPaneSheetManager.syncTrackingFreqBraces(layer, groups, slotCount);
@@ -11764,6 +11900,164 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Cột sheet1 `trend`: up/down/flat (+ streak) theo từng hàng nguồn có pick special.
+     * @returns {Array<{ trend: string, streak: number }|null>}
+     */
+    getSheet1SpecialPickTrends(rows) {
+        const list = Array.isArray(rows) ? rows : [];
+        if (this._sheet1SpecialPickTrendsCache
+            && this._sheet1SpecialPickTrendsCache.length === list.length) {
+            return this._sheet1SpecialPickTrendsCache;
+        }
+
+        const meta = this.buildSpecialTrackingSeriesMeta(list);
+        const frames = this.buildSpecialTrackingFrames(meta.drawSteps);
+        const series = meta.series || [];
+        const trends = new Array(list.length).fill(null);
+
+        /** @type {Array<{ ri: number, pick: number, counts: * }>} */
+        const picks = [];
+        for (let ri = 0; ri < list.length; ri++) {
+            const fr = frames[ri];
+            if (!fr || fr.holdFrame) {
+                continue;
+            }
+            const pick = fr.justDrawn != null ? (fr.justDrawn | 0) : null;
+            if (!(pick >= 1 && pick <= 12)) {
+                continue;
+            }
+            const layout = RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
+                series,
+                fr,
+                true,
+                null
+            );
+            picks.push({ ri, pick, counts: layout.counts });
+        }
+
+        const stepTrend = (curr, prevPick) => {
+            if (curr.pick === prevPick) {
+                return 'flat';
+            }
+            const cFreq = (curr.counts && curr.counts[curr.pick]) || 0;
+            const pFreq = (curr.counts && curr.counts[prevPick]) || 0;
+            if (cFreq > pFreq) {
+                return 'up';
+            }
+            if (cFreq < pFreq) {
+                return 'down';
+            }
+            return 'flat';
+        };
+
+        for (let p = 1; p < picks.length; p++) {
+            const curr = picks[p];
+            const trend = stepTrend(curr, picks[p - 1].pick);
+            let streak = 1;
+            for (let q = p - 1; q >= 1; q--) {
+                if (stepTrend(picks[q], picks[q - 1].pick) !== trend) {
+                    break;
+                }
+                streak += 1;
+            }
+            trends[curr.ri] = { trend, streak };
+        }
+
+        this._sheet1SpecialPickTrendsCache = trends;
+        this._sheet1SpecialPickTrendsCacheKey = String(list.length);
+        return trends;
+    }
+
+    countSheet1SpecialPickTrends(trends, rowIndices) {
+        const counts = { up: 0, down: 0, flat: 0 };
+        const list = Array.isArray(trends) ? trends : [];
+        const idxs = Array.isArray(rowIndices)
+            ? rowIndices
+            : list.map((_, i) => i);
+        for (let n = 0; n < idxs.length; n++) {
+            const t = list[idxs[n]];
+            const k = t && t.trend;
+            if (k && Object.prototype.hasOwnProperty.call(counts, k)) {
+                counts[k] += 1;
+            }
+        }
+        return counts;
+    }
+
+    /**
+     * Tổng UP/DOWN/FLAT + breakdown theo streak (UP 1, DOWN 2, …).
+     * @returns {{ totals: {up:number,down:number,flat:number}, byStreak: {up:Object,down:Object,flat:Object} }}
+     */
+    countSheet1SpecialPickTrendsDetailed(trends, rowIndices) {
+        const totals = { up: 0, down: 0, flat: 0 };
+        const byStreak = { up: {}, down: {}, flat: {} };
+        const list = Array.isArray(trends) ? trends : [];
+        const idxs = Array.isArray(rowIndices)
+            ? rowIndices
+            : list.map((_, i) => i);
+        for (let n = 0; n < idxs.length; n++) {
+            const t = list[idxs[n]];
+            const k = t && t.trend;
+            if (!k || !Object.prototype.hasOwnProperty.call(totals, k)) {
+                continue;
+            }
+            totals[k] += 1;
+            const streak = Math.max(1, (t.streak | 0) || 1);
+            byStreak[k][streak] = (byStreak[k][streak] || 0) + 1;
+        }
+        return { totals, byStreak };
+    }
+
+    encodeSheet1TrendStatsTooltipAttr(countsOrDetailedOrText) {
+        if (countsOrDetailedOrText && typeof countsOrDetailedOrText === 'object'
+            && !Array.isArray(countsOrDetailedOrText)) {
+            const raw = countsOrDetailedOrText;
+            const totals = raw.totals && typeof raw.totals === 'object'
+                ? raw.totals
+                : raw;
+            const byStreak = raw.byStreak && typeof raw.byStreak === 'object'
+                ? raw.byStreak
+                : null;
+            const parts = [];
+            const kinds = ['up', 'down', 'flat'];
+            for (let i = 0; i < kinds.length; i++) {
+                const kind = kinds[i];
+                const label = kind.toUpperCase();
+                parts.push(`${label}:${totals[kind] || 0}`);
+                if (byStreak && byStreak[kind]) {
+                    const streaks = Object.keys(byStreak[kind])
+                        .map((s) => parseInt(s, 10))
+                        .filter((s) => Number.isFinite(s) && s > 0)
+                        .sort((a, b) => a - b);
+                    for (let j = 0; j < streaks.length; j++) {
+                        const s = streaks[j];
+                        parts.push(`${label} ${s}:${byStreak[kind][s] || 0}`);
+                    }
+                }
+            }
+            return parts.join('|');
+        }
+        return String(countsOrDetailedOrText || '')
+            .replace(/\r?\n/g, '|')
+            .replace(/&#10;/gi, '|')
+            .replace(/\s*\|\s*/g, '|');
+    }
+
+    applySheet1TrendHeaderTooltip(tableWrap, trends, rowIndices) {
+        if (!tableWrap) {
+            return null;
+        }
+        const detailed = this.countSheet1SpecialPickTrendsDetailed(trends, rowIndices);
+        const attr = this.encodeSheet1TrendStatsTooltipAttr(detailed);
+        const th = tableWrap.querySelector('th.cell-trend-h');
+        if (th) {
+            th.setAttribute('data-trend-stats', attr);
+            th.removeAttribute('title');
+        }
+        return detailed;
+    }
+
+    /**
      * Đếm tích lũy plain/merge/split/trans trên các hàng (mặc định mọi hàng có kind).
      */
     countSheet1SpecialContiguousKinds(kinds, rowIndices) {
@@ -11791,8 +12085,16 @@ class RightPaneSheetManager {
         ].join('\n');
     }
 
-    encodeSheet1SpecialStatsTooltipAttr(text) {
-        return this.escapeHtml(String(text || '')).replace(/\n/g, '&#10;');
+    /** Attribute ổn định (tránh &#10; lúc decode lúc không → mất màu tooltip). */
+    encodeSheet1SpecialStatsTooltipAttr(countsOrText) {
+        if (countsOrText && typeof countsOrText === 'object' && !Array.isArray(countsOrText)) {
+            const c = countsOrText;
+            return `PLAIN:${c.plain || 0}|MERGE:${c.merge || 0}|SPLIT:${c.split || 0}|TRANS:${c.trans || 0}`;
+        }
+        return String(countsOrText || '')
+            .replace(/\r?\n/g, '|')
+            .replace(/&#10;/gi, '|')
+            .replace(/\s*\|\s*/g, '|');
     }
 
     applySheet1SpecialHeaderTooltip(tableWrap, kinds, rowIndices) {
@@ -11800,8 +12102,7 @@ class RightPaneSheetManager {
             return null;
         }
         const counts = this.countSheet1SpecialContiguousKinds(kinds, rowIndices);
-        const label = this.formatSheet1SpecialContiguousKindsTooltip(counts);
-        const attr = this.encodeSheet1SpecialStatsTooltipAttr(label);
+        const attr = this.encodeSheet1SpecialStatsTooltipAttr(counts);
         const th = tableWrap.querySelector('th.cell-special-h');
         if (th) {
             th.setAttribute('data-special-stats', attr);
@@ -12730,7 +13031,10 @@ class RightPaneSheetManager {
                 + '<span class="special-tracking-rank-fill" data-fill></span>'
                 + `<span class="special-tracking-rank-num" data-st-num>${n}</span>`
                 + '</div>'
-                + '<span class="special-tracking-rank-action" data-st-action hidden aria-hidden="true"></span>'
+                + '<span class="special-tracking-rank-labels" aria-hidden="true">'
+                + '<span class="special-tracking-rank-trend" data-st-trend hidden></span>'
+                + '<span class="special-tracking-rank-action" data-st-action hidden></span>'
+                + '</span>'
                 + '</div>'
                 + '<div class="special-tracking-rank-bar-tail">'
                 + '<div class="special-tracking-rank-track special-tracking-rank-track--label">'
@@ -13040,7 +13344,8 @@ class RightPaneSheetManager {
                     num: el.querySelector('[data-st-num]'),
                     count: el.querySelector('[data-count]'),
                     prio: el.querySelector('[data-st-predict-rank]'),
-                    action: el.querySelector('[data-st-action]')
+                    action: el.querySelector('[data-st-action]'),
+                    trend: el.querySelector('[data-st-trend]')
                 };
             }
         });
@@ -13377,6 +13682,15 @@ class RightPaneSheetManager {
                     numMax
                 )
                 : null;
+            const pickFreqTrend = (!isBasic && specialDisplay)
+                ? RightPaneSheetManager.computeSpecialTrackingPickFreqTrend(
+                    sheet.specialSeries || sheet.series || [],
+                    frames,
+                    frameIndex,
+                    !!leftSubmitOn || specialPreviewActive,
+                    specialPreviewActive ? specialPreviewPick : null
+                )
+                : null;
 
             for (let n = 1; n <= numMax; n++) {
                 const el = barByNum[n];
@@ -13396,6 +13710,7 @@ class RightPaneSheetManager {
                 const countEl = parts.count;
                 const prioEl = parts.prio;
                 const actionEl = parts.action;
+                const trendEl = parts.trend;
                 const wPct = isBasic && basicDisplay
                     ? (basicDisplay.wPctByNum[n] || 0)
                     : (specialDisplay.wPctByNum[n] || 0);
@@ -13475,6 +13790,28 @@ class RightPaneSheetManager {
                         actionEl.classList.add(`special-tracking-rank-action--${kind}`);
                     } else if (actionEl.textContent) {
                         actionEl.textContent = '';
+                    }
+                }
+                if (trendEl) {
+                    const trend = (pickFreqTrend && pickFreqTrend.num === n)
+                        ? pickFreqTrend.trend
+                        : '';
+                    const streak = (pickFreqTrend && pickFreqTrend.num === n)
+                        ? Math.max(1, pickFreqTrend.streak | 0)
+                        : 0;
+                    const showTrend = !!trend;
+                    trendEl.hidden = !showTrend;
+                    trendEl.setAttribute('aria-hidden', showTrend ? 'false' : 'true');
+                    trendEl.classList.remove(
+                        'special-tracking-rank-trend--up',
+                        'special-tracking-rank-trend--flat',
+                        'special-tracking-rank-trend--down'
+                    );
+                    if (showTrend) {
+                        trendEl.textContent = `${String(trend).toUpperCase()} ${streak}`;
+                        trendEl.classList.add(`special-tracking-rank-trend--${trend}`);
+                    } else if (trendEl.textContent) {
+                        trendEl.textContent = '';
                     }
                 }
                 const autoringBarLabel = isBasic
@@ -14830,13 +15167,14 @@ function hidePrevRecallFoldTooltip() {
     prevRecallFoldTooltipShowTimer = null;
     prevRecallFoldTooltipHoverTarget = null;
     if (prevRecallFoldTooltipEl) {
-        prevRecallFoldTooltipEl.classList.remove('is-visible');
+        prevRecallFoldTooltipEl.classList.remove('is-visible', 'prev-recall-fold-tooltip--special');
     }
 }
 
 function showPrevRecallFoldTooltip(hit, text, clientX, clientY, options) {
     const tip = ensurePrevRecallFoldTooltipEl();
     const opts = options || {};
+    tip.classList.toggle('prev-recall-fold-tooltip--special', !!opts.html);
     if (opts.html) {
         tip.innerHTML = String(text || '');
     } else {
@@ -14867,23 +15205,32 @@ function showPrevRecallFoldTooltip(hit, text, clientX, clientY, options) {
 }
 
 function formatSheet1SpecialStatsTooltipHtml(text) {
-    const lines = String(text || '').split(/\r?\n/);
+    const normalized = String(text || '')
+        .replace(/&#10;/gi, '|')
+        .replace(/&#x0a;/gi, '|')
+        .replace(/\r?\n/g, '|');
+    const lines = normalized.split('|');
     const out = [];
     for (let i = 0; i < lines.length; i++) {
         const raw = String(lines[i] || '').trim();
         if (!raw) {
             continue;
         }
-        const m = /^(PLAIN|MERGE|SPLIT|TRANS)\s*:\s*(.*)$/i.exec(raw);
+        const m = /^(PLAIN|MERGE|SPLIT|TRANS|UP|DOWN|FLAT)(?:\s+(\d+))?\s*:\s*(.*)$/i.exec(raw);
         if (!m) {
             out.push('<div class="special-tip-line">' + raw.replace(/</g, '&lt;') + '</div>');
             continue;
         }
         const kind = String(m[1] || '').toLowerCase();
-        const rest = String(m[2] || '').replace(/</g, '&lt;');
+        const streak = m[2] ? String(m[2]) : '';
+        const rest = String(m[3] || '').replace(/</g, '&lt;').trim();
+        const label = streak
+            ? (String(m[1]).toUpperCase() + ' ' + streak)
+            : String(m[1]).toUpperCase();
+        const indentClass = streak ? ' special-tip-line--streak' : '';
         out.push(
-            '<div class="special-tip-line special-tip-' + kind + '">'
-            + String(m[1]).toUpperCase() + ': ' + rest
+            '<div class="special-tip-line special-tip-' + kind + indentClass + '">'
+            + label + ': ' + rest
             + '</div>'
         );
     }
@@ -14898,10 +15245,14 @@ function bindPrevPeriodRecallFoldTooltipGlobal() {
 
     document.addEventListener('mouseover', function (event) {
         const specialHit = event.target && event.target.closest
-            ? event.target.closest('th.cell-special-h[data-special-stats]')
+            ? event.target.closest(
+                'th.cell-special-h[data-special-stats], th.cell-trend-h[data-trend-stats]'
+            )
             : null;
         if (specialHit) {
-            const stats = specialHit.getAttribute('data-special-stats') || '';
+            const stats = specialHit.getAttribute('data-special-stats')
+                || specialHit.getAttribute('data-trend-stats')
+                || '';
             if (!stats) {
                 return;
             }
@@ -14952,7 +15303,9 @@ function bindPrevPeriodRecallFoldTooltipGlobal() {
 
     document.addEventListener('mouseout', function (event) {
         const specialHit = event.target && event.target.closest
-            ? event.target.closest('th.cell-special-h[data-special-stats]')
+            ? event.target.closest(
+                'th.cell-special-h[data-special-stats], th.cell-trend-h[data-trend-stats]'
+            )
             : null;
         if (specialHit) {
             const to = event.relatedTarget;
