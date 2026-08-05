@@ -2006,8 +2006,9 @@ class RightPaneSheetManager {
                     if (!this.rowMatchesNonexistSpecificNumFilter(i, num, colors, styles)) {
                         continue;
                     }
-                } else if (applyColorFilter) {
-                    if (colors.length === 0 || !this.rowMatchesNonexistColorFilter(i, colors, styles, null)) {
+                } else if (applyColorFilter && styles.length > 0) {
+                    // BIUS bật: style đã chọn bắt buộc; slot còn lại ∈ style chưa chọn
+                    if (!this.rowMatchesNonexistColorFilter(i, colors, styles, null)) {
                         continue;
                     }
                 }
@@ -3865,42 +3866,46 @@ class RightPaneSheetManager {
         return Array.isArray(entries) && entries.length > 0;
     }
 
+    /** Map display kind → B/I/U/S token (chỉ xanh lá). */
+    nonexistGreenKindToStyle(kind) {
+        if (kind === 'green') {
+            return 'bold';
+        }
+        if (kind === 'green-italic') {
+            return 'italic';
+        }
+        if (kind === 'green-ul') {
+            return 'underline';
+        }
+        if (kind === 'green-strike') {
+            return 'strikethrough';
+        }
+        return null;
+    }
+
     /**
-     * Count nonexist numbers matching selected colors (green respects optional B/I/U/S styles).
+     * Count nonexist numbers matching selected colors.
+     * Styles are ignored here — [] đếm mọi số đúng màu (mọi biến thể xanh).
      */
-    countNonexistNumbersForColorFilter(rowIndex, colors, styles) {
+    countNonexistNumbersForColorFilter(rowIndex, colors, _styles) {
         const colorList = Array.isArray(colors) ? colors : [];
         if (colorList.length === 0) {
             return 0;
         }
-        const styleList = Array.isArray(styles) ? styles : [];
         const entries = this.ensureNonexistDisplayEntriesCache()[rowIndex] || [];
         let count = 0;
         for (let i = 0; i < entries.length; i++) {
             const entry = entries[i];
-            if (!colorList.includes(entry.color)) {
-                continue;
+            if (colorList.includes(entry.color)) {
+                count++;
             }
-            if (entry.color === 'green') {
-                if (styleList.length === 0) {
-                    count++;
-                    continue;
-                }
-                for (let j = 0; j < styleList.length; j++) {
-                    if (this.nonexistGreenKindMatchesStyle(entry.kind, styleList[j])) {
-                        count++;
-                        break;
-                    }
-                }
-                continue;
-            }
-            count++;
         }
         return count;
     }
 
     /**
      * [] filter: row matches when count of numbers in selected color(s) satisfies op vs threshold.
+     * Styles do not affect the count (BIUS khớp riêng qua color/style filter).
      */
     rowMatchesNonexistBracketFilter(rowIndex, threshold, op = '>=', colors = null, styles = null) {
         const colorList = Array.isArray(colors)
@@ -3910,6 +3915,66 @@ class RightPaneSheetManager {
             ? this.countNonexistNumbersForColorFilter(rowIndex, colorList, styles)
             : 0;
         return this.freqMatchesComparison(count, threshold, op);
+    }
+
+    /**
+     * Các token B/I/U/S của mọi số xanh trong nonexist (theo thứ tự cột).
+     */
+    collectNonexistGreenStyleTokens(rowIndex) {
+        const entries = this.ensureNonexistDisplayEntriesCache()[rowIndex] || [];
+        const out = [];
+        for (let i = 0; i < entries.length; i++) {
+            const entry = entries[i];
+            if (entry.color !== 'green') {
+                continue;
+            }
+            const token = this.nonexistGreenKindToStyle(entry.kind);
+            if (token) {
+                out.push(token);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * BIUS đã chọn = bắt buộc có mặt; slot xanh còn lại chỉ được thuộc style chưa chọn.
+     * vd. =[2]+B → đúng 2 xanh: ≥1 bold, số còn lại ∈ {I,U,S} (không phải bold thêm).
+     * vd. =[2]+B+I → đúng {bold, italic}.
+     */
+    rowMatchesNonexistGreenStylesPartial(rowIndex, styles) {
+        const allStyles = ['bold', 'italic', 'underline', 'strikethrough'];
+        const styleList = Array.isArray(styles)
+            ? styles.filter((s) => allStyles.includes(s))
+            : [];
+        const uniqueSelected = [];
+        for (let i = 0; i < styleList.length; i++) {
+            if (!uniqueSelected.includes(styleList[i])) {
+                uniqueSelected.push(styleList[i]);
+            }
+        }
+        if (uniqueSelected.length === 0) {
+            return this.rowHasAnyGreenNonexistNumber(rowIndex);
+        }
+        const present = this.collectNonexistGreenStyleTokens(rowIndex);
+        if (present.length < uniqueSelected.length) {
+            return false;
+        }
+        const unspecified = allStyles.filter((s) => !uniqueSelected.includes(s));
+        const pool = present.slice();
+        for (let i = 0; i < uniqueSelected.length; i++) {
+            const need = uniqueSelected[i];
+            const at = pool.indexOf(need);
+            if (at < 0) {
+                return false;
+            }
+            pool.splice(at, 1);
+        }
+        for (let i = 0; i < pool.length; i++) {
+            if (!unspecified.includes(pool[i])) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /**
@@ -3949,7 +4014,10 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Match row by selected nonexist colors. Green uses B/I/U/S toggles; red/purple/yellow are color-only.
+     * Match row by selected nonexist colors.
+     * Green + BIUS (không chỉ định số): style đã chọn bắt buộc; slot còn lại ∈ style chưa chọn.
+     * Green + BIUS + số cụ thể: số đó phải đúng một style đã chọn (OR).
+     * Không BIUS: mọi xanh đều được.
      */
     rowMatchesNonexistColorFilter(rowIndex, colors, styles, specificNum = null) {
         const colorList = Array.isArray(colors) ? colors : [];
@@ -3970,6 +4038,26 @@ class RightPaneSheetManager {
         }
 
         const styleList = Array.isArray(styles) ? styles : [];
+        const wantGreen = colorList.includes('green');
+
+        // Không chỉ định số: BIUS xanh → partial (đã chọn bắt buộc, còn lại ∈ chưa chọn)
+        if (targetNum === null && wantGreen && styleList.length > 0) {
+            if (!this.rowMatchesNonexistGreenStylesPartial(rowIndex, styleList)) {
+                return false;
+            }
+            const nonGreenColors = colorList.filter((c) => c !== 'green');
+            if (nonGreenColors.length === 0) {
+                return true;
+            }
+            const entries = this.ensureNonexistDisplayEntriesCache()[rowIndex] || [];
+            for (let i = 0; i < entries.length; i++) {
+                if (nonGreenColors.includes(entries[i].color)) {
+                    return true;
+                }
+            }
+            return this.collectNonexistGreenStyleTokens(rowIndex).length > 0;
+        }
+
         const entries = this.ensureNonexistDisplayEntriesCache()[rowIndex] || [];
 
         for (let i = 0; i < entries.length; i++) {
@@ -3982,7 +4070,7 @@ class RightPaneSheetManager {
             }
             if (entry.color === 'green') {
                 if (styleList.length === 0) {
-                    continue;
+                    return true;
                 }
                 for (let j = 0; j < styleList.length; j++) {
                     if (this.nonexistGreenKindMatchesStyle(entry.kind, styleList[j])) {

@@ -8249,7 +8249,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260805followInResult2"></script>
+    <script src="right-pane-sheets.js?v=20260805nonexistBiusPartial"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -10841,12 +10841,19 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (colors.length === 0) {
                 return false;
             }
+            // Có màu: luôn là tiêu chí (kể cả green không BIUS — vẫn lọc theo [])
+            if (!isNonexistFilterNumEmpty()) {
+                return true;
+            }
             const onlyGreen = colors.length === 1 && colors[0] === 'green';
             if (onlyGreen) {
-                return filterNonexistStyles.length > 0;
-            }
-            if (colors.includes('green')) {
-                return filterNonexistStyles.length > 0 || colors.some((c) => c !== 'green');
+                if (filterNonexistStyles.length > 0) {
+                    return true;
+                }
+                // Green + [] khác mặc định >=0 → vẫn đang lọc
+                const op = normalizeIntersectionFreqOp(filterNonexistBracketOp);
+                const count = Number.isFinite(filterNonexistBracketCount) ? filterNonexistBracketCount : 0;
+                return !(op === '>=' && count === 0);
             }
             return true;
         }
@@ -11535,7 +11542,12 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (span) {
                 setFilterPopupPositionText(span, String(next));
             }
+            const stylesTrimmed = reconcileFilterNonexistStylesToBracketCount();
+            if (stylesTrimmed) {
+                saveFilterNonexistSettings();
+            }
             syncFilterPopupNonexistBracketSpinButtons();
+            syncFilterPopupNonexistStyleToggles();
             deferFilterPopupHeavyWork(() => {
                 saveFilterNonexistBracketSettings();
                 rebuildFilterPopupAfterParamChange();
@@ -11556,7 +11568,12 @@ function getFilterNoteTRefMaxSelections(mode) {
                 filterNonexistBracketOp = normalizeIntersectionFreqOp(opEl.value);
                 opEl.value = filterNonexistBracketOp;
             }
+            const stylesTrimmed = reconcileFilterNonexistStylesToBracketCount();
+            if (stylesTrimmed) {
+                saveFilterNonexistSettings();
+            }
             syncFilterPopupNonexistBracketSpinButtons();
+            syncFilterPopupNonexistStyleToggles();
             deferFilterPopupHeavyWork(() => {
                 saveFilterNonexistBracketSettings();
                 if (periodFilterEnabled && isPeriodFilterContextSheet()
@@ -11669,7 +11686,11 @@ function getFilterNoteTRefMaxSelections(mode) {
 
         function initFilterPopupNonexistBracketControls() {
             loadFilterNonexistBracketSettings();
+            if (reconcileFilterNonexistStylesToBracketCount()) {
+                saveFilterNonexistSettings();
+            }
             syncFilterPopupNonexistBracketUi();
+            syncFilterPopupNonexistStyleToggles();
             const picker = el('filterPopupNonexistBracketPicker');
             const opEl = el('filterPopupNonexistBracketOp');
             const countEl = el('filterPopupNonexistBracketCount');
@@ -13984,6 +14005,17 @@ function getFilterNoteTRefMaxSelections(mode) {
             return `<span style="${base}">${letter}</span>`;
         }
 
+        function getFilterNonexistBiusStyleSlotMax() {
+            const op = normalizeIntersectionFreqOp(filterNonexistBracketOp);
+            // >= : không gắn với [n] — cho phép đủ 4 BIUS
+            if (op === '>=') {
+                return NONEXIST_FILTER_STYLES.length;
+            }
+            // = / <= : tối đa đúng [n]
+            const n = Number.isFinite(filterNonexistBracketCount) ? filterNonexistBracketCount : 0;
+            return Math.max(0, Math.min(NONEXIST_FILTER_STYLES.length, n));
+        }
+
         function syncFilterPopupNonexistStyleToggles() {
             const wrap = el('filterPopupNonexistStyleWrap');
             if (!wrap) {
@@ -13991,15 +14023,26 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             const greenOn = isNonexistGreenFilterSelected();
             const show = periodFilterEnabled && isNonexistFilterMode(periodFilterMode) && greenOn;
+            const styleSlots = getFilterNonexistBiusStyleSlotMax();
+            const op = normalizeIntersectionFreqOp(filterNonexistBracketOp);
             wrap.classList.toggle('hidden', !show);
             wrap.classList.remove('disabled');
+            wrap.title = show
+                ? (op === '>='
+                    ? 'BIUS: >= cho phép ≤4 kiểu; bật thêm khi đủ slot → tắt cái cũ nhất'
+                    : (styleSlots <= 0
+                        ? 'BIUS: [0] — tắt hết style'
+                        : ('BIUS: ≤' + styleSlots + ' kiểu (= / <= theo [n]); bật kiểu khác khi đủ slot → tắt cái cũ nhất')))
+                : '';
             wrap.querySelectorAll('.filter-popup-nonexist-style-toggle').forEach((btn) => {
-                btn.disabled = !show;
                 const style = btn.dataset.style || '';
                 if (!style) {
                     return;
                 }
                 const active = filterNonexistStyles.includes(style);
+                // Đủ slot vẫn cho bấm kiểu khác → FIFO thay thế cái cũ nhất
+                const disabled = !show || styleSlots <= 0;
+                btn.disabled = disabled;
                 btn.classList.toggle('active', active);
                 btn.setAttribute('aria-pressed', active ? 'true' : 'false');
                 const letter = btn.querySelector('.filter-popup-nonexist-style-toggle-letter');
@@ -14009,12 +14052,40 @@ function getFilterNoteTRefMaxSelections(mode) {
             });
         }
 
+        /**
+         * Giới hạn BIUS theo op: >= → tối đa 4; = / <= → tối đa [n]; [0] với =/<= → xóa hết.
+         */
+        function reconcileFilterNonexistStylesToBracketCount() {
+            if (!isNonexistGreenFilterSelected()) {
+                return false;
+            }
+            const maxSlots = getFilterNonexistBiusStyleSlotMax();
+            const before = filterNonexistStyles.join(',');
+            if (maxSlots <= 0) {
+                filterNonexistStyles = [];
+            } else if (filterNonexistStyles.length > maxSlots) {
+                filterNonexistStyles = filterNonexistStyles.slice(0, maxSlots);
+            }
+            return filterNonexistStyles.join(',') !== before;
+        }
+
         function toggleFilterPopupNonexistStyle(style) {
             if (!isNonexistGreenFilterSelected()) {
                 return;
             }
+            if (!NONEXIST_FILTER_STYLES.includes(style)) {
+                return;
+            }
+            const n = getFilterNonexistBiusStyleSlotMax();
+            if (n <= 0) {
+                return;
+            }
             const idx = filterNonexistStyles.indexOf(style);
             if (idx === -1) {
+                // Đã đủ slot: tắt cái cũ nhất (FIFO) rồi bật cái mới
+                while (filterNonexistStyles.length >= n) {
+                    filterNonexistStyles.shift();
+                }
                 filterNonexistStyles.push(style);
             } else {
                 filterNonexistStyles.splice(idx, 1);
@@ -16323,11 +16394,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return 0;
             }
             const normalized = normalizeFilterMode(mode);
-            if (isNonexistFilterMode(normalized)) {
-                if (!hasActiveNonexistFilterCriteria()) {
-                    return 0;
-                }
-            }
+            // Nonexist: luôn dùng pool mẫu tổng lịch sử (colors, không BIUS/số/[] phụ).
+            // Không trả 0 khi tắt BIUS — tránh hiện x/341/0.
             return sheetManager.getFilterMatchingIndices(
                 normalized,
                 getFilterOptionsForParentCount(normalized)
