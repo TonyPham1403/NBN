@@ -6746,11 +6746,26 @@ class RightPaneSheetManager {
         if (!Number.isFinite(start) || start <= 0) {
             return -1;
         }
+        return this.findNearestYellowNonexistRowInRange(num, 0, start - 1);
+    }
+
+    /**
+     * Vàng gần `hi` nhất trong [lo..hi] (quét từ hi xuống lo).
+     * @returns {number} row index hoặc -1
+     */
+    findNearestYellowNonexistRowInRange(num, lo, hi) {
+        const low = Math.floor(Number(lo));
+        const high = Math.floor(Number(hi));
+        if (!Number.isFinite(low) || !Number.isFinite(high) || high < low) {
+            return -1;
+        }
         const rows = this.getSourceSheetRows();
         if (!this.nonexistCache || this.nonexistCache.length !== rows.length) {
             this.refreshDerivedState();
         }
-        for (let i = start - 1; i >= 0; i--) {
+        const maxHi = Math.min(high, rows.length - 1);
+        const minLo = Math.max(0, low);
+        for (let i = maxHi; i >= minLo; i--) {
             if (this.isNonexistNumYellowAtRow(i, num)) {
                 return i;
             }
@@ -6783,6 +6798,7 @@ class RightPaneSheetManager {
      * Boost vàng x1.5 ngoài cửa 10: số tím/đỏ hoặc xanh gạch ngang/gạch chân trên focus
      * → đúng hàng “vàng gần nhất” phía trên cửa sổ
      * (vd 761 đỏ 18 → 729 vàng 18; 317 xanh 7/26 → 305/298 vàng ×1.5).
+     * Nếu trong cửa sổ đã có vàng của cùng số → không trail ngoài (tránh x1.5 kép, vd 245 rồi 218).
      */
     isOutsideWindowFocusTrailBoost(rowIndex, num, winOverride = null) {
         const win = winOverride || this.activeWindowRange;
@@ -6790,6 +6806,7 @@ class RightPaneSheetManager {
             return false;
         }
         const start = win.start;
+        const end = win.end;
         if (rowIndex >= start) {
             return false;
         }
@@ -6798,6 +6815,10 @@ class RightPaneSheetManager {
             ? this.getFocusRowPurpleRedNonexistTrailNums(targetIdx)
             : this._getFocusNonexistTrailNumsCache();
         if (!trailSet.has(num)) {
+            return false;
+        }
+        // Đã có vàng trong cửa → chỉ boost trong cửa, không thêm ngoài
+        if (this.findNearestYellowNonexistRowInRange(num, start, end) >= 0) {
             return false;
         }
         const nearestYellow = this.findNearestOutsideYellowNonexistRow(num, start);
@@ -6824,6 +6845,9 @@ class RightPaneSheetManager {
         }
         const trailNumsOnFocus = this.getFocusRowPurpleRedNonexistTrailNums(targetIdx);
         for (const num of trailNumsOnFocus) {
+            if (this.findNearestYellowNonexistRowInRange(num, start, end) >= 0) {
+                continue;
+            }
             const nearestYellow = this.findNearestOutsideYellowNonexistRow(num, start);
             if (nearestYellow >= 0) {
                 indices.add(nearestYellow);
@@ -6854,7 +6878,9 @@ class RightPaneSheetManager {
         if (rowIndex < start || rowIndex > lastLabeledRow) {
             return false;
         }
-        return true;
+        // Trong cửa: chỉ một vàng gần focus (end) nhất — không x1.5 mọi lần xuất hiện
+        const nearestInWin = this.findNearestYellowNonexistRowInRange(num, start, lastLabeledRow);
+        return nearestInWin === rowIndex;
     }
 
     /**
