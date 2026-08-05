@@ -1419,7 +1419,7 @@
             background: #f8fafc;
         }
 
-        /* A/S/B: tô kim cương (vuông xoay 45°) lên số freq≥2 luôn above/same/below phase1 */
+        /* A/S/B: tô ngoặc góc indigo lên số freq≥2 luôn above/same/below phase1 */
         #relPhaseAboveBtn,
         #relPhaseSameBtn,
         #relPhaseBelowBtn {
@@ -1455,28 +1455,37 @@
             background: #f8fafc;
         }
 
-        .cell.num > .rel-phase-diamond {
+        /* A/S/B relative: ngoặc góc indigo ⌜⌝⌞⌟ — tránh xanh lá / vàng / cyan / tím phase */
+        .cell.num > .rel-phase-corners {
+            --rel-corner: #4338ca;
+            --rel-arm: 6px;
+            --rel-thick: 2px;
             display: none;
             position: absolute;
             left: 50%;
             top: 50%;
-            width: calc(var(--selected-ring-size) * 0.92);
-            height: calc(var(--selected-ring-size) * 0.92);
+            width: calc(var(--selected-ring-size) + 4px);
+            height: calc(var(--selected-ring-size) + 4px);
             box-sizing: border-box;
-            transform: translate(-50%, -50%) rotate(45deg);
-            border: calc(var(--selected-ring-border) * 0.85) solid #eab308;
-            background: transparent;
-            box-shadow: 0 0 6px rgba(234, 179, 8, 0.45);
+            transform: translate(-50%, -50%);
             pointer-events: none;
             z-index: 3;
+            background:
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 0 0 / var(--rel-arm) var(--rel-thick) no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 0 0 / var(--rel-thick) var(--rel-arm) no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 100% 0 / var(--rel-arm) var(--rel-thick) no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 100% 0 / var(--rel-thick) var(--rel-arm) no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 0 100% / var(--rel-arm) var(--rel-thick) no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 0 100% / var(--rel-thick) var(--rel-arm) no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 100% 100% / var(--rel-arm) var(--rel-thick) no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 100% 100% / var(--rel-thick) var(--rel-arm) no-repeat;
+            filter: drop-shadow(0 0 1px rgba(67, 56, 202, 0.5));
         }
 
-        .cell.num.rel-phase-above > .rel-phase-diamond,
-        .cell.num.rel-phase-same > .rel-phase-diamond,
-        .cell.num.rel-phase-below > .rel-phase-diamond {
+        .cell.num.rel-phase-above > .rel-phase-corners,
+        .cell.num.rel-phase-same > .rel-phase-corners,
+        .cell.num.rel-phase-below > .rel-phase-corners {
             display: block;
-            border-color: #eab308;
-            box-shadow: 0 0 6px rgba(234, 179, 8, 0.45);
         }
 
         /* Actions row directly above the left table (hidden until we align after scaling) */
@@ -3240,7 +3249,7 @@
             return lines;
         }
 
-        /** Toggle A/S/B: kim cương trên số freq≥2 always above/same/below phase1 (Chuỗi 1). */
+        /** Toggle A/S/B: ngoặc góc indigo trên số freq≥2 always above/same/below phase1 (Chuỗi 1). */
         const REL_PHASE_ASB_KEY = 'leftPaneRelPhaseASB';
         let relPhaseAboveOn = false;
         let relPhaseSameOn = false;
@@ -3393,12 +3402,12 @@
             }
             var kids = span.children;
             for (var i = 0; i < kids.length; i++) {
-                if (kids[i].classList && kids[i].classList.contains('rel-phase-diamond')) {
+                if (kids[i].classList && kids[i].classList.contains('rel-phase-corners')) {
                     return kids[i];
                 }
             }
             var el = document.createElement('span');
-            el.className = 'rel-phase-diamond';
+            el.className = 'rel-phase-corners';
             el.setAttribute('aria-hidden', 'true');
             span.appendChild(el);
             return el;
@@ -3422,7 +3431,7 @@
                     if (isAbove || isSame || isBelow) {
                         ensureRelPhaseDiamondEl(span);
                     } else {
-                        var ring = span.querySelector('.rel-phase-diamond');
+                        var ring = span.querySelector('.rel-phase-corners');
                         if (ring && ring.parentNode === span) {
                             span.removeChild(ring);
                         }
