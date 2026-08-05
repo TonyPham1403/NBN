@@ -468,6 +468,12 @@ class RightPaneSheetManager {
         this._conn3FilterIndicesCacheRowLen = 0;
         this._conn3WindowExistIndicesCache = null;
         this._conn3WindowExistIndicesCacheRowLen = 0;
+        /** Cache filter mode TRACKING (bụng basic: size + streak). */
+        this._basicTrackingBellyFilterCache = null;
+        this._basicTrackingBellyFilterCacheRowLen = 0;
+        /** Token hủy warm async khi refreshDerivedState chạy lại. */
+        this._basicTrackingBellyWarmGen = 0;
+        this._basicTrackingBellyWarmTimer = 0;
         /** Cache cột sheet1 `special` (plain/merge/split/trans). */
         this._sheet1SpecialContiguousKindsCache = null;
         this._sheet1SpecialContiguousKindsCacheKey = '';
@@ -614,6 +620,9 @@ class RightPaneSheetManager {
         this._conn3FilterIndicesCacheRowLen = 0;
         this._conn3WindowExistIndicesCache = null;
         this._conn3WindowExistIndicesCacheRowLen = 0;
+        this._basicTrackingBellyFilterCache = null;
+        this._basicTrackingBellyFilterCacheRowLen = 0;
+        this.scheduleWarmBasicTrackingBellyFilterCache();
         this._filterRowMauSetsCache = null;
         this._filterRowMauSetsCacheKey = '';
         this._sheet1SpecialContiguousKindsCache = null;
@@ -2157,6 +2166,20 @@ class RightPaneSheetManager {
             const kinds = this.getSheet1SpecialContiguousKinds(rows);
             for (let i = 0; i < rows.length; i++) {
                 if (kinds[i]) {
+                    indices.push(i);
+                }
+            }
+            return indices;
+        }
+
+        if (mode === 'tracking') {
+            const o = filterOptions || {};
+            const specs = RightPaneSheetManager.normalizeTrackingBellySpecs(o);
+            for (let i = 0; i < rows.length; i++) {
+                if (this.isEmptyResultRow(rows[i])) {
+                    continue;
+                }
+                if (this.rowHasAllBasicTrackingBellies(i, specs)) {
                     indices.push(i);
                 }
             }
@@ -10464,6 +10487,361 @@ class RightPaneSheetManager {
         }
         const numeral = RightPaneSheetManager.formatChineseStreakNumeral(streak);
         return `${count}${numeral}`;
+    }
+
+    static normalizeTrackingBellySize(value) {
+        const n = parseInt(value, 10);
+        if (!Number.isFinite(n)) {
+            return 2;
+        }
+        return Math.min(20, Math.max(2, n));
+    }
+
+    static normalizeTrackingBellyStreak(value) {
+        const n = parseInt(value, 10);
+        if (!Number.isFinite(n)) {
+            return 1;
+        }
+        return Math.min(RightPaneSheetManager.FREQ_BRACE_STREAK_MAX, Math.max(1, n));
+    }
+
+    /**
+     * Chuẩn hóa danh sách bụng lọc từ filterOptions.
+     * Hỗ trợ `trackingBellies: [{size,streak},…]` hoặc legacy `trackingBellySize` + `trackingBellyStreak`.
+     * @returns {{ size: number, streak: number }[]}
+     */
+    static normalizeTrackingBellySpecs(filterOptions) {
+        const o = filterOptions || {};
+        const out = [];
+        const seen = new Set();
+        const pushSpec = (sizeRaw, streakRaw) => {
+            const size = RightPaneSheetManager.normalizeTrackingBellySize(sizeRaw);
+            const streak = RightPaneSheetManager.normalizeTrackingBellyStreak(streakRaw);
+            const key = `${size}:${streak}`;
+            if (seen.has(key)) {
+                return;
+            }
+            seen.add(key);
+            out.push({ size, streak });
+        };
+        if (Array.isArray(o.trackingBellies) && o.trackingBellies.length) {
+            for (let i = 0; i < o.trackingBellies.length; i++) {
+                const b = o.trackingBellies[i];
+                if (!b || typeof b !== 'object') {
+                    continue;
+                }
+                pushSpec(b.size, b.streak);
+            }
+        }
+        if (!out.length) {
+            pushSpec(o.trackingBellySize, o.trackingBellyStreak);
+        }
+        if (!out.length) {
+            pushSpec(2, 3);
+        }
+        return out;
+    }
+
+    /** Parse chữ Hán streak (一…九十九) → số; số Ả Rập cũng nhận. */
+    static parseChineseStreakNumeral(text) {
+        const raw = String(text == null ? '' : text).trim();
+        if (!raw) {
+            return 1;
+        }
+        if (/^\d+$/.test(raw)) {
+            return RightPaneSheetManager.normalizeTrackingBellyStreak(raw);
+        }
+        const digits = RightPaneSheetManager.FREQ_BRACE_STREAK_NUMERALS;
+        const digitVal = (ch) => {
+            const i = digits.indexOf(ch);
+            return i >= 0 ? i + 1 : -1;
+        };
+        if (raw === '十') {
+            return 10;
+        }
+        if (raw.length === 1) {
+            const v = digitVal(raw);
+            return v > 0 ? v : 1;
+        }
+        if (raw.startsWith('十')) {
+            const ones = digitVal(raw.charAt(1));
+            return ones > 0 ? 10 + ones : 10;
+        }
+        const shi = raw.indexOf('十');
+        if (shi > 0) {
+            const tens = digitVal(raw.charAt(0));
+            if (tens < 1) {
+                return 1;
+            }
+            if (shi === raw.length - 1) {
+                return tens * 10;
+            }
+            const ones = digitVal(raw.charAt(shi + 1));
+            return ones > 0 ? tens * 10 + ones : tens * 10;
+        }
+        return 1;
+    }
+
+    /**
+     * Cache bụng basic tracking theo hàng sheet1: { memberCount, streak, nums, label }[].
+     */
+    /**
+     * Hâm nóng cache bụng TRACKING sau load / refresh — chạy idle để không chặn paint,
+     * nhưng ưu tiên xong trước khi user mở filter popup.
+     */
+    scheduleWarmBasicTrackingBellyFilterCache() {
+        this._basicTrackingBellyWarmGen = (this._basicTrackingBellyWarmGen | 0) + 1;
+        const gen = this._basicTrackingBellyWarmGen;
+        if (this._basicTrackingBellyWarmTimer) {
+            try {
+                clearTimeout(this._basicTrackingBellyWarmTimer);
+            } catch (eClear) { /* ignore */ }
+            this._basicTrackingBellyWarmTimer = 0;
+        }
+        const run = () => {
+            this._basicTrackingBellyWarmTimer = 0;
+            if (gen !== this._basicTrackingBellyWarmGen) {
+                return;
+            }
+            try {
+                this.ensureBasicTrackingBellyFilterCache();
+            } catch (eWarm) {
+                console.warn('warmBasicTrackingBellyFilterCache failed', eWarm);
+            }
+        };
+        if (typeof requestIdleCallback === 'function') {
+            requestIdleCallback(() => {
+                if (gen !== this._basicTrackingBellyWarmGen) {
+                    return;
+                }
+                run();
+            }, { timeout: 1200 });
+            return;
+        }
+        this._basicTrackingBellyWarmTimer = setTimeout(run, 0);
+    }
+
+    /**
+     * Cache bụng basic (size + streak + nums) theo từng kỳ nguồn.
+     * Một lượt O(frames): cùng semantics filter (Submit OFF, không preview).
+     */
+    ensureBasicTrackingBellyFilterCache() {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        if (this._basicTrackingBellyFilterCache
+            && this._basicTrackingBellyFilterCacheRowLen === n) {
+            return this._basicTrackingBellyFilterCache;
+        }
+        const out = new Array(n);
+        for (let i = 0; i < n; i++) {
+            out[i] = [];
+        }
+        const tracking = this.sheets && this.sheets.tracking;
+        if (!tracking || tracking.kind !== TRACKING_KIND) {
+            this._basicTrackingBellyFilterCache = out;
+            this._basicTrackingBellyFilterCacheRowLen = n;
+            return out;
+        }
+        this.ensureTrackingMetaCaches(tracking);
+        const basicDraws = tracking.basicDraws || [];
+        const drawSteps = tracking.basicDrawSteps || [];
+        const srcIx = tracking.basicSourceRowIndices || [];
+        const frames = this.buildBasicTrackingFrames(drawSteps);
+        const numMax = 35;
+        const streakMax = RightPaneSheetManager.FREQ_BRACE_STREAK_MAX;
+        /** freq → bellyKey kỳ trước (Submit OFF, không preview — giống filter). */
+        let prevBellyByFreq = new Map();
+        /** streakKey → streak kỳ trước */
+        let prevStreakByKey = new Map();
+        for (let f = 0; f < frames.length; f++) {
+            const fr = frames[f];
+            if (!fr) {
+                prevBellyByFreq = new Map();
+                prevStreakByKey = new Map();
+                continue;
+            }
+            const display = RightPaneSheetManager.computeBasicTrackingDisplayLayout(
+                basicDraws,
+                fr,
+                false,
+                []
+            );
+            const groups = RightPaneSheetManager.buildBasicTrackingFreqTieGroups(
+                display.counts,
+                display.slotByNum,
+                numMax
+            );
+            const nextBellyByFreq = new Map();
+            const nextStreakByKey = new Map();
+            const bellies = [];
+            const slotByNum = display.slotByNum || [];
+            for (let g = 0; g < groups.length; g++) {
+                const group = groups[g];
+                const memberCount = Array.isArray(group.nums) ? group.nums.length : 0;
+                if (memberCount < 2) {
+                    continue;
+                }
+                const freq = group.freq | 0;
+                const bellyKey = RightPaneSheetManager.getFreqTieGroupBellyKey(group.nums);
+                const streakKey = RightPaneSheetManager.getFreqTieGroupStreakKey(group);
+                let streak = 1;
+                if (streakKey && prevBellyByFreq.get(freq) === bellyKey) {
+                    streak = Math.min(
+                        streakMax,
+                        Math.max(1, (prevStreakByKey.get(streakKey) | 0) || 1) + 1
+                    );
+                }
+                if (streakKey) {
+                    nextStreakByKey.set(streakKey, streak);
+                }
+                nextBellyByFreq.set(freq, bellyKey);
+                // Số ngay dưới brace bụng (slot = maxSlot + 1) — cơ chế OUT.
+                const belowSlot = (group.maxSlot | 0) + 1;
+                let belowNum = null;
+                for (let n = 1; n <= numMax; n++) {
+                    if ((slotByNum[n] | 0) === belowSlot) {
+                        belowNum = n;
+                        break;
+                    }
+                }
+                bellies.push({
+                    memberCount,
+                    streak,
+                    nums: group.nums.slice(),
+                    belowNum,
+                    label: RightPaneSheetManager.formatFreqBraceCountLabel(memberCount, streak)
+                });
+            }
+            const ri = srcIx[f];
+            if (ri >= 0 && ri < n) {
+                out[ri] = bellies;
+            }
+            prevBellyByFreq = nextBellyByFreq;
+            prevStreakByKey = nextStreakByKey;
+        }
+        this._basicTrackingBellyFilterCache = out;
+        this._basicTrackingBellyFilterCacheRowLen = n;
+        return out;
+    }
+
+    rowHasBasicTrackingBelly(rowIndex, memberCount, streak) {
+        const size = RightPaneSheetManager.normalizeTrackingBellySize(memberCount);
+        const st = RightPaneSheetManager.normalizeTrackingBellyStreak(streak);
+        const bellies = this.ensureBasicTrackingBellyFilterCache()[rowIndex] || [];
+        for (let i = 0; i < bellies.length; i++) {
+            const b = bellies[i];
+            if (b.memberCount === size && b.streak === st) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Kỳ có đủ mọi bụng trong danh sách spec (AND). */
+    rowHasAllBasicTrackingBellies(rowIndex, specs) {
+        const list = Array.isArray(specs) ? specs : [];
+        if (!list.length) {
+            return false;
+        }
+        for (let i = 0; i < list.length; i++) {
+            const spec = list[i];
+            if (!this.rowHasBasicTrackingBelly(rowIndex, spec && spec.size, spec && spec.streak)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Kỳ có số gọi (result) nằm trong bụng khớp size+streak. */
+    rowMatchesBasicTrackingBellyPick(rowIndex, memberCount, streak) {
+        const rows = this.getSourceSheetRows();
+        const row = rows[rowIndex];
+        if (!row || this.isEmptyResultRow(row)) {
+            return false;
+        }
+        const picks = this.parseMainNums(row.result || row.Result || '');
+        if (!picks.length) {
+            return false;
+        }
+        const size = RightPaneSheetManager.normalizeTrackingBellySize(memberCount);
+        const st = RightPaneSheetManager.normalizeTrackingBellyStreak(streak);
+        const bellies = this.ensureBasicTrackingBellyFilterCache()[rowIndex] || [];
+        for (let i = 0; i < bellies.length; i++) {
+            const b = bellies[i];
+            if (b.memberCount !== size || b.streak !== st) {
+                continue;
+            }
+            for (let p = 0; p < picks.length; p++) {
+                if (b.nums.indexOf(picks[p]) !== -1) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** Số gọi nằm trong ít nhất một bụng khớp danh sách spec (OR). */
+    rowMatchesAnyBasicTrackingBellyPick(rowIndex, specs) {
+        const list = Array.isArray(specs) ? specs : [];
+        for (let i = 0; i < list.length; i++) {
+            const spec = list[i];
+            if (this.rowMatchesBasicTrackingBellyPick(rowIndex, spec && spec.size, spec && spec.streak)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * OUT: số gọi = số nằm ngay dưới brace bụng khớp size+streak (slot maxSlot+1).
+     * Vẫn làm đổi bụng chỉ định (số dưới thường join vào freq của bụng).
+     */
+    rowMatchesBasicTrackingBellyPickBelow(rowIndex, memberCount, streak) {
+        const rows = this.getSourceSheetRows();
+        const row = rows[rowIndex];
+        if (!row || this.isEmptyResultRow(row)) {
+            return false;
+        }
+        const picks = this.parseMainNums(row.result || row.Result || '');
+        if (!picks.length) {
+            return false;
+        }
+        const size = RightPaneSheetManager.normalizeTrackingBellySize(memberCount);
+        const st = RightPaneSheetManager.normalizeTrackingBellyStreak(streak);
+        const bellies = this.ensureBasicTrackingBellyFilterCache()[rowIndex] || [];
+        for (let i = 0; i < bellies.length; i++) {
+            const b = bellies[i];
+            if (b.memberCount !== size || b.streak !== st) {
+                continue;
+            }
+            const below = b.belowNum;
+            if (!(below >= 1 && below <= 35)) {
+                continue;
+            }
+            for (let p = 0; p < picks.length; p++) {
+                if (picks[p] === below) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /** OUT: pick ngay dưới ít nhất một bụng khớp danh sách spec (OR). */
+    rowMatchesAnyBasicTrackingBellyPickBelow(rowIndex, specs) {
+        const list = Array.isArray(specs) ? specs : [];
+        for (let i = 0; i < list.length; i++) {
+            const spec = list[i];
+            if (this.rowMatchesBasicTrackingBellyPickBelow(rowIndex, spec && spec.size, spec && spec.streak)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** @deprecated Dùng rowMatchesAnyBasicTrackingBellyPickBelow — OUT ≠ pick ngoài bụng. */
+    rowHasTrackingBellyPickOutside(rowIndex, specs) {
+        return this.rowMatchesAnyBasicTrackingBellyPickBelow(rowIndex, specs);
     }
 
     /**

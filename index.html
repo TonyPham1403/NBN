@@ -3910,7 +3910,8 @@
         #filterPopupDatebandFreqXSpin,
         #filterPopupDatebandFreqYSpin,
         #filterPopupTailCountSpin,
-        #filterPopupNonexistBracketCountSpin {
+        #filterPopupNonexistBracketCountSpin,
+        .filter-popup-tracking-belly-spin {
             display: flex;
             flex-direction: column;
             flex: 0 0 auto;
@@ -3931,7 +3932,8 @@
         #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn,
-        #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn {
+        #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn,
+        .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn {
             flex: 1 1 50%;
             min-height: 0;
             margin: 0;
@@ -3955,7 +3957,8 @@
         #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
-        #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn {
+        #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
+        .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn {
             border-top: 1px solid rgba(255, 255, 255, 0.35);
         }
 
@@ -3965,7 +3968,8 @@
         #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
-        #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled) {
+        #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
+        .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled) {
             background: #047857 !important;
         }
 
@@ -3975,7 +3979,8 @@
         #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
-        #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled) {
+        #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
+        .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn:active:not(:disabled) {
             background: #065f46 !important;
         }
 
@@ -3985,9 +3990,24 @@
         #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn:disabled,
-        #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:disabled {
+        #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:disabled,
+        .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn:disabled {
             opacity: 0.45;
             cursor: not-allowed;
+        }
+
+        /* Gợi ý hướng tới T% cao hơn — vàng #ffff00; đúng mốc thì giữ xanh thường */
+        .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn.is-tracking-hint:not(:disabled) {
+            background: #ffff00 !important;
+            color: #111111 !important;
+        }
+
+        .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn.is-tracking-hint:hover:not(:disabled) {
+            background: #ffff66 !important;
+        }
+
+        .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn.is-tracking-hint:active:not(:disabled) {
+            background: #e6e600 !important;
         }
 
         .visually-hidden {
@@ -5000,8 +5020,168 @@
         }
 
         .filter-popup-special-kinds-picker.hidden,
-        .filter-popup-special-trends-picker.hidden {
+        .filter-popup-special-trends-picker.hidden,
+        .filter-popup-tracking-belly.hidden {
             display: none !important;
+        }
+
+        .filter-popup-tracking-belly,
+        .filter-popup-tracking-belly.filter-popup-intersection-freq {
+            display: inline-flex;
+            align-items: center;
+            align-self: center;
+            height: 100%;
+            min-height: 24px;
+            max-height: 24px;
+            flex: 0 1 auto;
+            gap: 2px;
+            padding: 0 2px;
+            margin: 0;
+            border-left: 1px solid #cbd5e1;
+            background: #f8fafc;
+            box-sizing: border-box;
+            overflow-x: auto;
+            overflow-y: hidden;
+            max-width: min(520px, 55vw);
+        }
+
+        .filter-popup-tracking-io {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            flex: 0 0 auto;
+            margin-right: 2px;
+            padding-right: 3px;
+            border-right: 1px solid #cbd5e1;
+        }
+
+        .filter-popup-tracking-io-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 18px;
+            min-height: 18px;
+            min-width: 26px;
+            padding: 0 4px;
+            margin: 0;
+            font: 700 10px/1 Inter, Segoe UI, Arial, sans-serif;
+            border: 1px solid #cbd5e1;
+            border-radius: 3px;
+            background: #ffffff;
+            color: #64748b;
+            cursor: pointer;
+            flex: 0 0 auto;
+            user-select: none;
+            box-sizing: border-box;
+        }
+
+        .filter-popup-tracking-io-btn:hover:not(:disabled) {
+            border-color: #94a3b8;
+            color: #334155;
+        }
+
+        .filter-popup-tracking-io-btn[aria-pressed="true"] {
+            border-color: #004d00;
+            background: #006400;
+            color: #ffffff;
+        }
+
+        .filter-popup-tracking-io-btn[aria-pressed="true"]:hover:not(:disabled) {
+            background: #005000;
+            border-color: #003d00;
+            color: #ffffff;
+        }
+
+        .filter-popup-tracking-io-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .filter-popup-tracking-belly-list {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            flex: 0 0 auto;
+        }
+
+        .filter-popup-tracking-belly-row {
+            display: inline-flex;
+            align-items: center;
+            gap: 1px;
+            flex: 0 0 auto;
+            padding-right: 3px;
+            border-right: 1px solid #cbd5e1;
+        }
+
+        .filter-popup-tracking-belly-row:last-child {
+            border-right: 0;
+            padding-right: 0;
+        }
+
+        .filter-popup-tracking-belly .filter-popup-intersection-freq-item {
+            gap: 1px;
+        }
+
+        .filter-popup-tracking-belly .filter-popup-bracket-char {
+            padding: 0;
+            margin: 0;
+        }
+
+        .filter-popup-tracking-belly .filter-popup-tracking-belly-spin {
+            margin: 0;
+        }
+
+        .filter-popup-tracking-belly .filter-popup-tracking-streak-num {
+            /* Chữ Hán ~1em/ký tự — tối thiểu đủ 2 ký tự (十一, 二十…) */
+            width: 2em;
+            min-width: 2em;
+            max-width: 3em;
+            flex: 0 0 auto;
+            text-align: center;
+            overflow: visible;
+        }
+
+        .filter-popup-tracking-belly-add,
+        .filter-popup-tracking-belly-remove {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 16px;
+            min-width: 16px;
+            height: 18px;
+            margin: 0;
+            padding: 0;
+            border-radius: 3px;
+            color: #ffffff;
+            font: 700 12px/1 Inter, Segoe UI, Arial, sans-serif;
+            cursor: pointer;
+            flex: 0 0 auto;
+            box-sizing: border-box;
+        }
+
+        .filter-popup-tracking-belly-add {
+            border: 1px solid #004d00;
+            background: #006400;
+        }
+
+        .filter-popup-tracking-belly-add:hover:not(:disabled) {
+            background: #047857;
+        }
+
+        .filter-popup-tracking-belly-remove {
+            margin-left: 1px;
+            border: 1px solid #cc0000;
+            background: #ff0000;
+        }
+
+        .filter-popup-tracking-belly-remove:hover:not(:disabled) {
+            background: #ff3333;
+        }
+
+        .filter-popup-tracking-belly-add:disabled,
+        .filter-popup-tracking-belly-remove:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
         }
 
         .filter-popup-special-trends-picker .filter-popup-special-trend-dir-picker,
@@ -5993,6 +6173,19 @@
         }
 
         #filterTableWrap.filter-popup-posnfreq-green-only tbody tr[data-idx]:not(.filter-popup-posnfreq-submit-hit) {
+            display: none !important;
+        }
+
+        /* TRACKING %: I/O = hợp IN∪OUT; I / O = chỉ từng cơ chế */
+        #filterTableWrap.filter-popup-tracking-io-only tbody tr[data-idx]:not(.filter-popup-tracking-in-hit):not(.filter-popup-tracking-out-hit) {
+            display: none !important;
+        }
+
+        #filterTableWrap.filter-popup-tracking-in-only tbody tr[data-idx]:not(.filter-popup-tracking-in-hit) {
+            display: none !important;
+        }
+
+        #filterTableWrap.filter-popup-tracking-out-only tbody tr[data-idx]:not(.filter-popup-tracking-out-hit) {
             display: none !important;
         }
 
@@ -7922,6 +8115,22 @@
                                 title="Bật/tắt ràng buộc vị trí chuỗi">[—]</button>
                         </span>
                     </div>
+                    <div id="filterPopupTrackingBellyPicker" class="filter-popup-tracking-belly hidden"
+                        role="group" aria-label="Bụng TRACKING: nhiều tên bụng (AND)" aria-hidden="true"
+                        title="Lọc TRACKING basic: kỳ phải có đủ mọi bụng (vd 2三 AND 3四). IN = pick trong bụng; OUT = pick số ngay dưới bụng. + thêm, − bỏ.">
+                        <div id="filterPopupTrackingIoToggle" class="filter-popup-tracking-io" role="group"
+                            aria-label="Viền xanh: pick trong bụng (IN) / ngay dưới bụng (OUT)">
+                            <button type="button" id="filterPopupTrackingInBtn"
+                                class="filter-popup-tracking-io-btn" aria-pressed="true"
+                                title="IN: viền xanh khi số gọi nằm trong bụng khớp">IN</button>
+                            <button type="button" id="filterPopupTrackingOutBtn"
+                                class="filter-popup-tracking-io-btn" aria-pressed="false"
+                                title="OUT: viền xanh khi số gọi là số ngay dưới brace bụng khớp">OUT</button>
+                        </div>
+                        <div id="filterPopupTrackingBellyList" class="filter-popup-tracking-belly-list"></div>
+                        <button type="button" id="filterPopupTrackingBellyAdd"
+                            class="filter-popup-tracking-belly-add" title="Thêm bụng lọc" aria-label="Thêm bụng">+</button>
+                    </div>
                     <div id="filterPopupDatebandFreqPicker" class="filter-popup-dateband-freq hidden"
                         aria-hidden="true">
                         <div class="filter-popup-intersection-freq" role="group"
@@ -8063,6 +8272,10 @@
                         class="filter-popup-posnfreq-overlap-pct is-conn3-pct-btn" hidden aria-pressed="false"
                         title="3C = kỳ đáp án có 3-connection (viền xanh). Bật: chỉ kỳ 3C; tắt: đủ cửa sổ. AND với nút F (follow)."
                         aria-label="Phần trăm kỳ 3-connection">3C 0%</button>
+                    <button type="button" id="filterPopupTrackingOverlapPct"
+                        class="filter-popup-posnfreq-overlap-pct is-tracking-pct-btn" hidden aria-pressed="false"
+                        title="T = hiện đủ kỳ có bụng. Nhấn: T → I/O (viền xanh đủ) → I → O. Trạng thái I hoặc O chỉ hiện khi cơ chế IN/OUT tương ứng đang bật."
+                        aria-label="Lọc mẫu TRACKING T / I/O / I / O">T 0%</button>
                     <button type="button" id="filterPopupConnectionOverlapPct"
                         class="filter-popup-posnfreq-overlap-pct is-connection-pct-btn" hidden aria-pressed="false"
                         title="U/D = connection unique/duplicate. Nhấn: chỉ unique (xanh) → chỉ duplicate (đỏ) → hiện đủ. AND với nút F (follow)."
@@ -8249,7 +8462,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260805yellowBoostOnce"></script>
+    <script src="right-pane-sheets.js?v=20260806trackingBellyOutBelow"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -8372,9 +8585,17 @@
             connection: 'connection',
             intersection: 'intersection',
             posnfreq: 'posnfreq',
-            special: 'special'
+            special: 'special',
+            tracking: 'TRACKING'
         };
-        const FILTER_SPECIAL_KINDS_KEY = 'filterSpecialKinds';
+        const FILTER_TRACKING_BELLY_KEY = 'filterTrackingBelly';
+        const FILTER_TRACKING_BELLY_SIZE_MIN = 2;
+        const FILTER_TRACKING_BELLY_SIZE_MAX = 20;
+        const FILTER_TRACKING_BELLY_STREAK_MIN = 1;
+        const FILTER_TRACKING_BELLY_STREAK_MAX = 99;
+        const FILTER_TRACKING_BELLY_COUNT_MIN = 1;
+        const FILTER_TRACKING_BELLY_COUNT_MAX = 8;
+        const FILTER_TRACKING_BELLY_DEFAULT = Object.freeze({ size: 2, streak: 3 });
         const FILTER_SPECIAL_TREND_DIR_KEY = 'filterSpecialTrendDir';
         const FILTER_SPECIAL_TREND_STREAK_KEY = 'filterSpecialTrendStreak';
         const FILTER_SPECIAL_ALL = 'all';
@@ -8474,6 +8695,17 @@
         let filterPopupPosnfreqGreenOnly = false;
         /** conn3: chỉ hiện kỳ cửa sổ 10 có 3-connection khi bật từ nút % */
         let filterPopupConn3WindowOnly = false;
+        /**
+         * TRACKING nút %: 't' (mặc định, hiện đủ) | 'io' (I/O) | 'in' | 'out' | 'off' (ẩn nút).
+         * T = mọi kỳ có bụng; I/O = chỉ viền xanh IN∪OUT; I hoặc O = chỉ từng cơ chế nếu đang bật.
+         */
+        let filterPopupTrackingSubfilter = 't';
+        /** Mode TRACKING: danh sách bụng [{size, streak}] — AND, tối thiểu 1 (mặc định 2三) */
+        let filterTrackingBellies = [{ size: 2, streak: 3 }];
+        /** TRACKING: viền xanh khi pick trong bụng (mặc định bật — hành vi cũ) */
+        let filterTrackingPickIn = true;
+        /** TRACKING: viền xanh khi pick số ngay dưới brace bụng */
+        let filterTrackingPickOut = false;
         let filterPopupFollowSubfilter = 'off';
         let filterPopupFollowDeterminedPct = 0;
         let filterPopupConnectionSubfilter = 'off';
@@ -10266,6 +10498,9 @@
             if (isSpecialFilterMode(mode)) {
                 return 'special: lọc theo plain / merge / split / trans (cột special)';
             }
+            if (isTrackingFilterMode(mode)) {
+                return 'TRACKING (basic): lọc kỳ có đủ mọi bụng (AND); IN = pick trong bụng; OUT = pick số ngay dưới bụng';
+            }
             return getFilterModeLabel(mode);
         }
 
@@ -10298,6 +10533,10 @@
 
         function isSpecialFilterMode(mode) {
             return normalizeFilterMode(mode) === 'special';
+        }
+
+        function isTrackingFilterMode(mode) {
+            return normalizeFilterMode(mode) === 'tracking';
         }
 
         function isAllFilterMode(mode) {
@@ -10502,9 +10741,18 @@ function getFilterNoteTRefMaxSelections(mode) {
             };
         }
 
+        function getTrackingFilterOptions() {
+            return {
+                trackingBellies: getNormalizedFilterTrackingBellies()
+            };
+        }
+
         function getFilterOptionsForMode(mode) {
             if (isNonexistFilterMode(mode)) {
                 return getNonexistFilterOptions();
+            }
+            if (isTrackingFilterMode(mode)) {
+                return getTrackingFilterOptions();
             }
             if (isPosnfreqFilterMode(mode)) {
                 return getPosnfreqFilterOptionsForMatching();
@@ -16359,6 +16607,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                     applyColorStyleFilter: false
                 };
             }
+            if (isTrackingFilterMode(normalized)) {
+                return getTrackingFilterOptions();
+            }
             if (isPosnfreqFilterMode(normalized)) {
                 return getPosnfreqFilterOptionsForMatching();
             }
@@ -16673,6 +16924,12 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (isSpecialFilterMode(normalized)) {
                 return 'Không có kỳ nào có giá trị special (plain/merge/split/trans).';
             }
+            if (isTrackingFilterMode(normalized)) {
+                const labels = getNormalizedFilterTrackingBellies()
+                    .map((b) => formatFilterTrackingBellyLabel(b.size, b.streak))
+                    .join(' AND ');
+                return `Không có kỳ nào có đủ bụng ${labels || '—'} trên tracking basic.`;
+            }
             if (isIntersectionFilterMode(normalized)) {
                 const k = filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
                 const oxa = normalizeIntersectionFreqOp(filterIntersectionOpX);
@@ -16950,6 +17207,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (isConn3FilterMode(prevMode) && !isConn3FilterMode(periodFilterMode)) {
                 setFilterPopupConn3WindowOnly(false, { skipReconcile: true, skipCounts: true });
             }
+            if (isTrackingFilterMode(prevMode) && !isTrackingFilterMode(periodFilterMode)) {
+                setFilterPopupTrackingSubfilter('off', { skipReconcile: true, skipCounts: true });
+            }
             if (isFollowPctFilterMode(prevMode) && !isFollowPctFilterMode(periodFilterMode)) {
                 setFilterPopupFollowSubfilter('off', { skipReconcile: true, skipCounts: true });
             }
@@ -17066,6 +17326,99 @@ function getFilterNoteTRefMaxSelections(mode) {
             return [...wrap.querySelectorAll('tbody tr.filter-popup-posnfreq-submit-hit[data-idx]')]
                 .map((tr) => Number(tr.dataset.idx))
                 .filter((idx) => Number.isFinite(idx));
+        }
+
+        function collectFilterPopupTrackingHitIndicesOrdered(wrap) {
+            if (!wrap) {
+                return [];
+            }
+            const mode = normalizeFilterPopupTrackingSubfilter(filterPopupTrackingSubfilter);
+            const out = [];
+            const seen = new Set();
+            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                const idx = Number(tr.dataset.idx);
+                if (!Number.isFinite(idx) || seen.has(idx)) {
+                    return;
+                }
+                const inHit = tr.classList.contains('filter-popup-tracking-in-hit');
+                const outHit = tr.classList.contains('filter-popup-tracking-out-hit');
+                let ok = false;
+                if (mode === 'in') {
+                    ok = inHit;
+                } else if (mode === 'out') {
+                    ok = outHit;
+                } else {
+                    ok = inHit || outHit;
+                }
+                if (ok) {
+                    seen.add(idx);
+                    out.push(idx);
+                }
+            });
+            return out;
+        }
+
+        function getAvailableFilterPopupTrackingSubfilters() {
+            const modes = ['t', 'io'];
+            if (filterTrackingPickIn) {
+                modes.push('in');
+            }
+            if (filterTrackingPickOut) {
+                modes.push('out');
+            }
+            return modes;
+        }
+
+        function normalizeFilterPopupTrackingSubfilter(mode) {
+            const m = String(mode || '');
+            if (m === 'off') {
+                return 'off';
+            }
+            const available = getAvailableFilterPopupTrackingSubfilters();
+            if (available.includes(m)) {
+                return m;
+            }
+            return 't';
+        }
+
+        function getNextFilterPopupTrackingSubfilter(current) {
+            const available = getAvailableFilterPopupTrackingSubfilters();
+            const cur = normalizeFilterPopupTrackingSubfilter(current);
+            const idx = available.indexOf(cur);
+            return available[(idx >= 0 ? idx + 1 : 0) % available.length];
+        }
+
+        function getFilterPopupTrackingSubfilterLabel(mode) {
+            const m = normalizeFilterPopupTrackingSubfilter(mode);
+            if (m === 'in') {
+                return 'I';
+            }
+            if (m === 'out') {
+                return 'O';
+            }
+            if (m === 'io') {
+                return 'I/O';
+            }
+            return 'T';
+        }
+
+        function applyFilterPopupTrackingSubfilterWrapClasses(wrap, mode) {
+            if (!wrap) {
+                return;
+            }
+            const m = normalizeFilterPopupTrackingSubfilter(mode);
+            wrap.classList.toggle('filter-popup-tracking-io-only', m === 'io');
+            wrap.classList.toggle('filter-popup-tracking-in-only', m === 'in');
+            wrap.classList.toggle('filter-popup-tracking-out-only', m === 'out');
+        }
+
+        /** Đang lọc hẹp (không phải T hiện đủ / off). */
+        function isFilterPopupTrackingSubfilterActive() {
+            if (!periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                return false;
+            }
+            const m = normalizeFilterPopupTrackingSubfilter(filterPopupTrackingSubfilter);
+            return m === 'io' || m === 'in' || m === 'out';
         }
 
         function collectFilterPopupFollowDeterminedHitIndicesOrdered(wrap) {
@@ -17214,6 +17567,7 @@ function getFilterNoteTRefMaxSelections(mode) {
         function isFilterPopupSubfilterOnlyActive() {
             return (filterPopupPosnfreqGreenOnly && isPosnfreqFilterMode(periodFilterMode))
                 || (filterPopupConn3WindowOnly && isConn3FilterMode(periodFilterMode))
+                || isFilterPopupTrackingSubfilterActive()
                 || isFilterPopupFollowSubfilterActive()
                 || isFilterPopupConnectionSubfilterActive()
                 || isFilterSpecialKindsSubfilterActive();
@@ -17249,6 +17603,10 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (filterPopupConn3WindowOnly && periodFilterEnabled && isConn3FilterMode(periodFilterMode)) {
                 conn3Hits = collectFilterPopupPosnfreqGreenHitIndicesOrdered(wrap);
             }
+            let trackingHits = null;
+            if (isFilterPopupTrackingSubfilterActive()) {
+                trackingHits = collectFilterPopupTrackingHitIndicesOrdered(wrap);
+            }
             let specialHits = null;
             if (isFilterSpecialKindsSubfilterActive()) {
                 specialHits = collectFilterPopupSpecialHitIndicesOrdered(wrap);
@@ -17271,6 +17629,14 @@ function getFilterNoteTRefMaxSelections(mode) {
                     list = conn3Hits;
                 } else {
                     const setB = new Set(conn3Hits);
+                    list = list.filter((idx) => setB.has(idx));
+                }
+            }
+            if (trackingHits !== null) {
+                if (list === null) {
+                    list = trackingHits;
+                } else {
+                    const setB = new Set(trackingHits);
                     list = list.filter((idx) => setB.has(idx));
                 }
             }
@@ -17300,6 +17666,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return getFilterPopupNavListLength();
             }
             if (filterPopupConn3WindowOnly && isConn3FilterMode(periodFilterMode)) {
+                return getFilterPopupNavListLength();
+            }
+            if (isFilterPopupTrackingSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
             if (isFilterPopupFollowSubfilterActive()) {
@@ -17418,6 +17787,1345 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (filterPopupActiveIdx >= 0) {
                 scrollFilterPopupRowIntoView();
             }
+        }
+
+        function normalizeFilterTrackingBellySize(value) {
+            const n = parseInt(value, 10);
+            if (!Number.isFinite(n)) {
+                return FILTER_TRACKING_BELLY_SIZE_MIN;
+            }
+            return Math.min(FILTER_TRACKING_BELLY_SIZE_MAX, Math.max(FILTER_TRACKING_BELLY_SIZE_MIN, n));
+        }
+
+        function normalizeFilterTrackingBellyStreak(value) {
+            const n = parseInt(value, 10);
+            if (!Number.isFinite(n)) {
+                return FILTER_TRACKING_BELLY_STREAK_MIN;
+            }
+            return Math.min(
+                FILTER_TRACKING_BELLY_STREAK_MAX,
+                Math.max(FILTER_TRACKING_BELLY_STREAK_MIN, n)
+            );
+        }
+
+        function createDefaultFilterTrackingBelly() {
+            return {
+                size: FILTER_TRACKING_BELLY_DEFAULT.size,
+                streak: FILTER_TRACKING_BELLY_DEFAULT.streak
+            };
+        }
+
+        function normalizeFilterTrackingBellySpec(raw) {
+            const src = raw && typeof raw === 'object' ? raw : {};
+            return {
+                size: normalizeFilterTrackingBellySize(src.size),
+                streak: normalizeFilterTrackingBellyStreak(src.streak)
+            };
+        }
+
+        function getNormalizedFilterTrackingBellies() {
+            const src = Array.isArray(filterTrackingBellies) ? filterTrackingBellies : [];
+            const out = [];
+            for (let i = 0; i < src.length && out.length < FILTER_TRACKING_BELLY_COUNT_MAX; i++) {
+                out.push(normalizeFilterTrackingBellySpec(src[i]));
+            }
+            if (!out.length) {
+                out.push(createDefaultFilterTrackingBelly());
+            }
+            filterTrackingBellies = out;
+            return out;
+        }
+
+        function getRightPaneSheetManagerClass() {
+            return sheetManager && sheetManager.constructor ? sheetManager.constructor : null;
+        }
+
+        function formatFilterTrackingBellyStreakLabel(streak) {
+            const st = normalizeFilterTrackingBellyStreak(streak);
+            const Cls = getRightPaneSheetManagerClass();
+            if (Cls && typeof Cls.formatChineseStreakNumeral === 'function') {
+                return Cls.formatChineseStreakNumeral(st);
+            }
+            const digits = '一二三四五六七八九';
+            if (st <= 9) {
+                return digits[st - 1];
+            }
+            if (st === 10) {
+                return '十';
+            }
+            return String(st);
+        }
+
+        function formatFilterTrackingBellyLabel(size, streak) {
+            const n = normalizeFilterTrackingBellySize(size);
+            const st = normalizeFilterTrackingBellyStreak(streak);
+            // Filter UI luôn gắn chữ Hán kể cả streak=1 → 2一 (khác nhãn sheet chỉ ghi "2").
+            return String(n) + formatFilterTrackingBellyStreakLabel(st);
+        }
+
+        function loadFilterTrackingBellySettings() {
+            try {
+                const raw = localStorage.getItem(FILTER_TRACKING_BELLY_KEY);
+                if (!raw) {
+                    filterTrackingBellies = [createDefaultFilterTrackingBelly()];
+                    filterTrackingPickIn = true;
+                    filterTrackingPickOut = false;
+                    return;
+                }
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed && parsed.bellies) && parsed.bellies.length) {
+                    filterTrackingBellies = parsed.bellies.map(normalizeFilterTrackingBellySpec);
+                } else if (parsed && (parsed.size != null || parsed.streak != null)) {
+                    // Legacy single belly
+                    filterTrackingBellies = [normalizeFilterTrackingBellySpec(parsed)];
+                } else {
+                    filterTrackingBellies = [createDefaultFilterTrackingBelly()];
+                }
+                // Legacy không có key → giữ hành vi cũ: IN on, OUT off
+                filterTrackingPickIn = parsed && parsed.pickIn === false ? false : true;
+                filterTrackingPickOut = !!(parsed && parsed.pickOut);
+            } catch (e) {
+                filterTrackingBellies = [createDefaultFilterTrackingBelly()];
+                filterTrackingPickIn = true;
+                filterTrackingPickOut = false;
+            }
+            getNormalizedFilterTrackingBellies();
+        }
+
+        function saveFilterTrackingBellySettings() {
+            try {
+                localStorage.setItem(FILTER_TRACKING_BELLY_KEY, JSON.stringify({
+                    bellies: getNormalizedFilterTrackingBellies(),
+                    pickIn: !!filterTrackingPickIn,
+                    pickOut: !!filterTrackingPickOut
+                }));
+            } catch (e) { /* ignore */ }
+        }
+
+        function syncFilterPopupTrackingIoButtons() {
+            const show = periodFilterEnabled && isTrackingFilterMode(periodFilterMode);
+            const inBtn = el('filterPopupTrackingInBtn');
+            const outBtn = el('filterPopupTrackingOutBtn');
+            if (inBtn) {
+                inBtn.disabled = !show;
+                inBtn.setAttribute('aria-pressed', filterTrackingPickIn ? 'true' : 'false');
+            }
+            if (outBtn) {
+                outBtn.disabled = !show;
+                outBtn.setAttribute('aria-pressed', filterTrackingPickOut ? 'true' : 'false');
+            }
+        }
+
+        function setFilterTrackingPickIo(which, on) {
+            if (!periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                return false;
+            }
+            const next = !!on;
+            if (which === 'out') {
+                if (filterTrackingPickOut === next) {
+                    return false;
+                }
+                filterTrackingPickOut = next;
+            } else {
+                if (filterTrackingPickIn === next) {
+                    return false;
+                }
+                filterTrackingPickIn = next;
+            }
+            saveFilterTrackingBellySettings();
+            syncFilterPopupTrackingIoButtons();
+            // Nếu tắt cơ chế đang lọc (vd OUT khi đang O) → về I/O.
+            filterPopupTrackingSubfilter = normalizeFilterPopupTrackingSubfilter(filterPopupTrackingSubfilter);
+            // Gợi ý streak ▴▾ phụ thuộc % theo IN/OUT đang bật.
+            if (!isFilterPopupTrackingBellyInputFocused()) {
+                rebuildFilterPopupTrackingBellyList();
+            }
+            deferFilterPopupHeavyWork(() => {
+                // IN/OUT chỉ đổi viền / trạng thái % — danh sách kỳ (có bụng) giữ nguyên.
+                try {
+                    syncFilterPopupTrackingBellyOverlap();
+                } finally {
+                    clearFilterPopupLoadingState();
+                }
+            });
+            return true;
+        }
+
+        /** Viền xanh TRACKING theo IN/OUT đang bật. */
+        function rowMatchesFilterTrackingBellyPickIo(rowIndex, specs) {
+            if (!sheetManager) {
+                return false;
+            }
+            if (filterTrackingPickIn
+                && typeof sheetManager.rowMatchesAnyBasicTrackingBellyPick === 'function'
+                && sheetManager.rowMatchesAnyBasicTrackingBellyPick(rowIndex, specs)) {
+                return true;
+            }
+            if (filterTrackingPickOut
+                && typeof sheetManager.rowMatchesAnyBasicTrackingBellyPickBelow === 'function'
+                && sheetManager.rowMatchesAnyBasicTrackingBellyPickBelow(rowIndex, specs)) {
+                return true;
+            }
+            return false;
+        }
+
+        function bindFilterPopupTrackingSpinButton(spinEl, run) {
+            if (!spinEl || typeof run !== 'function' || spinEl.dataset.bound === '1') {
+                return;
+            }
+            spinEl.dataset.bound = '1';
+            spinEl.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                run();
+            });
+            spinEl.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.detail === 0) {
+                    run();
+                }
+            });
+        }
+
+        /** Index nhanh: mỗi kỳ → set khóa bụng `size:streak` + khóa số gọi trúng. */
+        function buildFilterTrackingBellyHintIndex() {
+            if (!sheetManager || typeof sheetManager.ensureBasicTrackingBellyFilterCache !== 'function') {
+                return null;
+            }
+            const cache = sheetManager.ensureBasicTrackingBellyFilterCache();
+            const rows = sheetManager.getSourceSheetRows();
+            if (!Array.isArray(cache) || !Array.isArray(rows)) {
+                return null;
+            }
+            const rowKeys = new Array(cache.length);
+            const rowPickKeys = new Array(cache.length);
+            const rowPickBelowKeys = new Array(cache.length);
+            const sizes = new Set();
+            const streaks = new Set();
+            for (let i = 0; i < cache.length; i++) {
+                const row = rows[i];
+                if (!row || sheetManager.isEmptyResultRow(row)) {
+                    rowKeys[i] = null;
+                    rowPickKeys[i] = null;
+                    rowPickBelowKeys[i] = null;
+                    continue;
+                }
+                const keys = new Set();
+                const pickKeys = new Set();
+                const pickBelowKeys = new Set();
+                const picks = sheetManager.parseMainNums(row.result || row.Result || '');
+                const pickSet = picks.length ? new Set(picks) : null;
+                const bellies = cache[i] || [];
+                for (let b = 0; b < bellies.length; b++) {
+                    const belly = bellies[b];
+                    const size = belly.memberCount | 0;
+                    const streak = belly.streak | 0;
+                    if (size < FILTER_TRACKING_BELLY_SIZE_MIN || streak < FILTER_TRACKING_BELLY_STREAK_MIN) {
+                        continue;
+                    }
+                    const key = `${size}:${streak}`;
+                    keys.add(key);
+                    sizes.add(size);
+                    streaks.add(streak);
+                    if (!pickSet) {
+                        continue;
+                    }
+                    if (Array.isArray(belly.nums)) {
+                        for (let p = 0; p < belly.nums.length; p++) {
+                            if (pickSet.has(belly.nums[p])) {
+                                pickKeys.add(key);
+                                break;
+                            }
+                        }
+                    }
+                    // OUT: pick = số ngay dưới brace
+                    if (belly.belowNum >= 1 && pickSet.has(belly.belowNum)) {
+                        pickBelowKeys.add(key);
+                    }
+                }
+                rowKeys[i] = keys;
+                // null = không có số gọi; Set = bụng bị pick IN / OUT
+                rowPickKeys[i] = pickSet ? pickKeys : null;
+                rowPickBelowKeys[i] = pickSet ? pickBelowKeys : null;
+            }
+            return { rowKeys, rowPickKeys, rowPickBelowKeys, sizes, streaks };
+        }
+
+        function computeTrackingBellyPickStatsFromIndex(hintIndex, specs) {
+            if (!hintIndex || !Array.isArray(specs) || !specs.length) {
+                return { total: 0, green: 0, pct: -1 };
+            }
+            if (!filterTrackingPickIn && !filterTrackingPickOut) {
+                return { total: 0, green: 0, pct: -1 };
+            }
+            const keys = specs.map((s) => `${s.size}:${s.streak}`);
+            let total = 0;
+            let green = 0;
+            const { rowKeys, rowPickKeys, rowPickBelowKeys } = hintIndex;
+            for (let i = 0; i < rowKeys.length; i++) {
+                const rk = rowKeys[i];
+                if (!rk) {
+                    continue;
+                }
+                let ok = true;
+                for (let k = 0; k < keys.length; k++) {
+                    if (!rk.has(keys[k])) {
+                        ok = false;
+                        break;
+                    }
+                }
+                if (!ok) {
+                    continue;
+                }
+                total++;
+                const pk = rowPickKeys[i];
+                const pb = rowPickBelowKeys && rowPickBelowKeys[i];
+                let inHit = false;
+                let outHit = false;
+                if (pk) {
+                    for (let k = 0; k < keys.length; k++) {
+                        if (pk.has(keys[k])) {
+                            inHit = true;
+                            break;
+                        }
+                    }
+                }
+                if (pb) {
+                    for (let k = 0; k < keys.length; k++) {
+                        if (pb.has(keys[k])) {
+                            outHit = true;
+                            break;
+                        }
+                    }
+                }
+                if ((filterTrackingPickIn && inHit) || (filterTrackingPickOut && outHit)) {
+                    green++;
+                }
+            }
+            return {
+                total,
+                green,
+                pct: total > 0 ? green / total : -1
+            };
+        }
+
+        /** Streak xuất hiện cùng [] đang chọn (giữ size cố định). */
+        function collectTrackingBellyStreakCandidatesForSize(hintIndex, size, currentStreak) {
+            const wantSize = normalizeFilterTrackingBellySize(size);
+            const out = new Set();
+            out.add(normalizeFilterTrackingBellyStreak(currentStreak));
+            if (!hintIndex || !Array.isArray(hintIndex.rowKeys)) {
+                return Array.from(out).sort((a, b) => a - b);
+            }
+            for (let i = 0; i < hintIndex.rowKeys.length; i++) {
+                const rk = hintIndex.rowKeys[i];
+                if (!rk) {
+                    continue;
+                }
+                rk.forEach((key) => {
+                    const parts = String(key).split(':');
+                    if (parts.length !== 2) {
+                        return;
+                    }
+                    if (normalizeFilterTrackingBellySize(parts[0]) !== wantSize) {
+                        return;
+                    }
+                    out.add(normalizeFilterTrackingBellyStreak(parts[1]));
+                });
+            }
+            return Array.from(out).sort((a, b) => a - b);
+        }
+
+        /**
+         * Chỉ gợi ý trên streak: giữ [] cố định, chọn streak có T% cao nhất.
+         * @returns {{ streak: number }[]}
+         */
+        function computeFilterTrackingBellyStreakHints(bellies) {
+            const specs = Array.isArray(bellies) ? bellies : [];
+            const hints = specs.map((s) => ({ streak: s.streak }));
+            if (!specs.length || !sheetManager) {
+                return hints;
+            }
+            const hintIndex = buildFilterTrackingBellyHintIndex();
+            if (!hintIndex) {
+                return hints;
+            }
+            for (let i = 0; i < specs.length; i++) {
+                const cur = specs[i];
+                const streaks = collectTrackingBellyStreakCandidatesForSize(
+                    hintIndex,
+                    cur.size,
+                    cur.streak
+                );
+                let bestStreak = cur.streak;
+                const baseStats = computeTrackingBellyPickStatsFromIndex(hintIndex, specs);
+                let bestPct = baseStats.pct;
+                let bestGreen = baseStats.green;
+                for (let s = 0; s < streaks.length; s++) {
+                    const streak = streaks[s];
+                    if (streak === cur.streak) {
+                        continue;
+                    }
+                    const trial = specs.map((spec, j) => (
+                        j === i ? { size: cur.size, streak } : spec
+                    ));
+                    const stats = computeTrackingBellyPickStatsFromIndex(hintIndex, trial);
+                    if (stats.pct > bestPct || (stats.pct === bestPct && stats.green > bestGreen)) {
+                        bestStreak = streak;
+                        bestPct = stats.pct;
+                        bestGreen = stats.green;
+                    }
+                }
+                hints[i] = { streak: bestStreak };
+            }
+            return hints;
+        }
+
+        function applyTrackingSpinHint(btnInc, btnDec, currentVal, suggestedVal, labelUp, labelDown, suggestedLabel) {
+            if (!btnInc || !btnDec) {
+                return;
+            }
+            btnInc.classList.remove('is-tracking-hint');
+            btnDec.classList.remove('is-tracking-hint');
+            if (!(suggestedVal > currentVal) && !(suggestedVal < currentVal)) {
+                return;
+            }
+            const mốc = suggestedLabel != null ? suggestedLabel : String(suggestedVal);
+            if (suggestedVal > currentVal && !btnInc.disabled) {
+                btnInc.classList.add('is-tracking-hint');
+                btnInc.title = `${labelUp} — gợi ý tăng để T% cao hơn (mốc ${mốc})`;
+            } else if (suggestedVal < currentVal && !btnDec.disabled) {
+                btnDec.classList.add('is-tracking-hint');
+                btnDec.title = `${labelDown} — gợi ý giảm để T% cao hơn (mốc ${mốc})`;
+            }
+        }
+
+        function isFilterPopupTrackingStreakInputFocused() {
+            const active = document.activeElement;
+            return !!(active
+                && active.classList
+                && active.classList.contains('filter-popup-tracking-streak-num')
+                && active.closest('#filterPopupTrackingBellyList'));
+        }
+
+        function isFilterPopupTrackingSizeInputFocused() {
+            const active = document.activeElement;
+            return !!(active
+                && active.classList
+                && active.classList.contains('filter-popup-tracking-size-num')
+                && active.closest('#filterPopupTrackingBellyList'));
+        }
+
+        function isFilterPopupTrackingBellyInputFocused() {
+            return isFilterPopupTrackingStreakInputFocused() || isFilterPopupTrackingSizeInputFocused();
+        }
+
+        function fitFilterPopupTrackingSizeInputWidth(sizeEl, text, focused) {
+            if (!sizeEl) {
+                return;
+            }
+            const len = Math.max(1, String(text || '').length);
+            if (focused) {
+                sizeEl.style.width = `${len + 1}ch`;
+                sizeEl.style.minWidth = '1ch';
+                sizeEl.style.maxWidth = '3ch';
+                return;
+            }
+            sizeEl.style.width = `${Math.min(2, len)}ch`;
+            sizeEl.style.minWidth = '1ch';
+            sizeEl.style.maxWidth = '2ch';
+        }
+
+        function fitFilterPopupTrackingStreakInputWidth(streakEl, text, focused) {
+            if (!streakEl) {
+                return;
+            }
+            if (focused) {
+                const len = Math.max(1, String(text || '').length);
+                streakEl.style.width = `${len + 1}ch`;
+                streakEl.style.minWidth = '2ch';
+                streakEl.style.maxWidth = '3ch';
+                return;
+            }
+            const em = Math.max(2, Math.min(3, String(text || '').length));
+            streakEl.style.width = `${em}em`;
+            streakEl.style.minWidth = `${em}em`;
+            streakEl.style.maxWidth = `${em}em`;
+        }
+
+        function parseFilterTrackingBellyStreakInputText(raw) {
+            const text = String(raw == null ? '' : raw).trim();
+            if (!text) {
+                return null;
+            }
+            if (/^\d+$/.test(text)) {
+                const n = parseInt(text, 10);
+                if (!Number.isFinite(n)) {
+                    return null;
+                }
+                return normalizeFilterTrackingBellyStreak(n);
+            }
+            const Cls = getRightPaneSheetManagerClass();
+            if (Cls && typeof Cls.parseChineseStreakNumeral === 'function') {
+                return normalizeFilterTrackingBellyStreak(Cls.parseChineseStreakNumeral(text));
+            }
+            return null;
+        }
+
+        function setFilterTrackingBellyStreakAt(index, streak, opts = {}) {
+            if (!periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                return false;
+            }
+            const bellies = getNormalizedFilterTrackingBellies();
+            if (!(index >= 0 && index < bellies.length)) {
+                return false;
+            }
+            const next = normalizeFilterTrackingBellyStreak(streak);
+            if (bellies[index].streak === next && !opts.force) {
+                return false;
+            }
+            bellies[index] = { size: bellies[index].size, streak: next };
+            filterTrackingBellies = bellies;
+            getNormalizedFilterTrackingBellies();
+            saveFilterTrackingBellySettings();
+            if (!opts.skipListRebuild && !isFilterPopupTrackingBellyInputFocused()) {
+                syncFilterPopupTrackingBellyUi();
+            }
+            if (!opts.skipFilterRebuild) {
+                deferFilterPopupHeavyWork(() => {
+                    rebuildFilterPopupAfterParamChange();
+                });
+            }
+            return true;
+        }
+
+        function setFilterTrackingBellySizeAt(index, size, opts = {}) {
+            if (!periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                return false;
+            }
+            const bellies = getNormalizedFilterTrackingBellies();
+            if (!(index >= 0 && index < bellies.length)) {
+                return false;
+            }
+            const next = normalizeFilterTrackingBellySize(size);
+            if (bellies[index].size === next && !opts.force) {
+                return false;
+            }
+            bellies[index] = { size: next, streak: bellies[index].streak };
+            filterTrackingBellies = bellies;
+            getNormalizedFilterTrackingBellies();
+            saveFilterTrackingBellySettings();
+            if (!opts.skipListRebuild && !isFilterPopupTrackingBellyInputFocused()) {
+                syncFilterPopupTrackingBellyUi();
+            }
+            if (!opts.skipFilterRebuild) {
+                deferFilterPopupHeavyWork(() => {
+                    rebuildFilterPopupAfterParamChange();
+                });
+            }
+            return true;
+        }
+
+        function getFilterPopupTrackingBellyIndexFromEl(node) {
+            const row = node && node.closest ? node.closest('.filter-popup-tracking-belly-row') : null;
+            const idx = row ? Number(row.dataset.idx) : NaN;
+            return Number.isFinite(idx) && idx >= 0 ? idx : -1;
+        }
+
+        function commitFilterPopupTrackingStreakFromInput(streakEl, index) {
+            if (!streakEl) {
+                return;
+            }
+            if (streakEl.dataset.skipCommit === '1') {
+                delete streakEl.dataset.skipCommit;
+                delete streakEl.dataset.draft;
+                delete streakEl.dataset.dirty;
+                delete streakEl.dataset.replaceOnType;
+                return;
+            }
+            const bellies = getNormalizedFilterTrackingBellies();
+            const prev = normalizeFilterTrackingBellyStreak(
+                (bellies[index] && bellies[index].streak) || FILTER_TRACKING_BELLY_STREAK_MIN
+            );
+            const draft = streakEl.dataset.draft != null
+                ? streakEl.dataset.draft
+                : getFilterPopupPositionText(streakEl);
+            const parsed = parseFilterTrackingBellyStreakInputText(draft);
+            const next = parsed == null ? prev : parsed;
+            delete streakEl.dataset.draft;
+            delete streakEl.dataset.dirty;
+            delete streakEl.dataset.replaceOnType;
+            if (next !== prev) {
+                // Draft rỗng/không hợp lệ lúc blur → khôi phục giá trị hợp lệ
+                setFilterTrackingBellyStreakAt(index, next, { skipListRebuild: false });
+                return;
+            }
+            // Đã nhận live khi đang nhấp nháy: chỉ đổi hiển thị về chữ Hán.
+            syncFilterPopupTrackingBellyUi();
+        }
+
+        /** Trước khi − xóa/reset bụng: tránh blur commit đè giá trị cũ lên state mới. */
+        function disarmFilterPopupTrackingBellyInputsForStructuralChange() {
+            const list = el('filterPopupTrackingBellyList');
+            if (!list) {
+                return;
+            }
+            const inputs = list.querySelectorAll(
+                '.filter-popup-tracking-size-num, .filter-popup-tracking-streak-num'
+            );
+            for (let i = 0; i < inputs.length; i++) {
+                const node = inputs[i];
+                node.dataset.skipCommit = '1';
+                delete node.dataset.draft;
+                delete node.dataset.dirty;
+                delete node.dataset.replaceOnType;
+            }
+            const active = document.activeElement;
+            if (active && list.contains(active) && typeof active.blur === 'function') {
+                try {
+                    active.blur();
+                } catch (eBlur) { /* ignore */ }
+            }
+        }
+
+        function tryAppendFilterPopupTrackingStreakDigit(streakEl, index, digit) {
+            if (!streakEl || !periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                return false;
+            }
+            const d = String(digit);
+            if (!/^\d$/.test(d)) {
+                return false;
+            }
+            let draft = streakEl.dataset.draft != null
+                ? String(streakEl.dataset.draft)
+                : getFilterPopupPositionText(streakEl);
+            // Khi đang hiện chữ Hán vừa focus: bắt đầu nhập mới từ chữ số đầu.
+            if (draft && !/^\d+$/.test(draft)) {
+                draft = '';
+            }
+            // Lần gõ đầu sau khi focus: thay số cũ (giống cảm giác điền mới), không ghép 3+5→35.
+            if (streakEl.dataset.replaceOnType === '1') {
+                draft = '';
+                delete streakEl.dataset.replaceOnType;
+            }
+            let nextDraft = draft + d;
+            let n = parseInt(nextDraft, 10);
+            if (!Number.isFinite(n) || n < FILTER_TRACKING_BELLY_STREAK_MIN
+                || n > FILTER_TRACKING_BELLY_STREAK_MAX) {
+                // Không ghép được (vd 99+1) → thay bằng chữ số mới nếu hợp lệ
+                n = parseInt(d, 10);
+                if (!Number.isFinite(n) || n < FILTER_TRACKING_BELLY_STREAK_MIN
+                    || n > FILTER_TRACKING_BELLY_STREAK_MAX) {
+                    return false;
+                }
+                nextDraft = d;
+            }
+            streakEl.dataset.draft = nextDraft;
+            streakEl.dataset.dirty = '1';
+            setFilterPopupPositionText(streakEl, nextDraft);
+            fitFilterPopupTrackingStreakInputWidth(streakEl, nextDraft, true);
+            // Streak đang nhấp nháy: nhận số ngay (lọc live), chỉ giữ DOM ô đang focus.
+            setFilterTrackingBellyStreakAt(index, n, {
+                skipListRebuild: true,
+                skipFilterRebuild: false
+            });
+            // Cập nhật disabled spin trên cùng hàng
+            const row = streakEl.closest('.filter-popup-tracking-belly-row');
+            if (row) {
+                const inc = row.querySelector('[data-tracking-spin="streak"][data-delta="1"]');
+                const dec = row.querySelector('[data-tracking-spin="streak"][data-delta="-1"]');
+                if (inc) {
+                    inc.disabled = n >= FILTER_TRACKING_BELLY_STREAK_MAX;
+                }
+                if (dec) {
+                    dec.disabled = n <= FILTER_TRACKING_BELLY_STREAK_MIN;
+                }
+            }
+            return true;
+        }
+
+        function tryBackspaceFilterPopupTrackingStreak(streakEl, index) {
+            if (!streakEl || !periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                return false;
+            }
+            let draft = streakEl.dataset.draft != null
+                ? String(streakEl.dataset.draft)
+                : getFilterPopupPositionText(streakEl);
+            if (draft && !/^\d+$/.test(draft)) {
+                draft = String(normalizeFilterTrackingBellyStreak(
+                    (getNormalizedFilterTrackingBellies()[index] || {}).streak
+                ));
+            }
+            const nextDraft = draft.slice(0, -1);
+            streakEl.dataset.draft = nextDraft;
+            streakEl.dataset.dirty = '1';
+            setFilterPopupPositionText(streakEl, nextDraft);
+            fitFilterPopupTrackingStreakInputWidth(streakEl, nextDraft, true);
+            if (!nextDraft) {
+                return true;
+            }
+            const n = parseInt(nextDraft, 10);
+            if (Number.isFinite(n) && n >= FILTER_TRACKING_BELLY_STREAK_MIN
+                && n <= FILTER_TRACKING_BELLY_STREAK_MAX) {
+                setFilterTrackingBellyStreakAt(index, n, {
+                    skipListRebuild: true,
+                    skipFilterRebuild: false
+                });
+            }
+            return true;
+        }
+
+        function bindFilterPopupTrackingStreakInput(streakEl, index) {
+            if (!streakEl || streakEl.dataset.inputBound === '1') {
+                return;
+            }
+            streakEl.dataset.inputBound = '1';
+            streakEl.dataset.bellyIdx = String(index);
+            streakEl.addEventListener('mousedown', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                streakEl.focus({ preventScroll: true });
+            });
+            streakEl.addEventListener('click', (event) => {
+                event.stopPropagation();
+            });
+            streakEl.addEventListener('focus', () => {
+                if (!periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                    return;
+                }
+                const idx = getFilterPopupTrackingBellyIndexFromEl(streakEl);
+                const bellyIdx = idx >= 0 ? idx : index;
+                const bellies = getNormalizedFilterTrackingBellies();
+                const st = normalizeFilterTrackingBellyStreak(
+                    (bellies[bellyIdx] && bellies[bellyIdx].streak) || FILTER_TRACKING_BELLY_STREAK_MIN
+                );
+                const decimal = String(st);
+                streakEl.dataset.draft = decimal;
+                streakEl.dataset.replaceOnType = '1';
+                delete streakEl.dataset.dirty;
+                setFilterPopupPositionText(streakEl, decimal);
+                fitFilterPopupTrackingStreakInputWidth(streakEl, decimal, true);
+            });
+            streakEl.addEventListener('blur', () => {
+                const idx = getFilterPopupTrackingBellyIndexFromEl(streakEl);
+                commitFilterPopupTrackingStreakFromInput(streakEl, idx >= 0 ? idx : index);
+            });
+            // Capture như header2 / nonexist: nhận số trước khi digit-nav toàn trang xử lý.
+            streakEl.addEventListener('keydown', (event) => {
+                if (!periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                    return;
+                }
+                const idx = getFilterPopupTrackingBellyIndexFromEl(streakEl);
+                const bellyIdx = idx >= 0 ? idx : index;
+                const key = String(event.key || '');
+                if (key >= '0' && key <= '9') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    tryAppendFilterPopupTrackingStreakDigit(streakEl, bellyIdx, key);
+                    return;
+                }
+                if (key === 'Backspace') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    delete streakEl.dataset.replaceOnType;
+                    tryBackspaceFilterPopupTrackingStreak(streakEl, bellyIdx);
+                    return;
+                }
+                if (key === 'Enter') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    streakEl.blur();
+                    return;
+                }
+                if (key === 'Escape') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const bellies = getNormalizedFilterTrackingBellies();
+                    const st = normalizeFilterTrackingBellyStreak(
+                        (bellies[bellyIdx] && bellies[bellyIdx].streak) || FILTER_TRACKING_BELLY_STREAK_MIN
+                    );
+                    streakEl.dataset.draft = String(st);
+                    delete streakEl.dataset.dirty;
+                    streakEl.blur();
+                    return;
+                }
+                const code = String(event.code || '');
+                const isPlus = key === '+' || code === 'NumpadAdd' || (code === 'Equal' && event.shiftKey);
+                const isMinus = key === '-' || code === 'NumpadSubtract' || code === 'Minus';
+                if (isPlus || isMinus) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    bumpFilterPopupTrackingBellyField(bellyIdx, 'streak', isPlus ? 1 : -1);
+                }
+            }, true);
+        }
+
+        function commitFilterPopupTrackingSizeFromInput(sizeEl, index) {
+            if (!sizeEl) {
+                return;
+            }
+            if (sizeEl.dataset.skipCommit === '1') {
+                delete sizeEl.dataset.skipCommit;
+                delete sizeEl.dataset.draft;
+                delete sizeEl.dataset.dirty;
+                delete sizeEl.dataset.replaceOnType;
+                return;
+            }
+            const bellies = getNormalizedFilterTrackingBellies();
+            const prev = normalizeFilterTrackingBellySize(
+                (bellies[index] && bellies[index].size) || FILTER_TRACKING_BELLY_SIZE_MIN
+            );
+            const draft = sizeEl.dataset.draft != null
+                ? sizeEl.dataset.draft
+                : getFilterPopupPositionText(sizeEl);
+            const raw = String(draft == null ? '' : draft).trim();
+            let next = prev;
+            if (/^\d+$/.test(raw)) {
+                const n = parseInt(raw, 10);
+                if (Number.isFinite(n) && n >= FILTER_TRACKING_BELLY_SIZE_MIN
+                    && n <= FILTER_TRACKING_BELLY_SIZE_MAX) {
+                    next = normalizeFilterTrackingBellySize(n);
+                }
+            }
+            delete sizeEl.dataset.draft;
+            delete sizeEl.dataset.dirty;
+            delete sizeEl.dataset.replaceOnType;
+            if (next !== prev) {
+                // Draft dở lúc blur → khôi phục / áp giá trị hợp lệ
+                setFilterTrackingBellySizeAt(index, next, { skipListRebuild: false });
+                return;
+            }
+            // Đã nhận live khi đang nhấp nháy: chỉ sync UI, không rebuild lại.
+            syncFilterPopupTrackingBellyUi();
+        }
+
+        function tryAppendFilterPopupTrackingSizeDigit(sizeEl, index, digit) {
+            if (!sizeEl || !periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                return false;
+            }
+            const d = String(digit);
+            if (!/^\d$/.test(d)) {
+                return false;
+            }
+            let draft = sizeEl.dataset.draft != null
+                ? String(sizeEl.dataset.draft)
+                : getFilterPopupPositionText(sizeEl);
+            if (draft && !/^\d+$/.test(draft)) {
+                draft = '';
+            }
+            if (sizeEl.dataset.replaceOnType === '1') {
+                draft = '';
+                delete sizeEl.dataset.replaceOnType;
+            }
+            let nextDraft = draft + d;
+            let n = parseInt(nextDraft, 10);
+            if (!Number.isFinite(n)) {
+                return false;
+            }
+            if (n > FILTER_TRACKING_BELLY_SIZE_MAX) {
+                n = parseInt(d, 10);
+                nextDraft = d;
+                if (!Number.isFinite(n) || n > FILTER_TRACKING_BELLY_SIZE_MAX) {
+                    return false;
+                }
+            }
+            // Draft dở (vd "1" → sẽ thành 10–19): giữ hiển thị, chưa nhận lọc.
+            if (n < FILTER_TRACKING_BELLY_SIZE_MIN) {
+                if (n < 1 || n * 10 > FILTER_TRACKING_BELLY_SIZE_MAX) {
+                    return false;
+                }
+                sizeEl.dataset.draft = nextDraft;
+                sizeEl.dataset.dirty = '1';
+                setFilterPopupPositionText(sizeEl, nextDraft);
+                fitFilterPopupTrackingSizeInputWidth(sizeEl, nextDraft, true);
+                return true;
+            }
+            sizeEl.dataset.draft = nextDraft;
+            sizeEl.dataset.dirty = '1';
+            setFilterPopupPositionText(sizeEl, nextDraft);
+            fitFilterPopupTrackingSizeInputWidth(sizeEl, nextDraft, true);
+            // [] đang nhấp nháy: nhận số ngay (lọc live), chỉ giữ DOM ô đang focus.
+            setFilterTrackingBellySizeAt(index, n, {
+                skipListRebuild: true,
+                skipFilterRebuild: false
+            });
+            const row = sizeEl.closest('.filter-popup-tracking-belly-row');
+            if (row) {
+                const inc = row.querySelector('[data-tracking-spin="size"][data-delta="1"]');
+                const dec = row.querySelector('[data-tracking-spin="size"][data-delta="-1"]');
+                if (inc) {
+                    inc.disabled = n >= FILTER_TRACKING_BELLY_SIZE_MAX;
+                }
+                if (dec) {
+                    dec.disabled = n <= FILTER_TRACKING_BELLY_SIZE_MIN;
+                }
+            }
+            return true;
+        }
+
+        function tryBackspaceFilterPopupTrackingSize(sizeEl, index) {
+            if (!sizeEl || !periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                return false;
+            }
+            let draft = sizeEl.dataset.draft != null
+                ? String(sizeEl.dataset.draft)
+                : getFilterPopupPositionText(sizeEl);
+            if (draft && !/^\d+$/.test(draft)) {
+                draft = String(normalizeFilterTrackingBellySize(
+                    (getNormalizedFilterTrackingBellies()[index] || {}).size
+                ));
+            }
+            const nextDraft = draft.slice(0, -1);
+            sizeEl.dataset.draft = nextDraft;
+            sizeEl.dataset.dirty = '1';
+            setFilterPopupPositionText(sizeEl, nextDraft);
+            fitFilterPopupTrackingSizeInputWidth(sizeEl, nextDraft, true);
+            if (!nextDraft) {
+                return true;
+            }
+            const n = parseInt(nextDraft, 10);
+            if (Number.isFinite(n) && n >= FILTER_TRACKING_BELLY_SIZE_MIN
+                && n <= FILTER_TRACKING_BELLY_SIZE_MAX) {
+                setFilterTrackingBellySizeAt(index, n, {
+                    skipListRebuild: true,
+                    skipFilterRebuild: false
+                });
+            }
+            return true;
+        }
+
+        function bindFilterPopupTrackingSizeInput(sizeEl, index) {
+            if (!sizeEl || sizeEl.dataset.inputBound === '1') {
+                return;
+            }
+            sizeEl.dataset.inputBound = '1';
+            sizeEl.dataset.bellyIdx = String(index);
+            sizeEl.addEventListener('mousedown', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                sizeEl.focus({ preventScroll: true });
+            });
+            sizeEl.addEventListener('click', (event) => {
+                event.stopPropagation();
+            });
+            sizeEl.addEventListener('focus', () => {
+                if (!periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                    return;
+                }
+                const idx = getFilterPopupTrackingBellyIndexFromEl(sizeEl);
+                const bellyIdx = idx >= 0 ? idx : index;
+                const bellies = getNormalizedFilterTrackingBellies();
+                const sz = normalizeFilterTrackingBellySize(
+                    (bellies[bellyIdx] && bellies[bellyIdx].size) || FILTER_TRACKING_BELLY_SIZE_MIN
+                );
+                const decimal = String(sz);
+                sizeEl.dataset.draft = decimal;
+                sizeEl.dataset.replaceOnType = '1';
+                delete sizeEl.dataset.dirty;
+                setFilterPopupPositionText(sizeEl, decimal);
+                fitFilterPopupTrackingSizeInputWidth(sizeEl, decimal, true);
+            });
+            sizeEl.addEventListener('blur', () => {
+                const idx = getFilterPopupTrackingBellyIndexFromEl(sizeEl);
+                commitFilterPopupTrackingSizeFromInput(sizeEl, idx >= 0 ? idx : index);
+            });
+            sizeEl.addEventListener('keydown', (event) => {
+                if (!periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                    return;
+                }
+                const idx = getFilterPopupTrackingBellyIndexFromEl(sizeEl);
+                const bellyIdx = idx >= 0 ? idx : index;
+                const key = String(event.key || '');
+                if (key >= '0' && key <= '9') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    tryAppendFilterPopupTrackingSizeDigit(sizeEl, bellyIdx, key);
+                    return;
+                }
+                if (key === 'Backspace') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    delete sizeEl.dataset.replaceOnType;
+                    tryBackspaceFilterPopupTrackingSize(sizeEl, bellyIdx);
+                    return;
+                }
+                if (key === 'Enter') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    sizeEl.blur();
+                    return;
+                }
+                if (key === 'Escape') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const bellies = getNormalizedFilterTrackingBellies();
+                    const sz = normalizeFilterTrackingBellySize(
+                        (bellies[bellyIdx] && bellies[bellyIdx].size) || FILTER_TRACKING_BELLY_SIZE_MIN
+                    );
+                    sizeEl.dataset.draft = String(sz);
+                    delete sizeEl.dataset.dirty;
+                    sizeEl.blur();
+                    return;
+                }
+                const code = String(event.code || '');
+                const isPlus = key === '+' || code === 'NumpadAdd' || (code === 'Equal' && event.shiftKey);
+                const isMinus = key === '-' || code === 'NumpadSubtract' || code === 'Minus';
+                if (isPlus || isMinus) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    bumpFilterPopupTrackingBellyField(bellyIdx, 'size', isPlus ? 1 : -1);
+                }
+            }, true);
+        }
+
+        function rebuildFilterPopupTrackingBellyList() {
+            const list = el('filterPopupTrackingBellyList');
+            if (!list) {
+                return;
+            }
+            const show = periodFilterEnabled && isTrackingFilterMode(periodFilterMode);
+            const bellies = getNormalizedFilterTrackingBellies();
+            const streakHints = show ? computeFilterTrackingBellyStreakHints(bellies) : [];
+            list.replaceChildren();
+            for (let i = 0; i < bellies.length; i++) {
+                const spec = bellies[i];
+                const hintStreak = (streakHints[i] && streakHints[i].streak) || spec.streak;
+                const row = document.createElement('div');
+                row.className = 'filter-popup-tracking-belly-row';
+                row.dataset.idx = String(i);
+
+                const sizeItem = document.createElement('div');
+                sizeItem.className = 'filter-popup-intersection-freq-item';
+                sizeItem.title = 'Số phần tử trong bụng (≥2)';
+                const brOpen = document.createElement('span');
+                brOpen.className = 'filter-popup-bracket-char';
+                brOpen.setAttribute('aria-hidden', 'true');
+                brOpen.textContent = '[';
+                const sizeEl = document.createElement('span');
+                sizeEl.className = 'filter-popup-position-input filter-popup-intersection-freq-num filter-popup-tracking-size-num';
+                sizeEl.dataset.trackingField = 'size';
+                sizeEl.tabIndex = 0;
+                sizeEl.setAttribute('role', 'textbox');
+                sizeEl.setAttribute('aria-label', `Số phần tử bụng #${i + 1} (2–20)`);
+                sizeEl.title = 'Số phần tử bụng 2–20: focus để gõ số; ▴▾ tăng giảm';
+                const sizeFocused = document.activeElement === sizeEl;
+                const sizeText = String(spec.size);
+                setFilterPopupPositionText(sizeEl, sizeText);
+                fitFilterPopupTrackingSizeInputWidth(sizeEl, sizeText, sizeFocused);
+                const brClose = document.createElement('span');
+                brClose.className = 'filter-popup-bracket-char';
+                brClose.setAttribute('aria-hidden', 'true');
+                brClose.textContent = ']';
+                const sizeSpin = document.createElement('div');
+                sizeSpin.className = 'filter-popup-tracking-belly-spin';
+                sizeSpin.setAttribute('role', 'group');
+                sizeSpin.setAttribute('aria-label', `Tăng giảm [] bụng #${i + 1}`);
+                const sizeInc = document.createElement('button');
+                sizeInc.type = 'button';
+                sizeInc.className = 'filter-popup-nonexist-num-spin-btn';
+                sizeInc.dataset.trackingSpin = 'size';
+                sizeInc.dataset.delta = '1';
+                sizeInc.title = 'Tăng [] (tối đa 20)';
+                sizeInc.setAttribute('aria-label', `Tăng [] bụng #${i + 1}`);
+                sizeInc.textContent = '▴';
+                sizeInc.disabled = !show || spec.size >= FILTER_TRACKING_BELLY_SIZE_MAX;
+                const sizeDec = document.createElement('button');
+                sizeDec.type = 'button';
+                sizeDec.className = 'filter-popup-nonexist-num-spin-btn';
+                sizeDec.dataset.trackingSpin = 'size';
+                sizeDec.dataset.delta = '-1';
+                sizeDec.title = 'Giảm [] (tối thiểu 2)';
+                sizeDec.setAttribute('aria-label', `Giảm [] bụng #${i + 1}`);
+                sizeDec.textContent = '▾';
+                sizeDec.disabled = !show || spec.size <= FILTER_TRACKING_BELLY_SIZE_MIN;
+                sizeSpin.appendChild(sizeInc);
+                sizeSpin.appendChild(sizeDec);
+                sizeItem.appendChild(brOpen);
+                sizeItem.appendChild(sizeEl);
+                sizeItem.appendChild(brClose);
+                sizeItem.appendChild(sizeSpin);
+
+                const streakItem = document.createElement('div');
+                streakItem.className = 'filter-popup-intersection-freq-item';
+                streakItem.title = 'Streak bụng không đổi (1–99)';
+                const streakEl = document.createElement('span');
+                streakEl.className = 'filter-popup-position-input filter-popup-tracking-streak-num';
+                streakEl.dataset.trackingField = 'streak';
+                streakEl.tabIndex = 0;
+                streakEl.setAttribute('role', 'textbox');
+                streakEl.setAttribute('aria-label', `Streak bụng #${i + 1} (1–99)`);
+                streakEl.title = 'Streak 1–99: focus để gõ số (1–99); mất focus hiện chữ Hán. ▴▾ vàng = gợi ý T%';
+                const streakFocused = document.activeElement === streakEl;
+                const streakText = streakFocused
+                    ? String(spec.streak)
+                    : formatFilterTrackingBellyStreakLabel(spec.streak);
+                setFilterPopupPositionText(streakEl, streakText);
+                fitFilterPopupTrackingStreakInputWidth(streakEl, streakText, streakFocused);
+                const streakSpin = document.createElement('div');
+                streakSpin.className = 'filter-popup-tracking-belly-spin';
+                streakSpin.setAttribute('role', 'group');
+                streakSpin.setAttribute('aria-label', `Tăng giảm streak bụng #${i + 1}`);
+                const streakInc = document.createElement('button');
+                streakInc.type = 'button';
+                streakInc.className = 'filter-popup-nonexist-num-spin-btn';
+                streakInc.dataset.trackingSpin = 'streak';
+                streakInc.dataset.delta = '1';
+                streakInc.title = 'Tăng streak (tối đa 99)';
+                streakInc.setAttribute('aria-label', `Tăng streak bụng #${i + 1}`);
+                streakInc.textContent = '▴';
+                streakInc.disabled = !show || spec.streak >= FILTER_TRACKING_BELLY_STREAK_MAX;
+                const streakDec = document.createElement('button');
+                streakDec.type = 'button';
+                streakDec.className = 'filter-popup-nonexist-num-spin-btn';
+                streakDec.dataset.trackingSpin = 'streak';
+                streakDec.dataset.delta = '-1';
+                streakDec.title = 'Giảm streak (tối thiểu 1)';
+                streakDec.setAttribute('aria-label', `Giảm streak bụng #${i + 1}`);
+                streakDec.textContent = '▾';
+                streakDec.disabled = !show || spec.streak <= FILTER_TRACKING_BELLY_STREAK_MIN;
+                applyTrackingSpinHint(
+                    streakInc,
+                    streakDec,
+                    spec.streak,
+                    hintStreak,
+                    'Tăng streak',
+                    'Giảm streak',
+                    formatFilterTrackingBellyStreakLabel(hintStreak)
+                );
+                streakSpin.appendChild(streakInc);
+                streakSpin.appendChild(streakDec);
+                streakItem.appendChild(streakEl);
+                streakItem.appendChild(streakSpin);
+
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'filter-popup-tracking-belly-remove';
+                removeBtn.dataset.trackingRemove = '1';
+                const isOnlyBelly = bellies.length <= FILTER_TRACKING_BELLY_COUNT_MIN;
+                removeBtn.title = isOnlyBelly
+                    ? 'Đặt lại bụng mặc định 2三'
+                    : 'Bỏ bụng này';
+                removeBtn.setAttribute(
+                    'aria-label',
+                    isOnlyBelly ? 'Đặt lại bụng mặc định 2三' : `Bỏ bụng #${i + 1}`
+                );
+                removeBtn.textContent = '−';
+                removeBtn.disabled = !show;
+
+                row.appendChild(sizeItem);
+                row.appendChild(streakItem);
+                row.appendChild(removeBtn);
+                list.appendChild(row);
+
+                bindFilterPopupTrackingSpinButton(sizeInc, () => bumpFilterPopupTrackingBellyField(i, 'size', 1));
+                bindFilterPopupTrackingSpinButton(sizeDec, () => bumpFilterPopupTrackingBellyField(i, 'size', -1));
+                bindFilterPopupTrackingSpinButton(streakInc, () => bumpFilterPopupTrackingBellyField(i, 'streak', 1));
+                bindFilterPopupTrackingSpinButton(streakDec, () => bumpFilterPopupTrackingBellyField(i, 'streak', -1));
+                bindFilterPopupTrackingSpinButton(removeBtn, () => removeFilterPopupTrackingBelly(i));
+                bindFilterPopupTrackingSizeInput(sizeEl, i);
+                bindFilterPopupTrackingStreakInput(streakEl, i);
+            }
+            const addBtn = el('filterPopupTrackingBellyAdd');
+            if (addBtn) {
+                addBtn.disabled = !show || bellies.length >= FILTER_TRACKING_BELLY_COUNT_MAX;
+            }
+        }
+
+        function syncFilterPopupTrackingBellyUi() {
+            const picker = el('filterPopupTrackingBellyPicker');
+            const show = periodFilterEnabled && isTrackingFilterMode(periodFilterMode);
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+                picker.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+            syncFilterPopupTrackingIoButtons();
+            // Đang gõ [] / streak: không rebuild list (tránh mất caret / nhảy về chữ Hán).
+            if (isFilterPopupTrackingBellyInputFocused()) {
+                return;
+            }
+            rebuildFilterPopupTrackingBellyList();
+        }
+
+        function bumpFilterPopupTrackingBellyField(index, field, delta) {
+            if (!periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                return false;
+            }
+            const bellies = getNormalizedFilterTrackingBellies();
+            if (!(index >= 0 && index < bellies.length)) {
+                return false;
+            }
+            const cur = bellies[index];
+            let nextSize = cur.size;
+            let nextStreak = cur.streak;
+            if (field === 'size') {
+                nextSize = normalizeFilterTrackingBellySize(cur.size + (Number(delta) || 0));
+            } else {
+                nextStreak = normalizeFilterTrackingBellyStreak(cur.streak + (Number(delta) || 0));
+            }
+            if (nextSize === cur.size && nextStreak === cur.streak) {
+                return false;
+            }
+            bellies[index] = { size: nextSize, streak: nextStreak };
+            filterTrackingBellies = bellies;
+            getNormalizedFilterTrackingBellies();
+            saveFilterTrackingBellySettings();
+            const active = document.activeElement;
+            const activeIdx = getFilterPopupTrackingBellyIndexFromEl(active);
+            const sameRow = activeIdx === index;
+            if (field === 'streak' && isFilterPopupTrackingStreakInputFocused() && sameRow) {
+                const decimal = String(nextStreak);
+                active.dataset.draft = decimal;
+                setFilterPopupPositionText(active, decimal);
+                fitFilterPopupTrackingStreakInputWidth(active, decimal, true);
+            } else if (field === 'size' && isFilterPopupTrackingSizeInputFocused() && sameRow) {
+                const decimal = String(nextSize);
+                active.dataset.draft = decimal;
+                setFilterPopupPositionText(active, decimal);
+                fitFilterPopupTrackingSizeInputWidth(active, decimal, true);
+            } else {
+                syncFilterPopupTrackingBellyUi();
+            }
+            deferFilterPopupHeavyWork(() => {
+                rebuildFilterPopupAfterParamChange();
+            });
+            return true;
+        }
+
+        function addFilterPopupTrackingBelly() {
+            if (!periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                return false;
+            }
+            const bellies = getNormalizedFilterTrackingBellies();
+            if (bellies.length >= FILTER_TRACKING_BELLY_COUNT_MAX) {
+                return false;
+            }
+            const last = bellies[bellies.length - 1] || createDefaultFilterTrackingBelly();
+            bellies.push({ size: last.size, streak: last.streak });
+            filterTrackingBellies = bellies;
+            getNormalizedFilterTrackingBellies();
+            syncFilterPopupTrackingBellyUi();
+            saveFilterTrackingBellySettings();
+            deferFilterPopupHeavyWork(() => {
+                rebuildFilterPopupAfterParamChange();
+            });
+            return true;
+        }
+
+        function removeFilterPopupTrackingBelly(index) {
+            if (!periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                return false;
+            }
+            const bellies = getNormalizedFilterTrackingBellies();
+            if (!(index >= 0 && index < bellies.length)) {
+                return false;
+            }
+            if (bellies.length <= FILTER_TRACKING_BELLY_COUNT_MIN) {
+                const def = createDefaultFilterTrackingBelly();
+                const cur = bellies[0];
+                if (cur.size === def.size && cur.streak === def.streak) {
+                    return false;
+                }
+                // Còn 1 bụng: dấu − đặt lại 2三 (không xóa hàng).
+                disarmFilterPopupTrackingBellyInputsForStructuralChange();
+                filterTrackingBellies = [def];
+            } else {
+                disarmFilterPopupTrackingBellyInputsForStructuralChange();
+                bellies.splice(index, 1);
+                filterTrackingBellies = bellies;
+            }
+            getNormalizedFilterTrackingBellies();
+            saveFilterTrackingBellySettings();
+            // Force rebuild list kể cả vừa blur — hiện ngay 2三 / hàng còn lại.
+            const picker = el('filterPopupTrackingBellyPicker');
+            const show = periodFilterEnabled && isTrackingFilterMode(periodFilterMode);
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+                picker.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+            rebuildFilterPopupTrackingBellyList();
+            deferFilterPopupHeavyWork(() => {
+                rebuildFilterPopupAfterParamChange();
+            });
+            return true;
+        }
+
+        function initFilterPopupTrackingBellyControls() {
+            loadFilterTrackingBellySettings();
+            syncFilterPopupTrackingBellyUi();
+            const root = el('filterPopupTrackingBellyPicker');
+            if (!root || root.dataset.bound === '1') {
+                return;
+            }
+            root.dataset.bound = '1';
+            root.addEventListener('mousedown', (event) => event.stopPropagation());
+            root.addEventListener('click', (event) => event.stopPropagation());
+            const addBtn = el('filterPopupTrackingBellyAdd');
+            bindFilterPopupTrackingSpinButton(addBtn, () => addFilterPopupTrackingBelly());
+            const inBtn = el('filterPopupTrackingInBtn');
+            const outBtn = el('filterPopupTrackingOutBtn');
+            bindFilterPopupTrackingSpinButton(inBtn, () => {
+                setFilterTrackingPickIo('in', !filterTrackingPickIn);
+            });
+            bindFilterPopupTrackingSpinButton(outBtn, () => {
+                setFilterTrackingPickIo('out', !filterTrackingPickOut);
+            });
+        }
+
+        function setFilterPopupTrackingSubfilter(mode, opts = {}) {
+            const next = mode === 'off' ? 'off' : normalizeFilterPopupTrackingSubfilter(mode);
+            filterPopupTrackingSubfilter = next;
+            const wrap = el('filterTableWrap');
+            if (opts.skipReconcile && opts.skipCounts) {
+                applyFilterPopupTrackingSubfilterWrapClasses(wrap, next);
+                return;
+            }
+            showFilterPopupLoading();
+            yieldAfterFilterPopupPaint(() => {
+                try {
+                    // Tính lại % theo I / O / I/O (không giữ % cũ của T).
+                    syncFilterPopupTrackingBellyOverlap();
+                    requestAnimationFrame(() => {
+                        if (filterPopupActiveIdx >= 0) {
+                            scrollFilterPopupRowIntoView();
+                        }
+                    });
+                } finally {
+                    clearFilterPopupLoadingState();
+                }
+            });
+        }
+
+        function initFilterPopupTrackingOverlapPctToggle() {
+            const btn = el('filterPopupTrackingOverlapPct');
+            if (!btn || btn.dataset.trackingPctBound === '1') {
+                return;
+            }
+            btn.dataset.trackingPctBound = '1';
+            const run = () => {
+                if (btn.hidden) {
+                    return;
+                }
+                setFilterPopupTrackingSubfilter(getNextFilterPopupTrackingSubfilter(filterPopupTrackingSubfilter));
+            };
+            btn.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                run();
+            });
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.detail === 0) {
+                    run();
+                }
+            });
         }
 
         function setFilterPopupPosnfreqGreenOnly(on, opts = {}) {
@@ -17719,6 +19427,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (filterPopupConn3WindowOnly && periodFilterEnabled && isConn3FilterMode(periodFilterMode)) {
                 return getFilterPopupNavListLength();
             }
+            if (isFilterPopupTrackingSubfilterActive()) {
+                return getFilterPopupNavListLength();
+            }
             if (isFilterPopupFollowSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
@@ -17757,7 +19468,9 @@ function getFilterNoteTRefMaxSelections(mode) {
 
         function setFilterPopupPositionInputWidth(positionEl, text) {
             if (!positionEl || positionEl.classList.contains('filter-popup-nonexist-num')
-                || positionEl.classList.contains('filter-popup-header2-num')) {
+                || positionEl.classList.contains('filter-popup-header2-num')
+                || positionEl.classList.contains('filter-popup-tracking-streak-num')
+                || positionEl.classList.contains('filter-popup-tracking-size-num')) {
                 return;
             }
             const len = Math.max(1, String(text || '').length);
@@ -18095,20 +19808,69 @@ function getFilterNoteTRefMaxSelections(mode) {
             document.documentElement.dataset.filterPopupDigitNavBound = '1';
 
             document.addEventListener('keydown', (event) => {
-                if (!isFilterPopupNavActive()) {
-                    return;
-                }
+                const key = String(event.key || '');
+                const dock = el('filterPopupDock');
+                const popupOpen = !!(periodFilterEnabled && dock && !dock.classList.contains('hidden'));
                 const nonexistNumInput = el('filterPopupNonexistNum');
                 const bracketCountInput = el('filterPopupNonexistBracketCount');
+
+                // TRACKING [] / streak đang focus: xử lý số ngay ở capture (như nonexist — không để nav nuốt).
+                if (isFilterPopupTrackingSizeInputFocused()) {
+                    const sizeEl = document.activeElement;
+                    const bellyIdx = getFilterPopupTrackingBellyIndexFromEl(sizeEl);
+                    const idx = bellyIdx >= 0 ? bellyIdx : 0;
+                    if (key >= '0' && key <= '9') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        tryAppendFilterPopupTrackingSizeDigit(sizeEl, idx, key);
+                        return;
+                    }
+                    if (key === 'Backspace') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        delete sizeEl.dataset.replaceOnType;
+                        tryBackspaceFilterPopupTrackingSize(sizeEl, idx);
+                        return;
+                    }
+                    return;
+                }
+                if (isFilterPopupTrackingStreakInputFocused()) {
+                    const streakEl = document.activeElement;
+                    const bellyIdx = getFilterPopupTrackingBellyIndexFromEl(streakEl);
+                    const idx = bellyIdx >= 0 ? bellyIdx : 0;
+                    if (key >= '0' && key <= '9') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        tryAppendFilterPopupTrackingStreakDigit(streakEl, idx, key);
+                        return;
+                    }
+                    if (key === 'Backspace') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        delete streakEl.dataset.replaceOnType;
+                        tryBackspaceFilterPopupTrackingStreak(streakEl, idx);
+                        return;
+                    }
+                    return;
+                }
+
+                // Đang focus ô số chuyên dụng khác → để handler của ô đó nhận phím.
                 if (document.activeElement === input || document.activeElement === nonexistNumInput
                     || document.activeElement === bracketCountInput
                     || isFilterPopupHeader2InputFocused()) {
                     return;
                 }
+
+                // Cho gõ tham số nonexist/TRACKING cả khi bảng lọc 0 dòng (nav inactive).
+                const canTypeModeParams = popupOpen && (
+                    isNonexistFilterMode(periodFilterMode) || isTrackingFilterMode(periodFilterMode)
+                );
+                if (!isFilterPopupNavActive() && !canTypeModeParams) {
+                    return;
+                }
                 if (isPeriodFilterShortcutBlockedTarget(event.target)) {
                     return;
                 }
-                const key = String(event.key || '');
                 if (key >= '0' && key <= '9') {
                     event.preventDefault();
                     event.stopPropagation();
@@ -18116,6 +19878,25 @@ function getFilterNoteTRefMaxSelections(mode) {
                         setFilterPopupPositionText(nonexistNumInput, '');
                         nonexistNumInput.focus({ preventScroll: true });
                         tryAppendFilterPopupNonexistDigit(key);
+                        return;
+                    }
+                    if (isTrackingFilterMode(periodFilterMode)) {
+                        const streakInput = document.querySelector(
+                            '#filterPopupTrackingBellyList .filter-popup-tracking-streak-num'
+                        );
+                        if (streakInput) {
+                            const bellyIdx = getFilterPopupTrackingBellyIndexFromEl(streakInput);
+                            const idx = bellyIdx >= 0 ? bellyIdx : 0;
+                            streakInput.focus({ preventScroll: true });
+                            streakInput.dataset.draft = '';
+                            delete streakInput.dataset.replaceOnType;
+                            setFilterPopupPositionText(streakInput, '');
+                            fitFilterPopupTrackingStreakInputWidth(streakInput, '', true);
+                            tryAppendFilterPopupTrackingStreakDigit(streakInput, idx, key);
+                            return;
+                        }
+                    }
+                    if (!isFilterPopupNavActive()) {
                         return;
                     }
                     const wrap = el('filterPopupPositionWrap');
@@ -18257,6 +20038,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupTailCountUi();
             syncFilterPopupChainFilterUi();
             syncFilterPopupSpecialKindsUi();
+            syncFilterPopupTrackingBellyUi();
 
             if (light) {
                 return;
@@ -18613,6 +20395,10 @@ function getFilterNoteTRefMaxSelections(mode) {
             ];
             const specialTrendsPicker = el('filterPopupSpecialTrendsPicker');
             if (specialTrendsPicker && specialTrendsPicker.contains(target)) {
+                return true;
+            }
+            const trackingBellyPicker = el('filterPopupTrackingBellyPicker');
+            if (trackingBellyPicker && trackingBellyPicker.contains(target)) {
                 return true;
             }
             for (const [menuId, btnId] of pairs) {
@@ -20282,6 +22068,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             updateFilterPopupPrevRecallFoldTooltips();
             syncFilterPopupPosnfreqSubmitOverlap();
             syncFilterPopupConn3WindowOverlap();
+            syncFilterPopupTrackingBellyOverlap();
             syncFilterPopupFollowDeterminedOverlap();
             syncFilterPopupConnectionOverlap();
             applyFilterPopupSpecialKindsRowClasses(wrap);
@@ -20334,6 +22121,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupIntersectionToolsUi();
             syncFilterPopupChainFilterUi();
             syncFilterPopupSpecialKindsUi();
+            syncFilterPopupTrackingBellyUi();
         }
 
         function syncFilterPopupPosnfreqSubmitOverlap() {
@@ -20493,6 +22281,117 @@ function getFilterNoteTRefMaxSelections(mode) {
             } else {
                 pctEl.setAttribute('aria-pressed', 'false');
             }
+            updateFilterPopupMatchCount();
+            syncPeriodFilterNavModeToIframe();
+            applyFilterPopupNonexist005000RowBorders(wrap);
+        }
+
+        function syncFilterPopupTrackingBellyOverlap() {
+            const wrap = el('filterTableWrap');
+            const pctEl = el('filterPopupTrackingOverlapPct');
+            const hidePct = () => {
+                const wasActive = filterPopupTrackingSubfilter !== 'off';
+                filterPopupTrackingSubfilter = 'off';
+                if (pctEl) {
+                    pctEl.hidden = true;
+                    pctEl.textContent = '';
+                    pctEl.setAttribute('aria-pressed', 'false');
+                }
+                if (wasActive) {
+                    applyFilterPopupTrackingSubfilterWrapClasses(el('filterTableWrap'), 'off');
+                    reconcileFilterPopupActiveAfterSubfilterToggle();
+                }
+                updateFilterPopupMatchCount();
+                syncPeriodFilterNavModeToIframe();
+            };
+            if (!wrap || !sheetManager) {
+                hidePct();
+                return;
+            }
+            if (!periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                hidePct();
+                return;
+            }
+            wrap.querySelectorAll(
+                'tbody tr.filter-popup-posnfreq-submit-hit, tbody tr.filter-popup-tracking-in-hit, tbody tr.filter-popup-tracking-out-hit'
+            ).forEach((tr) => {
+                tr.classList.remove(
+                    'filter-popup-posnfreq-submit-hit',
+                    'filter-popup-tracking-in-hit',
+                    'filter-popup-tracking-out-hit'
+                );
+            });
+            const rows = sheetManager.getSourceSheetRows();
+            if (!Array.isArray(rows) || !rows.length) {
+                hidePct();
+                return;
+            }
+            const specs = getNormalizedFilterTrackingBellies();
+            const ioActive = !!(filterTrackingPickIn || filterTrackingPickOut);
+            let inCount = 0;
+            let outCount = 0;
+            let unionCount = 0;
+            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                const idx = Number(tr.dataset.idx);
+                if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
+                    return;
+                }
+                let inHit = false;
+                let outHit = false;
+                if (filterTrackingPickIn
+                    && typeof sheetManager.rowMatchesAnyBasicTrackingBellyPick === 'function') {
+                    inHit = !!sheetManager.rowMatchesAnyBasicTrackingBellyPick(idx, specs);
+                }
+                if (filterTrackingPickOut
+                    && typeof sheetManager.rowMatchesAnyBasicTrackingBellyPickBelow === 'function') {
+                    outHit = !!sheetManager.rowMatchesAnyBasicTrackingBellyPickBelow(idx, specs);
+                }
+                if (inHit) {
+                    tr.classList.add('filter-popup-tracking-in-hit', 'filter-popup-posnfreq-submit-hit');
+                    inCount++;
+                }
+                if (outHit) {
+                    tr.classList.add('filter-popup-tracking-out-hit', 'filter-popup-posnfreq-submit-hit');
+                    outCount++;
+                }
+                if (inHit || outHit) {
+                    unionCount++;
+                }
+            });
+            const tableTotal = wrap.querySelectorAll('tbody tr[data-idx]').length;
+            if (!pctEl) {
+                return;
+            }
+            if (tableTotal === 0 || !ioActive) {
+                hidePct();
+                return;
+            }
+            // Hiện nút %: mặc định T (hiện đủ kỳ có bụng).
+            if (filterPopupTrackingSubfilter === 'off') {
+                filterPopupTrackingSubfilter = 't';
+            }
+            filterPopupTrackingSubfilter = normalizeFilterPopupTrackingSubfilter(filterPopupTrackingSubfilter);
+            let mode = filterPopupTrackingSubfilter;
+            // % luôn theo mẫu cơ chế đang bật: I, O, hoặc I∪O (I/O và T cùng mẫu %).
+            let sampleCount = unionCount;
+            if (mode === 'in') {
+                sampleCount = inCount;
+            } else if (mode === 'out') {
+                sampleCount = outCount;
+            }
+            // Không có mẫu ở trạng thái hẹp → về T (hiện đủ).
+            if (mode !== 't' && sampleCount === 0) {
+                filterPopupTrackingSubfilter = 't';
+                mode = 't';
+                sampleCount = unionCount;
+            }
+            const pct = tableTotal > 0 ? Math.round((sampleCount / tableTotal) * 100) : 0;
+            const live = mode === 'io' || mode === 'in' || mode === 'out';
+            pctEl.hidden = false;
+            pctEl.textContent = `${getFilterPopupTrackingSubfilterLabel(mode)} ${pct}%`;
+            pctEl.setAttribute('aria-pressed', live ? 'true' : 'false');
+            applyFilterPopupTrackingSubfilterWrapClasses(wrap, mode);
+            reconcileFilterPopupActiveAfterSubfilterToggle();
             updateFilterPopupMatchCount();
             syncPeriodFilterNavModeToIframe();
             applyFilterPopupNonexist005000RowBorders(wrap);
@@ -20682,6 +22581,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             applyFilterPopupNonexistIdGapBorders(wrap);
             syncFilterPopupPosnfreqSubmitOverlap();
             syncFilterPopupConn3WindowOverlap();
+            syncFilterPopupTrackingBellyOverlap();
             syncFilterPopupFollowDeterminedOverlap();
             syncFilterPopupConnectionOverlap();
             applyFilterPopupSpecialKindsRowClasses(wrap);
@@ -20740,11 +22640,19 @@ function getFilterNoteTRefMaxSelections(mode) {
                 invalidateFilterPopupRenderCache();
                 filterPopupPosnfreqGreenOnly = false;
                 filterPopupConn3WindowOnly = false;
+                filterPopupTrackingSubfilter = 'off';
                 filterPopupFollowSubfilter = 'off';
                 applyFilterPopupFollowSubfilterWrapClasses(wrap, 'off');
                 filterPopupConnectionSubfilter = 'off';
                 applyFilterPopupConnectionSubfilterWrapClasses(wrap, 'off');
                 wrap.classList.remove('filter-popup-posnfreq-green-only');
+                applyFilterPopupTrackingSubfilterWrapClasses(wrap, 'off');
+                const trackingPct = el('filterPopupTrackingOverlapPct');
+                if (trackingPct) {
+                    trackingPct.hidden = true;
+                    trackingPct.textContent = '';
+                    trackingPct.setAttribute('aria-pressed', 'false');
+                }
                 wrap.innerHTML = '<div class="filter-popup-empty">' + getFilterPopupEmptyMessage(periodFilterMode) + '</div>';
                 finishFilterPopupOpen({ syncMain });
                 return;
@@ -21763,6 +23671,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             initFilterPopupPosnfreqControls();
             initFilterPopupPosnfreqOverlapPctToggle();
             initFilterPopupConn3OverlapPctToggle();
+            initFilterPopupTrackingBellyControls();
+            initFilterPopupTrackingOverlapPctToggle();
             initFilterPopupFollowOverlapPctToggle();
             initFilterPopupConnectionOverlapPctToggle();
             initFilterPopupPositionInput();
@@ -21890,6 +23800,20 @@ function getFilterNoteTRefMaxSelections(mode) {
                     requestAnimationFrame(() => prebuildFilterPopupCache());
                 }
                 scheduleDefaultSessionBootstrap();
+                // Hâm nóng bụng TRACKING sau paint — chấp nhận chờ lúc mở web, filter sau đó nhanh.
+                if (typeof sheetManager.scheduleWarmBasicTrackingBellyFilterCache === 'function') {
+                    sheetManager.scheduleWarmBasicTrackingBellyFilterCache();
+                }
+                requestAnimationFrame(() => {
+                    requestAnimationFrame(() => {
+                        try {
+                            if (sheetManager
+                                && typeof sheetManager.ensureBasicTrackingBellyFilterCache === 'function') {
+                                sheetManager.ensureBasicTrackingBellyFilterCache();
+                            }
+                        } catch (eWarmBelly) { /* ignore */ }
+                    });
+                });
             }).catch(e => {
                 if (!sheetManager) {
                     sheetManager = new RightPaneSheetManager();
