@@ -471,6 +471,11 @@ class RightPaneSheetManager {
         /** Cache filter mode TRACKING (bụng basic: size + streak). */
         this._basicTrackingBellyFilterCache = null;
         this._basicTrackingBellyFilterCacheRowLen = 0;
+        /** Cache filter mode PHASE1 (above/same/below/none vs số Chuỗi 1). */
+        this._phase1FilterCache = null;
+        this._phase1FilterCacheRowLen = 0;
+        this._phase1FilterCacheNoteRef = null;
+        this._phase1FilterCacheLogic = '';
         /** Token hủy warm async khi refreshDerivedState chạy lại. */
         this._basicTrackingBellyWarmGen = 0;
         this._basicTrackingBellyWarmTimer = 0;
@@ -622,6 +627,10 @@ class RightPaneSheetManager {
         this._conn3WindowExistIndicesCacheRowLen = 0;
         this._basicTrackingBellyFilterCache = null;
         this._basicTrackingBellyFilterCacheRowLen = 0;
+        this._phase1FilterCache = null;
+        this._phase1FilterCacheRowLen = 0;
+        this._phase1FilterCacheNoteRef = null;
+        this._phase1FilterCacheLogic = '';
         this.scheduleWarmBasicTrackingBellyFilterCache();
         this._filterRowMauSetsCache = null;
         this._filterRowMauSetsCacheKey = '';
@@ -2182,6 +2191,14 @@ class RightPaneSheetManager {
                 if (this.rowHasAllBasicTrackingBellies(i, specs)) {
                     indices.push(i);
                 }
+            }
+            return indices;
+        }
+
+        if (mode === 'phase1') {
+            // Mẫu = tổng lịch sử; ABOVE/SAME/BELOW/NONE chỉ tô viền xanh + nút % (không thu hẹp danh sách).
+            for (let i = 0; i < rows.length; i++) {
+                indices.push(i);
             }
             return indices;
         }
@@ -10842,6 +10859,353 @@ class RightPaneSheetManager {
     /** @deprecated Dùng rowMatchesAnyBasicTrackingBellyPickBelow — OUT ≠ pick ngoài bụng. */
     rowHasTrackingBellyPickOutside(rowIndex, specs) {
         return this.rowMatchesAnyBasicTrackingBellyPickBelow(rowIndex, specs);
+    }
+
+    /**
+     * Số Chuỗi 1 (phase1) trước kỳ `rowIndex` — cùng tập tô viền tím vuông khi chọn phase 1.
+     * @returns {number[]}
+     */
+    getPhase1NumsForRow(rowIndex) {
+        const rows = this.getSourceSheetRows();
+        const lines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].label === 1 && Array.isArray(lines[i].nums)) {
+                return lines[i].nums.filter((n) => n >= 1 && n <= 35);
+            }
+        }
+        return [];
+    }
+
+    /**
+     * Tập số tham khảo trong note `{…}` của kỳ (hợp mọi cụm).
+     * @returns {number[]}
+     */
+    getNoteReferenceNumsForRow(rowIndex) {
+        const meta = this.getComputedNoteMeta(rowIndex, null);
+        const text = meta && meta.text ? String(meta.text) : '';
+        if (!text || text === '?') {
+            return [];
+        }
+        const out = [];
+        const seen = new Set();
+        const re = /\{([^}]*)\}/g;
+        let m;
+        while ((m = re.exec(text)) !== null) {
+            const parts = String(m[1] || '').split(/[,\s]+/);
+            for (let i = 0; i < parts.length; i++) {
+                const n = parseInt(parts[i], 10);
+                if (!Number.isFinite(n) || n < 1 || n > 35 || seen.has(n)) {
+                    continue;
+                }
+                seen.add(n);
+                out.push(n);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * PHASE1: quan hệ tham khảo vs số tím phase1 theo vị trí nhãn Chuỗi cửa sổ 10.
+     * Neo = mỗi lần xuất hiện số phase1 trên Chuỗi L; tham khảo đếm trên cùng dòng chuỗi.
+     * ABOVE = ≥2 tham khảo ở Chuỗi L+1 (ngay trên); SAME = ≥2 ở L; BELOW = ≥2 ở L−1.
+     * @returns {{ hasRefs: boolean, hasPhase1: boolean, above: boolean, same: boolean, below: boolean, none: boolean }}
+     */
+    /**
+     * @param {number} rowIndex
+     * @param {'ge2'|'relative'} [logicMode='ge2']
+     */
+    getPhase1FilterRelation(rowIndex, logicMode = 'ge2') {
+        const cache = this.ensurePhase1FilterCache(logicMode);
+        const empty = {
+            hasRefs: false,
+            hasPhase1: false,
+            above: false,
+            same: false,
+            below: false,
+            none: false,
+            aboveOut: false,
+            sameOut: false,
+            belowOut: false
+        };
+        if (!(rowIndex >= 0) || rowIndex >= cache.length) {
+            return empty;
+        }
+        return cache[rowIndex] || empty;
+    }
+
+    /**
+     * @param {'ge2'|'relative'} [logicMode='ge2']
+     */
+    ensurePhase1FilterCache(logicMode = 'ge2') {
+        const logic = logicMode === 'relative' ? 'relative' : 'ge2';
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        if (!this.noteCache || this.noteCache.length !== n) {
+            this.refreshDerivedState();
+        }
+        if (this._phase1FilterCache
+            && this._phase1FilterCacheRowLen === n
+            && this._phase1FilterCacheNoteRef === this.noteCache
+            && this._phase1FilterCacheLogic === logic) {
+            return this._phase1FilterCache;
+        }
+        const out = new Array(n);
+        for (let i = 0; i < n; i++) {
+            out[i] = logic === 'relative'
+                ? this.computePhase1RelativeFilterRelation(i)
+                : this.computePhase1FilterRelation(i);
+        }
+        this._phase1FilterCache = out;
+        this._phase1FilterCacheRowLen = n;
+        this._phase1FilterCacheNoteRef = this.noteCache;
+        this._phase1FilterCacheLogic = logic;
+        return out;
+    }
+
+    /**
+     * Relative: số R (freq≥2) “luôn” nằm trên/cùng/dưới số phase1 P trên cửa sổ chuỗi.
+     * ABOVE: mọi lần R ở Chuỗi L thì P ở L−1 (vd 321: 34@10/6 → 30@9/5).
+     * above/same/below = R nằm trong đáp án (viền xanh);
+     * aboveOut/sameOut/belowOut = R thỏa quan hệ nhưng không nằm trong đáp án (viền vàng).
+     */
+    computePhase1RelativeFilterRelation(rowIndex) {
+        const empty = {
+            hasRefs: false,
+            hasPhase1: false,
+            above: false,
+            same: false,
+            below: false,
+            none: false,
+            aboveOut: false,
+            sameOut: false,
+            belowOut: false
+        };
+        const rows = this.getSourceSheetRows();
+        if (!(rowIndex >= 0) || rowIndex >= rows.length) {
+            return empty;
+        }
+        const phase1Nums = this.getPhase1NumsForRow(rowIndex);
+        const resultNums = this.isEmptyResultRow(rows[rowIndex])
+            ? []
+            : this.parseMainNums(
+                (rows[rowIndex].result || rows[rowIndex].Result || '')
+            ).filter((n) => n >= 1 && n <= 35);
+        const refNums = this.getNoteReferenceNumsForRow(rowIndex);
+        const hasPhase1 = phase1Nums.length > 0;
+        const hasRefs = refNums.length > 0;
+        if (!hasPhase1) {
+            return { ...empty, hasRefs, hasPhase1 };
+        }
+        const chainLines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        /** @type {Map<number, number[]>} */
+        const labelsByNum = new Map();
+        for (let i = 0; i < chainLines.length; i++) {
+            const label = chainLines[i].label | 0;
+            const nums = Array.isArray(chainLines[i].nums) ? chainLines[i].nums : [];
+            for (let k = 0; k < nums.length; k++) {
+                const n = nums[k];
+                if (!(n >= 1 && n <= 35)) {
+                    continue;
+                }
+                let labs = labelsByNum.get(n);
+                if (!labs) {
+                    labs = [];
+                    labelsByNum.set(n, labs);
+                }
+                labs.push(label);
+            }
+        }
+        const alwaysRel = (r, p, kind) => {
+            if (r === p) {
+                return false;
+            }
+            const rLabs = labelsByNum.get(r) || [];
+            // Ràng buộc chặt: số R phải freq >= 2 trong cửa sổ 10 (vd 321: 34@C10+C6).
+            if (rLabs.length < 2) {
+                return false;
+            }
+            const pLabs = new Set(labelsByNum.get(p) || []);
+            if (!pLabs.size) {
+                return false;
+            }
+            for (let i = 0; i < rLabs.length; i++) {
+                const L = rLabs[i];
+                if (kind === 'above' && !pLabs.has(L - 1)) {
+                    return false;
+                }
+                if (kind === 'same' && !pLabs.has(L)) {
+                    return false;
+                }
+                if (kind === 'below' && !pLabs.has(L + 1)) {
+                    return false;
+                }
+            }
+            return true;
+        };
+        const resultSet = new Set(resultNums);
+        /** Mọi số freq≥2 trong cửa sổ (ứng viên relative). */
+        const candidates = [];
+        labelsByNum.forEach((labs, n) => {
+            if (labs.length >= 2) {
+                candidates.push(n);
+            }
+        });
+        let above = false;
+        let same = false;
+        let below = false;
+        let aboveOut = false;
+        let sameOut = false;
+        let belowOut = false;
+        for (let ci = 0; ci < candidates.length; ci++) {
+            const r = candidates[ci];
+            const inAnswer = resultSet.has(r);
+            for (let pi = 0; pi < phase1Nums.length; pi++) {
+                const p = phase1Nums[pi];
+                if (alwaysRel(r, p, 'above')) {
+                    if (inAnswer) {
+                        above = true;
+                    } else {
+                        aboveOut = true;
+                    }
+                }
+                if (alwaysRel(r, p, 'same')) {
+                    if (inAnswer) {
+                        same = true;
+                    } else {
+                        sameOut = true;
+                    }
+                }
+                if (alwaysRel(r, p, 'below')) {
+                    if (inAnswer) {
+                        below = true;
+                    } else {
+                        belowOut = true;
+                    }
+                }
+            }
+        }
+        return {
+            hasRefs,
+            hasPhase1,
+            above,
+            same,
+            below,
+            none: false,
+            aboveOut,
+            sameOut,
+            belowOut
+        };
+    }
+
+    /** >=2 tham khảo trên Chuỗi L±1 / L so với số tím phase1. */
+    computePhase1FilterRelation(rowIndex) {
+        const empty = {
+            hasRefs: false,
+            hasPhase1: false,
+            above: false,
+            same: false,
+            below: false,
+            none: false
+        };
+        const rows = this.getSourceSheetRows();
+        if (!(rowIndex >= 0) || rowIndex >= rows.length) {
+            return empty;
+        }
+        // Hàng rỗng / thiếu phase1·tham khảo → NONE (phần bù), để A∪S∪B∪N = đủ lịch sử.
+        if (this.isEmptyResultRow(rows[rowIndex])) {
+            return { hasRefs: false, hasPhase1: false, above: false, same: false, below: false, none: true };
+        }
+        const phase1Nums = this.getPhase1NumsForRow(rowIndex);
+        const refNums = this.getNoteReferenceNumsForRow(rowIndex);
+        const hasPhase1 = phase1Nums.length > 0;
+        const hasRefs = refNums.length > 0;
+        if (!hasPhase1 || !hasRefs) {
+            return { hasRefs, hasPhase1, above: false, same: false, below: false, none: true };
+        }
+        const chainLines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        /** @type {Map<number, number[]>} nhãn chuỗi → các số trên dòng */
+        const numsByChainLabel = new Map();
+        /** @type {Map<number, number[]>} số → các nhãn chuỗi chứa số đó */
+        const labelsByNum = new Map();
+        for (let i = 0; i < chainLines.length; i++) {
+            const label = chainLines[i].label | 0;
+            const nums = Array.isArray(chainLines[i].nums) ? chainLines[i].nums : [];
+            const lineNums = [];
+            for (let k = 0; k < nums.length; k++) {
+                const n = nums[k];
+                if (!(n >= 1 && n <= 35)) {
+                    continue;
+                }
+                lineNums.push(n);
+                let labs = labelsByNum.get(n);
+                if (!labs) {
+                    labs = [];
+                    labelsByNum.set(n, labs);
+                }
+                labs.push(label);
+            }
+            numsByChainLabel.set(label, lineNums);
+        }
+        const refSet = new Set(refNums);
+        const countRefsOnChain = (label) => {
+            if (!(label >= 1 && label <= 10)) {
+                return 0;
+            }
+            const arr = numsByChainLabel.get(label) || [];
+            let c = 0;
+            const seen = new Set();
+            for (let i = 0; i < arr.length; i++) {
+                const n = arr[i];
+                if (refSet.has(n) && !seen.has(n)) {
+                    seen.add(n);
+                    c++;
+                }
+            }
+            return c;
+        };
+        let above = false;
+        let same = false;
+        let below = false;
+        const phase1Set = new Set(phase1Nums);
+        phase1Set.forEach((pn) => {
+            const labs = labelsByNum.get(pn) || [];
+            for (let i = 0; i < labs.length; i++) {
+                const L = labs[i];
+                if (!above && countRefsOnChain(L + 1) >= 2) {
+                    above = true;
+                }
+                if (!same && countRefsOnChain(L) >= 2) {
+                    same = true;
+                }
+                if (!below && countRefsOnChain(L - 1) >= 2) {
+                    below = true;
+                }
+            }
+        });
+        const none = !above && !same && !below;
+        return { hasRefs, hasPhase1, above, same, below, none };
+    }
+
+    /** Cơ sở danh sách mode PHASE1 = mọi kỳ nguồn (bằng tổng lịch sử / ALL). */
+    rowHasPhase1FilterBase(rowIndex) {
+        const rows = this.getSourceSheetRows();
+        return rowIndex >= 0 && rowIndex < rows.length;
+    }
+
+    rowMatchesPhase1Above(rowIndex) {
+        return !!this.getPhase1FilterRelation(rowIndex).above;
+    }
+
+    rowMatchesPhase1Same(rowIndex) {
+        return !!this.getPhase1FilterRelation(rowIndex).same;
+    }
+
+    rowMatchesPhase1Below(rowIndex) {
+        return !!this.getPhase1FilterRelation(rowIndex).below;
+    }
+
+    rowMatchesPhase1None(rowIndex) {
+        return !!this.getPhase1FilterRelation(rowIndex).none;
     }
 
     /**

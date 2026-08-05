@@ -6189,6 +6189,138 @@
             display: none !important;
         }
 
+        /* PHASE1 %: U = hợp cơ chế đang bật; A/S/B/N = từng cơ chế */
+        #filterTableWrap.filter-popup-phase1-u-only tbody tr[data-idx]:not(.filter-popup-phase1-above-hit):not(.filter-popup-phase1-same-hit):not(.filter-popup-phase1-below-hit):not(.filter-popup-phase1-none-hit) {
+            display: none !important;
+        }
+
+        #filterTableWrap.filter-popup-phase1-above-only tbody tr[data-idx]:not(.filter-popup-phase1-above-hit) {
+            display: none !important;
+        }
+
+        #filterTableWrap.filter-popup-phase1-same-only tbody tr[data-idx]:not(.filter-popup-phase1-same-hit) {
+            display: none !important;
+        }
+
+        #filterTableWrap.filter-popup-phase1-below-only tbody tr[data-idx]:not(.filter-popup-phase1-below-hit) {
+            display: none !important;
+        }
+
+        #filterTableWrap.filter-popup-phase1-none-only tbody tr[data-idx]:not(.filter-popup-phase1-none-hit) {
+            display: none !important;
+        }
+
+        /* PHASE1 % viền vàng (relative): sau các bước xanh */
+        #filterTableWrap.filter-popup-phase1-yu-only tbody tr[data-idx]:not(.filter-popup-phase1-miss-hit) {
+            display: none !important;
+        }
+
+        #filterTableWrap.filter-popup-phase1-yabove-only tbody tr[data-idx]:not(.filter-popup-phase1-above-miss) {
+            display: none !important;
+        }
+
+        #filterTableWrap.filter-popup-phase1-ysame-only tbody tr[data-idx]:not(.filter-popup-phase1-same-miss) {
+            display: none !important;
+        }
+
+        #filterTableWrap.filter-popup-phase1-ybelow-only tbody tr[data-idx]:not(.filter-popup-phase1-below-miss) {
+            display: none !important;
+        }
+
+        #filterPopupPhase1OverlapPct.is-phase1-miss-pct {
+            background: #eab308;
+            color: #111111;
+            border-color: #ca8a04;
+        }
+
+        .filter-popup-phase1-mech.hidden {
+            display: none !important;
+        }
+
+        .filter-popup-phase1-mech {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            flex: 0 0 auto;
+            margin: 0 2px 0 0;
+            padding: 0;
+            vertical-align: middle;
+        }
+
+        .filter-popup-phase1-mech-btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 18px;
+            min-height: 18px;
+            min-width: 34px;
+            padding: 0 4px;
+            margin: 0;
+            font: 700 9px/1 Inter, Segoe UI, Arial, sans-serif;
+            letter-spacing: 0.02em;
+            border: 1px solid #cbd5e1;
+            border-radius: 3px;
+            background: #ffffff;
+            color: #64748b;
+            cursor: pointer;
+            flex: 0 0 auto;
+            user-select: none;
+            box-sizing: border-box;
+            text-transform: uppercase;
+        }
+
+        .filter-popup-phase1-mech-btn:hover:not(:disabled) {
+            border-color: #94a3b8;
+            color: #334155;
+        }
+
+        .filter-popup-phase1-mech-btn[aria-pressed="true"] {
+            border-color: #004d00;
+            background: #006400;
+            color: #ffffff;
+        }
+
+        .filter-popup-phase1-mech-btn[aria-pressed="true"]:hover:not(:disabled) {
+            background: #005000;
+            border-color: #003d00;
+            color: #ffffff;
+        }
+
+        .filter-popup-phase1-mech-btn:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .filter-popup-phase1-pos-mode.hidden {
+            display: none !important;
+        }
+
+        /* Cùng UI dropdown mode chính (nút xanh + menu xổ xuống). */
+        .filter-popup-filter-tools .filter-popup-phase1-pos-mode.period-filter-mode-picker {
+            height: 100%;
+            flex: 0 0 auto;
+            overflow: visible;
+        }
+
+        .filter-popup-filter-tools .filter-popup-phase1-pos-mode .period-filter-mode-btn {
+            min-width: 64px;
+            text-transform: none;
+        }
+
+        .filter-popup-filter-tools .filter-popup-phase1-pos-mode .period-filter-mode-menu {
+            min-width: 96px;
+            z-index: 40;
+        }
+
+        /* PHASE1 relative: có số always-above/same/below nhưng không nằm trong đáp án */
+        #filterTableWrap tr.filter-popup-phase1-miss-hit:not(.filter-popup-row-focus):not(.filter-popup-posnfreq-submit-hit) td {
+            box-shadow: inset 0 0 0 2px #eab308;
+        }
+
+        #filterTableWrap tr.filter-popup-phase1-miss-hit.filter-popup-row-focus:not(.filter-popup-posnfreq-submit-hit) td {
+            box-shadow: inset 0 0 0 2px #eab308;
+        }
+
         #filterTableWrap.filter-popup-follow-determined-only tbody tr[data-idx]:not(.filter-popup-follow-determined-hit) {
             display: none !important;
         }
@@ -7931,6 +8063,24 @@
                     </div>
                     <button type="button" id="filterPopupHeader2Toggle" class="filter-popup-header2-toggle"
                         aria-pressed="true" title="Tắt lọc thêm 5 ô mẫu (header2)">Mẫu</button>
+                    <div id="filterPopupPhase1PosModePicker"
+                        class="period-filter-mode-picker filter-popup-phase1-pos-mode hidden" aria-hidden="true">
+                        <button type="button" id="filterPopupPhase1PosModeBtn" class="period-filter-mode-btn"
+                            aria-haspopup="listbox" aria-expanded="false"
+                            title="PHASE1: >=2 = ≥2 tham khảo kề chuỗi; relative = vị trí tương đối luôn trên/cùng/dưới số phase1">
+                            <span id="filterPopupPhase1PosModeBtnLabel">&gt;=2</span>
+                            <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
+                        </button>
+                        <ul id="filterPopupPhase1PosModeMenu" class="period-filter-mode-menu hidden" role="listbox"
+                            aria-label="PHASE1 vị trí: >=2 hoặc relative">
+                            <li class="period-filter-mode-item" role="option" data-phase1-pos="ge2">
+                                <span class="period-filter-mode-item-label">&gt;=2</span>
+                            </li>
+                            <li class="period-filter-mode-item" role="option" data-phase1-pos="relative">
+                                <span class="period-filter-mode-item-label">relative</span>
+                            </li>
+                        </ul>
+                    </div>
                     <div id="filterPopupNoteTagTools" class="filter-popup-note-tag-tools hidden">
                         <div id="filterPopupNoteTagPicker" class="filter-popup-note-tag-picker">
                             <button type="button" id="filterPopupNoteTagBtn" class="filter-popup-note-tag-btn" disabled
@@ -8131,6 +8281,22 @@
                         <button type="button" id="filterPopupTrackingBellyAdd"
                             class="filter-popup-tracking-belly-add" title="Thêm bụng lọc" aria-label="Thêm bụng">+</button>
                     </div>
+                    <div id="filterPopupPhase1MechPicker" class="filter-popup-phase1-mech hidden"
+                        role="group" aria-label="PHASE1: above / same / below / none" aria-hidden="true"
+                        title="PHASE1: >=2 = ≥2 tham khảo kề chuỗi; relative = số gọi luôn trên/cùng/dưới số phase1.">
+                        <button type="button" id="filterPopupPhase1AboveBtn"
+                            class="filter-popup-phase1-mech-btn" aria-pressed="true"
+                            title="ABOVE: ≥2 số tham khảo ở Chuỗi ngay trên (L+1) một số phase1 tím trên Chuỗi L">ABOVE</button>
+                        <button type="button" id="filterPopupPhase1SameBtn"
+                            class="filter-popup-phase1-mech-btn" aria-pressed="false"
+                            title="SAME: ≥2 số tham khảo cùng Chuỗi L với một số phase1 tím">SAME</button>
+                        <button type="button" id="filterPopupPhase1BelowBtn"
+                            class="filter-popup-phase1-mech-btn" aria-pressed="false"
+                            title="BELOW: ≥2 số tham khảo ở Chuỗi ngay dưới (L−1) một số phase1 tím trên Chuỗi L">BELOW</button>
+                        <button type="button" id="filterPopupPhase1NoneBtn"
+                            class="filter-popup-phase1-mech-btn" aria-pressed="false"
+                            title="NONE: kỳ không khớp ABOVE/SAME/BELOW (phần bù; bật cả 4 = đủ lịch sử)">NONE</button>
+                    </div>
                     <div id="filterPopupDatebandFreqPicker" class="filter-popup-dateband-freq hidden"
                         aria-hidden="true">
                         <div class="filter-popup-intersection-freq" role="group"
@@ -8274,8 +8440,12 @@
                         aria-label="Phần trăm kỳ 3-connection">3C 0%</button>
                     <button type="button" id="filterPopupTrackingOverlapPct"
                         class="filter-popup-posnfreq-overlap-pct is-tracking-pct-btn" hidden aria-pressed="false"
-                        title="T = hiện đủ kỳ có bụng. Nhấn: T → I/O (viền xanh đủ) → I → O. Trạng thái I hoặc O chỉ hiện khi cơ chế IN/OUT tương ứng đang bật."
+                        title="T = hiện đủ kỳ có bụng. Nhấn: T → (I/O chỉ khi IN+OUT cùng bật) → I và/hoặc O theo cơ chế đang bật."
                         aria-label="Lọc mẫu TRACKING T / I/O / I / O">T 0%</button>
+                    <button type="button" id="filterPopupPhase1OverlapPct"
+                        class="filter-popup-posnfreq-overlap-pct is-phase1-pct-btn" hidden aria-pressed="false"
+                        title="T = hiện đủ. Nhấn: T → (hợp xanh→vàng) → A→YA → S→YS → B→YB (relative). Xanh = trong đáp án; vàng = thỏa quan hệ nhưng không trong đáp án."
+                        aria-label="Lọc mẫu PHASE1 T / xanh / vàng">T 0%</button>
                     <button type="button" id="filterPopupConnectionOverlapPct"
                         class="filter-popup-posnfreq-overlap-pct is-connection-pct-btn" hidden aria-pressed="false"
                         title="U/D = connection unique/duplicate. Nhấn: chỉ unique (xanh) → chỉ duplicate (đỏ) → hiện đủ. AND với nút F (follow)."
@@ -8462,7 +8632,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260806trackingBellyOutBelow"></script>
+    <script src="right-pane-sheets.js?v=20260806phase1RelYellow"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -8586,9 +8756,14 @@
             intersection: 'intersection',
             posnfreq: 'posnfreq',
             special: 'special',
-            tracking: 'TRACKING'
+            tracking: 'TRACKING',
+            phase1: 'PHASE1'
         };
         const FILTER_TRACKING_BELLY_KEY = 'filterTrackingBelly';
+        const FILTER_PHASE1_MECH_KEY = 'filterPhase1Mech';
+        const FILTER_PHASE1_POS_MODE_KEY = 'filterPhase1PosMode';
+        const FILTER_PHASE1_POS_GE2 = 'ge2';
+        const FILTER_PHASE1_POS_RELATIVE = 'relative';
         const FILTER_TRACKING_BELLY_SIZE_MIN = 2;
         const FILTER_TRACKING_BELLY_SIZE_MAX = 20;
         const FILTER_TRACKING_BELLY_STREAK_MIN = 1;
@@ -8700,12 +8875,24 @@
          * T = mọi kỳ có bụng; I/O = chỉ viền xanh IN∪OUT; I hoặc O = chỉ từng cơ chế nếu đang bật.
          */
         let filterPopupTrackingSubfilter = 't';
+        /**
+         * PHASE1 nút %: 't' | 'u' (hợp) | 'above' | 'same' | 'below' | 'none' | 'off'.
+         * T = mọi kỳ base; U = viền xanh hợp cơ chế đang bật; còn lại = từng cơ chế.
+         */
+        let filterPopupPhase1Subfilter = 't';
         /** Mode TRACKING: danh sách bụng [{size, streak}] — AND, tối thiểu 1 (mặc định 2三) */
         let filterTrackingBellies = [{ size: 2, streak: 3 }];
         /** TRACKING: viền xanh khi pick trong bụng (mặc định bật — hành vi cũ) */
         let filterTrackingPickIn = true;
         /** TRACKING: viền xanh khi pick số ngay dưới brace bụng */
         let filterTrackingPickOut = false;
+        /** PHASE1: 4 cơ chế viền xanh (mặc định ABOVE bật) */
+        let filterPhase1Above = true;
+        let filterPhase1Same = false;
+        let filterPhase1Below = false;
+        let filterPhase1None = false;
+        /** PHASE1: 'ge2' (>=2 tham khảo kề chuỗi) | 'relative' (vị trí tương đối) */
+        let filterPhase1PosMode = FILTER_PHASE1_POS_GE2;
         let filterPopupFollowSubfilter = 'off';
         let filterPopupFollowDeterminedPct = 0;
         let filterPopupConnectionSubfilter = 'off';
@@ -10501,6 +10688,9 @@
             if (isTrackingFilterMode(mode)) {
                 return 'TRACKING (basic): lọc kỳ có đủ mọi bụng (AND); IN = pick trong bụng; OUT = pick số ngay dưới bụng';
             }
+            if (isPhase1FilterMode(mode)) {
+                return 'PHASE1: mẫu = tổng lịch sử. ABOVE/SAME/BELOW = ≥2 số tham khảo ở Chuỗi L+1 / L / L−1 so với một số tím phase1 xuất hiện trên Chuỗi L; NONE = phần bù';
+            }
             return getFilterModeLabel(mode);
         }
 
@@ -10537,6 +10727,10 @@
 
         function isTrackingFilterMode(mode) {
             return normalizeFilterMode(mode) === 'tracking';
+        }
+
+        function isPhase1FilterMode(mode) {
+            return normalizeFilterMode(mode) === 'phase1';
         }
 
         function isAllFilterMode(mode) {
@@ -10747,12 +10941,19 @@ function getFilterNoteTRefMaxSelections(mode) {
             };
         }
 
+        function getPhase1FilterOptions() {
+            return {};
+        }
+
         function getFilterOptionsForMode(mode) {
             if (isNonexistFilterMode(mode)) {
                 return getNonexistFilterOptions();
             }
             if (isTrackingFilterMode(mode)) {
                 return getTrackingFilterOptions();
+            }
+            if (isPhase1FilterMode(mode)) {
+                return getPhase1FilterOptions();
             }
             if (isPosnfreqFilterMode(mode)) {
                 return getPosnfreqFilterOptionsForMatching();
@@ -16610,6 +16811,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (isTrackingFilterMode(normalized)) {
                 return getTrackingFilterOptions();
             }
+            if (isPhase1FilterMode(normalized)) {
+                return getPhase1FilterOptions();
+            }
             if (isPosnfreqFilterMode(normalized)) {
                 return getPosnfreqFilterOptionsForMatching();
             }
@@ -16930,6 +17134,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                     .join(' AND ');
                 return `Không có kỳ nào có đủ bụng ${labels || '—'} trên tracking basic.`;
             }
+            if (isPhase1FilterMode(normalized)) {
+                return 'Không có kỳ nào trong lịch sử.';
+            }
             if (isIntersectionFilterMode(normalized)) {
                 const k = filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
                 const oxa = normalizeIntersectionFreqOp(filterIntersectionOpX);
@@ -17106,6 +17313,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupIntersectionKindMenu();
             closeFilterPopupSpecialTrendMenus();
+            closeFilterPopupPhase1PosModeMenu();
             periodFilterMenuAnchor = anchor === 'popup' ? 'popup' : 'toolbar';
             const menu = getPeriodFilterMenu();
             const { modeBtn, picker } = getPeriodFilterPicker(periodFilterMenuAnchor);
@@ -17209,6 +17417,13 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             if (isTrackingFilterMode(prevMode) && !isTrackingFilterMode(periodFilterMode)) {
                 setFilterPopupTrackingSubfilter('off', { skipReconcile: true, skipCounts: true });
+            }
+            if (isPhase1FilterMode(prevMode) && !isPhase1FilterMode(periodFilterMode)) {
+                setFilterPopupPhase1Subfilter('off', { skipReconcile: true, skipCounts: true });
+            }
+            if (isPhase1FilterMode(periodFilterMode)) {
+                // Đổi sang PHASE1: bỏ HTML cache cũ (mẫu nhỏ) để count/bảng khớp tổng lịch sử.
+                invalidateFilterPopupRenderCache();
             }
             if (isFollowPctFilterMode(prevMode) && !isFollowPctFilterMode(periodFilterMode)) {
                 setFilterPopupFollowSubfilter('off', { skipReconcile: true, skipCounts: true });
@@ -17359,7 +17574,11 @@ function getFilterNoteTRefMaxSelections(mode) {
         }
 
         function getAvailableFilterPopupTrackingSubfilters() {
-            const modes = ['t', 'io'];
+            // I/O (hợp) chỉ khi IN và OUT cùng bật — giống PHASE1 chỉ có U khi ≥2 cơ chế.
+            const modes = ['t'];
+            if (filterTrackingPickIn && filterTrackingPickOut) {
+                modes.push('io');
+            }
             if (filterTrackingPickIn) {
                 modes.push('in');
             }
@@ -17377,6 +17596,15 @@ function getFilterNoteTRefMaxSelections(mode) {
             const available = getAvailableFilterPopupTrackingSubfilters();
             if (available.includes(m)) {
                 return m;
+            }
+            // Đang ở I/O rồi tắt còn 1 cơ chế → chuyển sang đúng I hoặc O (không nhảy về T).
+            if (m === 'io') {
+                if (available.includes('in') && !available.includes('out')) {
+                    return 'in';
+                }
+                if (available.includes('out') && !available.includes('in')) {
+                    return 'out';
+                }
             }
             return 't';
         }
@@ -17419,6 +17647,210 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             const m = normalizeFilterPopupTrackingSubfilter(filterPopupTrackingSubfilter);
             return m === 'io' || m === 'in' || m === 'out';
+        }
+
+        function isFilterPhase1RelativePosMode() {
+            return filterPhase1PosMode === FILTER_PHASE1_POS_RELATIVE;
+        }
+
+        function normalizeFilterPhase1PosMode(mode) {
+            return mode === FILTER_PHASE1_POS_RELATIVE
+                ? FILTER_PHASE1_POS_RELATIVE
+                : FILTER_PHASE1_POS_GE2;
+        }
+
+        function getAvailableFilterPopupPhase1Subfilters() {
+            const relative = isFilterPhase1RelativePosMode();
+            const mech = [];
+            if (filterPhase1Above) {
+                mech.push('above');
+            }
+            if (filterPhase1Same) {
+                mech.push('same');
+            }
+            if (filterPhase1Below) {
+                mech.push('below');
+            }
+            // relative: không có NONE
+            if (filterPhase1None && !relative) {
+                mech.push('none');
+            }
+            // Chỉ 1 cơ chế: bỏ bước hợp `u` (nhãn trùng A/S/B/N → toggle A hai lần).
+            // relative: xanh rồi vàng liền cặp — u→yu, A→YA, S→YS, B→YB (không dồn vàng cuối).
+            const modes = ['t'];
+            if (mech.length >= 2) {
+                modes.push('u');
+                if (relative) {
+                    modes.push('yu');
+                }
+            }
+            for (let i = 0; i < mech.length; i++) {
+                const m = mech[i];
+                modes.push(m);
+                if (relative && (m === 'above' || m === 'same' || m === 'below')) {
+                    modes.push('y' + m);
+                }
+            }
+            return modes;
+        }
+
+        function isFilterPopupPhase1MissSubfilterMode(mode) {
+            const m = String(mode || '');
+            return m === 'yu' || m === 'yabove' || m === 'ysame' || m === 'ybelow';
+        }
+
+        function normalizeFilterPopupPhase1Subfilter(mode) {
+            const m = String(mode || '');
+            if (m === 'off') {
+                return 'off';
+            }
+            const available = getAvailableFilterPopupPhase1Subfilters();
+            if (available.includes(m)) {
+                return m;
+            }
+            // Đang ở hợp u rồi tắt còn 1 cơ chế → chuyển sang đúng cơ chế đó (không nhảy về T).
+            if (m === 'u') {
+                const only = available.filter((x) => x !== 't' && x !== 'u' && !isFilterPopupPhase1MissSubfilterMode(x));
+                if (only.length === 1) {
+                    return only[0];
+                }
+            }
+            if (m === 'yu') {
+                const onlyY = available.filter((x) => x === 'yabove' || x === 'ysame' || x === 'ybelow');
+                if (onlyY.length === 1) {
+                    return onlyY[0];
+                }
+            }
+            return 't';
+        }
+
+        function getNextFilterPopupPhase1Subfilter(current) {
+            const available = getAvailableFilterPopupPhase1Subfilters();
+            const cur = normalizeFilterPopupPhase1Subfilter(current);
+            const idx = available.indexOf(cur);
+            return available[(idx >= 0 ? idx + 1 : 0) % available.length];
+        }
+
+        function getFilterPopupPhase1UnionLabel() {
+            const parts = [];
+            if (filterPhase1Above) {
+                parts.push('A');
+            }
+            if (filterPhase1Same) {
+                parts.push('S');
+            }
+            if (filterPhase1Below) {
+                parts.push('B');
+            }
+            if (filterPhase1None) {
+                parts.push('N');
+            }
+            return parts.length ? parts.join('/') : 'U';
+        }
+
+        function getFilterPopupPhase1SubfilterLabel(mode) {
+            const m = normalizeFilterPopupPhase1Subfilter(mode);
+            if (m === 'above') {
+                return 'A';
+            }
+            if (m === 'same') {
+                return 'S';
+            }
+            if (m === 'below') {
+                return 'B';
+            }
+            if (m === 'none') {
+                return 'N';
+            }
+            if (m === 'u') {
+                return getFilterPopupPhase1UnionLabel();
+            }
+            if (m === 'yabove') {
+                return 'YA';
+            }
+            if (m === 'ysame') {
+                return 'YS';
+            }
+            if (m === 'ybelow') {
+                return 'YB';
+            }
+            if (m === 'yu') {
+                return 'Y' + getFilterPopupPhase1UnionLabel();
+            }
+            return 'T';
+        }
+
+        function applyFilterPopupPhase1SubfilterWrapClasses(wrap, mode) {
+            if (!wrap) {
+                return;
+            }
+            const m = normalizeFilterPopupPhase1Subfilter(mode);
+            wrap.classList.toggle('filter-popup-phase1-u-only', m === 'u');
+            wrap.classList.toggle('filter-popup-phase1-above-only', m === 'above');
+            wrap.classList.toggle('filter-popup-phase1-same-only', m === 'same');
+            wrap.classList.toggle('filter-popup-phase1-below-only', m === 'below');
+            wrap.classList.toggle('filter-popup-phase1-none-only', m === 'none');
+            wrap.classList.toggle('filter-popup-phase1-yu-only', m === 'yu');
+            wrap.classList.toggle('filter-popup-phase1-yabove-only', m === 'yabove');
+            wrap.classList.toggle('filter-popup-phase1-ysame-only', m === 'ysame');
+            wrap.classList.toggle('filter-popup-phase1-ybelow-only', m === 'ybelow');
+        }
+
+        function isFilterPopupPhase1SubfilterActive() {
+            if (!periodFilterEnabled || !isPhase1FilterMode(periodFilterMode)) {
+                return false;
+            }
+            const m = normalizeFilterPopupPhase1Subfilter(filterPopupPhase1Subfilter);
+            return m === 'u' || m === 'above' || m === 'same' || m === 'below' || m === 'none'
+                || isFilterPopupPhase1MissSubfilterMode(m);
+        }
+
+        function collectFilterPopupPhase1HitIndicesOrdered(wrap) {
+            if (!wrap) {
+                return [];
+            }
+            const mode = normalizeFilterPopupPhase1Subfilter(filterPopupPhase1Subfilter);
+            const out = [];
+            const seen = new Set();
+            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                const idx = Number(tr.dataset.idx);
+                if (!Number.isFinite(idx) || seen.has(idx)) {
+                    return;
+                }
+                const aboveHit = tr.classList.contains('filter-popup-phase1-above-hit');
+                const sameHit = tr.classList.contains('filter-popup-phase1-same-hit');
+                const belowHit = tr.classList.contains('filter-popup-phase1-below-hit');
+                const noneHit = tr.classList.contains('filter-popup-phase1-none-hit');
+                const aboveMiss = tr.classList.contains('filter-popup-phase1-above-miss');
+                const sameMiss = tr.classList.contains('filter-popup-phase1-same-miss');
+                const belowMiss = tr.classList.contains('filter-popup-phase1-below-miss');
+                const anyMiss = tr.classList.contains('filter-popup-phase1-miss-hit');
+                let ok = false;
+                if (mode === 'above') {
+                    ok = aboveHit;
+                } else if (mode === 'same') {
+                    ok = sameHit;
+                } else if (mode === 'below') {
+                    ok = belowHit;
+                } else if (mode === 'none') {
+                    ok = noneHit;
+                } else if (mode === 'yabove') {
+                    ok = aboveMiss;
+                } else if (mode === 'ysame') {
+                    ok = sameMiss;
+                } else if (mode === 'ybelow') {
+                    ok = belowMiss;
+                } else if (mode === 'yu') {
+                    ok = anyMiss;
+                } else {
+                    ok = aboveHit || sameHit || belowHit || noneHit;
+                }
+                if (ok) {
+                    seen.add(idx);
+                    out.push(idx);
+                }
+            });
+            return out;
         }
 
         function collectFilterPopupFollowDeterminedHitIndicesOrdered(wrap) {
@@ -17568,6 +18000,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             return (filterPopupPosnfreqGreenOnly && isPosnfreqFilterMode(periodFilterMode))
                 || (filterPopupConn3WindowOnly && isConn3FilterMode(periodFilterMode))
                 || isFilterPopupTrackingSubfilterActive()
+                || isFilterPopupPhase1SubfilterActive()
                 || isFilterPopupFollowSubfilterActive()
                 || isFilterPopupConnectionSubfilterActive()
                 || isFilterSpecialKindsSubfilterActive();
@@ -17607,6 +18040,10 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (isFilterPopupTrackingSubfilterActive()) {
                 trackingHits = collectFilterPopupTrackingHitIndicesOrdered(wrap);
             }
+            let phase1Hits = null;
+            if (isFilterPopupPhase1SubfilterActive()) {
+                phase1Hits = collectFilterPopupPhase1HitIndicesOrdered(wrap);
+            }
             let specialHits = null;
             if (isFilterSpecialKindsSubfilterActive()) {
                 specialHits = collectFilterPopupSpecialHitIndicesOrdered(wrap);
@@ -17637,6 +18074,14 @@ function getFilterNoteTRefMaxSelections(mode) {
                     list = trackingHits;
                 } else {
                     const setB = new Set(trackingHits);
+                    list = list.filter((idx) => setB.has(idx));
+                }
+            }
+            if (phase1Hits !== null) {
+                if (list === null) {
+                    list = phase1Hits;
+                } else {
+                    const setB = new Set(phase1Hits);
                     list = list.filter((idx) => setB.has(idx));
                 }
             }
@@ -17671,6 +18116,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (isFilterPopupTrackingSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
+            if (isPhase1FilterMode(periodFilterMode)) {
+                return getPhase1LiveFilteredCount();
+            }
             if (isFilterPopupFollowSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
@@ -17698,13 +18146,19 @@ function getFilterNoteTRefMaxSelections(mode) {
 
         function reconcileFilterPopupActiveAfterSubfilterToggle(opts = {}) {
             const previewOnly = opts.syncPreview !== false;
+            const skipScroll = opts.skipScroll === true;
             if (!isFilterPopupSubfilterOnlyActive()) {
                 const displayList = getFilterPopupDisplayIndices();
                 const keepFollowAnchor = isFollowPctFilterMode(periodFilterMode)
                     && typeof filterPopupActiveIdx === 'number'
                     && filterPopupActiveIdx >= 0
                     && displayList.includes(filterPopupActiveIdx);
-                if (!keepFollowAnchor) {
+                // PHASE1: giữ hàng đang xem (vd 115) — không nhảy theo focus main (thường cuối sheet).
+                const keepPhase1Anchor = isPhase1FilterMode(periodFilterMode)
+                    && typeof filterPopupActiveIdx === 'number'
+                    && filterPopupActiveIdx >= 0
+                    && displayList.includes(filterPopupActiveIdx);
+                if (!keepFollowAnchor && !keepPhase1Anchor) {
                     filterPopupActiveIdx = resolveFilterPopupActiveIdx(displayList);
                 }
                 applyFilterPopupRowFocus(filterPopupActiveIdx);
@@ -17720,7 +18174,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                         setFilterPopupPositionInputWidth(positionInput, posText);
                     }
                 }
-                if (filterPopupActiveIdx >= 0) {
+                if (!skipScroll && filterPopupActiveIdx >= 0) {
                     scrollFilterPopupRowIntoView();
                 }
                 return;
@@ -17743,7 +18197,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                         setFilterPopupPositionText(positionInput, posText);
                         setFilterPopupPositionInputWidth(positionInput, posText);
                     }
-                    if (filterPopupActiveIdx >= 0) {
+                    if (!skipScroll && filterPopupActiveIdx >= 0) {
                         scrollFilterPopupRowIntoView();
                     }
                 } else {
@@ -17763,7 +18217,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                         setFilterPopupPositionText(positionInput, posText);
                         setFilterPopupPositionInputWidth(positionInput, posText);
                     }
-                    if (filterPopupActiveIdx >= 0) {
+                    if (!skipScroll && filterPopupActiveIdx >= 0) {
                         scrollFilterPopupRowIntoView();
                     }
                 } else {
@@ -17772,7 +18226,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
                 return;
             }
-            if (!list.includes(filterPopupActiveIdx)) {
+            if (isPhase1FilterMode(periodFilterMode) && list.includes(filterPopupActiveIdx)) {
+                // Giữ hàng đang xem khi thu hẹp % — không nhảy list[0].
+            } else if (!list.includes(filterPopupActiveIdx)) {
                 filterPopupActiveIdx = list[0];
             }
             applyFilterPopupRowFocus(filterPopupActiveIdx);
@@ -17784,7 +18240,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 setFilterPopupPositionText(positionInput, posText);
                 setFilterPopupPositionInputWidth(positionInput, posText);
             }
-            if (filterPopupActiveIdx >= 0) {
+            if (!skipScroll && filterPopupActiveIdx >= 0) {
                 scrollFilterPopupRowIntoView();
             }
         }
@@ -17949,6 +18405,398 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
             });
             return true;
+        }
+
+        function loadFilterPhase1MechSettings() {
+            try {
+                const raw = localStorage.getItem(FILTER_PHASE1_MECH_KEY);
+                if (!raw) {
+                    return;
+                }
+                const parsed = JSON.parse(raw);
+                if (!parsed || typeof parsed !== 'object') {
+                    return;
+                }
+                if (typeof parsed.above === 'boolean') {
+                    filterPhase1Above = parsed.above;
+                }
+                if (typeof parsed.same === 'boolean') {
+                    filterPhase1Same = parsed.same;
+                }
+                if (typeof parsed.below === 'boolean') {
+                    filterPhase1Below = parsed.below;
+                }
+                if (typeof parsed.none === 'boolean') {
+                    filterPhase1None = parsed.none;
+                }
+            } catch (eLoad) { /* ignore */ }
+            try {
+                filterPhase1PosMode = normalizeFilterPhase1PosMode(
+                    localStorage.getItem(FILTER_PHASE1_POS_MODE_KEY)
+                );
+            } catch (ePos) {
+                filterPhase1PosMode = FILTER_PHASE1_POS_GE2;
+            }
+        }
+
+        function saveFilterPhase1MechSettings() {
+            try {
+                localStorage.setItem(FILTER_PHASE1_MECH_KEY, JSON.stringify({
+                    above: !!filterPhase1Above,
+                    same: !!filterPhase1Same,
+                    below: !!filterPhase1Below,
+                    none: !!filterPhase1None
+                }));
+            } catch (eSave) { /* ignore */ }
+            try {
+                localStorage.setItem(FILTER_PHASE1_POS_MODE_KEY, filterPhase1PosMode);
+            } catch (ePosSave) { /* ignore */ }
+        }
+
+        function syncFilterPopupPhase1MechButtons() {
+            const show = periodFilterEnabled && isPhase1FilterMode(periodFilterMode);
+            const relative = isFilterPhase1RelativePosMode();
+            const map = [
+                ['filterPopupPhase1AboveBtn', filterPhase1Above],
+                ['filterPopupPhase1SameBtn', filterPhase1Same],
+                ['filterPopupPhase1BelowBtn', filterPhase1Below],
+                ['filterPopupPhase1NoneBtn', filterPhase1None]
+            ];
+            for (let i = 0; i < map.length; i++) {
+                const btn = el(map[i][0]);
+                if (!btn) {
+                    continue;
+                }
+                const isNone = map[i][0] === 'filterPopupPhase1NoneBtn';
+                btn.hidden = !!(isNone && relative);
+                btn.disabled = !show || (isNone && relative);
+                btn.setAttribute('aria-pressed', map[i][1] ? 'true' : 'false');
+            }
+        }
+
+        function syncFilterPopupPhase1PosModeUi() {
+            const picker = el('filterPopupPhase1PosModePicker');
+            const btn = el('filterPopupPhase1PosModeBtn');
+            const label = el('filterPopupPhase1PosModeBtnLabel');
+            const menu = el('filterPopupPhase1PosModeMenu');
+            const show = periodFilterEnabled && isPhase1FilterMode(periodFilterMode);
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+                picker.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+            if (!show) {
+                closeFilterPopupPhase1PosModeMenu();
+                if (btn) {
+                    btn.disabled = true;
+                }
+                return;
+            }
+            if (btn) {
+                btn.disabled = false;
+            }
+            if (label) {
+                label.textContent = isFilterPhase1RelativePosMode() ? 'relative' : '>=2';
+            }
+            if (menu) {
+                menu.querySelectorAll('.period-filter-mode-item[data-phase1-pos]').forEach((item) => {
+                    const v = item.getAttribute('data-phase1-pos');
+                    item.classList.toggle('selected', v === filterPhase1PosMode);
+                });
+            }
+        }
+
+        function positionFilterPopupPhase1PosModeMenu() {
+            const menu = el('filterPopupPhase1PosModeMenu');
+            const btn = el('filterPopupPhase1PosModeBtn');
+            if (!menu || !btn) {
+                return;
+            }
+            const rect = btn.getBoundingClientRect();
+            menu.style.left = `${Math.max(8, rect.left)}px`;
+            menu.style.top = `${rect.bottom + 2}px`;
+            menu.style.minWidth = `${Math.max(rect.width, 88)}px`;
+        }
+
+        function closeFilterPopupPhase1PosModeMenu() {
+            const menu = el('filterPopupPhase1PosModeMenu');
+            const btn = el('filterPopupPhase1PosModeBtn');
+            const picker = el('filterPopupPhase1PosModePicker');
+            if (menu) {
+                menu.classList.add('hidden');
+                if (picker && menu.parentElement === document.body) {
+                    picker.appendChild(menu);
+                }
+            }
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+                btn.classList.remove('is-menu-open');
+            }
+        }
+
+        function openFilterPopupPhase1PosModeMenu() {
+            closePeriodFilterModeMenu();
+            closeFilterPopupNoteTagMenu();
+            closeFilterPopupNoteTRefMenu();
+            closeFilterPopupNonexistColorMenu();
+            closeFilterPopupIntersectionKindMenu();
+            closeFilterPopupSpecialTrendMenus();
+            const menu = el('filterPopupPhase1PosModeMenu');
+            const btn = el('filterPopupPhase1PosModeBtn');
+            const picker = el('filterPopupPhase1PosModePicker');
+            if (!menu || !btn || btn.disabled || !picker) {
+                return;
+            }
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
+            positionFilterPopupPhase1PosModeMenu();
+            menu.classList.remove('hidden');
+            bumpFloatingOverlayZIndex(menu);
+            btn.setAttribute('aria-expanded', 'true');
+            btn.classList.add('is-menu-open');
+        }
+
+        function setFilterPhase1PosMode(mode) {
+            const next = normalizeFilterPhase1PosMode(mode);
+            if (filterPhase1PosMode === next) {
+                closeFilterPopupPhase1PosModeMenu();
+                return false;
+            }
+            filterPhase1PosMode = next;
+            if (isFilterPhase1RelativePosMode()) {
+                // relative không có NONE
+                filterPhase1None = false;
+            }
+            saveFilterPhase1MechSettings();
+            closeFilterPopupPhase1PosModeMenu();
+            syncFilterPopupPhase1PosModeUi();
+            syncFilterPopupPhase1MechButtons();
+            filterPopupPhase1Subfilter = normalizeFilterPopupPhase1Subfilter(filterPopupPhase1Subfilter);
+            const wrap = el('filterTableWrap');
+            const savedScroll = wrap ? wrap.scrollTop : 0;
+            try {
+                syncFilterPopupPhase1Overlap({ keepScroll: true, skipReconcile: true });
+                updateFilterPopupMatchCount();
+            } finally {
+                if (wrap) {
+                    wrap.scrollTop = savedScroll;
+                }
+            }
+            return true;
+        }
+
+        function syncFilterPopupPhase1MechUi() {
+            const picker = el('filterPopupPhase1MechPicker');
+            const show = periodFilterEnabled && isPhase1FilterMode(periodFilterMode);
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+                picker.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+            syncFilterPopupPhase1PosModeUi();
+            syncFilterPopupPhase1MechButtons();
+            // Cập nhật tooltip theo mode
+            const aboveBtn = el('filterPopupPhase1AboveBtn');
+            const sameBtn = el('filterPopupPhase1SameBtn');
+            const belowBtn = el('filterPopupPhase1BelowBtn');
+            if (isFilterPhase1RelativePosMode()) {
+                if (aboveBtn) {
+                    aboveBtn.title = 'ABOVE (relative): số gọi R (freq≥2) luôn nằm ngay trên một số phase1 P (R@L ⇒ P@L−1)';
+                }
+                if (sameBtn) {
+                    sameBtn.title = 'SAME (relative): số gọi R (freq≥2) luôn cùng chuỗi với một số phase1 P';
+                }
+                if (belowBtn) {
+                    belowBtn.title = 'BELOW (relative): số gọi R (freq≥2) luôn nằm ngay dưới một số phase1 P (R@L ⇒ P@L+1)';
+                }
+            } else {
+                if (aboveBtn) {
+                    aboveBtn.title = 'ABOVE: ≥2 số tham khảo ở Chuỗi ngay trên (L+1) một số phase1 tím trên Chuỗi L';
+                }
+                if (sameBtn) {
+                    sameBtn.title = 'SAME: ≥2 số tham khảo cùng Chuỗi L với một số phase1 tím';
+                }
+                if (belowBtn) {
+                    belowBtn.title = 'BELOW: ≥2 số tham khảo ở Chuỗi ngay dưới (L−1) một số phase1 tím trên Chuỗi L';
+                }
+            }
+        }
+
+        function setFilterPhase1Mech(which, on) {
+            if (!periodFilterEnabled || !isPhase1FilterMode(periodFilterMode)) {
+                return false;
+            }
+            const next = !!on;
+            let changed = false;
+            if (which === 'above' && filterPhase1Above !== next) {
+                filterPhase1Above = next;
+                changed = true;
+            } else if (which === 'same' && filterPhase1Same !== next) {
+                filterPhase1Same = next;
+                changed = true;
+            } else if (which === 'below' && filterPhase1Below !== next) {
+                filterPhase1Below = next;
+                changed = true;
+            } else if (which === 'none' && filterPhase1None !== next) {
+                filterPhase1None = next;
+                changed = true;
+            }
+            if (!changed) {
+                return false;
+            }
+            saveFilterPhase1MechSettings();
+            syncFilterPopupPhase1MechButtons();
+            filterPopupPhase1Subfilter = normalizeFilterPopupPhase1Subfilter(filterPopupPhase1Subfilter);
+            // Chỉ đổi viền/% — giữ scroll đang xem (vd quanh 115), không loading/reconcile nhảy cuối.
+            const wrap = el('filterTableWrap');
+            const savedScroll = wrap ? wrap.scrollTop : 0;
+            try {
+                syncFilterPopupPhase1Overlap({ keepScroll: true, skipReconcile: true });
+                updateFilterPopupMatchCount();
+            } finally {
+                if (wrap) {
+                    wrap.scrollTop = savedScroll;
+                }
+            }
+            return true;
+        }
+
+        function initFilterPopupPhase1MechControls() {
+            loadFilterPhase1MechSettings();
+            syncFilterPopupPhase1MechUi();
+            const root = el('filterPopupPhase1MechPicker');
+            if (!root || root.dataset.bound === '1') {
+                return;
+            }
+            root.dataset.bound = '1';
+            root.addEventListener('mousedown', (event) => event.stopPropagation());
+            root.addEventListener('click', (event) => event.stopPropagation());
+            const bind = (id, which, getter) => {
+                const btn = el(id);
+                if (!btn) {
+                    return;
+                }
+                const run = () => setFilterPhase1Mech(which, !getter());
+                btn.addEventListener('pointerdown', (event) => {
+                    if (event.button !== 0) {
+                        return;
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    run();
+                });
+                btn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (event.detail === 0) {
+                        run();
+                    }
+                });
+            };
+            bind('filterPopupPhase1AboveBtn', 'above', () => filterPhase1Above);
+            bind('filterPopupPhase1SameBtn', 'same', () => filterPhase1Same);
+            bind('filterPopupPhase1BelowBtn', 'below', () => filterPhase1Below);
+            bind('filterPopupPhase1NoneBtn', 'none', () => filterPhase1None);
+        }
+
+        function initFilterPopupPhase1PosModeControls() {
+            loadFilterPhase1MechSettings();
+            syncFilterPopupPhase1PosModeUi();
+            const btn = el('filterPopupPhase1PosModeBtn');
+            const menu = el('filterPopupPhase1PosModeMenu');
+            const picker = el('filterPopupPhase1PosModePicker');
+            if (!btn || !menu || !picker || picker.dataset.bound === '1') {
+                return;
+            }
+            picker.dataset.bound = '1';
+            picker.addEventListener('mousedown', (event) => event.stopPropagation());
+            picker.addEventListener('click', (event) => event.stopPropagation());
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (btn.disabled) {
+                    return;
+                }
+                if (menu.classList.contains('hidden')) {
+                    openFilterPopupPhase1PosModeMenu();
+                } else {
+                    closeFilterPopupPhase1PosModeMenu();
+                }
+            });
+            menu.addEventListener('click', (event) => {
+                const item = event.target && event.target.closest
+                    ? event.target.closest('.period-filter-mode-item[data-phase1-pos]')
+                    : null;
+                if (!item) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                setFilterPhase1PosMode(item.getAttribute('data-phase1-pos'));
+            });
+            document.addEventListener('mousedown', (event) => {
+                const t = event.target;
+                if (picker.contains(t) || menu.contains(t)) {
+                    return;
+                }
+                closeFilterPopupPhase1PosModeMenu();
+            });
+            window.addEventListener('resize', () => {
+                if (!menu.classList.contains('hidden')) {
+                    positionFilterPopupPhase1PosModeMenu();
+                }
+            });
+        }
+
+        function setFilterPopupPhase1Subfilter(mode, opts = {}) {
+            const next = mode === 'off' ? 'off' : normalizeFilterPopupPhase1Subfilter(mode);
+            filterPopupPhase1Subfilter = next;
+            const wrap = el('filterTableWrap');
+            if (opts.skipReconcile && opts.skipCounts) {
+                applyFilterPopupPhase1SubfilterWrapClasses(wrap, next);
+                return;
+            }
+            showFilterPopupLoading();
+            yieldAfterFilterPopupPaint(() => {
+                try {
+                    syncFilterPopupPhase1Overlap();
+                    requestAnimationFrame(() => {
+                        if (filterPopupActiveIdx >= 0) {
+                            scrollFilterPopupRowIntoView();
+                        }
+                    });
+                } finally {
+                    clearFilterPopupLoadingState();
+                }
+            });
+        }
+
+        function initFilterPopupPhase1OverlapPctToggle() {
+            const btn = el('filterPopupPhase1OverlapPct');
+            if (!btn || btn.dataset.phase1PctBound === '1') {
+                return;
+            }
+            btn.dataset.phase1PctBound = '1';
+            const run = () => {
+                if (btn.hidden) {
+                    return;
+                }
+                setFilterPopupPhase1Subfilter(getNextFilterPopupPhase1Subfilter(filterPopupPhase1Subfilter));
+            };
+            btn.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                run();
+            });
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.detail === 0) {
+                    run();
+                }
+            });
         }
 
         /** Viền xanh TRACKING theo IN/OUT đang bật. */
@@ -18479,6 +19327,54 @@ function getFilterNoteTRefMaxSelections(mode) {
             return true;
         }
 
+        /** Enter khi đang nhấp nháy streak: nhảy tới mốc ▴▾ vàng gợi ý. */
+        function applyFilterPopupTrackingStreakYellowHint(streakEl, index) {
+            if (!streakEl || !periodFilterEnabled || !isTrackingFilterMode(periodFilterMode)) {
+                return false;
+            }
+            const bellies = getNormalizedFilterTrackingBellies();
+            if (!(index >= 0 && index < bellies.length)) {
+                return false;
+            }
+            let hint = Number(streakEl.dataset.hintStreak);
+            if (!Number.isFinite(hint)) {
+                const hints = computeFilterTrackingBellyStreakHints(bellies);
+                hint = hints[index] && hints[index].streak;
+            }
+            hint = normalizeFilterTrackingBellyStreak(hint);
+            const cur = normalizeFilterTrackingBellyStreak(bellies[index].streak);
+            const decimal = String(hint);
+            streakEl.dataset.draft = decimal;
+            delete streakEl.dataset.replaceOnType;
+            setFilterPopupPositionText(streakEl, decimal);
+            fitFilterPopupTrackingStreakInputWidth(streakEl, decimal, true);
+            if (hint !== cur) {
+                streakEl.dataset.dirty = '1';
+                setFilterTrackingBellyStreakAt(index, hint, {
+                    skipListRebuild: true,
+                    skipFilterRebuild: false
+                });
+                const row = streakEl.closest('.filter-popup-tracking-belly-row');
+                if (row) {
+                    const inc = row.querySelector('[data-tracking-spin="streak"][data-delta="1"]');
+                    const dec = row.querySelector('[data-tracking-spin="streak"][data-delta="-1"]');
+                    if (inc) {
+                        inc.disabled = hint >= FILTER_TRACKING_BELLY_STREAK_MAX;
+                        inc.classList.remove('is-tracking-hint');
+                    }
+                    if (dec) {
+                        dec.disabled = hint <= FILTER_TRACKING_BELLY_STREAK_MIN;
+                        dec.classList.remove('is-tracking-hint');
+                    }
+                }
+            } else {
+                delete streakEl.dataset.dirty;
+            }
+            // Blur → chữ Hán + rebuild list (gợi ý vàng cập nhật).
+            streakEl.blur();
+            return true;
+        }
+
         function bindFilterPopupTrackingStreakInput(streakEl, index) {
             if (!streakEl || streakEl.dataset.inputBound === '1') {
                 return;
@@ -18538,7 +19434,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (key === 'Enter') {
                     event.preventDefault();
                     event.stopPropagation();
-                    streakEl.blur();
+                    applyFilterPopupTrackingStreakYellowHint(streakEl, bellyIdx);
                     return;
                 }
                 if (key === 'Escape') {
@@ -18858,7 +19754,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                 streakEl.tabIndex = 0;
                 streakEl.setAttribute('role', 'textbox');
                 streakEl.setAttribute('aria-label', `Streak bụng #${i + 1} (1–99)`);
-                streakEl.title = 'Streak 1–99: focus để gõ số (1–99); mất focus hiện chữ Hán. ▴▾ vàng = gợi ý T%';
+                streakEl.title = 'Streak 1–99: focus để gõ số; Enter = nhảy mốc ▴▾ vàng; mất focus hiện chữ Hán';
+                streakEl.dataset.hintStreak = String(hintStreak);
                 const streakFocused = document.activeElement === streakEl;
                 const streakText = streakFocused
                     ? String(spec.streak)
@@ -19430,6 +20327,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (isFilterPopupTrackingSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
+            if (isPhase1FilterMode(periodFilterMode)) {
+                return getPhase1LiveFilteredCount();
+            }
             if (isFilterPopupFollowSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
@@ -19510,6 +20410,27 @@ function getFilterNoteTRefMaxSelections(mode) {
             resetFilterPopupPositionUi();
         }
 
+        function getPhase1LiveParentCount() {
+            if (!periodFilterEnabled || !isPeriodFilterContextSheet() || !sheetManager) {
+                return 0;
+            }
+            return getFilterParentCountForMode('phase1');
+        }
+
+        function getPhase1LiveFilteredCount() {
+            if (!periodFilterEnabled || !isPeriodFilterContextSheet() || !sheetManager) {
+                return 0;
+            }
+            if (isFilterPopupPhase1SubfilterActive()) {
+                return getFilterPopupNavListLength();
+            }
+            const base = getFilterMatchingIndicesForMode('phase1');
+            if (isFilterHeader2Enabled() && getFilterHeader2ActiveSlotTexts().length > 0) {
+                return applyFilterHeader2ToIndices(base).length;
+            }
+            return base.length;
+        }
+
         function syncFilterPopupMatchCountUi(mode, isPreview, total) {
             const popup = getPeriodFilterPicker('popup').countEl;
             const positionWrap = el('filterPopupPositionWrap');
@@ -19522,10 +20443,21 @@ function getFilterNoteTRefMaxSelections(mode) {
 
             const normalized = normalizeFilterMode(mode);
             const label = getFilterModeTitleHint(normalized);
-            const filteredTotal = getFilterPopupListTotal(total);
-            const parentTotal = periodFilterEnabled && isPeriodFilterContextSheet()
+            let filteredTotal = getFilterPopupListTotal(total);
+            let parentTotal = periodFilterEnabled && isPeriodFilterContextSheet()
                 ? getFilterParentCountForMode(normalized)
                 : 0;
+            // PHASE1: luôn đếm live (tránh cache filterPopupIndices / HTML cũ lệch tổng lịch sử).
+            if (periodFilterEnabled && isPhase1FilterMode(normalized)) {
+                parentTotal = getPhase1LiveParentCount();
+                if (isPreview && !isPhase1FilterMode(periodFilterMode)) {
+                    filteredTotal = parentTotal;
+                } else if (isPhase1FilterMode(periodFilterMode)) {
+                    filteredTotal = getPhase1LiveFilteredCount();
+                } else {
+                    filteredTotal = parentTotal;
+                }
+            }
             const listPos = getFilterPopupListPosition();
             const isEditing = positionInput && document.activeElement === positionInput;
             const showPosition = !isPreview
@@ -19851,6 +20783,12 @@ function getFilterNoteTRefMaxSelections(mode) {
                         tryBackspaceFilterPopupTrackingStreak(streakEl, idx);
                         return;
                     }
+                    if (key === 'Enter') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        applyFilterPopupTrackingStreakYellowHint(streakEl, idx);
+                        return;
+                    }
                     return;
                 }
 
@@ -20039,6 +20977,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupChainFilterUi();
             syncFilterPopupSpecialKindsUi();
             syncFilterPopupTrackingBellyUi();
+            syncFilterPopupPhase1MechUi();
 
             if (light) {
                 return;
@@ -20399,6 +21338,14 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             const trackingBellyPicker = el('filterPopupTrackingBellyPicker');
             if (trackingBellyPicker && trackingBellyPicker.contains(target)) {
+                return true;
+            }
+            const phase1MechPicker = el('filterPopupPhase1MechPicker');
+            if (phase1MechPicker && phase1MechPicker.contains(target)) {
+                return true;
+            }
+            const phase1PosPicker = el('filterPopupPhase1PosModePicker');
+            if (phase1PosPicker && phase1PosPicker.contains(target)) {
                 return true;
             }
             for (const [menuId, btnId] of pairs) {
@@ -21696,6 +22643,10 @@ function getFilterNoteTRefMaxSelections(mode) {
             const h2on = `h2on:${isFilterHeader2Enabled() ? 1 : 0}`;
             const chainSel = filterPopupChainSelected.map((v) => (v ? '1' : '0')).join('');
             const chainOn = `chain:${isFilterChainPickerEnabled() ? 1 : 0}:${chainSel}:${isFilterChainCombineAnd() ? 'and' : 'or'}`;
+            // Bump khi đổi semantics mẫu PHASE1 (= ALL) để không tái dùng HTML/count cũ.
+            const phase1Key = isPhase1FilterMode(periodFilterMode)
+                ? `p1:v6:${filterPhase1PosMode}`
+                : '';
             return [
                 periodFilterMode,
                 tags,
@@ -21712,7 +22663,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                 tailKey,
                 nxBracketKey,
                 h2on,
-                chainOn
+                chainOn,
+                phase1Key
             ].join('|');
         }
 
@@ -22069,6 +23021,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupPosnfreqSubmitOverlap();
             syncFilterPopupConn3WindowOverlap();
             syncFilterPopupTrackingBellyOverlap();
+            syncFilterPopupPhase1Overlap();
             syncFilterPopupFollowDeterminedOverlap();
             syncFilterPopupConnectionOverlap();
             applyFilterPopupSpecialKindsRowClasses(wrap);
@@ -22122,6 +23075,16 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupChainFilterUi();
             syncFilterPopupSpecialKindsUi();
             syncFilterPopupTrackingBellyUi();
+            syncFilterPopupPhase1MechUi();
+            if (isPhase1FilterMode(periodFilterMode) && sheetManager) {
+                filterModeCounts.phase1 = getFilterParentCountForMode('phase1');
+                const menu = getPeriodFilterMenu();
+                const item = menu && menu.querySelector('.period-filter-mode-item[data-mode="phase1"]');
+                const countSpan = item && item.querySelector('.period-filter-mode-item-count');
+                if (countSpan) {
+                    countSpan.textContent = String(filterModeCounts.phase1 ?? 0);
+                }
+            }
         }
 
         function syncFilterPopupPosnfreqSubmitOverlap() {
@@ -22397,6 +23360,190 @@ function getFilterNoteTRefMaxSelections(mode) {
             applyFilterPopupNonexist005000RowBorders(wrap);
         }
 
+        function syncFilterPopupPhase1Overlap(opts = {}) {
+            const wrap = el('filterTableWrap');
+            const pctEl = el('filterPopupPhase1OverlapPct');
+            const keepScroll = opts.keepScroll === true;
+            const skipReconcile = opts.skipReconcile === true;
+            const savedScroll = wrap ? wrap.scrollTop : 0;
+            const hidePct = () => {
+                const wasActive = filterPopupPhase1Subfilter !== 'off';
+                filterPopupPhase1Subfilter = 'off';
+                if (pctEl) {
+                    pctEl.hidden = true;
+                    pctEl.textContent = '';
+                    pctEl.setAttribute('aria-pressed', 'false');
+                    pctEl.classList.remove('is-phase1-miss-pct');
+                }
+                if (wasActive) {
+                    applyFilterPopupPhase1SubfilterWrapClasses(el('filterTableWrap'), 'off');
+                    if (!skipReconcile) {
+                        reconcileFilterPopupActiveAfterSubfilterToggle({ skipScroll: keepScroll });
+                    }
+                }
+                updateFilterPopupMatchCount();
+                syncPeriodFilterNavModeToIframe();
+                if (keepScroll && wrap) {
+                    wrap.scrollTop = savedScroll;
+                }
+            };
+            if (!wrap || !sheetManager) {
+                hidePct();
+                return;
+            }
+            if (!periodFilterEnabled || !isPhase1FilterMode(periodFilterMode)) {
+                hidePct();
+                return;
+            }
+            wrap.querySelectorAll(
+                'tbody tr.filter-popup-posnfreq-submit-hit, '
+                + 'tbody tr.filter-popup-phase1-above-hit, tbody tr.filter-popup-phase1-same-hit, '
+                + 'tbody tr.filter-popup-phase1-below-hit, tbody tr.filter-popup-phase1-none-hit, '
+                + 'tbody tr.filter-popup-phase1-miss-hit, '
+                + 'tbody tr.filter-popup-phase1-above-miss, tbody tr.filter-popup-phase1-same-miss, '
+                + 'tbody tr.filter-popup-phase1-below-miss'
+            ).forEach((tr) => {
+                tr.classList.remove(
+                    'filter-popup-posnfreq-submit-hit',
+                    'filter-popup-phase1-above-hit',
+                    'filter-popup-phase1-same-hit',
+                    'filter-popup-phase1-below-hit',
+                    'filter-popup-phase1-none-hit',
+                    'filter-popup-phase1-miss-hit',
+                    'filter-popup-phase1-above-miss',
+                    'filter-popup-phase1-same-miss',
+                    'filter-popup-phase1-below-miss'
+                );
+            });
+            const rows = sheetManager.getSourceSheetRows();
+            if (!Array.isArray(rows) || !rows.length) {
+                hidePct();
+                return;
+            }
+            const relative = isFilterPhase1RelativePosMode();
+            const mechActive = !!(filterPhase1Above || filterPhase1Same || filterPhase1Below
+                || (!relative && filterPhase1None));
+            let aboveCount = 0;
+            let sameCount = 0;
+            let belowCount = 0;
+            let noneCount = 0;
+            let unionCount = 0;
+            let aboveMissCount = 0;
+            let sameMissCount = 0;
+            let belowMissCount = 0;
+            let missUnionCount = 0;
+            const posLogic = relative ? FILTER_PHASE1_POS_RELATIVE : FILTER_PHASE1_POS_GE2;
+            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                const idx = Number(tr.dataset.idx);
+                if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
+                    return;
+                }
+                const rel = typeof sheetManager.getPhase1FilterRelation === 'function'
+                    ? sheetManager.getPhase1FilterRelation(idx, posLogic)
+                    : null;
+                const aboveHit = !!(filterPhase1Above && rel && rel.above);
+                const sameHit = !!(filterPhase1Same && rel && rel.same);
+                const belowHit = !!(filterPhase1Below && rel && rel.below);
+                const noneHit = !!(!relative && filterPhase1None && rel && rel.none);
+                // relative: số thỏa quan hệ nhưng không nằm trong đáp án → viền vàng
+                const aboveMiss = !!(relative && filterPhase1Above && rel && rel.aboveOut);
+                const sameMiss = !!(relative && filterPhase1Same && rel && rel.sameOut);
+                const belowMiss = !!(relative && filterPhase1Below && rel && rel.belowOut);
+                const anyGreen = aboveHit || sameHit || belowHit || noneHit;
+                const anyMiss = aboveMiss || sameMiss || belowMiss;
+                // Class A/S/B/N + đếm % xanh; vàng-only gắn miss (+ per-mech) cho bước % YA/YS/YB.
+                if (aboveHit) {
+                    tr.classList.add('filter-popup-phase1-above-hit');
+                    aboveCount++;
+                }
+                if (sameHit) {
+                    tr.classList.add('filter-popup-phase1-same-hit');
+                    sameCount++;
+                }
+                if (belowHit) {
+                    tr.classList.add('filter-popup-phase1-below-hit');
+                    belowCount++;
+                }
+                if (noneHit) {
+                    tr.classList.add('filter-popup-phase1-none-hit');
+                    noneCount++;
+                }
+                if (anyGreen) {
+                    tr.classList.add('filter-popup-posnfreq-submit-hit');
+                    unionCount++;
+                } else if (anyMiss) {
+                    tr.classList.add('filter-popup-phase1-miss-hit');
+                    missUnionCount++;
+                    if (aboveMiss) {
+                        tr.classList.add('filter-popup-phase1-above-miss');
+                        aboveMissCount++;
+                    }
+                    if (sameMiss) {
+                        tr.classList.add('filter-popup-phase1-same-miss');
+                        sameMissCount++;
+                    }
+                    if (belowMiss) {
+                        tr.classList.add('filter-popup-phase1-below-miss');
+                        belowMissCount++;
+                    }
+                }
+            });
+            const tableTotal = wrap.querySelectorAll('tbody tr[data-idx]').length;
+            if (!pctEl) {
+                return;
+            }
+            if (tableTotal === 0 || !mechActive) {
+                hidePct();
+                return;
+            }
+            if (filterPopupPhase1Subfilter === 'off') {
+                filterPopupPhase1Subfilter = 't';
+            }
+            filterPopupPhase1Subfilter = normalizeFilterPopupPhase1Subfilter(filterPopupPhase1Subfilter);
+            let mode = filterPopupPhase1Subfilter;
+            let sampleCount = unionCount;
+            if (mode === 'above') {
+                sampleCount = aboveCount;
+            } else if (mode === 'same') {
+                sampleCount = sameCount;
+            } else if (mode === 'below') {
+                sampleCount = belowCount;
+            } else if (mode === 'none') {
+                sampleCount = noneCount;
+            } else if (mode === 'yu') {
+                sampleCount = missUnionCount;
+            } else if (mode === 'yabove') {
+                sampleCount = aboveMissCount;
+            } else if (mode === 'ysame') {
+                sampleCount = sameMissCount;
+            } else if (mode === 'ybelow') {
+                sampleCount = belowMissCount;
+            }
+            if (mode !== 't' && sampleCount === 0) {
+                filterPopupPhase1Subfilter = 't';
+                mode = 't';
+                sampleCount = unionCount;
+            }
+            const pct = tableTotal > 0 ? Math.round((sampleCount / tableTotal) * 100) : 0;
+            const live = mode === 'u' || mode === 'above' || mode === 'same' || mode === 'below' || mode === 'none'
+                || isFilterPopupPhase1MissSubfilterMode(mode);
+            pctEl.hidden = false;
+            pctEl.textContent = `${getFilterPopupPhase1SubfilterLabel(mode)} ${pct}%`;
+            pctEl.setAttribute('aria-pressed', live ? 'true' : 'false');
+            pctEl.classList.toggle('is-phase1-miss-pct', isFilterPopupPhase1MissSubfilterMode(mode));
+            applyFilterPopupPhase1SubfilterWrapClasses(wrap, mode);
+            // T = chỉ đổi viền: không reconcile (tránh nhảy scroll cuối sheet).
+            if (!skipReconcile && live) {
+                reconcileFilterPopupActiveAfterSubfilterToggle({ skipScroll: keepScroll });
+            }
+            updateFilterPopupMatchCount();
+            syncPeriodFilterNavModeToIframe();
+            applyFilterPopupNonexist005000RowBorders(wrap);
+            if (keepScroll) {
+                wrap.scrollTop = savedScroll;
+            }
+        }
+
         function syncFilterPopupFollowDeterminedOverlap() {
             const wrap = el('filterTableWrap');
             const pctEl = el('filterPopupFollowOverlapPct');
@@ -22582,6 +23729,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupPosnfreqSubmitOverlap();
             syncFilterPopupConn3WindowOverlap();
             syncFilterPopupTrackingBellyOverlap();
+            syncFilterPopupPhase1Overlap();
             syncFilterPopupFollowDeterminedOverlap();
             syncFilterPopupConnectionOverlap();
             applyFilterPopupSpecialKindsRowClasses(wrap);
@@ -22641,17 +23789,25 @@ function getFilterNoteTRefMaxSelections(mode) {
                 filterPopupPosnfreqGreenOnly = false;
                 filterPopupConn3WindowOnly = false;
                 filterPopupTrackingSubfilter = 'off';
+                filterPopupPhase1Subfilter = 'off';
                 filterPopupFollowSubfilter = 'off';
                 applyFilterPopupFollowSubfilterWrapClasses(wrap, 'off');
                 filterPopupConnectionSubfilter = 'off';
                 applyFilterPopupConnectionSubfilterWrapClasses(wrap, 'off');
                 wrap.classList.remove('filter-popup-posnfreq-green-only');
                 applyFilterPopupTrackingSubfilterWrapClasses(wrap, 'off');
+                applyFilterPopupPhase1SubfilterWrapClasses(wrap, 'off');
                 const trackingPct = el('filterPopupTrackingOverlapPct');
                 if (trackingPct) {
                     trackingPct.hidden = true;
                     trackingPct.textContent = '';
                     trackingPct.setAttribute('aria-pressed', 'false');
+                }
+                const phase1Pct = el('filterPopupPhase1OverlapPct');
+                if (phase1Pct) {
+                    phase1Pct.hidden = true;
+                    phase1Pct.textContent = '';
+                    phase1Pct.setAttribute('aria-pressed', 'false');
                 }
                 wrap.innerHTML = '<div class="filter-popup-empty">' + getFilterPopupEmptyMessage(periodFilterMode) + '</div>';
                 finishFilterPopupOpen({ syncMain });
@@ -23673,6 +24829,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             initFilterPopupConn3OverlapPctToggle();
             initFilterPopupTrackingBellyControls();
             initFilterPopupTrackingOverlapPctToggle();
+            initFilterPopupPhase1MechControls();
+            initFilterPopupPhase1PosModeControls();
+            initFilterPopupPhase1OverlapPctToggle();
             initFilterPopupFollowOverlapPctToggle();
             initFilterPopupConnectionOverlapPctToggle();
             initFilterPopupPositionInput();

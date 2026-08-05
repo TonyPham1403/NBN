@@ -1405,11 +1405,11 @@
             box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
         }
 
-        /* Block OFF: viền nét đứt, nền sáng — không chặn, số vẫn bấm được */
+        /* Block OFF: viền liền, nền sáng — không chặn, số vẫn bấm được */
         #blockBtn:not(.active) {
             background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
             color: #64748b;
-            border: 1px dashed #94a3b8;
+            border: 1px solid #94a3b8;
             box-shadow: none;
         }
 
@@ -1417,6 +1417,66 @@
             color: #334155;
             border-color: #64748b;
             background: #f8fafc;
+        }
+
+        /* A/S/B: tô kim cương (vuông xoay 45°) lên số freq≥2 luôn above/same/below phase1 */
+        #relPhaseAboveBtn,
+        #relPhaseSameBtn,
+        #relPhaseBelowBtn {
+            font-size: 12px;
+            padding: 4px 8px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 0;
+            min-width: 28px;
+            min-height: 24px;
+            line-height: 1.2;
+            background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+            color: #64748b;
+            border: 1px dashed #94a3b8;
+            border-radius: 6px;
+            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        #relPhaseAboveBtn.active,
+        #relPhaseSameBtn.active,
+        #relPhaseBelowBtn.active {
+            background: #006400;
+            color: #ffffff;
+            border: 1px solid #004d00;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+        }
+
+        #relPhaseAboveBtn:not(.active):hover,
+        #relPhaseSameBtn:not(.active):hover,
+        #relPhaseBelowBtn:not(.active):hover {
+            color: #334155;
+            border-color: #64748b;
+            background: #f8fafc;
+        }
+
+        .cell.num > .rel-phase-diamond {
+            display: none;
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: calc(var(--selected-ring-size) * 0.92);
+            height: calc(var(--selected-ring-size) * 0.92);
+            box-sizing: border-box;
+            transform: translate(-50%, -50%) rotate(45deg);
+            border: calc(var(--selected-ring-border) * 0.85) solid #eab308;
+            background: transparent;
+            box-shadow: 0 0 6px rgba(234, 179, 8, 0.45);
+            pointer-events: none;
+            z-index: 3;
+        }
+
+        .cell.num.rel-phase-above > .rel-phase-diamond,
+        .cell.num.rel-phase-same > .rel-phase-diamond,
+        .cell.num.rel-phase-below > .rel-phase-diamond {
+            display: block;
+            border-color: #eab308;
+            box-shadow: 0 0 6px rgba(234, 179, 8, 0.45);
         }
 
         /* Actions row directly above the left table (hidden until we align after scaling) */
@@ -1773,6 +1833,12 @@
                         <div class="actions-left">
                             <button id="submitBtn" type="button">Submit</button>
                             <button id="blockBtn" type="button" aria-pressed="true">Block</button>
+                            <button id="relPhaseAboveBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
+                                title="A = ABOVE: số freq≥2 luôn nằm ngay trên một số tím phase1 (Chuỗi 1)">A</button>
+                            <button id="relPhaseSameBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
+                                title="S = SAME: số freq≥2 luôn cùng chuỗi với một số tím phase1 (Chuỗi 1)">S</button>
+                            <button id="relPhaseBelowBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
+                                title="B = BELOW: số freq≥2 luôn nằm ngay dưới một số tím phase1 (Chuỗi 1)">B</button>
                         </div>
                         <div class="actions-right">
                             <button type="button" id="leftPosnfreqHexBtn" class="left-posnfreq-hex" hidden
@@ -3172,6 +3238,232 @@
                 });
             }
             return lines;
+        }
+
+        /** Toggle A/S/B: kim cương trên số freq≥2 always above/same/below phase1 (Chuỗi 1). */
+        const REL_PHASE_ASB_KEY = 'leftPaneRelPhaseASB';
+        let relPhaseAboveOn = false;
+        let relPhaseSameOn = false;
+        let relPhaseBelowOn = false;
+
+        function loadRelPhaseAsbSettings() {
+            try {
+                var raw = localStorage.getItem(REL_PHASE_ASB_KEY);
+                if (!raw) {
+                    return;
+                }
+                var o = JSON.parse(raw);
+                if (!o || typeof o !== 'object') {
+                    return;
+                }
+                relPhaseAboveOn = !!o.a;
+                relPhaseSameOn = !!o.s;
+                relPhaseBelowOn = !!o.b;
+            } catch (e) { /* ignore */ }
+        }
+
+        function saveRelPhaseAsbSettings() {
+            try {
+                localStorage.setItem(REL_PHASE_ASB_KEY, JSON.stringify({
+                    a: relPhaseAboveOn ? 1 : 0,
+                    s: relPhaseSameOn ? 1 : 0,
+                    b: relPhaseBelowOn ? 1 : 0
+                }));
+            } catch (e) { /* ignore */ }
+        }
+
+        function syncRelPhaseAsbBtnUi() {
+            var map = [
+                ['relPhaseAboveBtn', relPhaseAboveOn],
+                ['relPhaseSameBtn', relPhaseSameOn],
+                ['relPhaseBelowBtn', relPhaseBelowOn]
+            ];
+            for (var i = 0; i < map.length; i++) {
+                var btn = document.getElementById(map[i][0]);
+                if (!btn) {
+                    continue;
+                }
+                var on = !!map[i][1];
+                btn.classList.toggle('active', on);
+                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            }
+        }
+
+        /** Số tím phase1 = 5 số trên Chuỗi 1 cửa sổ hiện tại. */
+        function getPhase1NumsFromCurrentWindow() {
+            var lines = getPickChainLinesForAutoring();
+            for (var i = 0; i < lines.length; i++) {
+                if ((lines[i].label | 0) === 1 && Array.isArray(lines[i].nums)) {
+                    return lines[i].nums.filter(function (n) {
+                        return n >= 1 && n <= 35;
+                    });
+                }
+            }
+            return [];
+        }
+
+        /**
+         * Tập số R (freq≥2 trên chuỗi) luôn nằm above/same/below một số phase1 P.
+         * ABOVE: mọi lần R@L ⇒ P@L−1; SAME: P@L; BELOW: P@L+1.
+         */
+        function computeRelPhaseNumsByKind() {
+            var empty = { above: new Set(), same: new Set(), below: new Set() };
+            if (!raw) {
+                return empty;
+            }
+            var phase1Nums = getPhase1NumsFromCurrentWindow();
+            if (!phase1Nums.length) {
+                return empty;
+            }
+            var lines = getPickChainLinesForAutoring();
+            var labelsByNum = new Map();
+            for (var i = 0; i < lines.length; i++) {
+                var label = lines[i].label | 0;
+                var nums = Array.isArray(lines[i].nums) ? lines[i].nums : [];
+                for (var k = 0; k < nums.length; k++) {
+                    var n = nums[k];
+                    if (!(n >= 1 && n <= 35)) {
+                        continue;
+                    }
+                    var labs = labelsByNum.get(n);
+                    if (!labs) {
+                        labs = [];
+                        labelsByNum.set(n, labs);
+                    }
+                    labs.push(label);
+                }
+            }
+            function alwaysRel(r, p, kind) {
+                if (r === p) {
+                    return false;
+                }
+                var rLabs = labelsByNum.get(r) || [];
+                if (rLabs.length < 2) {
+                    return false;
+                }
+                var pLabs = labelsByNum.get(p) || [];
+                if (!pLabs.length) {
+                    return false;
+                }
+                var pSet = new Set(pLabs);
+                for (var ri = 0; ri < rLabs.length; ri++) {
+                    var L = rLabs[ri];
+                    if (kind === 'above' && !pSet.has(L - 1)) {
+                        return false;
+                    }
+                    if (kind === 'same' && !pSet.has(L)) {
+                        return false;
+                    }
+                    if (kind === 'below' && !pSet.has(L + 1)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+            var candidates = [];
+            labelsByNum.forEach(function (labs, num) {
+                if (labs.length >= 2) {
+                    candidates.push(num);
+                }
+            });
+            var above = new Set();
+            var same = new Set();
+            var below = new Set();
+            for (var ci = 0; ci < candidates.length; ci++) {
+                var r = candidates[ci];
+                for (var pi = 0; pi < phase1Nums.length; pi++) {
+                    var p = phase1Nums[pi];
+                    if (alwaysRel(r, p, 'above')) {
+                        above.add(r);
+                    }
+                    if (alwaysRel(r, p, 'same')) {
+                        same.add(r);
+                    }
+                    if (alwaysRel(r, p, 'below')) {
+                        below.add(r);
+                    }
+                }
+            }
+            return { above: above, same: same, below: below };
+        }
+
+        function ensureRelPhaseDiamondEl(span) {
+            if (!span) {
+                return null;
+            }
+            var kids = span.children;
+            for (var i = 0; i < kids.length; i++) {
+                if (kids[i].classList && kids[i].classList.contains('rel-phase-diamond')) {
+                    return kids[i];
+                }
+            }
+            var el = document.createElement('span');
+            el.className = 'rel-phase-diamond';
+            el.setAttribute('aria-hidden', 'true');
+            span.appendChild(el);
+            return el;
+        }
+
+        function applyRelPhaseVisualInDOM() {
+            var anyOn = relPhaseAboveOn || relPhaseSameOn || relPhaseBelowOn;
+            var sets = anyOn ? computeRelPhaseNumsByKind() : null;
+            try {
+                document.querySelectorAll('.cell.num[data-num]').forEach(function (span) {
+                    var val = parseInt(span.getAttribute('data-num'), 10);
+                    if (isNaN(val)) {
+                        return;
+                    }
+                    var isAbove = !!(anyOn && relPhaseAboveOn && sets && sets.above.has(val));
+                    var isSame = !!(anyOn && relPhaseSameOn && sets && sets.same.has(val));
+                    var isBelow = !!(anyOn && relPhaseBelowOn && sets && sets.below.has(val));
+                    span.classList.toggle('rel-phase-above', isAbove);
+                    span.classList.toggle('rel-phase-same', isSame);
+                    span.classList.toggle('rel-phase-below', isBelow);
+                    if (isAbove || isSame || isBelow) {
+                        ensureRelPhaseDiamondEl(span);
+                    } else {
+                        var ring = span.querySelector('.rel-phase-diamond');
+                        if (ring && ring.parentNode === span) {
+                            span.removeChild(ring);
+                        }
+                    }
+                });
+            } catch (e) { /* ignore */ }
+        }
+
+        function setRelPhaseToggle(which, on) {
+            var next = !!on;
+            var changed = false;
+            if (which === 'above' && relPhaseAboveOn !== next) {
+                relPhaseAboveOn = next;
+                changed = true;
+            } else if (which === 'same' && relPhaseSameOn !== next) {
+                relPhaseSameOn = next;
+                changed = true;
+            } else if (which === 'below' && relPhaseBelowOn !== next) {
+                relPhaseBelowOn = next;
+                changed = true;
+            }
+            if (!changed) {
+                return false;
+            }
+            saveRelPhaseAsbSettings();
+            syncRelPhaseAsbBtnUi();
+            applyRelPhaseVisualInDOM();
+            return true;
+        }
+
+        function toggleRelPhase(which) {
+            if (which === 'above') {
+                return setRelPhaseToggle('above', !relPhaseAboveOn);
+            }
+            if (which === 'same') {
+                return setRelPhaseToggle('same', !relPhaseSameOn);
+            }
+            if (which === 'below') {
+                return setRelPhaseToggle('below', !relPhaseBelowOn);
+            }
+            return false;
         }
 
         function buildChainPairsFromAnswerNums(ans) {
@@ -5207,6 +5499,7 @@
                 try { syncChuoiPairTrackedSoloInDOM(); } catch (eCh) { /* ignore */ }
                 try { syncChuoiIndexSemanticStylesInDOM(); } catch (eIdx) { /* ignore */ }
                 try { applyPhaseVisualInDOM(); } catch (ePh) { /* ignore */ }
+                try { applyRelPhaseVisualInDOM(); } catch (eRel) { /* ignore */ }
             } catch (e) { console.error(e); }
         }
 
@@ -10876,6 +11169,8 @@
 
         loadBlockFeatureSetting();
         syncBlockBtnUi();
+        loadRelPhaseAsbSettings();
+        syncRelPhaseAsbBtnUi();
 
         (function () {
             try {
@@ -10888,6 +11183,26 @@
                     } catch (e) { console.error(e); }
                 });
             } catch (e) { }
+        })();
+
+        (function () {
+            try {
+                var bind = function (id, which) {
+                    var btn = document.getElementById(id);
+                    if (!btn) {
+                        return;
+                    }
+                    btn.addEventListener('click', function (ev) {
+                        try {
+                            ev.preventDefault();
+                            toggleRelPhase(which);
+                        } catch (e) { console.error(e); }
+                    });
+                };
+                bind('relPhaseAboveBtn', 'above');
+                bind('relPhaseSameBtn', 'same');
+                bind('relPhaseBelowBtn', 'below');
+            } catch (e) { /* ignore */ }
         })();
 
         // Submit button click: act like Space (toggle submit preview) and keep button style in sync
@@ -11418,6 +11733,7 @@
                 try { applySubmitCircleOverlayInDOM(); } catch (ePrev) { /* ignore */ }
                 try { syncSubmitPreviewBodyClasses(); } catch (eBodyCls) { /* ignore */ }
                 try { applyPhaseVisualInDOM(); } catch (ePh) { /* ignore */ }
+                try { applyRelPhaseVisualInDOM(); } catch (eRel) { /* ignore */ }
 
                 // blocked classes already handled per-number above
                 if (submitActive && hasCircledNumbersForNav()) {
