@@ -1419,7 +1419,7 @@
             background: #f8fafc;
         }
 
-        /* A/S/B: tô ngoặc góc indigo lên số freq≥2 luôn above/same/below phase1 */
+        /* A/S/B: tô ngoặc góc đỏ hồng lên số freq≥2 luôn above/same/below phase1 */
         #relPhaseAboveBtn,
         #relPhaseSameBtn,
         #relPhaseBelowBtn {
@@ -1455,11 +1455,12 @@
             background: #f8fafc;
         }
 
-        /* A/S/B relative: ngoặc góc indigo ⌜⌝⌞⌟ — tránh xanh lá / vàng / cyan / tím phase */
+        /* A/S/B relative: ngoặc góc đỏ hồng ⌜⌝⌞⌟ — 1 hit / multi / triple */
         .cell.num > .rel-phase-corners {
-            --rel-corner: #4338ca;
+            --rel-corner: #be123c;
             --rel-arm: 6px;
             --rel-thick: 2px;
+            --rel-inset: 0px;
             display: none;
             position: absolute;
             left: 50%;
@@ -1470,6 +1471,7 @@
             transform: translate(-50%, -50%);
             pointer-events: none;
             z-index: 3;
+            /* lớp ngoài */
             background:
                 linear-gradient(var(--rel-corner), var(--rel-corner)) 0 0 / var(--rel-arm) var(--rel-thick) no-repeat,
                 linear-gradient(var(--rel-corner), var(--rel-corner)) 0 0 / var(--rel-thick) var(--rel-arm) no-repeat,
@@ -1479,13 +1481,79 @@
                 linear-gradient(var(--rel-corner), var(--rel-corner)) 0 100% / var(--rel-thick) var(--rel-arm) no-repeat,
                 linear-gradient(var(--rel-corner), var(--rel-corner)) 100% 100% / var(--rel-arm) var(--rel-thick) no-repeat,
                 linear-gradient(var(--rel-corner), var(--rel-corner)) 100% 100% / var(--rel-thick) var(--rel-arm) no-repeat;
-            filter: drop-shadow(0 0 1px rgba(67, 56, 202, 0.5));
+            filter: drop-shadow(0 0 1px rgba(190, 18, 60, 0.5));
         }
 
         .cell.num.rel-phase-above > .rel-phase-corners,
         .cell.num.rel-phase-same > .rel-phase-corners,
         .cell.num.rel-phase-below > .rel-phase-corners {
             display: block;
+        }
+
+        /* ≥2 quan hệ cùng đề xuất 1 số (vd A+S): ngoặc kép — lớp trong + dày hơn */
+        .cell.num.rel-phase-multi > .rel-phase-corners {
+            --rel-corner: #9f1239;
+            --rel-arm: 7px;
+            --rel-thick: 2.5px;
+            --rel-inset: 3px;
+            width: calc(var(--selected-ring-size) + 7px);
+            height: calc(var(--selected-ring-size) + 7px);
+            background:
+                /* ngoài */
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 0 0 / var(--rel-arm) var(--rel-thick) no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 0 0 / var(--rel-thick) var(--rel-arm) no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 100% 0 / var(--rel-arm) var(--rel-thick) no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 100% 0 / var(--rel-thick) var(--rel-arm) no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 0 100% / var(--rel-arm) var(--rel-thick) no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 0 100% / var(--rel-thick) var(--rel-arm) no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 100% 100% / var(--rel-arm) var(--rel-thick) no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 100% 100% / var(--rel-thick) var(--rel-arm) no-repeat,
+                /* trong (ngoặc kép) */
+                linear-gradient(var(--rel-corner), var(--rel-corner)) var(--rel-inset) var(--rel-inset) / 5px 2px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) var(--rel-inset) var(--rel-inset) / 2px 5px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) calc(100% - var(--rel-inset)) var(--rel-inset) / 5px 2px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) calc(100% - var(--rel-inset)) var(--rel-inset) / 2px 5px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) var(--rel-inset) calc(100% - var(--rel-inset)) / 5px 2px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) var(--rel-inset) calc(100% - var(--rel-inset)) / 2px 5px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) calc(100% - var(--rel-inset)) calc(100% - var(--rel-inset)) / 5px 2px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) calc(100% - var(--rel-inset)) calc(100% - var(--rel-inset)) / 2px 5px no-repeat;
+            filter: drop-shadow(0 0 1.5px rgba(159, 18, 57, 0.65));
+        }
+
+        /* A+S+B: góc L đặc (khác hẳn ngoặc kép của 2 quan hệ) + glow mạnh */
+        .cell.num.rel-phase-triple > .rel-phase-corners {
+            --rel-corner: #be123c;
+            --rel-ink: #1f2937;
+            width: calc(var(--selected-ring-size) + 10px);
+            height: calc(var(--selected-ring-size) + 10px);
+            background:
+                /* viền đen ngoài — cánh ngang */
+                linear-gradient(var(--rel-ink), var(--rel-ink)) 0 0 / 9px 4px no-repeat,
+                linear-gradient(var(--rel-ink), var(--rel-ink)) 100% 0 / 9px 4px no-repeat,
+                linear-gradient(var(--rel-ink), var(--rel-ink)) 0 100% / 9px 4px no-repeat,
+                linear-gradient(var(--rel-ink), var(--rel-ink)) 100% 100% / 9px 4px no-repeat,
+                /* viền đen ngoài — cánh dọc */
+                linear-gradient(var(--rel-ink), var(--rel-ink)) 0 0 / 4px 9px no-repeat,
+                linear-gradient(var(--rel-ink), var(--rel-ink)) 100% 0 / 4px 9px no-repeat,
+                linear-gradient(var(--rel-ink), var(--rel-ink)) 0 100% / 4px 9px no-repeat,
+                linear-gradient(var(--rel-ink), var(--rel-ink)) 100% 100% / 4px 9px no-repeat,
+                /* lõi đỏ hồng đặc bên trong */
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 1px 1px / 7px 2px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) calc(100% - 1px) 1px / 7px 2px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 1px calc(100% - 1px) / 7px 2px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) calc(100% - 1px) calc(100% - 1px) / 7px 2px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 1px 1px / 2px 7px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) calc(100% - 1px) 1px / 2px 7px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 1px calc(100% - 1px) / 2px 7px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) calc(100% - 1px) calc(100% - 1px) / 2px 7px no-repeat,
+                /* khối đặc 4 góc */
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 0 0 / 5px 5px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 100% 0 / 5px 5px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 0 100% / 5px 5px no-repeat,
+                linear-gradient(var(--rel-corner), var(--rel-corner)) 100% 100% / 5px 5px no-repeat;
+            filter:
+                drop-shadow(0 0 2px rgba(190, 18, 60, 0.9))
+                drop-shadow(0 0 4px rgba(31, 41, 55, 0.55));
         }
 
         /* Actions row directly above the left table (hidden until we align after scaling) */
@@ -3249,7 +3317,7 @@
             return lines;
         }
 
-        /** Toggle A/S/B: ngoặc góc indigo trên số freq≥2 always above/same/below phase1 (Chuỗi 1). */
+        /** Toggle A/S/B: ngoặc góc đỏ hồng trên số freq≥2 always above/same/below phase1 (Chuỗi 1). */
         const REL_PHASE_ASB_KEY = 'leftPaneRelPhaseASB';
         let relPhaseAboveOn = false;
         let relPhaseSameOn = false;
@@ -3425,10 +3493,13 @@
                     var isAbove = !!(anyOn && relPhaseAboveOn && sets && sets.above.has(val));
                     var isSame = !!(anyOn && relPhaseSameOn && sets && sets.same.has(val));
                     var isBelow = !!(anyOn && relPhaseBelowOn && sets && sets.below.has(val));
+                    var hitCount = (isAbove ? 1 : 0) + (isSame ? 1 : 0) + (isBelow ? 1 : 0);
                     span.classList.toggle('rel-phase-above', isAbove);
                     span.classList.toggle('rel-phase-same', isSame);
                     span.classList.toggle('rel-phase-below', isBelow);
-                    if (isAbove || isSame || isBelow) {
+                    span.classList.toggle('rel-phase-multi', hitCount >= 2);
+                    span.classList.toggle('rel-phase-triple', hitCount >= 3);
+                    if (hitCount > 0) {
                         ensureRelPhaseDiamondEl(span);
                     } else {
                         var ring = span.querySelector('.rel-phase-corners');

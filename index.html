@@ -3910,6 +3910,7 @@
         #filterPopupDatebandFreqXSpin,
         #filterPopupDatebandFreqYSpin,
         #filterPopupTailCountSpin,
+        #filterPopupConnectionCountSpin,
         #filterPopupNonexistBracketCountSpin,
         .filter-popup-tracking-belly-spin {
             display: flex;
@@ -3932,6 +3933,7 @@
         #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn,
+        #filterPopupConnectionCountSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn,
         .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn {
             flex: 1 1 50%;
@@ -3957,6 +3959,7 @@
         #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
+        #filterPopupConnectionCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn {
             border-top: 1px solid rgba(255, 255, 255, 0.35);
@@ -3968,6 +3971,7 @@
         #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
+        #filterPopupConnectionCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled) {
             background: #047857 !important;
@@ -3979,6 +3983,7 @@
         #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
+        #filterPopupConnectionCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn:active:not(:disabled) {
             background: #065f46 !important;
@@ -3990,6 +3995,7 @@
         #filterPopupDatebandFreqXSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupDatebandFreqYSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn:disabled,
+        #filterPopupConnectionCountSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:disabled,
         .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn:disabled {
             opacity: 0.45;
@@ -4272,11 +4278,20 @@
             overflow: visible;
         }
 
-        .filter-popup-tail-count.hidden {
+        .filter-popup-tail-count.hidden,
+        .filter-popup-connection-count.hidden {
             display: none;
         }
 
-        .filter-popup-intersection-freq-key--tail {
+        .filter-popup-connection-count {
+            position: relative;
+            height: 100%;
+            flex: 0 0 auto;
+            overflow: visible;
+        }
+
+        .filter-popup-intersection-freq-key--tail,
+        .filter-popup-intersection-freq-key--connection {
             min-width: auto;
             font-size: 10px;
         }
@@ -4357,13 +4372,15 @@
 
         .filter-popup-intersection-freq-op {
             height: 20px;
-            min-width: 48px;
-            max-width: 56px;
-            padding: 0 2px;
-            font-size: 11px;
+            width: 36px;
+            min-width: 36px;
+            max-width: 36px;
+            padding: 0 0 0 2px;
+            font-size: 10px;
             font-weight: 700;
+            line-height: 18px;
             border: 1px solid #cbd5e1;
-            border-radius: 4px;
+            border-radius: 3px;
             background: #fff;
             color: #111827;
             box-sizing: border-box;
@@ -8377,6 +8394,36 @@
                             </label>
                         </div>
                     </div>
+                    <div id="filterPopupConnectionCountPicker" class="filter-popup-connection-count hidden"
+                        aria-hidden="true">
+                        <div class="filter-popup-intersection-freq" role="group"
+                            title="[C] = số connection duy nhất trong đáp án (circle). Ví dụ [C]=1 → kỳ chỉ có đúng 1 số connection."
+                            aria-label="Connection count [C]: toán tử và ngưỡng 1–5">
+                            <label class="filter-popup-intersection-freq-item">
+                                <span
+                                    class="filter-popup-intersection-freq-key filter-popup-intersection-freq-key--connection">[C]</span>
+                                <select id="filterPopupConnectionOp" class="filter-popup-intersection-freq-op"
+                                    aria-label="Dấu so sánh số connection với ngưỡng [C]">
+                                    <option value=">=">&gt;=</option>
+                                    <option value="=" selected>=</option>
+                                    <option value="<=">&lt;=</option>
+                                </select>
+                                <span id="filterPopupConnectionCount"
+                                    class="filter-popup-position-input filter-popup-intersection-freq-num" tabindex="0"
+                                    role="textbox" aria-label="Ngưỡng [C] (1–5)"
+                                    title="Ngưỡng số connection 1–5; ▴▾ tăng giảm">1</span>
+                                <div id="filterPopupConnectionCountSpin" class="filter-popup-intersection-freq-spin"
+                                    role="group" aria-label="Tăng giảm ngưỡng [C] (1–5)">
+                                    <button type="button" id="filterPopupConnectionCountInc"
+                                        class="filter-popup-nonexist-num-spin-btn" title="Tăng [C] (tối đa 5)"
+                                        aria-label="Tăng ngưỡng [C]">▴</button>
+                                    <button type="button" id="filterPopupConnectionCountDec"
+                                        class="filter-popup-nonexist-num-spin-btn" title="Giảm [C] (tối thiểu 1)"
+                                        aria-label="Giảm ngưỡng [C]">▾</button>
+                                </div>
+                            </label>
+                        </div>
+                    </div>
                     <div id="filterPopupNonexistTools" class="filter-popup-nonexist-tools hidden">
                         <div id="filterPopupNonexistColorPicker" class="filter-popup-nonexist-color-picker">
                             <button type="button" id="filterPopupNonexistColorBtn"
@@ -8632,7 +8679,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260806phase1RelYellow"></script>
+    <script src="right-pane-sheets.js?v=20260807connCountC"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -8673,6 +8720,7 @@
         const PERIOD_FILTER_INTERSECTION_FREQ_XY_KEY = 'periodFilterIntersectionFreqXY';
         const PERIOD_FILTER_DATEBAND_FREQ_XY_KEY = 'periodFilterDatebandFreqXY';
         const PERIOD_FILTER_TAIL_COUNT_KEY = 'periodFilterTailCount';
+        const PERIOD_FILTER_CONNECTION_COUNT_KEY = 'periodFilterConnectionCount';
         const FILTER_POPUP_LAYOUT_KEY = 'filterPopupLayout';
         const ANSWER_POPUP_LAYOUT_KEY = 'answerPopupLayout';
         const FILTER_NONEXIST_NUM_KEY = 'filterNonexistNum';
@@ -8945,6 +8993,10 @@
         let filterTailCount = 2;
         let filterTailOp = '>=';
         let filterTailCountApplyTimer = null;
+        /** connection [C]: số connection duy nhất trong đáp án — ngưỡng 1–5. */
+        let filterConnectionCount = 1;
+        let filterConnectionOp = '=';
+        let filterConnectionCountApplyTimer = null;
 
         function normalizeIntersectionFreqOp(raw) {
             const s = String(raw || '').trim();
@@ -10674,7 +10726,7 @@
                 return 'posnfreq (position + frequency)';
             }
             if (normalizeFilterMode(mode) === 'connection') {
-                return 'Connection: một số đáp án thuộc ≥2 cặp trên ≥2 chuỗi khác nhau (cửa sổ 10)';
+                return 'Connection: lọc theo [C] (số connection duy nhất) với dấu so sánh; U/D vẫn lọc unique/duplicate';
             }
             if (isConn3FilterMode(mode)) {
                 return 'Bộ 3: mỗi cặp là cặp chuỗi trên 3 chuỗi khác nhau, freq ≥2';
@@ -10900,6 +10952,22 @@ function getFilterNoteTRefMaxSelections(mode) {
             };
         }
 
+        function getConnectionFilterOptions() {
+            const opts = {
+                connectionCount: filterConnectionCount,
+                connectionCountOp: normalizeIntersectionFreqOp(filterConnectionOp)
+            };
+            const noteTags = getActiveNoteTagFilterValues();
+            const noteTRefs = getActiveNoteTRefValues();
+            if (noteTags.length > 0) {
+                opts.noteTags = noteTags;
+            }
+            if (noteTRefs.length > 0) {
+                opts.noteTRef = noteTRefs;
+            }
+            return opts;
+        }
+
         function getPosnfreqMatchConstraintOpts() {
             return {
                 matchFrequency: !!posnfreqMatchFrequency,
@@ -10989,19 +11057,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return getTailFilterOptions();
             }
             if (isConnectionFilterMode(mode)) {
-                const noteTags = getActiveNoteTagFilterValues();
-                const noteTRefs = getActiveNoteTRefValues();
-                if (noteTags.length === 0 && noteTRefs.length === 0) {
-                    return null;
-                }
-                const opts = {};
-                if (noteTags.length > 0) {
-                    opts.noteTags = noteTags;
-                }
-                if (noteTRefs.length > 0) {
-                    opts.noteTRef = noteTRefs;
-                }
-                return opts;
+                return getConnectionFilterOptions();
             }
             const noteTags = supportsNoteTagFilter(mode) ? getActiveNoteTagFilterValues() : [];
             const noteTRefs = supportsNoteTRefFilter(mode) ? getActiveNoteTRefValues() : [];
@@ -11867,6 +11923,187 @@ function getFilterNoteTRefMaxSelections(mode) {
                 opEl.disabled = !show;
             }
             syncFilterPopupTailCountSpinButtons();
+        }
+
+        function loadFilterConnectionCountSettings() {
+            try {
+                const raw = localStorage.getItem(PERIOD_FILTER_CONNECTION_COUNT_KEY);
+                if (!raw) {
+                    filterConnectionCount = 1;
+                    filterConnectionOp = '=';
+                    return;
+                }
+                const p = JSON.parse(raw);
+                const c = parseInt(p && p.count, 10);
+                filterConnectionCount = Number.isFinite(c) ? Math.min(5, Math.max(1, c)) : 1;
+                filterConnectionOp = normalizeIntersectionFreqOp(p && p.op);
+            } catch (e) {
+                filterConnectionCount = 1;
+                filterConnectionOp = '=';
+            }
+        }
+
+        function saveFilterConnectionCountSettings() {
+            try {
+                localStorage.setItem(
+                    PERIOD_FILTER_CONNECTION_COUNT_KEY,
+                    JSON.stringify({
+                        count: filterConnectionCount,
+                        op: normalizeIntersectionFreqOp(filterConnectionOp)
+                    })
+                );
+            } catch (e) { /* ignore */ }
+        }
+
+        function scheduleApplyConnectionCountFromUi() {
+            clearTimeout(filterConnectionCountApplyTimer);
+            filterConnectionCountApplyTimer = setTimeout(() => {
+                filterConnectionCountApplyTimer = null;
+                applyConnectionCountFromUi();
+            }, 120);
+        }
+
+        function syncFilterPopupConnectionCountSpinButtons() {
+            const active = periodFilterEnabled && isConnectionFilterMode(periodFilterMode);
+            const inc = el('filterPopupConnectionCountInc');
+            const dec = el('filterPopupConnectionCountDec');
+            if (inc && dec) {
+                inc.disabled = !active || filterConnectionCount >= 5;
+                dec.disabled = !active || filterConnectionCount <= 1;
+            }
+        }
+
+        function bumpFilterPopupConnectionCount(delta) {
+            if (!periodFilterEnabled || !isConnectionFilterMode(periodFilterMode)) {
+                return false;
+            }
+            const next = Math.min(5, Math.max(1, filterConnectionCount + (Number(delta) || 0)));
+            if (next === filterConnectionCount) {
+                return false;
+            }
+            filterConnectionCount = next;
+            const span = el('filterPopupConnectionCount');
+            if (span) {
+                setFilterPopupPositionText(span, String(next));
+            }
+            syncFilterPopupConnectionCountSpinButtons();
+            deferFilterPopupHeavyWork(() => {
+                saveFilterConnectionCountSettings();
+                rebuildFilterPopupAfterParamChange();
+            });
+            return true;
+        }
+
+        function applyConnectionCountFromUi() {
+            const countEl = el('filterPopupConnectionCount');
+            const opEl = el('filterPopupConnectionOp');
+            if (!countEl) {
+                return;
+            }
+            const vc = parseInt(getFilterPopupPositionText(countEl), 10);
+            const nc = Number.isFinite(vc) ? Math.min(5, Math.max(1, vc)) : filterConnectionCount;
+            filterConnectionCount = nc;
+            setFilterPopupPositionText(countEl, String(nc));
+            if (opEl) {
+                filterConnectionOp = normalizeIntersectionFreqOp(opEl.value);
+                opEl.value = filterConnectionOp;
+            }
+            syncFilterPopupConnectionCountSpinButtons();
+            deferFilterPopupHeavyWork(() => {
+                saveFilterConnectionCountSettings();
+                if (periodFilterEnabled && isPeriodFilterContextSheet()
+                    && isConnectionFilterMode(periodFilterMode)) {
+                    rebuildFilterPopupAfterParamChange();
+                } else {
+                    try {
+                        rebuildFilterModeCounts();
+                        updatePeriodFilterMatchCount();
+                    } finally {
+                        clearFilterPopupLoadingState();
+                    }
+                }
+            });
+        }
+
+        function syncFilterPopupConnectionCountUi() {
+            const picker = el('filterPopupConnectionCountPicker');
+            const show = periodFilterEnabled && isConnectionFilterMode(periodFilterMode);
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+                picker.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+            const countEl = el('filterPopupConnectionCount');
+            const opEl = el('filterPopupConnectionOp');
+            if (countEl) {
+                setFilterPopupPositionText(countEl, String(filterConnectionCount));
+                countEl.tabIndex = show ? 0 : -1;
+            }
+            if (opEl) {
+                opEl.value = normalizeIntersectionFreqOp(filterConnectionOp);
+                opEl.disabled = !show;
+            }
+            syncFilterPopupConnectionCountSpinButtons();
+        }
+
+        function initFilterPopupConnectionCountControls() {
+            loadFilterConnectionCountSettings();
+            syncFilterPopupConnectionCountUi();
+            const picker = el('filterPopupConnectionCountPicker');
+            const opEl = el('filterPopupConnectionOp');
+            if (!picker || picker.dataset.bound === '1') {
+                return;
+            }
+            picker.dataset.bound = '1';
+            picker.addEventListener('mousedown', (event) => event.stopPropagation());
+            picker.addEventListener('click', (event) => event.stopPropagation());
+            const inc = el('filterPopupConnectionCountInc');
+            const dec = el('filterPopupConnectionCountDec');
+            const bindConnBtn = (btn, delta) => {
+                if (!btn) {
+                    return;
+                }
+                const run = () => {
+                    bumpFilterPopupConnectionCount(delta);
+                };
+                btn.addEventListener('pointerdown', (event) => {
+                    if (event.button !== 0) {
+                        return;
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    run();
+                });
+                btn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (event.detail === 0) {
+                        run();
+                    }
+                });
+            };
+            bindConnBtn(inc, 1);
+            bindConnBtn(dec, -1);
+            if (opEl) {
+                opEl.addEventListener('change', () => {
+                    filterConnectionOp = normalizeIntersectionFreqOp(opEl.value);
+                    opEl.value = filterConnectionOp;
+                    saveFilterConnectionCountSettings();
+                    if (periodFilterEnabled && isPeriodFilterContextSheet()
+                        && isConnectionFilterMode(periodFilterMode)) {
+                        deferFilterPopupHeavyWork(() => rebuildFilterPopupAfterParamChange());
+                    }
+                });
+            }
+            const countEl = el('filterPopupConnectionCount');
+            if (countEl) {
+                countEl.addEventListener('blur', () => scheduleApplyConnectionCountFromUi());
+                countEl.addEventListener('keydown', (event) => {
+                    if (event.key === 'Enter') {
+                        event.preventDefault();
+                        applyConnectionCountFromUi();
+                    }
+                });
+            }
         }
 
         function initFilterPopupTailCountControls() {
@@ -20974,6 +21211,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupNoteTRefUi();
             syncFilterPopupIntersectionToolsUi();
             syncFilterPopupTailCountUi();
+            syncFilterPopupConnectionCountUi();
             syncFilterPopupChainFilterUi();
             syncFilterPopupSpecialKindsUi();
             syncFilterPopupTrackingBellyUi();
@@ -22637,6 +22875,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             const tailKey = isTailFilterMode(periodFilterMode)
                 ? `tail:c:${filterTailCount}:${opTok(filterTailOp)}`
                 : '';
+            const connKey = isConnectionFilterMode(periodFilterMode)
+                ? `conn:c:${filterConnectionCount}:${opTok(filterConnectionOp)}`
+                : '';
             const nxBracketKey = isNonexistFilterMode(periodFilterMode)
                 ? `nxb:${filterNonexistBracketCount}:${opTok(filterNonexistBracketOp)}`
                 : '';
@@ -22661,6 +22902,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 ixKey,
                 dbKey,
                 tailKey,
+                connKey,
                 nxBracketKey,
                 h2on,
                 chainOn,
@@ -23072,6 +23314,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupNoteTagUi();
             syncFilterPopupNoteTRefUi();
             syncFilterPopupIntersectionToolsUi();
+            syncFilterPopupTailCountUi();
+            syncFilterPopupConnectionCountUi();
             syncFilterPopupChainFilterUi();
             syncFilterPopupSpecialKindsUi();
             syncFilterPopupTrackingBellyUi();
@@ -24824,6 +25068,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             initFilterPopupIntersectionKindControls();
             initFilterPopupDatebandFreqControls();
             initFilterPopupTailCountControls();
+            initFilterPopupConnectionCountControls();
             initFilterPopupPosnfreqControls();
             initFilterPopupPosnfreqOverlapPctToggle();
             initFilterPopupConn3OverlapPctToggle();

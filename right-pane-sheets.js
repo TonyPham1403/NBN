@@ -2097,13 +2097,21 @@ class RightPaneSheetManager {
         }
 
         if (mode === 'connection') {
-            const base = this.ensureConnectionFilterIndicesCache();
-            if (noteTags.length === 0 && noteTRefs.length === 0) {
-                return base.slice();
+            const o = filterOptions || {};
+            let th = parseInt(o.connectionCount, 10);
+            if (!Number.isFinite(th)) {
+                th = 1;
             }
+            th = Math.min(5, Math.max(1, th));
+            const rawOp = String(o.connectionCountOp || '').trim();
+            const op = rawOp === '=' || rawOp === '<=' || rawOp === '>=' ? rawOp : '>=';
+            const base = this.ensureConnectionFilterIndicesCache();
             const out = [];
             for (let b = 0; b < base.length; b++) {
                 const i = base[b];
+                if (!this.rowMatchesConnectionCount(rows, i, th, op)) {
+                    continue;
+                }
                 if (noteTags.length > 0 && !this.rowMatchesNoteTagFilter(i, noteTags)) {
                     continue;
                 }
@@ -3289,6 +3297,40 @@ class RightPaneSheetManager {
         return this.pairListSatisfiesConnection(
             this.buildChainPairsFromPickSet(rows, rowIndex, pickNums)
         );
+    }
+
+    /**
+     * Số connection duy nhất (circle nums) so với ngưỡng [C] theo dấu >= / = / <=.
+     * Ví dụ [C]=1 → đúng 1 số connection.
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {number} threshold
+     * @param {'>='|'='|'<='} op
+     * @returns {boolean}
+     */
+    rowMatchesConnectionCount(rows, rowIndex, threshold, op) {
+        const r = Array.isArray(rows) ? rows[rowIndex] : null;
+        if (!r || this.isEmptyResultRow(r)) {
+            return false;
+        }
+        const pickNums = this.parseMainNums(r.result || r.Result || '');
+        if (pickNums.length < 2) {
+            return false;
+        }
+        if (!this.pairListSatisfiesConnection(
+            this.buildChainPairsFromPickSet(rows, rowIndex, pickNums)
+        )) {
+            return false;
+        }
+        const count = this.getConnectionCircleNumsFromPickSet(rows, rowIndex, pickNums).length;
+        const th = Number.isFinite(threshold) ? threshold : 1;
+        if (op === '=') {
+            return count === th;
+        }
+        if (op === '<=') {
+            return count <= th;
+        }
+        return count >= th;
     }
 
     /**
