@@ -3759,6 +3759,76 @@
             color: #3b0764;
         }
 
+        .submit-ring-freq-wrap {
+            display: inline-flex;
+            align-items: center;
+            height: 100%;
+            flex: 0 0 auto;
+            gap: 4px;
+            padding: 0 4px;
+        }
+
+        .submit-ring-freq-wrap.hidden {
+            display: none !important;
+        }
+
+        .submit-ring-freq-wrap .submit-ring-freq-toggle {
+            font-size: 11px;
+            padding: 0 7px;
+            font-weight: 700;
+            cursor: pointer;
+            margin: 0;
+            min-width: 28px;
+            height: 22px;
+            line-height: 1.1;
+            background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
+            color: #64748b;
+            border: 1px dashed #94a3b8;
+            border-radius: 6px;
+            box-sizing: border-box;
+            transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .submit-ring-freq-wrap .submit-ring-freq-toggle.active {
+            background: #006400;
+            color: #ffffff;
+            border: 1px solid #004d00;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
+        }
+
+        .submit-ring-freq-wrap .submit-ring-freq-toggle:not(.active):hover:not(:disabled) {
+            color: #334155;
+            border-color: #64748b;
+            background: #f8fafc;
+        }
+
+        .submit-ring-freq-wrap .submit-ring-freq-toggle:disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+        }
+
+        .submit-ring-freq-n-wrap {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            height: 100%;
+            padding: 0 4px 0 2px;
+            border-left: 1px solid #cbd5e1;
+            background: #f8fafc;
+            box-sizing: border-box;
+            flex: 0 0 auto;
+        }
+
+        .submit-ring-freq-n-wrap .submit-ring-freq-num {
+            cursor: text;
+        }
+
+        .submit-ring-freq-n-wrap .submit-ring-freq-num.is-disabled {
+            opacity: 0.55;
+            cursor: not-allowed;
+            pointer-events: none;
+        }
+
         .submit-ring-label-btn:disabled {
             cursor: not-allowed;
         }
@@ -3912,6 +3982,7 @@
         #filterPopupTailCountSpin,
         #filterPopupConnectionCountSpin,
         #filterPopupNonexistBracketCountSpin,
+        #submitRingFreqValueSpin,
         .filter-popup-tracking-belly-spin {
             display: flex;
             flex-direction: column;
@@ -3935,6 +4006,7 @@
         #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupConnectionCountSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn,
+        #submitRingFreqValueSpin .filter-popup-nonexist-num-spin-btn,
         .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn {
             flex: 1 1 50%;
             min-height: 0;
@@ -3961,6 +4033,7 @@
         #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupConnectionCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
+        #submitRingFreqValueSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn {
             border-top: 1px solid rgba(255, 255, 255, 0.35);
         }
@@ -3973,6 +4046,7 @@
         #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupConnectionCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
+        #submitRingFreqValueSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled) {
             background: #047857 !important;
         }
@@ -3985,6 +4059,7 @@
         #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupConnectionCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
+        #submitRingFreqValueSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn:active:not(:disabled) {
             background: #065f46 !important;
         }
@@ -3997,6 +4072,7 @@
         #filterPopupTailCountSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupConnectionCountSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:disabled,
+        #submitRingFreqValueSpin .filter-popup-nonexist-num-spin-btn:disabled,
         .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn:disabled {
             opacity: 0.45;
             cursor: not-allowed;
@@ -7942,16 +8018,15 @@
                             aria-label="Toggle auto circle submit numbers (Shift, not with tracking bar click)"></button>
                         <div id="submitRingControls" class="submit-ring-controls">
                             <div id="submitRingModeWrap" class="sheet-tools-mode-wrap"
-                                title="Chọn kiểu khoanh: max, min, x, 3-connection, tail">
-                                <span id="submitRingModeValue" class="sheet-tools-mode-value">MAX</span>
+                                title="Chọn kiểu khoanh: freq, x, 3-connection, tail">
+                                <span id="submitRingModeValue" class="sheet-tools-mode-value">FREQ</span>
                                 <button type="button" id="submitRingModeBtn" class="submit-ring-mode-btn"
                                     aria-haspopup="listbox" aria-expanded="false"
-                                    title="Chọn kiểu khoanh: max, min, x, 3-connection, tail"></button>
+                                    title="Chọn kiểu khoanh: freq, x, 3-connection, tail"></button>
                                 <select id="submitRingModeSelect"
-                                    title="max / min / x (1–35) / CUflip / 3-connection / tail"
+                                    title="freq / x (1–35) / CUflip / 3-connection / tail"
                                     aria-label="Submit auto circle mode">
-                                    <option value="max">max</option>
-                                    <option value="min">min</option>
+                                    <option value="freq">freq</option>
                                     <option value="custom">x</option>
                                     <option value="cuflip">CUflip</option>
                                     <option value="conn3">3-connection</option>
@@ -7962,6 +8037,30 @@
                                 </select>
                                 <ul id="submitRingModeMenu" class="period-filter-mode-menu submit-ring-mode-menu hidden"
                                     role="listbox" aria-label="Chế độ autoring"></ul>
+                            </div>
+                            <div id="submitRingFreqWrap" class="submit-ring-freq-wrap hidden"
+                                title="freq: F=min | F=max | F=N — bật min hoặc max (không cùng lúc); tắt cả hai thì dùng N">
+                                <button type="button" id="submitRingFreqMinBtn"
+                                    class="submit-ring-freq-toggle" aria-pressed="false"
+                                    title="F=min: khoanh đáp án freq = 1">min</button>
+                                <button type="button" id="submitRingFreqMaxBtn"
+                                    class="submit-ring-freq-toggle" aria-pressed="false"
+                                    title="F=max: khoanh đáp án có freq cao nhất">max</button>
+                                <div class="submit-ring-freq-n-wrap" title="Khoanh đáp án có đúng freq = N (1–9)">
+                                    <span id="submitRingFreqValueInput"
+                                        class="filter-popup-position-input filter-popup-intersection-freq-num submit-ring-freq-num"
+                                        tabindex="0" role="textbox" aria-label="Ngưỡng freq autoring 1–9"
+                                        title="Ngưỡng freq 1–9; gõ số hoặc ▴▾">1</span>
+                                    <div id="submitRingFreqValueSpin" class="filter-popup-intersection-freq-spin"
+                                        role="group" aria-label="Tăng giảm ngưỡng freq (1–9)">
+                                        <button type="button" id="submitRingFreqValueInc"
+                                            class="filter-popup-nonexist-num-spin-btn" title="Tăng N (tối đa 9)"
+                                            aria-label="Tăng ngưỡng freq">▴</button>
+                                        <button type="button" id="submitRingFreqValueDec"
+                                            class="filter-popup-nonexist-num-spin-btn" title="Giảm N (tối thiểu 1)"
+                                            aria-label="Giảm ngưỡng freq">▾</button>
+                                    </div>
+                                </div>
                             </div>
                             <div id="submitRingCustomXWrap" class="submit-ring-x-adjoin hidden"
                                 title="Số x (1–35), ▴▾ xoay vòng">
@@ -8399,7 +8498,7 @@
                         <div class="filter-popup-intersection-freq" role="group"
                             title="[C] = số connection duy nhất trong đáp án (circle). Ví dụ [C]=1 → kỳ chỉ có đúng 1 số connection."
                             aria-label="Connection count [C]: toán tử và ngưỡng 1–5">
-                            <label class="filter-popup-intersection-freq-item">
+                            <div class="filter-popup-intersection-freq-item">
                                 <span
                                     class="filter-popup-intersection-freq-key filter-popup-intersection-freq-key--connection">[C]</span>
                                 <select id="filterPopupConnectionOp" class="filter-popup-intersection-freq-op"
@@ -8411,7 +8510,7 @@
                                 <span id="filterPopupConnectionCount"
                                     class="filter-popup-position-input filter-popup-intersection-freq-num" tabindex="0"
                                     role="textbox" aria-label="Ngưỡng [C] (1–5)"
-                                    title="Ngưỡng số connection 1–5; ▴▾ tăng giảm">1</span>
+                                    title="Ngưỡng số connection 1–5; gõ số hoặc ▴▾">1</span>
                                 <div id="filterPopupConnectionCountSpin" class="filter-popup-intersection-freq-spin"
                                     role="group" aria-label="Tăng giảm ngưỡng [C] (1–5)">
                                     <button type="button" id="filterPopupConnectionCountInc"
@@ -8421,7 +8520,7 @@
                                         class="filter-popup-nonexist-num-spin-btn" title="Giảm [C] (tối thiểu 1)"
                                         aria-label="Giảm ngưỡng [C]">▾</button>
                                 </div>
-                            </label>
+                            </div>
                         </div>
                     </div>
                     <div id="filterPopupNonexistTools" class="filter-popup-nonexist-tools hidden">
@@ -8691,8 +8790,9 @@
         const SUBMIT_RING_ENABLED_KEY = 'submitRingEnabled';
         const SUBMIT_RING_MODE_KEY = 'submitRingMode';
         const SUBMIT_RING_CUSTOM_X_KEY = 'submitRingCustomX';
-        const SUBMIT_RING_VALID_MODES = ['max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist', 'dateband', 'cuflip', 'cn', 'chain', 'sameRow'];
-        const SUBMIT_RING_FREQ_MODES = ['max', 'min', 'custom', 'cuflip', 'conn3', 'tail', 'nonexist', 'dateband', 'chain', 'sameRow'];
+        const SUBMIT_RING_FREQ_THRESH_KEY = 'submitRingFreqThresh';
+        const SUBMIT_RING_VALID_MODES = ['freq', 'max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist', 'dateband', 'cuflip', 'cn', 'chain', 'sameRow'];
+        const SUBMIT_RING_FREQ_MODES = ['freq', 'custom', 'cuflip', 'conn3', 'tail', 'nonexist', 'dateband', 'chain', 'sameRow'];
         const SUBMIT_RING_CHAIN_MODE = 'chain';
         const SUBMIT_RING_CHAIN_LABEL = 'Chuỗi []';
         const PHASE_ENABLED_KEY = 'phaseToolbarEnabled';
@@ -8885,9 +8985,12 @@
         let savedSubmitActiveBeforeEmptyFocus = null;
         let rightPaneZoom = 1;
         let submitRingEnabled = false;
-        let submitRingMode = 'max';
+        let submitRingMode = 'freq';
         /** max | min | custom — dùng khi không bật nhãn C/Uflip trong CUflip */
-        let submitRingFreqMode = 'max';
+        let submitRingFreqMode = 'freq';
+        let submitRingFreqMin = false;
+        let submitRingFreqMax = false;
+        let submitRingFreqValue = 1;
         let submitRingLabelConn = false;
         let submitRingLabelIx = false;
         /** @type {boolean[]} nhãn chuỗi 1..10 autoring */
@@ -9468,7 +9571,7 @@
 
         function normalizeSubmitRingMode(mode) {
             const m = String(mode || '').trim();
-            return SUBMIT_RING_VALID_MODES.includes(m) ? m : 'max';
+            return SUBMIT_RING_VALID_MODES.includes(m) ? m : 'freq';
         }
 
         function isSubmitRingLabelMode(mode) {
@@ -9481,7 +9584,18 @@
             if (m === 'cn') {
                 return SUBMIT_RING_CUFLIP_MODE;
             }
-            return SUBMIT_RING_FREQ_MODES.includes(m) ? m : 'max';
+            if (m === 'min' || m === 'max') {
+                return 'freq';
+            }
+            return SUBMIT_RING_FREQ_MODES.includes(m) ? m : 'freq';
+        }
+
+        function clampSubmitRingFreqValue(v) {
+            const n = parseInt(v, 10);
+            if (!Number.isFinite(n)) {
+                return 1;
+            }
+            return Math.min(9, Math.max(1, n));
         }
 
         function getEffectiveSubmitRingMode() {
@@ -9496,7 +9610,7 @@
                 if (submitRingLabelIx) {
                     return 'ix';
                 }
-                return 'max';
+                return 'freq';
             }
             return freq;
         }
@@ -9557,11 +9671,34 @@
             }
             submitRingLabelConn = false;
             submitRingLabelIx = false;
+            if (m === 'min') {
+                submitRingFreqMode = 'freq';
+                submitRingFreqMin = true;
+                submitRingFreqMax = false;
+                submitRingFreqValue = 1;
+                return;
+            }
+            if (m === 'max') {
+                submitRingFreqMode = 'freq';
+                submitRingFreqMin = false;
+                submitRingFreqMax = true;
+                submitRingFreqValue = 1;
+                return;
+            }
             submitRingFreqMode = normalizeSubmitRingFreqMode(m);
         }
 
         function getSubmitRingModeDisplayLabel(mode) {
             const m = normalizeSubmitRingMode(mode);
+            if (m === 'freq') {
+                if (submitRingFreqMin) {
+                    return 'F=min';
+                }
+                if (submitRingFreqMax) {
+                    return 'F=max';
+                }
+                return 'F=' + clampSubmitRingFreqValue(submitRingFreqValue);
+            }
             if (m === 'custom') {
                 return `X=${submitRingCustomX}`;
             }
@@ -9969,6 +10106,9 @@
                 enabled: !!submitRingEnabled,
                 mode,
                 customX: clampRingCustomX(submitRingCustomX),
+                freqMin: !!submitRingFreqMin,
+                freqMax: !!submitRingFreqMax,
+                freqValue: clampSubmitRingFreqValue(submitRingFreqValue),
                 chainLabels: getSubmitRingChainSelectedLabels(),
                 chainCombineAnd: !!submitRingChainCombineAnd,
                 ...getSubmitRingDatebandPayload(),
@@ -10349,6 +10489,7 @@
                 localStorage.setItem(SUBMIT_RING_MODE_KEY, storedMode);
                 localStorage.setItem(SUBMIT_RING_LABEL_CONN_KEY, submitRingLabelConn ? '1' : '0');
                 localStorage.setItem(SUBMIT_RING_LABEL_IX_KEY, submitRingLabelIx ? '1' : '0');
+                localStorage.setItem(SUBMIT_RING_FREQ_THRESH_KEY, JSON.stringify({ min: submitRingFreqMin ? 1 : 0, max: submitRingFreqMax ? 1 : 0, value: clampSubmitRingFreqValue(submitRingFreqValue) }));
             } catch (e) { /* ignore */ }
         }
 
@@ -10411,7 +10552,7 @@
             }
             if (modeValue) {
                 applySubmitRingModeMenuVisual(modeValue, modeValueMode);
-                modeValue.style.textTransform = (modeValueMode === 'custom' || modeValueMode === 'conn3' || modeValueMode === 'tail' || modeValueMode === 'dateband' || modeValueMode === SUBMIT_RING_CHAIN_MODE || modeValueMode === SUBMIT_RING_CUFLIP_MODE || modeValueMode === 'sameRow') ? 'none' : 'uppercase';
+                modeValue.style.textTransform = (modeValueMode === 'freq' || modeValueMode === 'custom' || modeValueMode === 'conn3' || modeValueMode === 'tail' || modeValueMode === 'dateband' || modeValueMode === SUBMIT_RING_CHAIN_MODE || modeValueMode === SUBMIT_RING_CUFLIP_MODE || modeValueMode === 'sameRow') ? 'none' : 'uppercase';
             }
             if (modeWrap) {
                 modeWrap.classList.remove('disabled');
@@ -10434,6 +10575,42 @@
             }
             if (customInc) {
                 customInc.disabled = xControlsDisabled;
+            }
+            const freqWrap = el('submitRingFreqWrap');
+            const freqMinBtn = el('submitRingFreqMinBtn');
+            const freqMaxBtn = el('submitRingFreqMaxBtn');
+            const freqValueInput = el('submitRingFreqValueInput');
+            const freqValueInc = el('submitRingFreqValueInc');
+            const freqValueDec = el('submitRingFreqValueDec');
+            const showFreqControls = dropdownMode === 'freq' && !labelActive;
+            submitRingFreqValue = clampSubmitRingFreqValue(submitRingFreqValue);
+            const freqControlsDisabled = !submitRingEnabled || !showFreqControls;
+            if (freqWrap) {
+                freqWrap.classList.toggle('hidden', !showFreqControls);
+            }
+            if (freqMinBtn) {
+                freqMinBtn.disabled = freqControlsDisabled;
+                freqMinBtn.classList.toggle('active', !!submitRingFreqMin);
+                freqMinBtn.setAttribute('aria-pressed', submitRingFreqMin ? 'true' : 'false');
+            }
+            if (freqMaxBtn) {
+                freqMaxBtn.disabled = freqControlsDisabled;
+                freqMaxBtn.classList.toggle('active', !!submitRingFreqMax);
+                freqMaxBtn.setAttribute('aria-pressed', submitRingFreqMax ? 'true' : 'false');
+            }
+            if (freqValueInput) {
+                if (document.activeElement !== freqValueInput) {
+                    setFilterPopupPositionText(freqValueInput, String(submitRingFreqValue));
+                }
+                freqValueInput.tabIndex = freqControlsDisabled ? -1 : 0;
+                freqValueInput.classList.toggle('is-disabled', freqControlsDisabled);
+                freqValueInput.setAttribute('aria-disabled', freqControlsDisabled ? 'true' : 'false');
+            }
+            if (freqValueInc) {
+                freqValueInc.disabled = freqControlsDisabled || submitRingFreqValue >= 9;
+            }
+            if (freqValueDec) {
+                freqValueDec.disabled = freqControlsDisabled || submitRingFreqValue <= 1;
             }
             if (labelWrap) {
                 labelWrap.classList.toggle('hidden', !showCuflipToggles);
@@ -10466,6 +10643,57 @@
             return true;
         }
 
+        function bumpSubmitRingFreqValueBy(delta) {
+            if (!submitRingEnabled || submitRingFreqMode !== 'freq') {
+                return false;
+            }
+            const next = clampSubmitRingFreqValue(submitRingFreqValue + (Number(delta) || 0));
+            if (next === submitRingFreqValue) {
+                return false;
+            }
+            submitRingFreqValue = next;
+            submitRingFreqMin = false;
+            submitRingFreqMax = false;
+            const freqValueInput = el('submitRingFreqValueInput');
+            if (freqValueInput) {
+                setFilterPopupPositionText(freqValueInput, String(submitRingFreqValue));
+            }
+            persistSubmitRingSettings();
+            syncSubmitRingToolbarUi();
+            sendSubmitRingConfigToIframe({ forceReapplyAutoring: true });
+            return true;
+        }
+
+        function toggleSubmitRingFreqBound(which) {
+            if (normalizeSubmitRingFreqMode(submitRingFreqMode) !== 'freq') {
+                return false;
+            }
+            if (!submitRingEnabled) {
+                return false;
+            }
+            if (which === 'min') {
+                if (submitRingFreqMin) {
+                    submitRingFreqMin = false;
+                } else {
+                    submitRingFreqMin = true;
+                    submitRingFreqMax = false;
+                }
+            } else if (which === 'max') {
+                if (submitRingFreqMax) {
+                    submitRingFreqMax = false;
+                } else {
+                    submitRingFreqMax = true;
+                    submitRingFreqMin = false;
+                }
+            } else {
+                return false;
+            }
+            persistSubmitRingSettings();
+            syncSubmitRingToolbarUi();
+            sendSubmitRingConfigToIframe({ forceReapplyAutoring: true });
+            return true;
+        }
+
         function initSubmitRingToolbar() {
             try {
                 const savedEnabled = localStorage.getItem(SUBMIT_RING_ENABLED_KEY);
@@ -10494,6 +10722,24 @@
                 } else {
                     applyLoadedSubmitRingMode('max');
                 }
+                try {
+                    const rawThresh = localStorage.getItem(SUBMIT_RING_FREQ_THRESH_KEY);
+                    if (rawThresh) {
+                        const p = JSON.parse(rawThresh);
+                        submitRingFreqValue = clampSubmitRingFreqValue(p && p.value);
+                        // Toggle min/max chỉ lấy từ thresh khi mode đang là freq thuần
+                        // (không ghi đè migrate từ min/max/chain1).
+                        if (normalizeSubmitRingFreqMode(submitRingFreqMode) === 'freq'
+                            && savedMode !== 'min' && savedMode !== 'max' && savedMode !== 'chain1') {
+                            submitRingFreqMin = !!(p && (p.min === 1 || p.min === true));
+                            submitRingFreqMax = !!(p && (p.max === 1 || p.max === true));
+                            if (submitRingFreqMin && submitRingFreqMax) {
+                                submitRingFreqMin = false;
+                                submitRingFreqMax = false;
+                            }
+                        }
+                    }
+                } catch (eThresh) { /* ignore */ }
                 if (submitRingFreqMode === SUBMIT_RING_CUFLIP_MODE
                     && (savedMode === SUBMIT_RING_CUFLIP_MODE || savedMode === 'cn')) {
                     submitRingLabelConn = savedLabelConn === '1';
@@ -10510,8 +10756,8 @@
                 syncSubmitRingModeFromUi();
             } catch (e) {
                 submitRingEnabled = false;
-                submitRingFreqMode = 'max';
-                submitRingMode = 'max';
+                submitRingFreqMode = 'freq';
+                submitRingMode = 'freq';
                 submitRingCustomX = 15;
                 submitRingLabelConn = false;
                 submitRingLabelIx = false;
@@ -10580,6 +10826,113 @@
                 document.addEventListener('pointerdown', dismissSubmitRingModeMenuUnlessControl, true);
                 document.addEventListener('mousedown', dismissSubmitRingModeMenuUnlessControl, true);
             }
+            
+            (function initSubmitRingFreqControls() {
+                const freqMinBtn = el('submitRingFreqMinBtn');
+                const freqMaxBtn = el('submitRingFreqMaxBtn');
+                const freqValueInput = el('submitRingFreqValueInput');
+                const freqValueInc = el('submitRingFreqValueInc');
+                const freqValueDec = el('submitRingFreqValueDec');
+                const bindFreqToggle = (btn, which) => {
+                    if (!btn || btn.dataset.bound === '1') {
+                        return;
+                    }
+                    btn.dataset.bound = '1';
+                    btn.addEventListener('mousedown', (event) => {
+                        event.stopPropagation();
+                    });
+                    btn.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        toggleSubmitRingFreqBound(which);
+                    });
+                };
+                const freqWrapEl = el('submitRingFreqWrap');
+                if (freqWrapEl && freqWrapEl.dataset.boundWrap !== '1') {
+                    freqWrapEl.dataset.boundWrap = '1';
+                    freqWrapEl.addEventListener('mousedown', (event) => event.stopPropagation());
+                    freqWrapEl.addEventListener('click', (event) => event.stopPropagation());
+                }
+                bindFreqToggle(freqMinBtn, 'min');
+                bindFreqToggle(freqMaxBtn, 'max');
+                const bindFreqSpin = (btn, delta) => {
+                    if (!btn || btn.dataset.bound === '1') return;
+                    btn.dataset.bound = '1';
+                    btn.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        bumpSubmitRingFreqValueBy(delta);
+                    });
+                };
+                bindFreqSpin(freqValueInc, 1);
+                bindFreqSpin(freqValueDec, -1);
+                if (freqValueInput && freqValueInput.dataset.bound !== '1') {
+                    freqValueInput.dataset.bound = '1';
+                    const commitFreqValueFromUi = () => {
+                        const parsed = parseInt(getFilterPopupPositionText(freqValueInput), 10);
+                        submitRingFreqValue = clampSubmitRingFreqValue(parsed);
+                        submitRingFreqMin = false;
+                        submitRingFreqMax = false;
+                        setFilterPopupPositionText(freqValueInput, String(submitRingFreqValue));
+                        persistSubmitRingSettings();
+                        syncSubmitRingToolbarUi();
+                        sendSubmitRingConfigToIframe({ forceReapplyAutoring: true });
+                    };
+                    freqValueInput.addEventListener('mousedown', (event) => {
+                        if (freqValueInput.classList.contains('is-disabled')) {
+                            return;
+                        }
+                        event.preventDefault();
+                        event.stopPropagation();
+                        freqValueInput.focus({ preventScroll: true });
+                    });
+                    freqValueInput.addEventListener('click', (event) => {
+                        event.stopPropagation();
+                    });
+                    freqValueInput.addEventListener('blur', () => {
+                        commitFreqValueFromUi();
+                    });
+                    freqValueInput.addEventListener('keydown', (event) => {
+                        if (normalizeSubmitRingFreqMode(submitRingFreqMode) !== 'freq' || !submitRingEnabled) {
+                            return;
+                        }
+                        const key = String(event.key || '');
+                        if (key >= '1' && key <= '9') {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            submitRingFreqValue = clampSubmitRingFreqValue(key);
+                            submitRingFreqMin = false;
+                            submitRingFreqMax = false;
+                            setFilterPopupPositionText(freqValueInput, String(submitRingFreqValue));
+                            persistSubmitRingSettings();
+                            syncSubmitRingToolbarUi();
+                            sendSubmitRingConfigToIframe({ forceReapplyAutoring: true });
+                            return;
+                        }
+                        if (key === 'Backspace' || key === 'Delete') {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            setFilterPopupPositionText(freqValueInput, '');
+                            return;
+                        }
+                        if (key === 'Enter') {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            commitFreqValueFromUi();
+                            freqValueInput.blur();
+                            return;
+                        }
+                        const code = String(event.code || '');
+                        const isPlus = key === '+' || code === 'NumpadAdd' || (code === 'Equal' && event.shiftKey);
+                        const isMinus = key === '-' || code === 'NumpadSubtract' || code === 'Minus';
+                        if (isPlus || isMinus) {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            bumpSubmitRingFreqValueBy(isPlus ? 1 : -1);
+                        }
+                    }, true);
+                }
+            })();
             buildSubmitRingModeMenu();
             const bumpRingCustomX = bumpSubmitRingCustomXBy;
 
@@ -12035,7 +12388,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             const countEl = el('filterPopupConnectionCount');
             const opEl = el('filterPopupConnectionOp');
             if (countEl) {
-                setFilterPopupPositionText(countEl, String(filterConnectionCount));
+                if (document.activeElement !== countEl) {
+                    setFilterPopupPositionText(countEl, String(filterConnectionCount));
+                }
                 countEl.tabIndex = show ? 0 : -1;
             }
             if (opEl) {
@@ -12095,14 +12450,52 @@ function getFilterNoteTRefMaxSelections(mode) {
                 });
             }
             const countEl = el('filterPopupConnectionCount');
-            if (countEl) {
+            if (countEl && countEl.dataset.boundInput !== '1') {
+                countEl.dataset.boundInput = '1';
+                countEl.addEventListener('mousedown', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    countEl.focus({ preventScroll: true });
+                });
+                countEl.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                });
                 countEl.addEventListener('blur', () => scheduleApplyConnectionCountFromUi());
                 countEl.addEventListener('keydown', (event) => {
-                    if (event.key === 'Enter') {
-                        event.preventDefault();
-                        applyConnectionCountFromUi();
+                    if (!periodFilterEnabled || !isConnectionFilterMode(periodFilterMode)) {
+                        return;
                     }
-                });
+                    const key = String(event.key || '');
+                    if (key >= '1' && key <= '5') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        filterConnectionCount = parseInt(key, 10);
+                        setFilterPopupPositionText(countEl, String(filterConnectionCount));
+                        syncFilterPopupConnectionCountSpinButtons();
+                        scheduleApplyConnectionCountFromUi();
+                        return;
+                    }
+                    if (key === 'Backspace' || key === 'Delete') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setFilterPopupPositionText(countEl, '');
+                        return;
+                    }
+                    if (key === 'Enter') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        applyConnectionCountFromUi();
+                        return;
+                    }
+                    const code = String(event.code || '');
+                    const isPlus = key === '+' || code === 'NumpadAdd' || (code === 'Equal' && event.shiftKey);
+                    const isMinus = key === '-' || code === 'NumpadSubtract' || code === 'Minus';
+                    if (isPlus || isMinus) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        bumpFilterPopupConnectionCount(isPlus ? 1 : -1);
+                    }
+                }, true);
             }
         }
 
@@ -21030,9 +21423,12 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
 
                 // Đang focus ô số chuyên dụng khác → để handler của ô đó nhận phím.
-                if (document.activeElement === input || document.activeElement === nonexistNumInput
-                    || document.activeElement === bracketCountInput
-                    || isFilterPopupHeader2InputFocused()) {
+                const ae = document.activeElement;
+                if (ae === input || ae === nonexistNumInput
+                    || ae === bracketCountInput
+                    || isFilterPopupHeader2InputFocused()
+                    || (ae && ae.classList && ae.classList.contains('filter-popup-intersection-freq-num'))
+                    || (ae && ae.id === 'submitRingFreqValueInput')) {
                     return;
                 }
 
@@ -22454,6 +22850,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 submitAutoCircleEnabled: !!submitRingEnabled,
                 submitAutoCircleMode: getEffectiveSubmitRingMode(),
                 submitAutoCircleCustomX: clampRingCustomX(submitRingCustomX),
+                submitAutoCircleFreqMin: !!submitRingFreqMin,
+                submitAutoCircleFreqMax: !!submitRingFreqMax,
+                submitAutoCircleFreqValue: clampSubmitRingFreqValue(submitRingFreqValue),
                 ...getSubmitRingDatebandPayload(),
                 labelCircleNums: (() => {
                     const nums = getSubmitRingLabelCircleNumsForFocusRow(detail.focusRowIndex);
@@ -24537,6 +24936,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (target.isContentEditable) {
                 return true;
             }
+            if (target.getAttribute('role') === 'textbox' || target.classList.contains('filter-popup-position-input')) {
+                return true;
+            }
             return !!target.closest('[contenteditable="true"]');
         }
 
@@ -25644,6 +26046,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                         submitAutoCircleEnabled: !!submitRingEnabled,
                         submitAutoCircleMode: getEffectiveSubmitRingMode(),
                         submitAutoCircleCustomX: clampRingCustomX(submitRingCustomX),
+                        submitAutoCircleFreqMin: !!submitRingFreqMin,
+                        submitAutoCircleFreqMax: !!submitRingFreqMax,
+                        submitAutoCircleFreqValue: clampSubmitRingFreqValue(submitRingFreqValue),
                         ...getSubmitRingDatebandPayload(),
                         labelCircleNums: (() => {
                             const nums = getSubmitRingLabelCircleNumsForFocusRow(detail.focusRowIndex);

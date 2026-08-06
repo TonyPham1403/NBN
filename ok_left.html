@@ -2302,9 +2302,13 @@
         let currentTails = [];
         let currentTailIndex = -1;
         let submitAutoCircleEnabled = false;
-        let submitAutoCircleMode = 'max';
+        let submitAutoCircleMode = 'freq';
         /** Khi mode === 'custom': khoanh đúng một số x (1–35), không phụ thuộc tần suất trong đáp án. */
         let submitAutoCircleCustomX = 15;
+        /** mode === 'freq': F=min | F=max | F=N (loại trừ; N khi tắt cả min/max) */
+        let submitAutoCircleFreqMin = false;
+        let submitAutoCircleFreqMax = false;
+        let submitAutoCircleFreqValue = 1;
         /** dateband #00b0f0: ngưỡng freq cặp cửa sổ 10 (đồng bộ filter popup). */
         let submitAutoCircleDatebandMinFreqA = 2;
         let submitAutoCircleDatebandMinFreqB = 2;
@@ -2893,13 +2897,16 @@
 
         function normalizeSubmitAutoCircleMode(mode) {
             var m = String(mode || '').trim();
-            if (m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist' || m === 'dateband' || m === 'chain' || m === 'sameRow') {
+            if (m === 'freq' || m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist' || m === 'dateband' || m === 'chain' || m === 'sameRow') {
+                if (m === 'min' || m === 'max') {
+                    return 'freq';
+                }
                 return m;
             }
             if (m === 'chain1') {
-                return 'max';
+                return 'freq';
             }
-            return 'max';
+            return 'freq';
         }
 
         function submitAutoCircleSkipsLine11Requirement(mode) {
@@ -3920,24 +3927,36 @@
                 return out;
             }
             var ansSrc = getAnswerNumsForAutoring();
-            if (ansSrc.length) {
+            if (ansSrc.length && (mode === 'freq' || mode === 'min' || mode === 'max')) {
+                var nThresh = parseInt(submitAutoCircleFreqValue, 10);
+                if (!Number.isFinite(nThresh)) nThresh = 1;
+                nThresh = Math.min(9, Math.max(1, nThresh));
+                var useMin = !!submitAutoCircleFreqMin;
+                var useMax = !!submitAutoCircleFreqMax;
                 const candidates = ansSrc
                     .map(function (n) { return parseInt(n, 10); })
                     .filter(function (n) { return !isNaN(n); })
                     .map(function (n) { return { num: n, freq: parseInt(raw.freq[n], 10) || 0 }; });
 
                 if (candidates.length > 0) {
-                    if (mode === 'min') {
+                    if (useMin && !useMax) {
+                        // min (logic cũ): freq === 1
                         candidates.forEach(function (item) {
                             if (item.freq === 1) out.add(item.num);
                         });
-                    } else {
-                        let maxFreq = -Infinity;
+                    } else if (useMax && !useMin) {
+                        // max (logic cũ): freq === maxFreq trong đáp án
+                        var maxFreq = -Infinity;
                         candidates.forEach(function (item) {
                             if (item.freq > maxFreq) maxFreq = item.freq;
                         });
                         candidates.forEach(function (item) {
                             if (item.freq === maxFreq) out.add(item.num);
+                        });
+                    } else {
+                        // F=x: khoanh đáp án có đúng freq = N
+                        candidates.forEach(function (item) {
+                            if (item.freq === nThresh) out.add(item.num);
                         });
                     }
                 }
@@ -4916,7 +4935,7 @@
                     }
                 }
                 var cfgMode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
-                if ((cfgMode === 'max' || cfgMode === 'min') && ans.length >= 5) {
+                if ((cfgMode === 'freq' || cfgMode === 'max' || cfgMode === 'min') && ans.length >= 5) {
                     try { syncModeFromAnswerNums(ans); } catch (e) { }
                 }
                 applyAutoRingSelection(circleNums);
@@ -4944,7 +4963,7 @@
             }
             var ansCfg = getAnswerNumsFromCurrentLine11();
             var cfgMode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
-            if ((cfgMode === 'max' || cfgMode === 'min') && ansCfg.length >= 5) {
+            if ((cfgMode === 'freq' || cfgMode === 'max' || cfgMode === 'min') && ansCfg.length >= 5) {
                 try { syncModeFromAnswerNums(ansCfg); } catch (e) { }
             }
             var circleNumsCfg = getSubmitAutoCircleNumsForApply(msg);
@@ -4975,7 +4994,7 @@
 
                 var ans = getAnswerNumsFromCurrentLine11();
                 var ringMode = normalizeSubmitAutoCircleMode(submitAutoCircleMode);
-                if ((ringMode === 'max' || ringMode === 'min') && ans.length >= 5) {
+                if ((ringMode === 'freq' || ringMode === 'max' || ringMode === 'min') && ans.length >= 5) {
                     syncModeFromAnswerNums(ans);
                 }
 
@@ -12177,6 +12196,23 @@
                         if (msg.submitAutoCircleCustomX !== undefined && msg.submitAutoCircleCustomX !== null && msg.submitAutoCircleCustomX !== '') {
                             submitAutoCircleCustomX = clampSubmitAutoCircleCustomX(msg.submitAutoCircleCustomX);
                         }
+                        if (typeof msg.submitAutoCircleFreqMin === 'boolean') {
+                            submitAutoCircleFreqMin = msg.submitAutoCircleFreqMin;
+                        } else if (typeof msg.freqMin === 'boolean') {
+                            submitAutoCircleFreqMin = msg.freqMin;
+                        }
+                        if (typeof msg.submitAutoCircleFreqMax === 'boolean') {
+                            submitAutoCircleFreqMax = msg.submitAutoCircleFreqMax;
+                        } else if (typeof msg.freqMax === 'boolean') {
+                            submitAutoCircleFreqMax = msg.freqMax;
+                        }
+                        if (msg.submitAutoCircleFreqValue != null && msg.submitAutoCircleFreqValue !== '') {
+                            var fv2 = parseInt(msg.submitAutoCircleFreqValue, 10);
+                            if (Number.isFinite(fv2)) submitAutoCircleFreqValue = Math.min(9, Math.max(1, fv2));
+                        } else if (msg.freqValue != null && msg.freqValue !== '') {
+                            var fv3 = parseInt(msg.freqValue, 10);
+                            if (Number.isFinite(fv3)) submitAutoCircleFreqValue = Math.min(9, Math.max(1, fv3));
+                        }
                         applySubmitAutoCircleDatebandFromMsg({
                             datebandMinFreqA: msg.submitAutoCircleDatebandMinFreqA != null
                                 ? msg.submitAutoCircleDatebandMinFreqA
@@ -12492,6 +12528,18 @@
                     submitAutoCircleMode = normalizeSubmitAutoCircleMode(msg.mode);
                     if (msg.customX !== undefined && msg.customX !== null && msg.customX !== '') {
                         submitAutoCircleCustomX = clampSubmitAutoCircleCustomX(msg.customX);
+                    }
+                    if (typeof msg.freqMin === 'boolean') {
+                        submitAutoCircleFreqMin = msg.freqMin;
+                    }
+                    if (typeof msg.freqMax === 'boolean') {
+                        submitAutoCircleFreqMax = msg.freqMax;
+                    }
+                    if (msg.freqValue !== undefined && msg.freqValue !== null && msg.freqValue !== '') {
+                        var fv = parseInt(msg.freqValue, 10);
+                        if (Number.isFinite(fv)) {
+                            submitAutoCircleFreqValue = Math.min(9, Math.max(1, fv));
+                        }
                     }
                     applySubmitAutoCircleDatebandFromMsg(msg);
                     applySubmitAutoCircleChainFromMsg(msg);
