@@ -2305,7 +2305,7 @@
         let submitAutoCircleMode = 'freq';
         /** Khi mode === 'custom': khoanh đúng một số x (1–35), không phụ thuộc tần suất trong đáp án. */
         let submitAutoCircleCustomX = 15;
-        /** mode === 'freq': F=min | F=max | F=N (loại trừ; N khi tắt cả min/max) */
+        /** mode === 'freq': Freq=min | Freq=max | Freq=N (loại trừ; N khi tắt cả min/max) */
         let submitAutoCircleFreqMin = false;
         let submitAutoCircleFreqMax = false;
         let submitAutoCircleFreqValue = 1;
@@ -3954,7 +3954,7 @@
                             if (item.freq === maxFreq) out.add(item.num);
                         });
                     } else {
-                        // F=x: khoanh đáp án có đúng freq = N
+                        // Freq=x: khoanh đáp án có đúng freq = N
                         candidates.forEach(function (item) {
                             if (item.freq === nThresh) out.add(item.num);
                         });

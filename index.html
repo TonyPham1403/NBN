@@ -8039,13 +8039,13 @@
                                     role="listbox" aria-label="Chế độ autoring"></ul>
                             </div>
                             <div id="submitRingFreqWrap" class="submit-ring-freq-wrap hidden"
-                                title="freq: F=min | F=max | F=N — bật min hoặc max (không cùng lúc); tắt cả hai thì dùng N">
+                                title="freq: Freq=min | Freq=max | Freq=N — bật min hoặc max (không cùng lúc); tắt cả hai thì dùng N">
                                 <button type="button" id="submitRingFreqMinBtn"
                                     class="submit-ring-freq-toggle" aria-pressed="false"
-                                    title="F=min: khoanh đáp án freq = 1">min</button>
+                                    title="Freq=min: khoanh đáp án freq = 1">min</button>
                                 <button type="button" id="submitRingFreqMaxBtn"
                                     class="submit-ring-freq-toggle" aria-pressed="false"
-                                    title="F=max: khoanh đáp án có freq cao nhất">max</button>
+                                    title="Freq=max: khoanh đáp án có freq cao nhất">max</button>
                                 <div class="submit-ring-freq-n-wrap" title="Khoanh đáp án có đúng freq = N (1–9)">
                                     <span id="submitRingFreqValueInput"
                                         class="filter-popup-position-input filter-popup-intersection-freq-num submit-ring-freq-num"
@@ -9692,12 +9692,12 @@
             const m = normalizeSubmitRingMode(mode);
             if (m === 'freq') {
                 if (submitRingFreqMin) {
-                    return 'F=min';
+                    return 'Freq=min';
                 }
                 if (submitRingFreqMax) {
-                    return 'F=max';
+                    return 'Freq=max';
                 }
-                return 'F=' + clampSubmitRingFreqValue(submitRingFreqValue);
+                return 'Freq=' + clampSubmitRingFreqValue(submitRingFreqValue);
             }
             if (m === 'custom') {
                 return `X=${submitRingCustomX}`;
