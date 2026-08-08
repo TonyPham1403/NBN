@@ -276,6 +276,7 @@ def main() -> int:
     write_data_json(json_path, final_out)
     ids_added = ", ".join(f"{r['id']:05d}" for r in new_rows)
     print(f"Them {len(new_rows)} ky: {ids_added}. Ghi {json_path} ({len(final_out)} dong, co hang cuoi result rong).")
+    print(args.url, flush=True)
     return 0
 
 
