@@ -4,11 +4,8 @@ on:
   push:
     branches:
       - main
-
   schedule:
-    # Cứ 15 phút một lần (UTC). GitHub có thể trễ vài phút lúc cao điểm.
-    - cron: "*/5 * * * *"
-
+    - cron: "*/15 * * * *"   # 15 phút (giống convert.yml)
   workflow_dispatch:
 
 jobs:
@@ -37,15 +34,7 @@ jobs:
 
       - name: Commit and push if changed
         run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
           git add data.json
-
-          if git diff --cached --quiet; then
-            echo "No changes to commit."
-            exit 0
-          fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          git commit -m "chore: auto update 535 draw data"
-          git push
+          git diff --cached --quiet || (git commit -m "chore: auto update 535 draw data" && git push)
