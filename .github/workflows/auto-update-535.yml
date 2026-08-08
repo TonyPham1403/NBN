@@ -6,10 +6,8 @@ on:
       - main
 
   schedule:
-    # 13:05, 13:10, 13:15 VN
-    # 21:05, 21:10, 21:15 VN
-    # GitHub Actions dùng UTC
-    - cron: "5,10,15 6,14 * * *"
+    # Cứ 15 phút một lần (UTC). GitHub có thể trễ vài phút lúc cao điểm.
+    - cron: "*/5 * * * *"
 
   workflow_dispatch:
 
