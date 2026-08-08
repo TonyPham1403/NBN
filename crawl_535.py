@@ -264,6 +264,7 @@ def main() -> int:
     new_rows = _fetch_new_rows_xskt(max_id, args.url)
     if not new_rows:
         print(f"Khong co ky moi (max_id hien tai: {max_id:05d}).")
+        print(args.url, flush=True)
         return 0
 
     by_id = {r["id"]: dict(r) for r in existing}
