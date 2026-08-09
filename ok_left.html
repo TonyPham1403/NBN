@@ -1490,6 +1490,46 @@
             display: block;
         }
 
+        /*
+         * Phân biệt A/S/B — giữ 4 góc cũ, chỉ nối thêm đoạn giữa góc:
+         *   A → nối ⌜—⌝ (cạnh trên)
+         *   S → nối cạnh trái + cạnh phải (dọc)
+         *   B → nối ⌞—⌟ (cạnh đáy)
+         */
+        .cell.num > .rel-phase-corners > .rel-bridge {
+            position: absolute;
+            background: var(--rel-corner);
+            pointer-events: none;
+        }
+
+        .cell.num > .rel-phase-corners > .rel-bridge-top {
+            left: 0;
+            right: 0;
+            top: 0;
+            height: var(--rel-thick);
+        }
+
+        .cell.num > .rel-phase-corners > .rel-bridge-bottom {
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: var(--rel-thick);
+        }
+
+        .cell.num > .rel-phase-corners > .rel-bridge-left {
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: var(--rel-thick);
+        }
+
+        .cell.num > .rel-phase-corners > .rel-bridge-right {
+            right: 0;
+            top: 0;
+            bottom: 0;
+            width: var(--rel-thick);
+        }
+
         /* ≥2 quan hệ cùng đề xuất 1 số (vd A+S): ngoặc kép — lớp trong + dày hơn */
         .cell.num.rel-phase-multi > .rel-phase-corners {
             --rel-corner: #9f1239;
@@ -1911,11 +1951,11 @@
                             <button id="submitBtn" type="button">Submit</button>
                             <button id="blockBtn" type="button" aria-pressed="true">Block</button>
                             <button id="relPhaseAboveBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
-                                title="A = ABOVE: số freq≥2 luôn nằm ngay trên một số tím phase1 (Chuỗi 1)">A</button>
+                                title="A = ABOVE: freq≥2 luôn trên phase1 — nối 2 góc trên">A</button>
                             <button id="relPhaseSameBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
-                                title="S = SAME: số freq≥2 luôn cùng chuỗi với một số tím phase1 (Chuỗi 1)">S</button>
+                                title="S = SAME: freq≥2 luôn cùng chuỗi phase1 — nối cạnh trái + phải">S</button>
                             <button id="relPhaseBelowBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
-                                title="B = BELOW: số freq≥2 luôn nằm ngay dưới một số tím phase1 (Chuỗi 1)">B</button>
+                                title="B = BELOW: freq≥2 luôn dưới phase1 — nối 2 góc dưới">B</button>
                         </div>
                         <div class="actions-right">
                             <button type="button" id="leftPosnfreqHexBtn" class="left-posnfreq-hex" hidden
@@ -3328,7 +3368,7 @@
             return lines;
         }
 
-        /** Toggle A/S/B: ngoặc góc đỏ hồng trên số freq≥2 always above/same/below phase1 (Chuỗi 1). */
+        /** Toggle A/S/B: ngoặc góc + nối cạnh (A=trên, S=trái/phải, B=đáy) trên số freq≥2 always relative phase1. */
         const REL_PHASE_ASB_KEY = 'leftPaneRelPhaseASB';
         let relPhaseAboveOn = false;
         let relPhaseSameOn = false;
@@ -3492,6 +3532,45 @@
             return el;
         }
 
+        /** Nối cạnh A/S/B trên nền ngoặc góc: top / left+right / bottom. */
+        function syncRelPhaseBridges(ring, isAbove, isSame, isBelow) {
+            if (!ring) {
+                return;
+            }
+            var want = {
+                'rel-bridge-top': !!isAbove,
+                'rel-bridge-bottom': !!isBelow,
+                'rel-bridge-left': !!isSame,
+                'rel-bridge-right': !!isSame
+            };
+            var existing = ring.querySelectorAll('.rel-bridge');
+            for (var i = 0; i < existing.length; i++) {
+                var node = existing[i];
+                var keep = false;
+                for (var cls in want) {
+                    if (want[cls] && node.classList.contains(cls)) {
+                        keep = true;
+                        break;
+                    }
+                }
+                if (!keep && node.parentNode === ring) {
+                    ring.removeChild(node);
+                }
+            }
+            Object.keys(want).forEach(function (cls) {
+                if (!want[cls]) {
+                    return;
+                }
+                if (ring.querySelector('.' + cls)) {
+                    return;
+                }
+                var bridge = document.createElement('span');
+                bridge.className = 'rel-bridge ' + cls;
+                bridge.setAttribute('aria-hidden', 'true');
+                ring.appendChild(bridge);
+            });
+        }
+
         function applyRelPhaseVisualInDOM() {
             var anyOn = relPhaseAboveOn || relPhaseSameOn || relPhaseBelowOn;
             var sets = anyOn ? computeRelPhaseNumsByKind() : null;
@@ -3511,11 +3590,12 @@
                     span.classList.toggle('rel-phase-multi', hitCount >= 2);
                     span.classList.toggle('rel-phase-triple', hitCount >= 3);
                     if (hitCount > 0) {
-                        ensureRelPhaseDiamondEl(span);
+                        var ring = ensureRelPhaseDiamondEl(span);
+                        syncRelPhaseBridges(ring, isAbove, isSame, isBelow);
                     } else {
-                        var ring = span.querySelector('.rel-phase-corners');
-                        if (ring && ring.parentNode === span) {
-                            span.removeChild(ring);
+                        var old = span.querySelector('.rel-phase-corners');
+                        if (old && old.parentNode === span) {
+                            span.removeChild(old);
                         }
                     }
                 });
