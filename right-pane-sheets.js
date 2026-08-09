@@ -408,7 +408,7 @@ class RightPaneSheetManager {
         this._comboFocusUndoBurstAnchorId = '';
         this._comboFocusUndoBurstEndId = '';
         this._comboFocusUndoCommitTimer = 0;
-        this.answerPopupFocusMask = { active: false, rowIndex: -1 };
+        this.answerPopupFocusMask = { active: false, rowIndex: -1, open: false };
         this._answerPopupMaskAppliedRow = -1;
         this._answerPopupMaskApplyRaf = 0;
         this._idFreqAsOfCacheRow = -1;
@@ -4396,14 +4396,35 @@ class RightPaneSheetManager {
         const nextActive = open && rowIndex >= 0 && !submitOn;
         const nextRow = open ? rowIndex : -1;
         const prev = this.answerPopupFocusMask || {};
+        const prevOpen = !!prev.open;
         if (prev.active !== nextActive || prev.rowIndex !== nextRow) {
             this._idFreqAsOfCacheRow = -1;
             this._idFreqAsOfCache = null;
         }
         this.answerPopupFocusMask = {
             active: nextActive,
-            rowIndex: nextRow
+            rowIndex: nextRow,
+            open
         };
+        // Answer popup mở → tắt focus-chain hit; đóng → khôi phục (sau mask/nonexist rAF).
+        if (prevOpen !== open) {
+            if (this._focusChainHitAnswerPopupRaf) {
+                cancelAnimationFrame(this._focusChainHitAnswerPopupRaf);
+                this._focusChainHitAnswerPopupRaf = 0;
+            }
+            this._focusChainHitAnswerPopupRaf = requestAnimationFrame(() => {
+                this._focusChainHitAnswerPopupRaf = requestAnimationFrame(() => {
+                    this._focusChainHitAnswerPopupRaf = 0;
+                    this.reapplyWindowLabelsForActiveWindow();
+                });
+            });
+        }
+    }
+
+    /** true khi bảng Answer popup đang mở (tắt focus-chain hit). */
+    isAnswerPopupOpenForFocusChainHit() {
+        const m = this.answerPopupFocusMask || {};
+        return !!m.open;
     }
 
     shouldAnswerPopupMaskSheet1Row(rowIndex) {
@@ -5861,8 +5882,200 @@ class RightPaneSheetManager {
         }
 
         this.clearWindowBorderClassesOnWrap(tableWrap);
+        this.clearFocusChainOverlapResultHighlights(tableWrap);
         this.clearIdRefHighlightFromDom(tableWrap);
         this.clearFocusNoteRefHighlightFromDom(tableWrap);
+    }
+
+    /**
+     * Tập số dùng tô overlap ngoài cửa sổ 10:
+     * - hàng có result → 5 số chính
+     * - chỉ row rỗng cuối → số khoanh giả lập (leftBasicPreviewPickNums)
+     * @param {number} focusRowIdx
+     * @returns {Set<number>}
+     */
+    resolveFocusChainHitNumSet(focusRowIdx) {
+        if (this.isAnswerPopupOpenForFocusChainHit()) {
+            return new Set();
+        }
+        const rows = this.getSourceSheetRows();
+        if (typeof focusRowIdx !== 'number' || focusRowIdx < 0 || focusRowIdx >= rows.length) {
+            return new Set();
+        }
+        const focusData = rows[focusRowIdx];
+        if (!focusData) {
+            return new Set();
+        }
+        if (!this.isEmptyResultRow(focusData)) {
+            return new Set(this.parseMainNums(focusData.result || focusData.Result || ''));
+        }
+        // Chỉ row rỗng cuối được dùng pick giả lập.
+        if (focusRowIdx !== rows.length - 1) {
+            return new Set();
+        }
+        const picks = this.leftBasicPreviewPickNums || [];
+        const out = new Set();
+        for (let i = 0; i < picks.length; i++) {
+            const n = picks[i];
+            if (n >= 1 && n <= 35) {
+                out.add(n);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Vẽ lại nhãn cửa sổ + focus-chain hit theo activeWindowRange (sheet1).
+     */
+    reapplyWindowLabelsForActiveWindow() {
+        const r = this.activeWindowRange;
+        if (!r || typeof r.start !== 'number' || typeof r.end !== 'number') {
+            return;
+        }
+        if (this.activeSheet !== 'sheet1') {
+            return;
+        }
+        const focusIdx = (typeof r.target === 'number' && r.target >= 0) ? r.target : r.end;
+        const tableWrap = this._sheet1NavTableWrap || document.getElementById('tableWrap');
+        if (!tableWrap || tableWrap.classList.contains('table-wrap--tracking')) {
+            return;
+        }
+        this.renderWindowLabels(r.start, r.end, tableWrap, focusIdx);
+    }
+
+    /**
+     * Khi khoanh giả lập đổi trên row rỗng cuối — vẽ lại overlap ngoài 0–5.
+     */
+    refreshFocusChainOverlapHighlightsFromActiveWindow() {
+        const r = this.activeWindowRange;
+        if (!r || typeof r.start !== 'number' || typeof r.end !== 'number') {
+            return;
+        }
+        const focusIdx = (typeof r.target === 'number' && r.target >= 0) ? r.target : r.end;
+        const rows = this.getSourceSheetRows();
+        if (focusIdx < 0 || focusIdx >= rows.length) {
+            return;
+        }
+        if (!this.isEmptyResultRow(rows[focusIdx]) || focusIdx !== rows.length - 1) {
+            return;
+        }
+        this.reapplyWindowLabelsForActiveWindow();
+    }
+
+    /**
+     * Gỡ highlight số result trùng chuỗi 0 focus (ngoài cửa sổ 10).
+     * @param {HTMLElement} tableWrapEl
+     */
+    clearFocusChainOverlapResultHighlights(tableWrapEl) {
+        const tableWrap = tableWrapEl || document.getElementById('tableWrap');
+        if (!tableWrap) {
+            return;
+        }
+        const hits = tableWrap.querySelectorAll('td.cell-result .result-focus-chain-hit');
+        if (!hits.length) {
+            return;
+        }
+        const idxs = new Set();
+        hits.forEach((span) => {
+            const tr = span.closest('tr[data-idx]');
+            if (tr) {
+                idxs.add(Number(tr.dataset.idx));
+            }
+        });
+        idxs.forEach((idx) => {
+            if (!Number.isFinite(idx)) {
+                return;
+            }
+            const tr = tableWrap.querySelector(`tbody tr[data-idx="${idx}"]`);
+            const cell = tr && tr.querySelector('td.cell-result');
+            if (cell) {
+                this.rebuildResultCellMainWithFocusHits(cell, idx, null);
+            }
+        });
+    }
+
+    /**
+     * Tập số trong cột nonexist của một hàng nguồn (để tô focus-chain hit vàng).
+     * @param {number} rowIndex
+     * @returns {Set<number>}
+     */
+    getRowNonexistNumSetForFocusChainHit(rowIndex) {
+        const rows = this.getSourceSheetRows();
+        if (typeof rowIndex !== 'number' || rowIndex < 0 || rowIndex >= rows.length) {
+            return new Set();
+        }
+        const row = rows[rowIndex];
+        if (!row) {
+            return new Set();
+        }
+        if (!this.nonexistCache || this.nonexistCache.length !== rows.length) {
+            this.refreshDerivedState();
+        }
+        const meta = this.getNonexistMetaForSourceRow(rowIndex, row);
+        const text = String(meta && meta.text || '').trim();
+        if (!text || text === 'N/A') {
+            return new Set();
+        }
+        return new Set(this.parseNums(text));
+    }
+
+    /**
+     * Bọc số chính (trước |) trùng tập focus bằng .result-focus-chain-hit.
+     * Số cũng nằm trong nonexist hàng focus (chuỗi 0) → thêm --nonexist (nền vàng chữ đen).
+     * @param {string} resultHtml
+     * @param {Set<number>|null} focusNumSet
+     * @param {Set<number>|null} [focusNonexistNumSet]
+     * @returns {string}
+     */
+    wrapFocusChainHitsInResultHtml(resultHtml, focusNumSet, focusNonexistNumSet = null) {
+        if (!resultHtml || !focusNumSet || !focusNumSet.size) {
+            return resultHtml || '';
+        }
+        const nxSet = focusNonexistNumSet && focusNonexistNumSet.size ? focusNonexistNumSet : null;
+        const pipeIndex = resultHtml.indexOf('|');
+        const before = pipeIndex >= 0 ? resultHtml.slice(0, pipeIndex) : resultHtml;
+        const after = pipeIndex >= 0 ? resultHtml.slice(pipeIndex) : '';
+        const wrapped = before.replace(/\b(\d{1,2})\b/g, (m) => {
+            const n = parseInt(m, 10);
+            if (Number.isFinite(n) && focusNumSet.has(n)) {
+                const cls = (nxSet && nxSet.has(n))
+                    ? 'result-focus-chain-hit result-focus-chain-hit--nonexist'
+                    : 'result-focus-chain-hit';
+                return `<span class="${cls}">${m}</span>`;
+            }
+            return m;
+        });
+        return wrapped + after;
+    }
+
+    /**
+     * Render lại nội dung result (giữ fold), optional bọc số trùng focus.
+     * @param {HTMLElement} resultCell
+     * @param {number} rowIndex
+     * @param {Set<number>|null} focusNumSet
+     * @param {Set<number>|null} [focusNonexistNumSet] nonexist của hàng focus (chuỗi 0), kể cả row rỗng cuối
+     */
+    rebuildResultCellMainWithFocusHits(resultCell, rowIndex, focusNumSet, focusNonexistNumSet = null) {
+        if (!resultCell || !Number.isFinite(rowIndex)) {
+            return;
+        }
+        const rows = this.getSourceSheetRows();
+        const dataRow = rows[rowIndex];
+        if (!dataRow) {
+            return;
+        }
+        const result = dataRow.result || dataRow.Result || '';
+        const fold = resultCell.querySelector('.prev-period-recall-fold');
+        const foldHtml = fold ? fold.outerHTML : '';
+        let resultHtml = this.highlightResultByFrequency(result);
+        if (focusNumSet && focusNumSet.size) {
+            resultHtml = this.wrapFocusChainHitsInResultHtml(
+                resultHtml,
+                focusNumSet,
+                focusNonexistNumSet
+            );
+        }
+        resultCell.innerHTML = foldHtml + resultHtml;
     }
 
     /**
@@ -6133,7 +6346,7 @@ class RightPaneSheetManager {
                 previewRefresh.add(i);
             }
             this.refreshNonexistCellsForRowIndices(tableWrap, previewRefresh);
-            this.renderWindowLabels(startIdx, endIdx, tableWrap);
+            this.renderWindowLabels(startIdx, endIdx, tableWrap, targetIdx);
             return;
         }
         if (idRefHighlightIndices && idRefHighlightIndices.length) {
@@ -6157,7 +6370,7 @@ class RightPaneSheetManager {
             refreshIndices.add(i);
         }
         this.refreshNonexistCellsForRowIndices(tableWrap, refreshIndices);
-        this.renderWindowLabels(startIdx, endIdx, tableWrap);
+        this.renderWindowLabels(startIdx, endIdx, tableWrap, targetIdx);
     }
 
     /**
@@ -6330,39 +6543,100 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Draw 10 inline labels inside the right side of the selected window rows.
-     * Mirrors the VBA WinLabel_01..10 placement at the right of the block.
+     * Draw inline chain labels on result/note/nonexist:
+     * - ngoài trên cửa sổ: 0..5 (sát nhãn 10 → 0, xa hơn → 5)
+     * - trong cửa sổ: 10..1
+     * - hàng focus: 0
+     * Đồng thời highlight số result ngoài 0–5 trùng pick chuỗi 0 focus.
      */
-    renderWindowLabels(startIdx, endIdx, tableWrapEl) {
+    renderWindowLabels(startIdx, endIdx, tableWrapEl, focusIdx = null) {
         const tableWrap = tableWrapEl || document.getElementById('tableWrap');
         if (!tableWrap) {
             return;
         }
 
         tableWrap.querySelectorAll('.win-label-inline').forEach(label => label.remove());
+        this.clearFocusChainOverlapResultHighlights(tableWrap);
 
-        const maxLabels = Math.min(10, Math.max(0, endIdx - startIdx + 1));
-        for (let offset = 0; offset < maxLabels; offset++) {
-            const rowIdx = startIdx + offset;
-            const row = tableWrap.querySelector(`tbody tr[data-idx="${rowIdx}"]`);
-            if (!row || row.dataset.empty === '1') {
-                continue;
+        const appendWinLabel = (row, labelText, extraClass) => {
+            if (!row) {
+                return;
             }
-
             const resultCell = row.querySelector('td.cell-result');
             const noteCell = row.querySelector('td.cell-note');
             const nonexistCell = row.querySelector('td.cell-nonexist');
             if (!resultCell || !noteCell || !nonexistCell) {
-                continue;
+                return;
             }
-
-            const labelText = String(10 - offset);
             for (const cell of [resultCell, noteCell, nonexistCell]) {
                 const label = document.createElement('span');
-                label.className = 'win-label-inline';
+                label.className = extraClass
+                    ? `win-label-inline ${extraClass}`
+                    : 'win-label-inline';
                 label.textContent = labelText;
                 cell.appendChild(label);
             }
+        };
+
+        const focusRowIdx = (typeof focusIdx === 'number' && focusIdx >= 0)
+            ? focusIdx
+            : endIdx;
+
+        const focusNumSet = this.resolveFocusChainHitNumSet(focusRowIdx);
+        // Nonexist của chuỗi 0 focus (kể cả row rỗng cuối / giả lập) → tô vàng focus-chain hit.
+        const focusNonexistNumSet = focusNumSet.size
+            ? this.getRowNonexistNumSetForFocusChainHit(focusRowIdx)
+            : new Set();
+
+        // Ngoài trên cửa sổ (liền trên nhãn 10 vàng): startIdx-1=0 … startIdx-6=5.
+        if (typeof startIdx === 'number' && startIdx > 0) {
+            for (let outer = 0; outer <= 5; outer++) {
+                const rowIdx = startIdx - 1 - outer;
+                if (rowIdx < 0) {
+                    break;
+                }
+                if (rowIdx === focusRowIdx) {
+                    continue;
+                }
+                const row = tableWrap.querySelector(`tbody tr[data-idx="${rowIdx}"]`);
+                if (!row) {
+                    continue;
+                }
+                if (focusNumSet.size && row.dataset.empty !== '1') {
+                    const resultCell = row.querySelector('td.cell-result');
+                    if (resultCell) {
+                        this.rebuildResultCellMainWithFocusHits(
+                            resultCell,
+                            rowIdx,
+                            focusNumSet,
+                            focusNonexistNumSet
+                        );
+                    }
+                }
+                const extra = outer === 0
+                    ? 'win-label-inline--outer-0'
+                    : 'win-label-inline--outer';
+                appendWinLabel(row, String(outer), extra);
+            }
+        }
+
+        const maxLabels = Math.min(10, Math.max(0, endIdx - startIdx + 1));
+        for (let offset = 0; offset < maxLabels; offset++) {
+            const rowIdx = startIdx + offset;
+            if (rowIdx === focusRowIdx) {
+                continue;
+            }
+            const row = tableWrap.querySelector(`tbody tr[data-idx="${rowIdx}"]`);
+            if (!row || row.dataset.empty === '1') {
+                continue;
+            }
+            appendWinLabel(row, String(10 - offset));
+        }
+
+        // Nhãn 0: luôn trên id đang focus (kể cả hàng result rỗng).
+        if (typeof focusRowIdx === 'number' && focusRowIdx >= 0) {
+            const focusRow = tableWrap.querySelector(`tbody tr[data-idx="${focusRowIdx}"]`);
+            appendWinLabel(focusRow, '0', 'win-label-inline--focus');
         }
     }
 
@@ -7019,11 +7293,14 @@ class RightPaneSheetManager {
             cell.classList.toggle('answer-popup-focus-nonexist', masked);
         }
 
-        // innerHTML nonexist xóa .win-label-inline — gắn lại 10 nhãn chuỗi (result/note không bị refresh nên vẫn còn).
+        // innerHTML nonexist xóa .win-label-inline — gắn lại nhãn chuỗi + 0 (result/note không bị refresh nên vẫn còn).
         const win = options.windowRange || this.activeWindowRange;
         if (win && typeof win.start === 'number' && typeof win.end === 'number'
             && win.end >= win.start) {
-            this.renderWindowLabels(win.start, win.end, tableWrap);
+            const focusIdx = (typeof win.target === 'number' && win.target >= 0)
+                ? win.target
+                : win.end;
+            this.renderWindowLabels(win.start, win.end, tableWrap, focusIdx);
         }
     }
 
@@ -11670,6 +11947,9 @@ class RightPaneSheetManager {
                 this.leftSpecialPreviewPickNumStash = null;
             }
         }
+        try {
+            this.refreshFocusChainOverlapHighlightsFromActiveWindow();
+        } catch (eHitSub) { /* ignore */ }
         this.requestTrackingUiRepaintIfActive();
     }
 
@@ -11697,6 +11977,9 @@ class RightPaneSheetManager {
             if (!options.skipFocusUpdate) {
                 this.applyTrackingPreviewFocusAfterPickNumsChange(prev, next);
             }
+            try {
+                this.refreshFocusChainOverlapHighlightsFromActiveWindow();
+            } catch (eHit) { /* ignore */ }
         }
         return !same;
     }

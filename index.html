@@ -7241,6 +7241,39 @@
             z-index: 1;
         }
 
+        /* Nhãn 0 — id đang focus, hoặc 0 ngoài trên cửa sổ */
+        .win-label-inline.win-label-inline--focus,
+        .win-label-inline.win-label-inline--outer-0 {
+            background: #fff;
+            border-color: #000;
+            font-weight: 800;
+        }
+
+        /* Nhãn 1–5 ngoài trên cửa sổ (liền trên nhãn 10 vàng) */
+        .win-label-inline.win-label-inline--outer {
+            background: #dc2626;
+            border-color: #7f1d1d;
+            color: #fff;
+            font-weight: 800;
+        }
+
+        /* Số result ngoài cửa sổ (chuỗi 0–5) trùng pick của chuỗi 0 focus */
+        .sheet-data-table td.cell-result .result-focus-chain-hit {
+            background: #93c5fd;
+            color: #0c4a6e;
+            font-weight: 800;
+            padding: 0 2px;
+            border-radius: 2px;
+            box-shadow: inset 0 0 0 1px #1d4ed8;
+        }
+
+        /* Focus-chain hit + nằm trong nonexist hàng focus (chuỗi 0) */
+        .sheet-data-table td.cell-result .result-focus-chain-hit.result-focus-chain-hit--nonexist {
+            background: #ff0;
+            color: #000;
+            box-shadow: inset 0 0 0 1px #a16207;
+        }
+
         .sheet-data-table td.window-selected {
             border-color: transparent !important;
         }
@@ -8815,7 +8848,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260809winLabelNonexistFix"></script>
+    <script src="right-pane-sheets.js?v=20260810focusChainHit06"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
