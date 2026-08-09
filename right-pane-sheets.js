@@ -11563,11 +11563,15 @@ class RightPaneSheetManager {
         const picks = [];
         for (let i = 0; i <= endIdx; i++) {
             const fr = frames[i];
-            if (!fr || fr.holdFrame) {
+            if (!fr) {
                 continue;
             }
-            const isEnd = i === endIdx;
-            if (isEnd && previewAtEnd != null) {
+            // Kỳ id rỗng (holdFrame): vẫn áp dụng click giả lập ở frame hiện tại.
+            const isPreviewOnFrame = i === endIdx && previewAtEnd != null;
+            if (fr.holdFrame && !isPreviewOnFrame) {
+                continue;
+            }
+            if (isPreviewOnFrame) {
                 // Pre-call snapshot (không +preview vào counts) để so freq lúc chọn.
                 const layout = RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
                     list,
@@ -11829,7 +11833,8 @@ class RightPaneSheetManager {
     onComboFocusIdChanged(prevFocusId, nextFocusId) {
         const prev = String(prevFocusId || '').trim();
         const next = String(nextFocusId || '').trim();
-        if (!next || prev === next) {
+        // next có thể '' (id rỗng cuối) — vẫn phải clear preview khi đổi kỳ.
+        if (prev === next) {
             return;
         }
         this.noteComboFocusUndoTransition(prev, next);
@@ -12116,12 +12121,6 @@ class RightPaneSheetManager {
         if (frameForRow < 0 || frameIndex !== frameForRow) {
             return false;
         }
-        const row = rows[rowIdx];
-        const lastIdx = rows.length - 1;
-        if (rowIdx === lastIdx && row && this.isEmptyResultRow(row)) {
-            const focusIdx = this.getBasicTrackingFocusRowIndex();
-            return focusIdx === lastIdx;
-        }
         return true;
     }
 
@@ -12149,9 +12148,6 @@ class RightPaneSheetManager {
         const lastIdx = rows.length - 1;
         const row = rows[lastIdx];
         if (!row || !this.isEmptyResultRow(row)) {
-            return false;
-        }
-        if (this.getBasicTrackingFocusRowIndex() !== lastIdx) {
             return false;
         }
         const rowIdx = this.getTrackingSourceRowIndexForFrame(sheet, frameIndex);
@@ -12213,12 +12209,6 @@ class RightPaneSheetManager {
         if (frameForRow < 0 || frameIndex !== frameForRow) {
             return false;
         }
-        const row = rows[rowIdx];
-        const lastIdx = rows.length - 1;
-        if (rowIdx === lastIdx && row && this.isEmptyResultRow(row)) {
-            const focusIdx = this.getBasicTrackingFocusRowIndex();
-            return focusIdx === lastIdx;
-        }
         return true;
     }
 
@@ -12233,9 +12223,6 @@ class RightPaneSheetManager {
         const lastIdx = rows.length - 1;
         const row = rows[lastIdx];
         if (!row || !this.isEmptyResultRow(row)) {
-            return false;
-        }
-        if (this.getBasicTrackingFocusRowIndex() !== lastIdx) {
             return false;
         }
         const rowIdx = this.getTrackingSourceRowIndexForFrame(sheet, frameIndex);
@@ -16298,8 +16285,7 @@ function bindPrevPeriodRecallFoldTooltipGlobal() {
         if (!hit) {
             return;
         }
-        event.preventDefault();
-        event.stopPropagation();
+        // Không stopPropagation — để click vẫn tới bar (giả lập +freq), chỉ pin tooltip.
         if (prevRecallFoldTooltipPinned && prevRecallFoldTooltipPinnedHit === hit) {
             hidePrevRecallFoldTooltip({ force: true });
             return;
