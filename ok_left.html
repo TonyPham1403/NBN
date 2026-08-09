@@ -2309,6 +2309,10 @@
         let submitAutoCircleFreqMin = false;
         let submitAutoCircleFreqMax = false;
         let submitAutoCircleFreqValue = 1;
+        /** mode === 'relative': union A/S/B (freq≥2 always above/same/below phase1) ∩ đáp án */
+        let submitAutoCircleRelAbove = true;
+        let submitAutoCircleRelSame = true;
+        let submitAutoCircleRelBelow = true;
         /** dateband #00b0f0: ngưỡng freq cặp cửa sổ 10 (đồng bộ filter popup). */
         let submitAutoCircleDatebandMinFreqA = 2;
         let submitAutoCircleDatebandMinFreqB = 2;
@@ -2897,7 +2901,7 @@
 
         function normalizeSubmitAutoCircleMode(mode) {
             var m = String(mode || '').trim();
-            if (m === 'freq' || m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist' || m === 'dateband' || m === 'chain' || m === 'sameRow') {
+            if (m === 'freq' || m === 'relative' || m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist' || m === 'dateband' || m === 'chain' || m === 'sameRow') {
                 if (m === 'min' || m === 'max') {
                     return 'freq';
                 }
@@ -3927,6 +3931,22 @@
                 return out;
             }
             var ansSrc = getAnswerNumsForAutoring();
+            if (ansSrc.length && mode === 'relative') {
+                var relSets = computeRelPhaseNumsByKind();
+                var useA = !!submitAutoCircleRelAbove;
+                var useS = !!submitAutoCircleRelSame;
+                var useB = !!submitAutoCircleRelBelow;
+                if (useA || useS || useB) {
+                    ansSrc.forEach(function (n) {
+                        var num = parseInt(n, 10);
+                        if (isNaN(num)) return;
+                        if (useA && relSets.above.has(num)) out.add(num);
+                        if (useS && relSets.same.has(num)) out.add(num);
+                        if (useB && relSets.below.has(num)) out.add(num);
+                    });
+                }
+                return out;
+            }
             if (ansSrc.length && (mode === 'freq' || mode === 'min' || mode === 'max')) {
                 var nThresh = parseInt(submitAutoCircleFreqValue, 10);
                 if (!Number.isFinite(nThresh)) nThresh = 1;
@@ -12206,6 +12226,21 @@
                         } else if (typeof msg.freqMax === 'boolean') {
                             submitAutoCircleFreqMax = msg.freqMax;
                         }
+                        if (typeof msg.submitAutoCircleRelAbove === 'boolean') {
+                            submitAutoCircleRelAbove = msg.submitAutoCircleRelAbove;
+                        } else if (typeof msg.relAbove === 'boolean') {
+                            submitAutoCircleRelAbove = msg.relAbove;
+                        }
+                        if (typeof msg.submitAutoCircleRelSame === 'boolean') {
+                            submitAutoCircleRelSame = msg.submitAutoCircleRelSame;
+                        } else if (typeof msg.relSame === 'boolean') {
+                            submitAutoCircleRelSame = msg.relSame;
+                        }
+                        if (typeof msg.submitAutoCircleRelBelow === 'boolean') {
+                            submitAutoCircleRelBelow = msg.submitAutoCircleRelBelow;
+                        } else if (typeof msg.relBelow === 'boolean') {
+                            submitAutoCircleRelBelow = msg.relBelow;
+                        }
                         if (msg.submitAutoCircleFreqValue != null && msg.submitAutoCircleFreqValue !== '') {
                             var fv2 = parseInt(msg.submitAutoCircleFreqValue, 10);
                             if (Number.isFinite(fv2)) submitAutoCircleFreqValue = Math.min(9, Math.max(1, fv2));
@@ -12534,6 +12569,24 @@
                     }
                     if (typeof msg.freqMax === 'boolean') {
                         submitAutoCircleFreqMax = msg.freqMax;
+                    }
+                    if (typeof msg.relAbove === 'boolean') {
+                        submitAutoCircleRelAbove = msg.relAbove;
+                    }
+                    if (typeof msg.relSame === 'boolean') {
+                        submitAutoCircleRelSame = msg.relSame;
+                    }
+                    if (typeof msg.relBelow === 'boolean') {
+                        submitAutoCircleRelBelow = msg.relBelow;
+                    }
+                    if (typeof msg.submitAutoCircleRelAbove === 'boolean') {
+                        submitAutoCircleRelAbove = msg.submitAutoCircleRelAbove;
+                    }
+                    if (typeof msg.submitAutoCircleRelSame === 'boolean') {
+                        submitAutoCircleRelSame = msg.submitAutoCircleRelSame;
+                    }
+                    if (typeof msg.submitAutoCircleRelBelow === 'boolean') {
+                        submitAutoCircleRelBelow = msg.submitAutoCircleRelBelow;
                     }
                     if (msg.freqValue !== undefined && msg.freqValue !== null && msg.freqValue !== '') {
                         var fv = parseInt(msg.freqValue, 10);

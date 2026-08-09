@@ -1228,6 +1228,19 @@
             text-shadow: 0 0 2px rgba(255, 255, 255, 0.95), 0 0 4px rgba(255, 255, 255, 0.75);
         }
 
+        /* Cho phép rê vào nhãn UP/DOWN/FLAT để xem tooltip stats (labels mặc định pointer-events:none). */
+        .special-tracking-rank-trend:not([hidden]) {
+            pointer-events: auto;
+            cursor: pointer;
+        }
+
+        .special-tracking-rank-trend.is-trend-tip-pinned {
+            outline: 1px solid rgba(184, 134, 11, 0.85);
+            outline-offset: 2px;
+            border-radius: 2px;
+            background: rgba(255, 220, 40, 0.35);
+        }
+
         .special-tracking-rank-trend[hidden],
         .special-tracking-rank-action[hidden] {
             display: none !important;
@@ -3768,7 +3781,8 @@
             padding: 0 4px;
         }
 
-        .submit-ring-freq-wrap.hidden {
+        .submit-ring-freq-wrap.hidden,
+        .submit-ring-relative-wrap.hidden {
             display: none !important;
         }
 
@@ -7039,6 +7053,16 @@
             color: #000000 !important;
         }
 
+        .prev-recall-fold-tooltip .special-tip-line--hl {
+            background: rgba(255, 220, 40, 0.72);
+            outline: 1px solid #b8860b;
+            border-radius: 2px;
+            margin: 1px -3px;
+            padding: 0 3px;
+            font-weight: 900 !important;
+            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+        }
+
         /* L+V #005000: tooltip tùy chỉnh (tham khảo corner fold) */
         .filter-popup-nx005-pct-tooltip {
             position: fixed;
@@ -8027,6 +8051,7 @@
                                     title="freq / x (1–35) / CUflip / 3-connection / tail"
                                     aria-label="Submit auto circle mode">
                                     <option value="freq">freq</option>
+                                    <option value="relative">relative</option>
                                     <option value="custom">x</option>
                                     <option value="cuflip">CUflip</option>
                                     <option value="conn3">3-connection</option>
@@ -8061,6 +8086,18 @@
                                             aria-label="Giảm ngưỡng freq">▾</button>
                                     </div>
                                 </div>
+                            </div>
+                            <div id="submitRingRelativeWrap" class="submit-ring-freq-wrap submit-ring-relative-wrap hidden"
+                                title="relative: khoanh đáp án thuộc A/S/B — freq≥2 luôn above/same/below số tím phase1 (Chuỗi 1)">
+                                <button type="button" id="submitRingRelAboveBtn"
+                                    class="submit-ring-freq-toggle" aria-pressed="true"
+                                    title="ABOVE: đáp án thuộc số freq≥2 luôn ngay trên phase1">above</button>
+                                <button type="button" id="submitRingRelSameBtn"
+                                    class="submit-ring-freq-toggle" aria-pressed="true"
+                                    title="SAME: đáp án thuộc số freq≥2 luôn cùng chuỗi phase1">same</button>
+                                <button type="button" id="submitRingRelBelowBtn"
+                                    class="submit-ring-freq-toggle" aria-pressed="true"
+                                    title="BELOW: đáp án thuộc số freq≥2 luôn ngay dưới phase1">below</button>
                             </div>
                             <div id="submitRingCustomXWrap" class="submit-ring-x-adjoin hidden"
                                 title="Số x (1–35), ▴▾ xoay vòng">
@@ -8778,7 +8815,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260807connCountC"></script>
+    <script src="right-pane-sheets.js?v=20260808trendBarTipPinKeep"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -8791,8 +8828,9 @@
         const SUBMIT_RING_MODE_KEY = 'submitRingMode';
         const SUBMIT_RING_CUSTOM_X_KEY = 'submitRingCustomX';
         const SUBMIT_RING_FREQ_THRESH_KEY = 'submitRingFreqThresh';
-        const SUBMIT_RING_VALID_MODES = ['freq', 'max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist', 'dateband', 'cuflip', 'cn', 'chain', 'sameRow'];
-        const SUBMIT_RING_FREQ_MODES = ['freq', 'custom', 'cuflip', 'conn3', 'tail', 'nonexist', 'dateband', 'chain', 'sameRow'];
+        const SUBMIT_RING_RELATIVE_KEY = 'submitRingRelativeASB';
+        const SUBMIT_RING_VALID_MODES = ['freq', 'relative', 'max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist', 'dateband', 'cuflip', 'cn', 'chain', 'sameRow'];
+        const SUBMIT_RING_FREQ_MODES = ['freq', 'relative', 'custom', 'cuflip', 'conn3', 'tail', 'nonexist', 'dateband', 'chain', 'sameRow'];
         const SUBMIT_RING_CHAIN_MODE = 'chain';
         const SUBMIT_RING_CHAIN_LABEL = 'Chuỗi []';
         const PHASE_ENABLED_KEY = 'phaseToolbarEnabled';
@@ -8991,6 +9029,10 @@
         let submitRingFreqMin = false;
         let submitRingFreqMax = false;
         let submitRingFreqValue = 1;
+        /** relative autoring: above / same / below (union; giống A/S/B trái) */
+        let submitRingRelAbove = true;
+        let submitRingRelSame = true;
+        let submitRingRelBelow = true;
         let submitRingLabelConn = false;
         let submitRingLabelIx = false;
         /** @type {boolean[]} nhãn chuỗi 1..10 autoring */
@@ -9699,6 +9741,13 @@
                 }
                 return 'Freq=' + clampSubmitRingFreqValue(submitRingFreqValue);
             }
+            if (m === 'relative') {
+                const parts = [];
+                if (submitRingRelAbove) parts.push('A');
+                if (submitRingRelSame) parts.push('S');
+                if (submitRingRelBelow) parts.push('B');
+                return parts.length ? ('Rel=' + parts.join('+')) : 'Rel=—';
+            }
             if (m === 'custom') {
                 return `X=${submitRingCustomX}`;
             }
@@ -9912,6 +9961,37 @@
             });
         }
 
+        /** Cập nhật nhãn động trong menu (Freq=… / Rel=a+s+b / X=…) theo state hiện tại. */
+        function refreshSubmitRingModeMenuLabels() {
+            const menu = el('submitRingModeMenu');
+            if (!menu) {
+                return;
+            }
+            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
+                const mode = item.dataset.mode || '';
+                const labelSpan = item.querySelector('.period-filter-mode-item-label');
+                if (!labelSpan || !mode) {
+                    return;
+                }
+                applySubmitRingModeMenuVisual(labelSpan, mode);
+            });
+            const modeSelect = el('submitRingModeSelect');
+            if (modeSelect) {
+                const relOpt = modeSelect.querySelector('option[value="relative"]');
+                if (relOpt) {
+                    relOpt.textContent = getSubmitRingModeDisplayLabel('relative');
+                }
+                const freqOpt = modeSelect.querySelector('option[value="freq"]');
+                if (freqOpt) {
+                    freqOpt.textContent = getSubmitRingModeDisplayLabel('freq');
+                }
+                const customOpt = modeSelect.querySelector('option[value="custom"]');
+                if (customOpt) {
+                    customOpt.textContent = getSubmitRingModeDisplayLabel('custom');
+                }
+            }
+        }
+
         function buildSubmitRingModeMenu() {
             const menu = el('submitRingModeMenu');
             if (!menu) {
@@ -9936,6 +10016,7 @@
                 menu.appendChild(item);
             }
             highlightSubmitRingModeMenu(submitRingFreqMode);
+            refreshSubmitRingModeMenuLabels();
         }
 
         function positionSubmitRingModeMenu() {
@@ -9979,6 +10060,7 @@
             if (!menu.querySelector('.period-filter-mode-item')) {
                 buildSubmitRingModeMenu();
             } else {
+                refreshSubmitRingModeMenuLabels();
                 highlightSubmitRingModeMenu(submitRingFreqMode);
             }
             if (menu.parentElement !== document.body) {
@@ -10109,6 +10191,9 @@
                 freqMin: !!submitRingFreqMin,
                 freqMax: !!submitRingFreqMax,
                 freqValue: clampSubmitRingFreqValue(submitRingFreqValue),
+                relAbove: !!submitRingRelAbove,
+                relSame: !!submitRingRelSame,
+                relBelow: !!submitRingRelBelow,
                 chainLabels: getSubmitRingChainSelectedLabels(),
                 chainCombineAnd: !!submitRingChainCombineAnd,
                 ...getSubmitRingDatebandPayload(),
@@ -10490,6 +10575,11 @@
                 localStorage.setItem(SUBMIT_RING_LABEL_CONN_KEY, submitRingLabelConn ? '1' : '0');
                 localStorage.setItem(SUBMIT_RING_LABEL_IX_KEY, submitRingLabelIx ? '1' : '0');
                 localStorage.setItem(SUBMIT_RING_FREQ_THRESH_KEY, JSON.stringify({ min: submitRingFreqMin ? 1 : 0, max: submitRingFreqMax ? 1 : 0, value: clampSubmitRingFreqValue(submitRingFreqValue) }));
+                localStorage.setItem(SUBMIT_RING_RELATIVE_KEY, JSON.stringify({
+                    a: submitRingRelAbove ? 1 : 0,
+                    s: submitRingRelSame ? 1 : 0,
+                    b: submitRingRelBelow ? 1 : 0
+                }));
             } catch (e) { /* ignore */ }
         }
 
@@ -10552,8 +10642,13 @@
             }
             if (modeValue) {
                 applySubmitRingModeMenuVisual(modeValue, modeValueMode);
-                modeValue.style.textTransform = (modeValueMode === 'freq' || modeValueMode === 'custom' || modeValueMode === 'conn3' || modeValueMode === 'tail' || modeValueMode === 'dateband' || modeValueMode === SUBMIT_RING_CHAIN_MODE || modeValueMode === SUBMIT_RING_CUFLIP_MODE || modeValueMode === 'sameRow') ? 'none' : 'uppercase';
+                modeValue.style.textTransform = (modeValueMode === 'freq' || modeValueMode === 'relative' || modeValueMode === 'custom' || modeValueMode === 'conn3' || modeValueMode === 'tail' || modeValueMode === 'dateband' || modeValueMode === SUBMIT_RING_CHAIN_MODE || modeValueMode === SUBMIT_RING_CUFLIP_MODE || modeValueMode === 'sameRow') ? 'none' : 'uppercase';
+                if (modeValueMode === 'relative') {
+                    modeValue.textContent = getSubmitRingModeDisplayLabel('relative');
+                    modeValue.setAttribute('aria-label', modeValue.textContent);
+                }
             }
+            refreshSubmitRingModeMenuLabels();
             if (modeWrap) {
                 modeWrap.classList.remove('disabled');
                 modeWrap.classList.toggle('enabled', modeHighlighted && !(showCuflipToggles && labelActive));
@@ -10612,6 +10707,24 @@
             if (freqValueDec) {
                 freqValueDec.disabled = freqControlsDisabled || submitRingFreqValue <= 1;
             }
+            const relWrap = el('submitRingRelativeWrap');
+            const relAboveBtn = el('submitRingRelAboveBtn');
+            const relSameBtn = el('submitRingRelSameBtn');
+            const relBelowBtn = el('submitRingRelBelowBtn');
+            const showRelControls = dropdownMode === 'relative' && !labelActive;
+            const relControlsDisabled = !submitRingEnabled || !showRelControls;
+            if (relWrap) {
+                relWrap.classList.toggle('hidden', !showRelControls);
+            }
+            const syncRelBtn = (btn, on) => {
+                if (!btn) return;
+                btn.disabled = relControlsDisabled;
+                btn.classList.toggle('active', !!on);
+                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            };
+            syncRelBtn(relAboveBtn, submitRingRelAbove);
+            syncRelBtn(relSameBtn, submitRingRelSame);
+            syncRelBtn(relBelowBtn, submitRingRelBelow);
             if (labelWrap) {
                 labelWrap.classList.toggle('hidden', !showCuflipToggles);
                 labelWrap.classList.toggle('disabled', !submitRingEnabled);
@@ -10694,6 +10807,28 @@
             return true;
         }
 
+        function toggleSubmitRingRelativeBound(which) {
+            if (normalizeSubmitRingFreqMode(submitRingFreqMode) !== 'relative') {
+                return false;
+            }
+            if (!submitRingEnabled) {
+                return false;
+            }
+            if (which === 'above') {
+                submitRingRelAbove = !submitRingRelAbove;
+            } else if (which === 'same') {
+                submitRingRelSame = !submitRingRelSame;
+            } else if (which === 'below') {
+                submitRingRelBelow = !submitRingRelBelow;
+            } else {
+                return false;
+            }
+            persistSubmitRingSettings();
+            syncSubmitRingToolbarUi();
+            sendSubmitRingConfigToIframe({ forceReapplyAutoring: true });
+            return true;
+        }
+
         function initSubmitRingToolbar() {
             try {
                 const savedEnabled = localStorage.getItem(SUBMIT_RING_ENABLED_KEY);
@@ -10740,6 +10875,15 @@
                         }
                     }
                 } catch (eThresh) { /* ignore */ }
+                try {
+                    const rawRel = localStorage.getItem(SUBMIT_RING_RELATIVE_KEY);
+                    if (rawRel) {
+                        const pr = JSON.parse(rawRel);
+                        submitRingRelAbove = !!(pr && (pr.a === 1 || pr.a === true));
+                        submitRingRelSame = !!(pr && (pr.s === 1 || pr.s === true));
+                        submitRingRelBelow = !!(pr && (pr.b === 1 || pr.b === true));
+                    }
+                } catch (eRel) { /* ignore */ }
                 if (submitRingFreqMode === SUBMIT_RING_CUFLIP_MODE
                     && (savedMode === SUBMIT_RING_CUFLIP_MODE || savedMode === 'cn')) {
                     submitRingLabelConn = savedLabelConn === '1';
@@ -10932,6 +11076,27 @@
                         }
                     }, true);
                 }
+            })();
+            (function initSubmitRingRelativeControls() {
+                const bindRel = (btn, which) => {
+                    if (!btn || btn.dataset.bound === '1') return;
+                    btn.dataset.bound = '1';
+                    btn.addEventListener('mousedown', (event) => event.stopPropagation());
+                    btn.addEventListener('click', (event) => {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        toggleSubmitRingRelativeBound(which);
+                    });
+                };
+                const relWrapEl = el('submitRingRelativeWrap');
+                if (relWrapEl && relWrapEl.dataset.boundWrap !== '1') {
+                    relWrapEl.dataset.boundWrap = '1';
+                    relWrapEl.addEventListener('mousedown', (event) => event.stopPropagation());
+                    relWrapEl.addEventListener('click', (event) => event.stopPropagation());
+                }
+                bindRel(el('submitRingRelAboveBtn'), 'above');
+                bindRel(el('submitRingRelSameBtn'), 'same');
+                bindRel(el('submitRingRelBelowBtn'), 'below');
             })();
             buildSubmitRingModeMenu();
             const bumpRingCustomX = bumpSubmitRingCustomXBy;
@@ -22853,6 +23018,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 submitAutoCircleFreqMin: !!submitRingFreqMin,
                 submitAutoCircleFreqMax: !!submitRingFreqMax,
                 submitAutoCircleFreqValue: clampSubmitRingFreqValue(submitRingFreqValue),
+                submitAutoCircleRelAbove: !!submitRingRelAbove,
+                submitAutoCircleRelSame: !!submitRingRelSame,
+                submitAutoCircleRelBelow: !!submitRingRelBelow,
                 ...getSubmitRingDatebandPayload(),
                 labelCircleNums: (() => {
                     const nums = getSubmitRingLabelCircleNumsForFocusRow(detail.focusRowIndex);
@@ -26049,6 +26217,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                         submitAutoCircleFreqMin: !!submitRingFreqMin,
                         submitAutoCircleFreqMax: !!submitRingFreqMax,
                         submitAutoCircleFreqValue: clampSubmitRingFreqValue(submitRingFreqValue),
+                        submitAutoCircleRelAbove: !!submitRingRelAbove,
+                        submitAutoCircleRelSame: !!submitRingRelSame,
+                        submitAutoCircleRelBelow: !!submitRingRelBelow,
                         ...getSubmitRingDatebandPayload(),
                         labelCircleNums: (() => {
                             const nums = getSubmitRingLabelCircleNumsForFocusRow(detail.focusRowIndex);
