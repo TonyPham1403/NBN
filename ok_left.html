@@ -13040,6 +13040,14 @@
                 /* ignore */
             }
         })();
+
+        // Báo parent: đã gắn message listener — tránh bootstrap setLines lúc còn about:blank.
+        try {
+            window.__leftPaneMessageReady = true;
+            if (window.parent && window.parent !== window) {
+                window.parent.postMessage({ type: 'leftPaneReady' }, '*');
+            }
+        } catch (eLeftReady) { /* ignore */ }
     </script>
 </body>
 

@@ -8062,7 +8062,7 @@
 <body>
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20260802chuoiPinArrow"
+            <iframe id="okFrame" src="ok_left.html?v=20260810leftPaneReady01"
                 style="width:100%;height:100%;border:0"></iframe>
         </section>
 
@@ -25702,7 +25702,33 @@ function getFilterNoteTRefMaxSelections(mode) {
 
         // Right table - using new sheet manager
         let sessionBootstrapDone = false;
+        /** true khi ok_left đã gắn listener + post leftPaneReady (không phải about:blank). */
+        let leftPaneIframeReady = false;
 
+        function isOkLeftContentWindowReady(frame) {
+            if (!frame) {
+                return false;
+            }
+            try {
+                const win = frame.contentWindow;
+                if (win && win.__leftPaneMessageReady) {
+                    return true;
+                }
+                const doc = frame.contentDocument;
+                if (!doc || doc.readyState !== 'complete') {
+                    return false;
+                }
+                const href = String((win && win.location && win.location.href) || '');
+                return href.indexOf('ok_left') !== -1;
+            } catch (eReady) {
+                return false;
+            }
+        }
+
+        /**
+         * Chờ ok_left thật sự sẵn sàng nhận setLines (handshake leftPaneReady).
+         * Tránh bootstrap sớm vào about:blank → nửa trái kẹt skeleton đến khi click lại.
+         */
         function whenIframeReady(callback) {
             const frame = el('okFrame');
             if (!frame || typeof callback !== 'function') {
@@ -25711,18 +25737,78 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
                 return;
             }
-            let ready = false;
-            try {
-                const doc = frame.contentDocument;
-                ready = !!(doc && doc.readyState === 'complete');
-            } catch (eReady) {
-                ready = false;
-            }
-            if (ready) {
-                requestAnimationFrame(callback);
+            const run = () => {
+                requestAnimationFrame(() => {
+                    try {
+                        callback();
+                    } catch (eCb) {
+                        console.error(eCb);
+                    }
+                });
+            };
+            if (leftPaneIframeReady || isOkLeftContentWindowReady(frame)) {
+                leftPaneIframeReady = true;
+                run();
                 return;
             }
-            frame.addEventListener('load', () => requestAnimationFrame(callback), { once: true });
+            let settled = false;
+            const finish = () => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                window.removeEventListener('message', onReadyMsg);
+                leftPaneIframeReady = true;
+                run();
+            };
+            const onReadyMsg = (ev) => {
+                const msg = ev && ev.data;
+                if (msg && msg.type === 'leftPaneReady') {
+                    finish();
+                }
+            };
+            window.addEventListener('message', onReadyMsg);
+            const tryDom = () => {
+                if (isOkLeftContentWindowReady(frame)) {
+                    finish();
+                    return true;
+                }
+                return false;
+            };
+            frame.addEventListener('load', () => {
+                setTimeout(() => { tryDom(); }, 0);
+            });
+            // Fallback: ok_left cũ không gửi leftPaneReady
+            setTimeout(() => {
+                if (!settled) {
+                    tryDom();
+                }
+            }, 2500);
+        }
+
+        /** Sau khi iframe sẵn sàng (hoặc reload): đẩy lại focus sheet1 sang nửa trái. */
+        function resyncLeftPaneFromBootstrapFocus() {
+            if (!sheetManager) {
+                return;
+            }
+            let idx = mainSheet1FocusRowIndex;
+            if (!(typeof idx === 'number' && idx >= 0)) {
+                const r = sheetManager.activeWindowRange;
+                if (r && typeof r.target === 'number' && r.target >= 0) {
+                    idx = r.target;
+                }
+            }
+            if (!(typeof idx === 'number' && idx >= 0)
+                && typeof sheetManager.getDefaultSheet1FocusRowIndex === 'function') {
+                idx = sheetManager.getDefaultSheet1FocusRowIndex();
+            }
+            if (typeof idx === 'number' && idx >= 0
+                && typeof sheetManager.focusSourceSheetRow === 'function') {
+                sheetManager.focusSourceSheetRow(idx, { skipSave: true, light: true });
+            }
+            try {
+                sendSubmitRingConfigToIframe({ contextSync: true });
+            } catch (eCfg) { /* ignore */ }
         }
 
         function getSubmitRingInferFilterOptions() {
@@ -25790,6 +25876,18 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return;
             }
             whenIframeReady(bootstrapDefaultSessionState);
+        }
+
+        function onLeftPaneReadyMessage() {
+            leftPaneIframeReady = true;
+            if (!sessionBootstrapDone) {
+                if (sheetManager) {
+                    bootstrapDefaultSessionState();
+                }
+                return;
+            }
+            // Bootstrap đã chạy (có thể setLines mất vì about:blank) — gửi lại focus hiện tại.
+            resyncLeftPaneFromBootstrapFocus();
         }
 
         function loadData() {
@@ -26285,6 +26383,14 @@ function getFilterNoteTRefMaxSelections(mode) {
 
             window.addEventListener('message', (ev) => {
                 const msg = ev.data || {};
+                if (msg.type === 'leftPaneReady') {
+                    const frame = el('okFrame');
+                    if (frame && frame.contentWindow && ev.source && ev.source !== frame.contentWindow) {
+                        return;
+                    }
+                    onLeftPaneReadyMessage();
+                    return;
+                }
                 if (msg.type === 'requestChecknotePopup') {
                     const frame = el('okFrame');
                     if (!frame || !frame.contentWindow || ev.source !== frame.contentWindow) {
