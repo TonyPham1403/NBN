@@ -1310,6 +1310,7 @@ class RightPaneSheetManager {
                     }
                 );
                 if (options.applyAnswerPopupMask !== false) {
+                    // Mask refresh nonexist sau labels — renderWindowLabels chạy lại trong refreshNonexistCells.
                     this.applyAnswerPopupFocusMaskToDom(tableWrap, { reset: true });
                 }
                 requestAnimationFrame(() => {
@@ -7016,6 +7017,13 @@ class RightPaneSheetManager {
             const masked = this.shouldAnswerPopupMaskSheet1Row(i);
             tr.classList.toggle('answer-popup-focus-masked', masked);
             cell.classList.toggle('answer-popup-focus-nonexist', masked);
+        }
+
+        // innerHTML nonexist xóa .win-label-inline — gắn lại 10 nhãn chuỗi (result/note không bị refresh nên vẫn còn).
+        const win = options.windowRange || this.activeWindowRange;
+        if (win && typeof win.start === 'number' && typeof win.end === 'number'
+            && win.end >= win.start) {
+            this.renderWindowLabels(win.start, win.end, tableWrap);
         }
     }
 
