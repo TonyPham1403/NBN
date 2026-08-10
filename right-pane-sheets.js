@@ -5944,7 +5944,7 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Khi khoanh giả lập đổi trên row rỗng cuối — vẽ lại overlap ngoài 0–5.
+     * Khi khoanh giả lập đổi trên row rỗng cuối — chỉ cập nhật hit (không vẽ lại cả nhãn cửa sổ).
      */
     refreshFocusChainOverlapHighlightsFromActiveWindow() {
         const r = this.activeWindowRange;
@@ -5959,7 +5959,24 @@ class RightPaneSheetManager {
         if (!this.isEmptyResultRow(rows[focusIdx]) || focusIdx !== rows.length - 1) {
             return;
         }
-        this.reapplyWindowLabelsForActiveWindow();
+        const tableWrap = this._sheet1NavTableWrap || document.getElementById('tableWrap');
+        if (!tableWrap || tableWrap.classList.contains('table-wrap--tracking')) {
+            return;
+        }
+        if (this.activeSheet !== 'sheet1') {
+            return;
+        }
+        const focusNumSet = this.resolveFocusChainHitNumSet(focusIdx);
+        const focusNxSet = focusNumSet.size
+            ? this.getRowNonexistNumSetForFocusChainHit(focusIdx)
+            : new Set();
+        this.applyFocusChainHitsToOuterRows(
+            tableWrap,
+            r.start,
+            focusIdx,
+            focusNumSet,
+            focusNxSet
+        );
     }
 
     /**
@@ -6021,7 +6038,6 @@ class RightPaneSheetManager {
 
     /**
      * Bọc số chính (trước |) trùng tập focus bằng .result-focus-chain-hit.
-     * Số cũng nằm trong nonexist hàng focus (chuỗi 0) → thêm --nonexist (nền vàng chữ đen).
      * @param {string} resultHtml
      * @param {Set<number>|null} focusNumSet
      * @param {Set<number>|null} [focusNonexistNumSet]
@@ -6049,11 +6065,11 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Render lại nội dung result (giữ fold), optional bọc số trùng focus.
+     * Render lại nội dung result (giữ fold + win-label), optional bọc số trùng focus.
      * @param {HTMLElement} resultCell
      * @param {number} rowIndex
      * @param {Set<number>|null} focusNumSet
-     * @param {Set<number>|null} [focusNonexistNumSet] nonexist của hàng focus (chuỗi 0), kể cả row rỗng cuối
+     * @param {Set<number>|null} [focusNonexistNumSet]
      */
     rebuildResultCellMainWithFocusHits(resultCell, rowIndex, focusNumSet, focusNonexistNumSet = null) {
         if (!resultCell || !Number.isFinite(rowIndex)) {
@@ -6067,6 +6083,8 @@ class RightPaneSheetManager {
         const result = dataRow.result || dataRow.Result || '';
         const fold = resultCell.querySelector('.prev-period-recall-fold');
         const foldHtml = fold ? fold.outerHTML : '';
+        const winLabel = resultCell.querySelector('.win-label-inline');
+        const winLabelHtml = winLabel ? winLabel.outerHTML : '';
         let resultHtml = this.highlightResultByFrequency(result);
         if (focusNumSet && focusNumSet.size) {
             resultHtml = this.wrapFocusChainHitsInResultHtml(
@@ -6075,7 +6093,59 @@ class RightPaneSheetManager {
                 focusNonexistNumSet
             );
         }
-        resultCell.innerHTML = foldHtml + resultHtml;
+        resultCell.innerHTML = foldHtml + resultHtml + winLabelHtml;
+    }
+
+    /**
+     * Áp focus-chain hit (chip span) lên chuỗi ngoài 0–5.
+     * @param {HTMLElement} tableWrap
+     * @param {number} startIdx
+     * @param {number} focusRowIdx
+     * @param {Set<number>} focusNumSet
+     * @param {Set<number>} focusNxSet
+     */
+    applyFocusChainHitsToOuterRows(tableWrap, startIdx, focusRowIdx, focusNumSet, focusNxSet) {
+        if (!tableWrap || typeof startIdx !== 'number') {
+            return;
+        }
+
+        // Gỡ hit cũ (giữ win-label) rồi gắn lại theo set mới.
+        const touched = new Set();
+        tableWrap.querySelectorAll('td.cell-result .result-focus-chain-hit').forEach((span) => {
+            const tr = span.closest('tr[data-idx]');
+            if (tr) {
+                touched.add(Number(tr.dataset.idx));
+            }
+        });
+        for (let outer = 0; outer <= 5; outer++) {
+            const rowIdx = startIdx - 1 - outer;
+            if (rowIdx >= 0 && rowIdx !== focusRowIdx) {
+                touched.add(rowIdx);
+            }
+        }
+        touched.forEach((idx) => {
+            if (!Number.isFinite(idx) || idx < 0) {
+                return;
+            }
+            const tr = tableWrap.querySelector(`tbody tr[data-idx="${idx}"]`);
+            if (!tr || tr.dataset.empty === '1') {
+                return;
+            }
+            const cell = tr.querySelector('td.cell-result');
+            if (!cell) {
+                return;
+            }
+            const inOuter = typeof startIdx === 'number'
+                && idx <= startIdx - 1
+                && idx >= startIdx - 6
+                && idx !== focusRowIdx;
+            this.rebuildResultCellMainWithFocusHits(
+                cell,
+                idx,
+                inOuter && focusNumSet && focusNumSet.size ? focusNumSet : null,
+                inOuter ? focusNxSet : null
+            );
+        });
     }
 
     /**
@@ -6588,6 +6658,17 @@ class RightPaneSheetManager {
             ? this.getRowNonexistNumSetForFocusChainHit(focusRowIdx)
             : new Set();
 
+        // Hit trước nhãn: fallback span rebuild result không xóa win-label vừa gắn.
+        if (typeof startIdx === 'number' && startIdx > 0) {
+            this.applyFocusChainHitsToOuterRows(
+                tableWrap,
+                startIdx,
+                focusRowIdx,
+                focusNumSet,
+                focusNonexistNumSet
+            );
+        }
+
         // Ngoài trên cửa sổ (liền trên nhãn 10 vàng): startIdx-1=0 … startIdx-6=5.
         if (typeof startIdx === 'number' && startIdx > 0) {
             for (let outer = 0; outer <= 5; outer++) {
@@ -6601,17 +6682,6 @@ class RightPaneSheetManager {
                 const row = tableWrap.querySelector(`tbody tr[data-idx="${rowIdx}"]`);
                 if (!row) {
                     continue;
-                }
-                if (focusNumSet.size && row.dataset.empty !== '1') {
-                    const resultCell = row.querySelector('td.cell-result');
-                    if (resultCell) {
-                        this.rebuildResultCellMainWithFocusHits(
-                            resultCell,
-                            rowIdx,
-                            focusNumSet,
-                            focusNonexistNumSet
-                        );
-                    }
                 }
                 const extra = outer === 0
                     ? 'win-label-inline--outer-0'

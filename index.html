@@ -7257,20 +7257,42 @@
             font-weight: 800;
         }
 
-        /* Số result ngoài cửa sổ (chuỗi 0–5) trùng pick của chuỗi 0 focus */
+        /*
+         * Focus-chain hit — giữ vẻ chip cũ, nhưng padding/viền vẽ bằng ::after absolute
+         * để không tăng min-content của cột result (tránh phình cột / lag / lệch bảng).
+         */
         .sheet-data-table td.cell-result .result-focus-chain-hit {
-            background: #93c5fd;
+            position: relative;
+            z-index: 0;
             color: #0c4a6e;
             font-weight: 800;
-            padding: 0 2px;
-            border-radius: 2px;
-            box-shadow: inset 0 0 0 1px #1d4ed8;
+            padding: 0;
+            margin: 0;
+            background: transparent;
+            border-radius: 0;
+            box-shadow: none;
         }
 
-        /* Focus-chain hit + nằm trong nonexist hàng focus (chuỗi 0) */
+        .sheet-data-table td.cell-result .result-focus-chain-hit::after {
+            content: '';
+            position: absolute;
+            left: -2px;
+            right: -2px;
+            top: -1px;
+            bottom: -1px;
+            background: #93c5fd;
+            border-radius: 2px;
+            box-shadow: inset 0 0 0 1px #1d4ed8;
+            z-index: -1;
+            pointer-events: none;
+        }
+
         .sheet-data-table td.cell-result .result-focus-chain-hit.result-focus-chain-hit--nonexist {
-            background: #ff0;
             color: #000;
+        }
+
+        .sheet-data-table td.cell-result .result-focus-chain-hit.result-focus-chain-hit--nonexist::after {
+            background: #ff0;
             box-shadow: inset 0 0 0 1px #a16207;
         }
 
@@ -8848,7 +8870,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260810focusChainHit06"></script>
+    <script src="right-pane-sheets.js?v=20260810focusChainHit09"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
