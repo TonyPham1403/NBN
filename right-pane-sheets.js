@@ -1318,6 +1318,12 @@ class RightPaneSheetManager {
                         this.centerActiveWindowInView(tableWrap);
                     }
                 });
+            } else {
+                // Cửa sổ focus không đổi khi đi tracking rồi về — HTML cache còn hit cũ.
+                // Khoanh giả lập (leftBasicPreviewPickNums) có thể đã đổi lúc đang ở tracking.
+                try {
+                    this.refreshFocusChainOverlapHighlightsFromActiveWindow();
+                } catch (eHitRestore) { /* ignore */ }
             }
         }
 
