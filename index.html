@@ -18997,6 +18997,8 @@ function getFilterNoteTRefMaxSelections(mode) {
         function reconcileFilterPopupActiveAfterSubfilterToggle(opts = {}) {
             const previewOnly = opts.syncPreview !== false;
             const skipScroll = opts.skipScroll === true;
+            // Tracking: chỉ cập nhật highlight popup — không sync main (tránh nhảy id khi đổi mode / vẽ viền %).
+            const skipMainSync = opts.skipMainSync === true || isTrackingFilterMode(periodFilterMode);
             if (!isFilterPopupSubfilterOnlyActive()) {
                 const displayList = getFilterPopupDisplayIndices();
                 const keepFollowAnchor = isFollowPctFilterMode(periodFilterMode)
@@ -19008,11 +19010,16 @@ function getFilterNoteTRefMaxSelections(mode) {
                     && typeof filterPopupActiveIdx === 'number'
                     && filterPopupActiveIdx >= 0
                     && displayList.includes(filterPopupActiveIdx);
-                if (!keepFollowAnchor && !keepPhase1Anchor) {
+                // Tracking: giữ hàng đang xem khi rebuild / đổi mode — không snap theo main.
+                const keepTrackingAnchor = isTrackingFilterMode(periodFilterMode)
+                    && typeof filterPopupActiveIdx === 'number'
+                    && filterPopupActiveIdx >= 0
+                    && displayList.includes(filterPopupActiveIdx);
+                if (!keepFollowAnchor && !keepPhase1Anchor && !keepTrackingAnchor) {
                     filterPopupActiveIdx = resolveFilterPopupActiveIdx(displayList);
                 }
                 applyFilterPopupRowFocus(filterPopupActiveIdx);
-                if (filterPopupActiveIdx >= 0) {
+                if (!skipMainSync && filterPopupActiveIdx >= 0) {
                     syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly });
                 }
                 const positionInput = el('filterPopupPositionInput');
@@ -19076,13 +19083,35 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
                 return;
             }
+            if (isTrackingFilterMode(periodFilterMode)) {
+                // Giống follow/connection: giữ hàng nếu còn trong mẫu hẹp; không nhảy list[0] + sync main.
+                if (list.includes(filterPopupActiveIdx)) {
+                    applyFilterPopupRowFocus(filterPopupActiveIdx);
+                    const positionInput = el('filterPopupPositionInput');
+                    if (positionInput) {
+                        const pos = list.indexOf(filterPopupActiveIdx);
+                        const posText = pos >= 0 ? String(pos + 1) : '';
+                        setFilterPopupPositionText(positionInput, posText);
+                        setFilterPopupPositionInputWidth(positionInput, posText);
+                    }
+                    if (!skipScroll && filterPopupActiveIdx >= 0) {
+                        scrollFilterPopupRowIntoView();
+                    }
+                } else {
+                    clearFilterPopupRowFocus();
+                    resetFilterPopupPositionUi();
+                }
+                return;
+            }
             if (isPhase1FilterMode(periodFilterMode) && list.includes(filterPopupActiveIdx)) {
                 // Giữ hàng đang xem khi thu hẹp % — không nhảy list[0].
             } else if (!list.includes(filterPopupActiveIdx)) {
                 filterPopupActiveIdx = list[0];
             }
             applyFilterPopupRowFocus(filterPopupActiveIdx);
-            syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly });
+            if (!skipMainSync) {
+                syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly });
+            }
             const positionInput = el('filterPopupPositionInput');
             if (positionInput) {
                 const pos = list.indexOf(filterPopupActiveIdx);
@@ -19922,6 +19951,114 @@ function getFilterNoteTRefMaxSelections(mode) {
             return isFilterPopupTrackingStreakInputFocused() || isFilterPopupTrackingSizeInputFocused();
         }
 
+        /**
+         * Cập nhật UI một hàng bụng khi đang focus ô khác (không rebuild list — giữ caret/focus).
+         * Ví dụ: nhấp nháy [] rồi spin chữ Hán → đổi nhãn Hán ngay.
+         */
+        function patchFilterPopupTrackingBellyRowUi(index, field, size, streak) {
+            const list = el('filterPopupTrackingBellyList');
+            if (!list) {
+                return false;
+            }
+            const row = list.querySelector(`.filter-popup-tracking-belly-row[data-idx="${index}"]`);
+            if (!row) {
+                return false;
+            }
+            const sz = normalizeFilterTrackingBellySize(size);
+            const st = normalizeFilterTrackingBellyStreak(streak);
+
+            if (field === 'streak' || field === 'both') {
+                const streakEl = row.querySelector('.filter-popup-tracking-streak-num');
+                const streakFocused = document.activeElement === streakEl;
+                const streakText = streakFocused
+                    ? String(st)
+                    : formatFilterTrackingBellyStreakLabel(st);
+                if (streakEl) {
+                    if (!streakFocused) {
+                        delete streakEl.dataset.draft;
+                        delete streakEl.dataset.dirty;
+                        delete streakEl.dataset.replaceOnType;
+                    } else {
+                        streakEl.dataset.draft = String(st);
+                    }
+                    setFilterPopupPositionText(streakEl, streakText);
+                    fitFilterPopupTrackingStreakInputWidth(streakEl, streakText, streakFocused);
+                }
+                const streakInc = row.querySelector('[data-tracking-spin="streak"][data-delta="1"]');
+                const streakDec = row.querySelector('[data-tracking-spin="streak"][data-delta="-1"]');
+                if (streakInc) {
+                    streakInc.disabled = st >= FILTER_TRACKING_BELLY_STREAK_MAX;
+                }
+                if (streakDec) {
+                    streakDec.disabled = st <= FILTER_TRACKING_BELLY_STREAK_MIN;
+                }
+                const bellies = getNormalizedFilterTrackingBellies();
+                const hints = computeFilterTrackingBellyStreakHints(bellies);
+                const hintStreak = (hints[index] && hints[index].streak) || st;
+                if (streakEl) {
+                    streakEl.dataset.hintStreak = String(hintStreak);
+                }
+                applyTrackingSpinHint(
+                    streakInc,
+                    streakDec,
+                    st,
+                    hintStreak,
+                    'Tăng streak',
+                    'Giảm streak',
+                    formatFilterTrackingBellyStreakLabel(hintStreak)
+                );
+            }
+
+            if (field === 'size' || field === 'both') {
+                const sizeEl = row.querySelector('.filter-popup-tracking-size-num');
+                const sizeFocused = document.activeElement === sizeEl;
+                const sizeText = String(sz);
+                if (sizeEl) {
+                    if (!sizeFocused) {
+                        delete sizeEl.dataset.draft;
+                        delete sizeEl.dataset.dirty;
+                        delete sizeEl.dataset.replaceOnType;
+                        setFilterPopupPositionText(sizeEl, sizeText);
+                        fitFilterPopupTrackingSizeInputWidth(sizeEl, sizeText, false);
+                    } else {
+                        sizeEl.dataset.draft = sizeText;
+                        setFilterPopupPositionText(sizeEl, sizeText);
+                        fitFilterPopupTrackingSizeInputWidth(sizeEl, sizeText, true);
+                    }
+                }
+                const sizeInc = row.querySelector('[data-tracking-spin="size"][data-delta="1"]');
+                const sizeDec = row.querySelector('[data-tracking-spin="size"][data-delta="-1"]');
+                if (sizeInc) {
+                    sizeInc.disabled = sz >= FILTER_TRACKING_BELLY_SIZE_MAX;
+                }
+                if (sizeDec) {
+                    sizeDec.disabled = sz <= FILTER_TRACKING_BELLY_SIZE_MIN;
+                }
+                // Size đổi → gợi ý streak có thể đổi.
+                if (field === 'size') {
+                    const streakEl = row.querySelector('.filter-popup-tracking-streak-num');
+                    const streakInc = row.querySelector('[data-tracking-spin="streak"][data-delta="1"]');
+                    const streakDec = row.querySelector('[data-tracking-spin="streak"][data-delta="-1"]');
+                    const bellies = getNormalizedFilterTrackingBellies();
+                    const hints = computeFilterTrackingBellyStreakHints(bellies);
+                    const hintStreak = (hints[index] && hints[index].streak) || st;
+                    if (streakEl) {
+                        streakEl.dataset.hintStreak = String(hintStreak);
+                    }
+                    applyTrackingSpinHint(
+                        streakInc,
+                        streakDec,
+                        st,
+                        hintStreak,
+                        'Tăng streak',
+                        'Giảm streak',
+                        formatFilterTrackingBellyStreakLabel(hintStreak)
+                    );
+                }
+            }
+            return true;
+        }
+
         function fitFilterPopupTrackingSizeInputWidth(sizeEl, text, focused) {
             if (!sizeEl) {
                 return;
@@ -20057,13 +20194,21 @@ function getFilterNoteTRefMaxSelections(mode) {
             delete streakEl.dataset.draft;
             delete streakEl.dataset.dirty;
             delete streakEl.dataset.replaceOnType;
+            // Luôn trả về chữ Hán khi blur (không phụ thuộc rebuild list).
+            const label = formatFilterTrackingBellyStreakLabel(next);
+            setFilterPopupPositionText(streakEl, label);
+            fitFilterPopupTrackingStreakInputWidth(streakEl, label, false);
+            const size = normalizeFilterTrackingBellySize(
+                (bellies[index] && bellies[index].size) || FILTER_TRACKING_BELLY_SIZE_MIN
+            );
             if (next !== prev) {
-                // Draft rỗng/không hợp lệ lúc blur → khôi phục giá trị hợp lệ
-                setFilterTrackingBellyStreakAt(index, next, { skipListRebuild: false });
+                // Draft rỗng/không hợp lệ lúc blur → khôi phục / áp giá trị hợp lệ
+                setFilterTrackingBellyStreakAt(index, next, { skipListRebuild: true });
+                patchFilterPopupTrackingBellyRowUi(index, 'streak', size, next);
                 return;
             }
-            // Đã nhận live khi đang nhấp nháy: chỉ đổi hiển thị về chữ Hán.
-            syncFilterPopupTrackingBellyUi();
+            // Đã nhận live khi đang nhấp nháy: chỉ sync nút / hint, giữ chữ Hán vừa set.
+            patchFilterPopupTrackingBellyRowUi(index, 'streak', size, next);
         }
 
         /** Trước khi − xóa/reset bụng: tránh blur commit đè giá trị cũ lên state mới. */
@@ -20340,13 +20485,21 @@ function getFilterNoteTRefMaxSelections(mode) {
             delete sizeEl.dataset.draft;
             delete sizeEl.dataset.dirty;
             delete sizeEl.dataset.replaceOnType;
+            // Luôn trả UI số [] về trạng thái không focus khi blur.
+            const sizeText = String(next);
+            setFilterPopupPositionText(sizeEl, sizeText);
+            fitFilterPopupTrackingSizeInputWidth(sizeEl, sizeText, false);
+            const streak = normalizeFilterTrackingBellyStreak(
+                (bellies[index] && bellies[index].streak) || FILTER_TRACKING_BELLY_STREAK_MIN
+            );
             if (next !== prev) {
                 // Draft dở lúc blur → khôi phục / áp giá trị hợp lệ
-                setFilterTrackingBellySizeAt(index, next, { skipListRebuild: false });
+                setFilterTrackingBellySizeAt(index, next, { skipListRebuild: true });
+                patchFilterPopupTrackingBellyRowUi(index, 'size', next, streak);
                 return;
             }
-            // Đã nhận live khi đang nhấp nháy: chỉ sync UI, không rebuild lại.
-            syncFilterPopupTrackingBellyUi();
+            // Đã nhận live khi đang nhấp nháy: chỉ sync nút / hint.
+            patchFilterPopupTrackingBellyRowUi(index, 'size', next, streak);
         }
 
         function tryAppendFilterPopupTrackingSizeDigit(sizeEl, index, digit) {
@@ -20728,11 +20881,16 @@ function getFilterNoteTRefMaxSelections(mode) {
                 active.dataset.draft = decimal;
                 setFilterPopupPositionText(active, decimal);
                 fitFilterPopupTrackingStreakInputWidth(active, decimal, true);
+                patchFilterPopupTrackingBellyRowUi(index, 'streak', nextSize, nextStreak);
             } else if (field === 'size' && isFilterPopupTrackingSizeInputFocused() && sameRow) {
                 const decimal = String(nextSize);
                 active.dataset.draft = decimal;
                 setFilterPopupPositionText(active, decimal);
                 fitFilterPopupTrackingSizeInputWidth(active, decimal, true);
+                patchFilterPopupTrackingBellyRowUi(index, 'size', nextSize, nextStreak);
+            } else if (isFilterPopupTrackingBellyInputFocused()) {
+                // Focus ở ô kia (vd [] đang nhấp nháy, spin chữ Hán) — patch DOM, không rebuild.
+                patchFilterPopupTrackingBellyRowUi(index, field, nextSize, nextStreak);
             } else {
                 syncFilterPopupTrackingBellyUi();
             }
@@ -20810,6 +20968,32 @@ function getFilterNoteTRefMaxSelections(mode) {
             root.dataset.bound = '1';
             root.addEventListener('mousedown', (event) => event.stopPropagation());
             root.addEventListener('click', (event) => event.stopPropagation());
+            // Ô tabindex không luôn mất focus khi click chỗ không nhận focus → caret còn nhấp nháy.
+            // Capture: click ngoài ô (trừ ▴▾ cùng hàng) thì blur.
+            if (!document.documentElement.dataset.trackingBellyOutsideBlurBound) {
+                document.documentElement.dataset.trackingBellyOutsideBlurBound = '1';
+                document.addEventListener('pointerdown', (event) => {
+                    if (!isFilterPopupTrackingBellyInputFocused()) {
+                        return;
+                    }
+                    const active = document.activeElement;
+                    const t = event.target;
+                    if (!(active instanceof HTMLElement) || !(t instanceof Node)) {
+                        return;
+                    }
+                    if (active === t || active.contains(t)) {
+                        return;
+                    }
+                    const row = active.closest('.filter-popup-tracking-belly-row');
+                    if (row && row.contains(t) && t.closest && t.closest('[data-tracking-spin]')) {
+                        // Spin cùng hàng: giữ focus để chỉnh nhanh.
+                        return;
+                    }
+                    try {
+                        active.blur();
+                    } catch (eBlurOut) { /* ignore */ }
+                }, true);
+            }
             const addBtn = el('filterPopupTrackingBellyAdd');
             bindFilterPopupTrackingSpinButton(addBtn, () => addFilterPopupTrackingBelly());
             const inBtn = el('filterPopupTrackingInBtn');
@@ -23767,7 +23951,13 @@ function getFilterNoteTRefMaxSelections(mode) {
         /** Sau khi đổi mode / rebuild danh sách: ưu tiên focus id đang chọn ở bảng chính nếu có trong list mới. */
         function reconcileFilterPopupFocusAfterListChange(displayIndices, options = {}) {
             const indices = Array.isArray(displayIndices) ? displayIndices : getFilterPopupDisplayIndices();
-            filterPopupActiveIdx = resolveFilterPopupActiveIdx(indices);
+            const prevIdx = filterPopupActiveIdx;
+            // Tracking / PHASE1: giữ hàng đang xem trong list mới — không snap theo main (thường cuối sheet).
+            const keepPrevAnchor = (isTrackingFilterMode(periodFilterMode) || isPhase1FilterMode(periodFilterMode))
+                && typeof prevIdx === 'number'
+                && prevIdx >= 0
+                && indices.includes(prevIdx);
+            filterPopupActiveIdx = keepPrevAnchor ? prevIdx : resolveFilterPopupActiveIdx(indices);
             if (filterPopupActiveIdx >= 0) {
                 if (options.clearPopupNav) {
                     syncFilterPopupFocusFromMainRow(filterPopupActiveIdx);
