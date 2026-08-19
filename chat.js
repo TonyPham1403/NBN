@@ -1056,53 +1056,61 @@
                 lastNotifySoundAt = Date.now();
                 const ctx = chatAudioCtx;
                 const t0 = ctx.currentTime;
-                /* Chuông pha lê 4 nốt rải hợp âm D major đi lên (A5→D6→F#6→A6),
-                   âm sắc bell: sine + hoạ âm quãng 8 + shimmer lệch tần nhẹ, đuôi ngân dài. */
+                /* Melody user: F#4 → C#5 → A4 → F#4; soft flute sine + filter khép dần. */
                 const NOTES = [
-                    { f: 880.0, at: 0, dur: 0.55, vol: 0.42 },
-                    { f: 1174.66, at: 0.13, dur: 0.6, vol: 0.5 },
-                    { f: 1479.98, at: 0.26, dur: 0.7, vol: 0.55 },
-                    { f: 1760.0, at: 0.39, dur: 1.0, vol: 0.62 }
+                    { f: 369.99, at: 0, dur: 0.7, vol: 0.82 },
+                    { f: 554.37, at: 0.12, dur: 0.75, vol: 0.9 },
+                    { f: 440.0, at: 0.24, dur: 0.8, vol: 0.86 },
+                    { f: 369.99, at: 0.38, dur: 1.05, vol: 0.92 }
                 ];
                 const master = ctx.createGain();
-                master.gain.value = 0.95;
+                master.gain.value = 1.0;
                 master.connect(ctx.destination);
                 NOTES.forEach((n) => {
-                    const g = ctx.createGain();
-                    g.connect(master);
                     const start = t0 + n.at;
                     const end = start + n.dur;
-                    /* Attack mềm như gõ chuông, decay dài tự nhiên */
+                    /* Lowpass riêng mỗi nốt: mở lúc đánh, khép khi vang → đuôi ấm */
+                    const lp = ctx.createBiquadFilter();
+                    lp.type = 'lowpass';
+                    lp.Q.value = 0.5;
+                    lp.frequency.setValueAtTime(1900, start);
+                    lp.frequency.exponentialRampToValueAtTime(900, start + n.dur * 0.45);
+                    lp.frequency.exponentialRampToValueAtTime(480, end);
+                    lp.connect(master);
+                    const g = ctx.createGain();
+                    g.connect(lp);
                     g.gain.setValueAtTime(0.0001, start);
-                    g.gain.exponentialRampToValueAtTime(n.vol, start + 0.012);
-                    g.gain.exponentialRampToValueAtTime(n.vol * 0.35, start + n.dur * 0.35);
+                    g.gain.exponentialRampToValueAtTime(n.vol, start + 0.028);
+                    g.gain.exponentialRampToValueAtTime(n.vol * 0.42, start + n.dur * 0.3);
+                    g.gain.exponentialRampToValueAtTime(n.vol * 0.1, start + n.dur * 0.65);
                     g.gain.exponentialRampToValueAtTime(0.0001, end);
-                    const o1 = ctx.createOscillator();
-                    o1.type = 'sine';
-                    o1.frequency.value = n.f;
-                    o1.connect(g);
-                    o1.start(start);
-                    o1.stop(end + 0.05);
-                    /* Hoạ âm quãng 8 — tiếng chuông sáng */
-                    const g2 = ctx.createGain();
-                    g2.gain.value = 0.18;
-                    g2.connect(g);
-                    const o2 = ctx.createOscillator();
-                    o2.type = 'sine';
-                    o2.frequency.value = n.f * 2;
-                    o2.connect(g2);
-                    o2.start(start);
-                    o2.stop(end + 0.05);
-                    /* Shimmer: lệch tần ~1.5% tạo cảm giác pha lê lung linh */
-                    const g3 = ctx.createGain();
-                    g3.gain.value = 0.12;
-                    g3.connect(g);
-                    const o3 = ctx.createOscillator();
-                    o3.type = 'sine';
-                    o3.frequency.value = n.f * 1.015;
-                    o3.connect(g3);
-                    o3.start(start);
-                    o3.stop(end + 0.05);
+                    /* Flute body: sine chính */
+                    const oMain = ctx.createOscillator();
+                    oMain.type = 'sine';
+                    oMain.frequency.value = n.f;
+                    oMain.connect(g);
+                    oMain.start(start);
+                    oMain.stop(end + 0.04);
+                    /* Soft breath: sine lệch rất nhẹ, rất nhỏ — ấm, không pha lê */
+                    const gSoft = ctx.createGain();
+                    gSoft.gain.value = 0.14;
+                    gSoft.connect(g);
+                    const oSoft = ctx.createOscillator();
+                    oSoft.type = 'sine';
+                    oSoft.frequency.value = n.f * 1.003;
+                    oSoft.connect(gSoft);
+                    oSoft.start(start);
+                    oSoft.stop(end + 0.04);
+                    /* Quãng 8 dưới — độ dày */
+                    const gBass = ctx.createGain();
+                    gBass.gain.value = 0.38;
+                    gBass.connect(g);
+                    const oBass = ctx.createOscillator();
+                    oBass.type = 'sine';
+                    oBass.frequency.value = n.f * 0.5;
+                    oBass.connect(gBass);
+                    oBass.start(start);
+                    oBass.stop(end + 0.04);
                 });
             };
             if (chatAudioCtx.state === 'suspended') {

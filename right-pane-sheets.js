@@ -485,6 +485,9 @@ class RightPaneSheetManager {
         /** Cache cột sheet1 `trend` (up/down/flat + streak). */
         this._sheet1SpecialPickTrendsCache = null;
         this._sheet1SpecialPickTrendsCacheKey = '';
+        /** Cache cột sheet1 `belly` (in/out — tạo bụng freq-tie sau pick special). */
+        this._sheet1SpecialPickBellyIoCache = null;
+        this._sheet1SpecialPickBellyIoCacheKey = '';
         this.frequencyMap = {};
         this.colorPalette = [
             'rgb(255, 192, 0)',    // Gold
@@ -638,6 +641,8 @@ class RightPaneSheetManager {
         this._sheet1SpecialContiguousKindsCacheKey = '';
         this._sheet1SpecialPickTrendsCache = null;
         this._sheet1SpecialPickTrendsCacheKey = '';
+        this._sheet1SpecialPickBellyIoCache = null;
+        this._sheet1SpecialPickBellyIoCacheKey = '';
     }
 
     /** Rows used for sheet1 / nonexist filter (independent of active combo tab). */
@@ -1195,7 +1200,8 @@ class RightPaneSheetManager {
         }
         if (!String(this._sheet1DomCache.html || '').includes('sheet1-source-table')
             || !String(this._sheet1DomCache.html || '').includes('cell-special-h')
-            || !String(this._sheet1DomCache.html || '').includes('cell-trend-h')) {
+            || !String(this._sheet1DomCache.html || '').includes('cell-trend-h')
+            || !String(this._sheet1DomCache.html || '').includes('cell-belly-h')) {
             this.invalidateSheet1TableDomCache();
             return false;
         }
@@ -4660,10 +4666,14 @@ class RightPaneSheetManager {
         const specialTrends = this.getSheet1SpecialPickTrends(displayRows);
         const trendDetailed = this.countSheet1SpecialPickTrendsDetailed(specialTrends, rowIndices);
         const trendStatsAttr = this.encodeSheet1TrendStatsTooltipAttr(trendDetailed);
+        const specialBellyIo = this.getSheet1SpecialPickBellyIo(displayRows);
+        const bellyCounts = this.countSheet1SpecialPickBellyIo(specialBellyIo, rowIndices);
+        const bellyStatsAttr = this.encodeSheet1BellyStatsTooltipAttr(bellyCounts);
 
         let html = '<table class="sheet-data-table sheet1-source-table"><thead><tr>'
             + '<th>date</th><th>id</th>'
             + `<th class="cell-special-h" data-special-stats="${specialStatsAttr}">special</th>`
+            + `<th class="cell-belly-h" data-belly-stats="${bellyStatsAttr}">belly</th>`
             + `<th class="cell-trend-h" data-trend-stats="${trendStatsAttr}">trend</th>`
             + '<th class="cell-pick-label-h">label</th><th class="cell-follow-h">follow</th>'
             + '<th>result</th><th>note</th><th>nonexist</th></tr></thead><tbody>';
@@ -4722,11 +4732,16 @@ class RightPaneSheetManager {
             const trendHtml = trendKind
                 ? `<span class="cell-trend-val cell-trend-val--${trendKind}">${String(trendKind).toUpperCase()} ${trendStreak}</span>`
                 : '';
+            const bellyIo = specialBellyIo[i] || '';
+            const bellyHtml = bellyIo
+                ? `<span class="cell-belly-val cell-belly-val--${bellyIo}">${String(bellyIo).toUpperCase()}</span>`
+                : '';
 
             html += `<tr data-idx="${i}" class="data-row${activeClass}" data-has-result="${!!result}" data-empty="${isEmptyResultRow ? '1' : '0'}">
                 <td class="cell-date"${dateBg}>${date}</td>
                 <td class="cell-id"${idStyle}>${id}</td>
                 <td class="cell-special">${specialHtml}</td>
+                <td class="cell-belly">${bellyHtml}</td>
                 <td class="cell-trend">${trendHtml}</td>
                 <td class="cell-pick-label">${pickLabelHtml}</td>
                 <td class="cell-follow">${followHtml}</td>
@@ -13067,6 +13082,34 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Special: nếu pick từng số 1..numMax tại frame hiện tại → in|out (tạo bụng freq-tie hay không).
+     * Cùng kiểu “rào trước” như plain|merge|split|trans — layout post = giả lập click bar đó.
+     * @returns {Record<number, 'in'|'out'|''>}
+     */
+    static computeSpecialTrackingBarPickBellyIo(series, fr, numMax) {
+        const ios = Object.create(null);
+        const max = Math.max(1, numMax | 0);
+        if (!fr) {
+            return ios;
+        }
+        for (let n = 1; n <= max; n++) {
+            const postLayout = RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
+                series,
+                fr,
+                false,
+                n
+            );
+            ios[n] = RightPaneSheetManager.classifySpecialPickBellyIo(
+                postLayout.counts,
+                postLayout.slotByNum,
+                n,
+                max
+            ) || 'out';
+        }
+        return ios;
+    }
+
+    /**
      * Special: nếu pick từng số 1..numMax tại frame hiện tại → plain|merge|split|trans.
      * Tính từ layout pre-pick (applyCurrent=false).
      * @returns {Record<number, string>}
@@ -13236,6 +13279,169 @@ class RightPaneSheetManager {
         this._sheet1SpecialPickTrendsCache = trends;
         this._sheet1SpecialPickTrendsCacheKey = String(list.length);
         return trends;
+    }
+
+    /**
+     * Pick special có tạo bụng freq-tie (≥2 số cùng freq) sau khi cộng đáp án → IN, ngược lại OUT.
+     * @param {*} counts
+     * @param {*} slotByNum
+     * @param {number} pick
+     * @param {number} [numMax=12]
+     * @returns {'in'|'out'|''}
+     */
+    static classifySpecialPickBellyIo(counts, slotByNum, pick, numMax = 12) {
+        const n = pick | 0;
+        if (!(n >= 1 && n <= numMax)) {
+            return '';
+        }
+        const groups = RightPaneSheetManager.buildBasicTrackingFreqTieGroups(
+            counts,
+            slotByNum,
+            numMax
+        );
+        for (let i = 0; i < groups.length; i++) {
+            const nums = groups[i].nums || [];
+            if (nums.indexOf(n) >= 0) {
+                return 'in';
+            }
+        }
+        return 'out';
+    }
+
+    /**
+     * IN/OUT của bar vừa pick (sau cộng đáp án / giả lập) — cùng bar với UP/DOWN/FLAT.
+     * @returns {{ num: number, io: 'in'|'out' }|null}
+     */
+    static computeSpecialTrackingPickBellyIo(
+        series,
+        frames,
+        frameIndex,
+        applyCurrentPick,
+        previewPickNum
+    ) {
+        if (!Array.isArray(frames) || frameIndex < 0 || frameIndex >= frames.length) {
+            return null;
+        }
+        const fr = frames[frameIndex];
+        if (!fr) {
+            return null;
+        }
+        const hasPreview = Number.isFinite(previewPickNum)
+            && previewPickNum >= 1
+            && previewPickNum <= 12;
+        let pick = null;
+        let applyPick = !!applyCurrentPick;
+        let preview = null;
+        if (hasPreview) {
+            pick = previewPickNum | 0;
+            applyPick = true;
+            preview = pick;
+        } else if (applyCurrentPick && !fr.holdFrame && fr.justDrawn != null) {
+            pick = fr.justDrawn | 0;
+        }
+        if (!(pick >= 1 && pick <= 12)) {
+            return null;
+        }
+        const layout = RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
+            Array.isArray(series) ? series : [],
+            fr,
+            applyPick,
+            preview
+        );
+        const io = RightPaneSheetManager.classifySpecialPickBellyIo(
+            layout.counts,
+            layout.slotByNum,
+            pick,
+            12
+        );
+        if (io !== 'in' && io !== 'out') {
+            return null;
+        }
+        return { num: pick, io };
+    }
+
+    /**
+     * Cột sheet1 `belly`: in/out theo từng hàng nguồn có pick special.
+     * @returns {string[]}
+     */
+    getSheet1SpecialPickBellyIo(rows) {
+        const list = Array.isArray(rows) ? rows : [];
+        if (this._sheet1SpecialPickBellyIoCache
+            && this._sheet1SpecialPickBellyIoCache.length === list.length) {
+            return this._sheet1SpecialPickBellyIoCache;
+        }
+
+        const meta = this.buildSpecialTrackingSeriesMeta(list);
+        const frames = this.buildSpecialTrackingFrames(meta.drawSteps);
+        const series = meta.series || [];
+        const ios = new Array(list.length).fill('');
+
+        for (let ri = 0; ri < list.length; ri++) {
+            const pick = meta.drawSteps[ri];
+            if (pick == null || !Number.isFinite(pick)) {
+                continue;
+            }
+            const fr = frames[ri];
+            if (!fr || fr.holdFrame) {
+                continue;
+            }
+            const postLayout = RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
+                series,
+                fr,
+                true,
+                null
+            );
+            ios[ri] = RightPaneSheetManager.classifySpecialPickBellyIo(
+                postLayout.counts,
+                postLayout.slotByNum,
+                pick,
+                12
+            );
+        }
+
+        this._sheet1SpecialPickBellyIoCache = ios;
+        this._sheet1SpecialPickBellyIoCacheKey = String(list.length);
+        return ios;
+    }
+
+    countSheet1SpecialPickBellyIo(ios, rowIndices) {
+        const counts = { in: 0, out: 0 };
+        const list = Array.isArray(ios) ? ios : [];
+        const idxs = Array.isArray(rowIndices)
+            ? rowIndices
+            : list.map((_, i) => i);
+        for (let n = 0; n < idxs.length; n++) {
+            const k = list[idxs[n]];
+            if (k && Object.prototype.hasOwnProperty.call(counts, k)) {
+                counts[k] += 1;
+            }
+        }
+        return counts;
+    }
+
+    encodeSheet1BellyStatsTooltipAttr(countsOrText) {
+        if (countsOrText && typeof countsOrText === 'object' && !Array.isArray(countsOrText)) {
+            const c = countsOrText;
+            return `IN:${c.in || 0}|OUT:${c.out || 0}`;
+        }
+        return String(countsOrText || '')
+            .replace(/\r?\n/g, '|')
+            .replace(/&#10;/gi, '|')
+            .replace(/\s*\|\s*/g, '|');
+    }
+
+    applySheet1BellyHeaderTooltip(tableWrap, ios, rowIndices) {
+        if (!tableWrap) {
+            return null;
+        }
+        const counts = this.countSheet1SpecialPickBellyIo(ios, rowIndices);
+        const attr = this.encodeSheet1BellyStatsTooltipAttr(counts);
+        const th = tableWrap.querySelector('th.cell-belly-h');
+        if (th) {
+            th.setAttribute('data-belly-stats', attr);
+            th.removeAttribute('title');
+        }
+        return counts;
     }
 
     countSheet1SpecialPickTrends(trends, rowIndices) {
@@ -14303,6 +14509,7 @@ class RightPaneSheetManager {
                 + '</div>'
                 + '<span class="special-tracking-rank-labels" aria-hidden="true">'
                 + '<span class="special-tracking-rank-trend" data-st-trend hidden></span>'
+                + '<span class="special-tracking-rank-belly" data-st-belly hidden></span>'
                 + '<span class="special-tracking-rank-action" data-st-action hidden></span>'
                 + '</span>'
                 + '</div>'
@@ -14615,7 +14822,8 @@ class RightPaneSheetManager {
                     count: el.querySelector('[data-count]'),
                     prio: el.querySelector('[data-st-predict-rank]'),
                     action: el.querySelector('[data-st-action]'),
-                    trend: el.querySelector('[data-st-trend]')
+                    trend: el.querySelector('[data-st-trend]'),
+                    belly: el.querySelector('[data-st-belly]')
                 };
             }
         });
@@ -15004,6 +15212,14 @@ class RightPaneSheetManager {
                     specialPreviewActive ? specialPreviewPick : null
                 )
                 : null;
+            /** Mỗi bar: IN/OUT nếu click giả lập bar đó (rào trước, giống PLAIN/MERGE). */
+            const bellyIoByNum = showActionLabels
+                ? RightPaneSheetManager.computeSpecialTrackingBarPickBellyIo(
+                    sheet.specialSeries || sheet.series || [],
+                    fr,
+                    numMax
+                )
+                : null;
             let trendStatsAttr = '';
             if (pickFreqTrend) {
                 try {
@@ -15035,6 +15251,7 @@ class RightPaneSheetManager {
                 const prioEl = parts.prio;
                 const actionEl = parts.action;
                 const trendEl = parts.trend;
+                const bellyEl = parts.belly;
                 const wPct = isBasic && basicDisplay
                     ? (basicDisplay.wPctByNum[n] || 0)
                     : (specialDisplay.wPctByNum[n] || 0);
@@ -15114,6 +15331,22 @@ class RightPaneSheetManager {
                         actionEl.classList.add(`special-tracking-rank-action--${kind}`);
                     } else if (actionEl.textContent) {
                         actionEl.textContent = '';
+                    }
+                }
+                if (bellyEl) {
+                    const io = bellyIoByNum ? (bellyIoByNum[n] || 'out') : '';
+                    const showBelly = showActionLabels && (io === 'in' || io === 'out');
+                    bellyEl.hidden = !showBelly;
+                    bellyEl.setAttribute('aria-hidden', showBelly ? 'false' : 'true');
+                    bellyEl.classList.remove(
+                        'special-tracking-rank-belly--in',
+                        'special-tracking-rank-belly--out'
+                    );
+                    if (showBelly) {
+                        bellyEl.textContent = String(io).toUpperCase();
+                        bellyEl.classList.add(`special-tracking-rank-belly--${io}`);
+                    } else if (bellyEl.textContent) {
+                        bellyEl.textContent = '';
                     }
                 }
                 if (trendEl) {
@@ -16616,7 +16849,7 @@ function formatSheet1SpecialStatsTooltipHtml(text, highlightLabel) {
         if (!raw) {
             continue;
         }
-        const m = /^(PLAIN|MERGE|SPLIT|TRANS|UP|DOWN|FLAT)(?:\s+(\d+))?\s*:\s*(.*)$/i.exec(raw);
+        const m = /^(PLAIN|MERGE|SPLIT|TRANS|UP|DOWN|FLAT|IN|OUT)(?:\s+(\d+))?\s*:\s*(.*)$/i.exec(raw);
         if (!m) {
             out.push('<div class="special-tip-line">' + raw.replace(/</g, '&lt;') + '</div>');
             continue;
@@ -16671,12 +16904,14 @@ function bindPrevPeriodRecallFoldTooltipGlobal() {
         const specialHit = event.target && event.target.closest
             ? event.target.closest(
                 'th.cell-special-h[data-special-stats], th.cell-trend-h[data-trend-stats],'
+                + ' th.cell-belly-h[data-belly-stats],'
                 + ' .special-tracking-rank-trend[data-trend-stats]'
             )
             : null;
         if (specialHit) {
             const stats = specialHit.getAttribute('data-special-stats')
                 || specialHit.getAttribute('data-trend-stats')
+                || specialHit.getAttribute('data-belly-stats')
                 || '';
             if (!stats) {
                 return;
@@ -16735,6 +16970,7 @@ function bindPrevPeriodRecallFoldTooltipGlobal() {
         const specialHit = event.target && event.target.closest
             ? event.target.closest(
                 'th.cell-special-h[data-special-stats], th.cell-trend-h[data-trend-stats],'
+                + ' th.cell-belly-h[data-belly-stats],'
                 + ' .special-tracking-rank-trend[data-trend-stats]'
             )
             : null;

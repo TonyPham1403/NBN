@@ -1218,7 +1218,8 @@
         }
 
         .special-tracking-rank-trend,
-        .special-tracking-rank-action {
+        .special-tracking-rank-action,
+        .special-tracking-rank-belly {
             font-family: "Segoe UI", "Helvetica Neue", sans-serif;
             font-size: clamp(11px, 1.45vh, 14px);
             font-weight: 900;
@@ -1242,8 +1243,17 @@
         }
 
         .special-tracking-rank-trend[hidden],
-        .special-tracking-rank-action[hidden] {
+        .special-tracking-rank-action[hidden],
+        .special-tracking-rank-belly[hidden] {
             display: none !important;
+        }
+
+        .special-tracking-rank-belly--in {
+            color: #006400;
+        }
+
+        .special-tracking-rank-belly--out {
+            color: #ff0000;
         }
 
         .special-tracking-rank-trend--up {
@@ -6532,6 +6542,7 @@
         #filterTableWrap .sheet-data-table td.cell-id,
         #filterTableWrap .sheet-data-table td.cell-special,
         #filterTableWrap .sheet-data-table td.cell-trend,
+        #filterTableWrap .sheet-data-table td.cell-belly,
         #filterTableWrap .sheet-data-table td.cell-pick-label,
         #filterTableWrap .sheet-data-table td.cell-follow,
         #filterTableWrap .sheet-data-table td.cell-result,
@@ -6541,7 +6552,8 @@
         #filterTableWrap .sheet-data-table thead th:nth-child(4),
         #filterTableWrap .sheet-data-table thead th:nth-child(5),
         #filterTableWrap .sheet-data-table thead th:nth-child(6),
-        #filterTableWrap .sheet-data-table thead th:nth-child(7) {
+        #filterTableWrap .sheet-data-table thead th:nth-child(7),
+        #filterTableWrap .sheet-data-table thead th:nth-child(8) {
             white-space: nowrap;
             width: 1%;
         }
@@ -6554,8 +6566,8 @@
 
         #filterTableWrap .sheet-data-table td.cell-note,
         #filterTableWrap .sheet-data-table td.cell-nonexist,
-        #filterTableWrap .sheet-data-table thead th:nth-child(8),
-        #filterTableWrap .sheet-data-table thead th:nth-child(9) {
+        #filterTableWrap .sheet-data-table thead th:nth-child(9),
+        #filterTableWrap .sheet-data-table thead th:nth-child(10) {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -6649,7 +6661,8 @@
         }
 
         .sheet-data-table th.cell-special-h,
-        .sheet-data-table th.cell-trend-h {
+        .sheet-data-table th.cell-trend-h,
+        .sheet-data-table th.cell-belly-h {
             cursor: default;
         }
 
@@ -6679,6 +6692,30 @@
 
         .sheet-data-table .cell-trend-val--flat {
             color: #000000;
+        }
+
+        #filterTableWrap .sheet-data-table td.cell-belly,
+        .sheet-data-table td.cell-belly {
+            padding: 2px 6px;
+            text-align: center;
+            vertical-align: middle;
+            white-space: nowrap;
+            width: 1%;
+        }
+
+        .sheet-data-table .cell-belly-val {
+            font-size: 13px;
+            font-weight: 800;
+            letter-spacing: 0.04em;
+            line-height: 1.2;
+        }
+
+        .sheet-data-table .cell-belly-val--in {
+            color: #006400;
+        }
+
+        .sheet-data-table .cell-belly-val--out {
+            color: #ff0000;
         }
 
         .sheet-data-table td.cell-follow,
@@ -7051,6 +7088,16 @@
         .prev-recall-fold-tooltip .special-tip-flat,
         .prev-recall-fold-tooltip--special .special-tip-flat {
             color: #000000 !important;
+        }
+
+        .prev-recall-fold-tooltip .special-tip-in,
+        .prev-recall-fold-tooltip--special .special-tip-in {
+            color: #006400 !important;
+        }
+
+        .prev-recall-fold-tooltip .special-tip-out,
+        .prev-recall-fold-tooltip--special .special-tip-out {
+            color: #ff0000 !important;
         }
 
         .prev-recall-fold-tooltip .special-tip-line--hl {
@@ -8869,8 +8916,8 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
-    <script src="chat.js?v=20260716chimeV3"></script>
-    <script src="right-pane-sheets.js?v=20260815focusChainHit10"></script>
+    <script src="chat.js?v=20260819chimeSoft07"></script>
+    <script src="right-pane-sheets.js?v=20260819bellyIo04"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
@@ -24024,6 +24071,14 @@ function getFilterNoteTRefMaxSelections(mode) {
                 sheetManager.applySheet1TrendHeaderTooltip(
                     wrap,
                     sheetManager.getSheet1SpecialPickTrends(rows),
+                    indices
+                );
+            }
+            if (typeof sheetManager.applySheet1BellyHeaderTooltip === 'function'
+                && typeof sheetManager.getSheet1SpecialPickBellyIo === 'function') {
+                sheetManager.applySheet1BellyHeaderTooltip(
+                    wrap,
+                    sheetManager.getSheet1SpecialPickBellyIo(rows),
                     indices
                 );
             }
