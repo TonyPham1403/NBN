@@ -6269,7 +6269,7 @@
         .right-table-viewport {
             background: #ffffff;
             color: #111111;
-            --right-table-zoom: 1;
+            --right-table-zoom: 0.7;
             box-sizing: border-box;
         }
 
@@ -8131,7 +8131,7 @@
 <body>
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20260810leftPaneReady01"
+            <iframe id="okFrame" src="ok_left.html?v=20260912blockOffZoom70"
                 style="width:100%;height:100%;border:0"></iframe>
         </section>
 
@@ -8294,10 +8294,10 @@
                 <div id="sheetTabsContainer" class="sheet-tabs-container">
                     <div class="zoom-toolbar" aria-label="Zoom controls">
                         <button type="button" id="zoomOutBtn" title="Zoom out">−</button>
-                        <input id="zoomSlider" type="range" min="50" max="150" step="5" value="100"
+                        <input id="zoomSlider" type="range" min="50" max="150" step="5" value="70"
                             aria-label="Zoom slider" />
                         <button type="button" id="zoomInBtn" title="Zoom in">+</button>
-                        <span id="zoomValue" class="zoom-value">100%</span>
+                        <span id="zoomValue" class="zoom-value">70%</span>
                     </div>
                 </div>
             </div>
@@ -8922,7 +8922,8 @@
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
         const MAX_NUM = 35; // support up to 35
-        const RIGHT_ZOOM_KEY = 'rightPaneZoom';
+        const RIGHT_ZOOM_KEY = 'rightPaneZoom_v2';
+        const RIGHT_ZOOM_DEFAULT = 0.7;
         const RIGHT_ZOOM_MIN = 0.5;
         const RIGHT_ZOOM_MAX = 1.5;
         const RIGHT_ZOOM_STEP = 0.05;
@@ -9123,7 +9124,7 @@
         /** Giữ submit ON/OFF parent khi tạm focus hàng id cuối rỗng (iframe disable nút). */
         let mainFocusRowEmpty = false;
         let savedSubmitActiveBeforeEmptyFocus = null;
-        let rightPaneZoom = 1;
+        let rightPaneZoom = RIGHT_ZOOM_DEFAULT;
         let submitRingEnabled = false;
         let submitRingMode = 'freq';
         /** max | min | custom — dùng khi không bật nhãn C/Uflip trong CUflip */
@@ -9518,6 +9519,8 @@
             const saved = parseFloat(localStorage.getItem(RIGHT_ZOOM_KEY));
             if (!Number.isNaN(saved)) {
                 rightPaneZoom = clampZoom(saved);
+            } else {
+                rightPaneZoom = RIGHT_ZOOM_DEFAULT;
             }
 
             const slider = el('zoomSlider');

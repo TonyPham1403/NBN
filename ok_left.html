@@ -1949,7 +1949,7 @@
                     <div class="tableActions">
                         <div class="actions-left">
                             <button id="submitBtn" type="button">Submit</button>
-                            <button id="blockBtn" type="button" aria-pressed="true">Block</button>
+                            <button id="blockBtn" type="button" aria-pressed="false">Block</button>
                             <button id="relPhaseAboveBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
                                 title="A = ABOVE: freq≥2 luôn trên phase1 — nối 2 góc trên">A</button>
                             <button id="relPhaseSameBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
@@ -2125,7 +2125,7 @@
         let answerPopupTicketPreviewOnly = false;
         let forceClearPicksOnSubmitOff = false;
         const BLOCK_FEATURE_KEY = 'leftPaneBlockEnabled';
-        let blockFeatureEnabled = true;
+        let blockFeatureEnabled = false;
 
         function applyConn3TripletToSelection(sortedNums) {
             const pickNums = (sortedNums || [])
@@ -5234,9 +5234,10 @@
         function loadBlockFeatureSetting() {
             try {
                 const saved = localStorage.getItem(BLOCK_FEATURE_KEY);
-                blockFeatureEnabled = saved !== '0';
+                /* Mặc định tắt; chỉ bật khi user đã lưu '1'. */
+                blockFeatureEnabled = saved === '1';
             } catch (e) {
-                blockFeatureEnabled = true;
+                blockFeatureEnabled = false;
             }
         }
 
