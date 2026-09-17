@@ -11048,15 +11048,17 @@ class RightPaneSheetManager {
             }
         };
         if (typeof requestIdleCallback === 'function') {
+            const mobileShell = typeof window !== 'undefined' && !!window.__NBN_MOBILE_SHELL__;
             requestIdleCallback(() => {
                 if (gen !== this._basicTrackingBellyWarmGen) {
                     return;
                 }
                 run();
-            }, { timeout: 1200 });
+            }, { timeout: mobileShell ? 8000 : 1200 });
             return;
         }
-        this._basicTrackingBellyWarmTimer = setTimeout(run, 0);
+        const mobileShell = typeof window !== 'undefined' && !!window.__NBN_MOBILE_SHELL__;
+        this._basicTrackingBellyWarmTimer = setTimeout(run, mobileShell ? 2500 : 0);
     }
 
     /**

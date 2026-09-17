@@ -8125,10 +8125,102 @@
             line-height: 1;
             padding: 0;
         }
+
+        /* Mobile shell: PC = display:contents (không đổi layout). */
+        #appStageHost,
+        #appStage {
+            display: contents;
+        }
+
+        html.mobile-app-shell,
+        html.mobile-app-shell body {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            overscroll-behavior: none;
+            touch-action: manipulation;
+            background: #0f172a;
+        }
+
+        html.mobile-app-shell body {
+            display: block;
+            margin: 0;
+            height: 100%;
+            height: 100dvh;
+            max-height: 100dvh;
+        }
+
+        html.mobile-app-shell #appStageHost {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            background: #0f172a;
+        }
+
+        html.mobile-app-shell #appStage {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            flex-shrink: 0;
+            width: var(--mobile-design-w, 1280px);
+            height: var(--mobile-design-h, 720px);
+            overflow: hidden;
+            transform-origin: center center;
+            background: var(--bg, #0f172a);
+            color: var(--text, #e6eef8);
+        }
+
+        html.mobile-app-shell #appStage > .wrap {
+            flex: 1 1 auto;
+            min-height: 0;
+            height: auto;
+        }
     </style>
+    <script>
+        /* Nhận diện mobile sớm — trước paint; PC không gắn class → CSS cũ nguyên. */
+        (function () {
+            function isMobileAppShell() {
+                try {
+                    const ua = String(navigator.userAgent || '');
+                    const uaMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini|Mobile/i.test(ua);
+                    const w = Number(window.innerWidth) || 0;
+                    const h = Number(window.innerHeight) || 0;
+                    const shortSide = Math.min(w, h) || 0;
+                    const longSide = Math.max(w, h) || 0;
+                    const touchish = Number(navigator.maxTouchPoints || 0) > 0
+                        || window.matchMedia('(pointer: coarse)').matches
+                        || window.matchMedia('(hover: none)').matches;
+                    /* Chrome DevTools iPhone: UA Mobile + viewport hẹp (không phụ thuộc pointer:coarse). */
+                    if (uaMobile && shortSide > 0 && shortSide <= 920) {
+                        return true;
+                    }
+                    if (touchish && shortSide > 0 && shortSide <= 520) {
+                        return true;
+                    }
+                    if (touchish && shortSide > 0 && shortSide <= 920 && longSide <= 1400) {
+                        return true;
+                    }
+                    return false;
+                } catch (e) {
+                    return false;
+                }
+            }
+            window.__NBN_isMobileAppShell = isMobileAppShell;
+            window.__NBN_MOBILE_SHELL__ = isMobileAppShell();
+            if (window.__NBN_MOBILE_SHELL__) {
+                document.documentElement.classList.add('mobile-app-shell');
+            }
+        })();
+    </script>
 </head>
 
 <body>
+    <div id="appStageHost">
+        <div id="appStage">
     <main class="wrap">
         <section class="pane left">
             <iframe id="okFrame" src="ok_left.html?v=20260912blockOffZoom70"
@@ -8910,6 +9002,10 @@
         </div>
     </div>
 
+    <div id="chatDock" class="chat-dock" aria-live="polite"></div>
+        </div><!-- /#appStage -->
+    </div><!-- /#appStageHost -->
+
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
@@ -8917,8 +9013,101 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260819chimeSoft07"></script>
-    <script src="right-pane-sheets.js?v=20260819bellyIo04"></script>
+    <script src="right-pane-sheets.js?v=20260917mobileWarm01"></script>
     <script src="answer-popup.js?v=20250621"></script>
+    <script>
+        /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
+           Re-check khi resize (DevTools bật iPhone sau khi load vẫn nhận). */
+        (function initMobileLandscapeShell() {
+            const DESIGN_W = 1280;
+            const DESIGN_H = 720;
+            const host = document.getElementById('appStageHost');
+            const stage = document.getElementById('appStage');
+            if (!host || !stage) {
+                return;
+            }
+            document.documentElement.style.setProperty('--mobile-design-w', DESIGN_W + 'px');
+            document.documentElement.style.setProperty('--mobile-design-h', DESIGN_H + 'px');
+
+            function isMobileNow() {
+                if (typeof window.__NBN_isMobileAppShell === 'function') {
+                    return !!window.__NBN_isMobileAppShell();
+                }
+                return !!window.__NBN_MOBILE_SHELL__;
+            }
+
+            function tryLockLandscape() {
+                if (tryLockLandscape._done) {
+                    return;
+                }
+                try {
+                    const ori = screen.orientation || screen.mozOrientation || screen.msOrientation;
+                    if (ori && typeof ori.lock === 'function') {
+                        tryLockLandscape._done = true;
+                        ori.lock('landscape').catch(function () { /* ignore */ });
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            function clearStageInline() {
+                stage.style.transform = '';
+                stage.style.position = '';
+                stage.style.left = '';
+                stage.style.top = '';
+                stage.style.width = '';
+                stage.style.height = '';
+            }
+
+            function layoutMobileShell() {
+                const on = isMobileNow();
+                window.__NBN_MOBILE_SHELL__ = on;
+                document.documentElement.classList.toggle('mobile-app-shell', on);
+                if (!on) {
+                    clearStageInline();
+                    return;
+                }
+                tryLockLandscape();
+                const vw = window.innerWidth || DESIGN_W;
+                const vh = window.innerHeight || DESIGN_H;
+                const landW = Math.max(vw, vh);
+                const landH = Math.min(vw, vh);
+                const portraitHold = vh > vw;
+                const scale = Math.min(landH / DESIGN_H, landW / DESIGN_W);
+                stage.style.position = 'absolute';
+                stage.style.left = '50%';
+                stage.style.top = '50%';
+                stage.style.width = DESIGN_W + 'px';
+                stage.style.height = DESIGN_H + 'px';
+                /* Luôn layout ngang; cầm dọc thì xoay 90° trong khung. */
+                if (portraitHold) {
+                    stage.style.transform = 'translate(-50%, -50%) rotate(90deg) scale(' + scale + ')';
+                } else {
+                    stage.style.transform = 'translate(-50%, -50%) scale(' + scale + ')';
+                }
+            }
+
+            let resizeTimer = 0;
+            function layoutMobileShellDebounced() {
+                if (resizeTimer) {
+                    clearTimeout(resizeTimer);
+                }
+                resizeTimer = setTimeout(function () {
+                    resizeTimer = 0;
+                    layoutMobileShell();
+                }, 80);
+            }
+
+            layoutMobileShell();
+            window.addEventListener('resize', layoutMobileShellDebounced, { passive: true });
+            window.addEventListener('orientationchange', function () {
+                setTimeout(layoutMobileShell, 50);
+                setTimeout(layoutMobileShell, 250);
+            }, { passive: true });
+            if (screen.orientation && typeof screen.orientation.addEventListener === 'function') {
+                screen.orientation.addEventListener('change', layoutMobileShellDebounced);
+            }
+        })();
+    </script>
     <script>
         // Basic app: load data.json, render table, allow quick copy to left textarea
         const MAX_NUM = 35; // support up to 35
@@ -26175,20 +26364,31 @@ function getFilterNoteTRefMaxSelections(mode) {
                     requestAnimationFrame(() => prebuildFilterPopupCache());
                 }
                 scheduleDefaultSessionBootstrap();
-                // Hâm nóng bụng TRACKING sau paint — chấp nhận chờ lúc mở web, filter sau đó nhanh.
+                // Hâm nóng bụng TRACKING: mobile trì hoãn mạnh để lần mở đầu đỡ đơ.
+                const mobileShell = !!window.__NBN_MOBILE_SHELL__;
                 if (typeof sheetManager.scheduleWarmBasicTrackingBellyFilterCache === 'function') {
-                    sheetManager.scheduleWarmBasicTrackingBellyFilterCache();
+                    if (mobileShell) {
+                        setTimeout(() => {
+                            try {
+                                sheetManager.scheduleWarmBasicTrackingBellyFilterCache();
+                            } catch (eWarmSched) { /* ignore */ }
+                        }, 2500);
+                    } else {
+                        sheetManager.scheduleWarmBasicTrackingBellyFilterCache();
+                    }
                 }
-                requestAnimationFrame(() => {
+                if (!mobileShell) {
                     requestAnimationFrame(() => {
-                        try {
-                            if (sheetManager
-                                && typeof sheetManager.ensureBasicTrackingBellyFilterCache === 'function') {
-                                sheetManager.ensureBasicTrackingBellyFilterCache();
-                            }
-                        } catch (eWarmBelly) { /* ignore */ }
+                        requestAnimationFrame(() => {
+                            try {
+                                if (sheetManager
+                                    && typeof sheetManager.ensureBasicTrackingBellyFilterCache === 'function') {
+                                    sheetManager.ensureBasicTrackingBellyFilterCache();
+                                }
+                            } catch (eWarmBelly) { /* ignore */ }
+                        });
                     });
-                });
+                }
             }).catch(e => {
                 if (!sheetManager) {
                     sheetManager = new RightPaneSheetManager();
@@ -27007,7 +27207,6 @@ function getFilterNoteTRefMaxSelections(mode) {
             });
         });
     </script>
-    <div id="chatDock" class="chat-dock" aria-live="polite"></div>
 </body>
 
 </html>
