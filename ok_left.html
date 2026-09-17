@@ -448,19 +448,39 @@
             animation: neonStroke 2.4s linear infinite
         }
 
-        /* Mobile shell: bớt filter/shadow — tránh nháy khi parent scale */
+        /* Mobile shell: bớt filter SVG streak */
         .answer-neon.mobile-neon-lite .neon-streak .halo,
         .answer-neon.mobile-neon-lite .neon-streak .trail,
         .answer-neon.mobile-neon-lite .neon-streak .core {
             filter: none;
         }
 
-        .cell.answer-neon.mobile-neon-lite.animate {
-            animation: neonPulse 1.35s ease-in-out infinite;
+        /*
+         * Mobile: KHÔNG pulse box-shadow trên .cell.answer-neon (nền số submit).
+         * Animate box-shadow blur lớn + parent scale → nửa trái giật/reset liên tục.
+         * Viền pair/tail (SVG stroke) giữ nguyên.
+         */
+        body.mobile-neon-static .cell.answer-neon,
+        body.mobile-neon-static .cell.answer-neon.animate,
+        body.mobile-neon-static .selected.answer-neon.animate,
+        .cell.answer-neon.mobile-neon-lite,
+        .cell.answer-neon.mobile-neon-lite.animate,
+        .selected.answer-neon.mobile-neon-lite.animate {
+            animation: none !important;
+            will-change: auto !important;
+            transition: none !important;
+            box-shadow:
+                0 0 0 2px var(--neon-dark),
+                0 0 10px var(--neon-color),
+                0 0 22px var(--neon-mid) !important;
         }
 
-        .selected.answer-neon.mobile-neon-lite.animate {
-            animation: neonPulseSelected 1.35s ease-in-out infinite;
+        body.mobile-neon-static .selected.answer-neon,
+        .selected.answer-neon.mobile-neon-lite {
+            box-shadow:
+                0 0 0 3px red,
+                0 0 10px var(--neon-color),
+                0 0 22px var(--neon-mid) !important;
         }
 
         @keyframes neonStroke {
@@ -10463,6 +10483,7 @@
                 if (disableSubmitForCurrentData) return;
                 if (!answerNums || !answerNums.length) return;
                 submitActive = !submitActive;
+                try { syncMobileNeonStaticBodyClass(); } catch (eMobNeon) { /* ignore */ }
                 var modeEl = document.getElementById('mode');
                 if (modeEl) {
                     modeEl.disabled = submitActive;
@@ -11399,6 +11420,10 @@
         syncBlockBtnUi();
         loadRelPhaseAsbSettings();
         syncRelPhaseAsbBtnUi();
+        try { syncMobileNeonStaticBodyClass(); } catch (eMobNeon) { /* ignore */ }
+        setTimeout(function () {
+            try { syncMobileNeonStaticBodyClass(); } catch (eMobNeon2) { /* ignore */ }
+        }, 400);
 
         (function () {
             try {
@@ -11791,15 +11816,27 @@
             }
         }
 
+        function syncMobileNeonStaticBodyClass() {
+            try {
+                document.body.classList.toggle('mobile-neon-static', isParentMobileShell());
+            } catch (e) { /* ignore */ }
+        }
+
         function applyNeonLiteClass(el, enabled) {
             if (!el) {
                 return;
             }
-            el.classList.toggle('mobile-neon-lite', !!(enabled && isParentMobileShell()));
+            /* Chỉ gắn lite cho .cell số submit (nền), không đụng td chuối/pair stroke. */
+            if (el.classList && el.classList.contains('cell')) {
+                el.classList.toggle('mobile-neon-lite', !!(enabled && isParentMobileShell()));
+            } else {
+                el.classList.remove('mobile-neon-lite');
+            }
         }
 
         function restartNeonAnimationsInDOM() {
             try {
+                syncMobileNeonStaticBodyClass();
                 var neonEls = document.querySelectorAll('#right td.answer-neon, #right .cell.answer-neon, #left .cell.answer-neon');
                 if (!neonEls || !neonEls.length) return;
                 /* Mobile: không remove/reflow/add — dễ cảm giác “reset màn” liên tục. */
@@ -11826,6 +11863,7 @@
         // Apply submitActive and answerNums to DOM in-place to avoid full reflow
         function applySubmitState() {
             try {
+                try { syncMobileNeonStaticBodyClass(); } catch (eMobNeon) { /* ignore */ }
                 debugLog('applySubmitState() start', { answerNums: answerNums, simulatedSelectedSize: (simulatedSelected && simulatedSelected.size) ? simulatedSelected.size : 0 });
                 if (!raw) return;
                 var displayLines = getRawDisplayLines();
