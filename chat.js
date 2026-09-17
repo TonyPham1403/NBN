@@ -8,6 +8,30 @@
 (function () {
     'use strict';
 
+    /* Chặn MỌI shortcut app khi đang gõ trong ô chat / form chat. */
+    window.addEventListener('keydown', function (e) {
+        try {
+            const inChatComposer = function (node) {
+                return !!(node && node.closest
+                    && node.closest('[data-chat-input], textarea.chat-input, [data-chat-form]'));
+            };
+            if (inChatComposer(e.target) || inChatComposer(document.activeElement)) {
+                e.stopImmediatePropagation();
+            }
+        } catch (err) { /* ignore */ }
+    }, true);
+    window.addEventListener('keyup', function (e) {
+        try {
+            const inChatComposer = function (node) {
+                return !!(node && node.closest
+                    && node.closest('[data-chat-input], textarea.chat-input, [data-chat-form]'));
+            };
+            if (inChatComposer(e.target) || inChatComposer(document.activeElement)) {
+                e.stopImmediatePropagation();
+            }
+        } catch (err) { /* ignore */ }
+    }, true);
+
     const DEVICE_STORAGE_KEY = 'presenceDeviceId';
     const CHAT_STORE_KEY = 'deviceChatStore';
     const AVATAR_STORE_KEY = 'deviceChatAvatars';

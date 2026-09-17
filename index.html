@@ -9020,7 +9020,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
-    <script src="chat.js?v=20260819chimeSoft07"></script>
+    <script src="chat.js?v=20260917chatFocusKeys02"></script>
     <script src="right-pane-sheets.js?v=20260917mobileWarm01"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
@@ -10788,6 +10788,9 @@
             );
 
             const onAltKeyDown = (event) => {
+                if (isKeyboardShortcutBlockedByTextEntry(event)) {
+                    return;
+                }
                 if (isPhaseAltKey(event)) {
                     if (event.repeat) {
                         return;
@@ -10805,6 +10808,11 @@
 
             const onAltKeyUp = (event) => {
                 if (!isPhaseAltKey(event)) {
+                    return;
+                }
+                if (isKeyboardShortcutBlockedByTextEntry(event)) {
+                    altPressedAlone = false;
+                    altChordUsed = false;
                     return;
                 }
                 const shouldToggle = altPressedAlone && !altChordUsed;
@@ -21973,7 +21981,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                     if (ae === positionInput) {
                         return;
                     }
-                    if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+                    if (isKeyboardShortcutBlockedByTextEntry(event)) {
                         return;
                     }
                     if (bumpFilterPopupNonexistNum(delta)) {
@@ -21984,7 +21992,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
 
                 if (!popupOpen) {
-                    if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+                    if (isKeyboardShortcutBlockedByTextEntry(event)) {
                         return;
                     }
                     if (bumpSubmitRingCustomXBy(delta)) {
@@ -22120,7 +22128,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (!isFilterPopupNavActive() && !canTypeModeParams) {
                     return;
                 }
-                if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+                if (isKeyboardShortcutBlockedByTextEntry(event)) {
                     return;
                 }
                 if (key >= '0' && key <= '9') {
@@ -23796,7 +23804,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             document.documentElement.dataset.splitPaneKeyboardBound = '1';
 
             document.addEventListener('keydown', (event) => {
-                if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+                if (isKeyboardShortcutBlockedByTextEntry(event)) {
                     return;
                 }
                 const okFrame = el('okFrame');
@@ -23858,7 +23866,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!isRightPaneFilterKeyboardTarget()) {
                 return false;
             }
-            if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+            if (isKeyboardShortcutBlockedByTextEntry(event)) {
                 return false;
             }
             const step = getFilterPopupNavStepFromKey(event.key);
@@ -23878,7 +23886,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!isRightPaneAnswerKeyboardTarget()) {
                 return false;
             }
-            if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+            if (isKeyboardShortcutBlockedByTextEntry(event)) {
                 return false;
             }
             const step = getFilterPopupNavStepFromKey(event.key);
@@ -25627,6 +25635,10 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (isAutoringModeSelectTarget(target)) {
                 return false;
             }
+            /* Chat composer — luôn cho gõ chữ, không bắt WASD/Space/Q/E/Tab… */
+            if (target.closest('[data-chat-input], textarea.chat-input, [data-chat-form], #chatDock .chat-input')) {
+                return true;
+            }
             const tag = target.tagName;
             if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') {
                 return true;
@@ -25640,6 +25652,25 @@ function getFilterNoteTRefMaxSelections(mode) {
             return !!target.closest('[contenteditable="true"]');
         }
 
+        /** Chặn shortcut khi đang gõ (target hoặc activeElement). */
+        function isKeyboardShortcutBlockedByTextEntry(event) {
+            const targets = [];
+            if (event && event.target) {
+                targets.push(event.target);
+            }
+            try {
+                if (document.activeElement && document.activeElement !== event.target) {
+                    targets.push(document.activeElement);
+                }
+            } catch (eAe) { /* ignore */ }
+            for (let i = 0; i < targets.length; i++) {
+                if (isPeriodFilterShortcutBlockedTarget(targets[i])) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         function initParentSpaceSubmitShortcut() {
             if (document.documentElement.dataset.parentSpaceSubmitBound === '1') {
                 return;
@@ -25650,7 +25681,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (event.code !== 'Space' || event.repeat) {
                     return;
                 }
-                if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+                if (isKeyboardShortcutBlockedByTextEntry(event)) {
                     return;
                 }
                 if (!event.target || event.target.ownerDocument !== document) {
@@ -25707,7 +25738,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                     if (!event.shiftKey) {
                         ctrlChordUsed = false;
                     }
-                    if (!isPeriodFilterShortcutBlockedTarget(event.target)) {
+                    if (!isKeyboardShortcutBlockedByTextEntry(event)) {
                         event.preventDefault();
                     }
                     return;
@@ -25724,7 +25755,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 const shouldToggle = ctrlPressedAlone && !ctrlChordUsed;
                 ctrlPressedAlone = false;
                 ctrlChordUsed = false;
-                if (!shouldToggle || isPeriodFilterShortcutBlockedTarget(event.target)) {
+                if (!shouldToggle || isKeyboardShortcutBlockedByTextEntry(event)) {
                     return;
                 }
                 event.preventDefault();
@@ -25807,7 +25838,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (event.altKey || event.metaKey) {
                     return;
                 }
-                if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+                if (isKeyboardShortcutBlockedByTextEntry(event)) {
                     return;
                 }
                 event.preventDefault();
@@ -25875,7 +25906,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                         shiftHeld = true;
                         shiftClickDirty = false;
                     }
-                    if (!isPeriodFilterShortcutBlockedTarget(event.target)) {
+                    if (!isKeyboardShortcutBlockedByTextEntry(event)) {
                         event.preventDefault();
                     }
                     return;
@@ -25892,7 +25923,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 const shouldToggle = shiftHeld && !shiftClickDirty;
                 shiftHeld = false;
                 shiftClickDirty = false;
-                if (!shouldToggle || isPeriodFilterShortcutBlockedTarget(event.target)) {
+                if (!shouldToggle || isKeyboardShortcutBlockedByTextEntry(event)) {
                     return;
                 }
                 event.preventDefault();
@@ -26109,7 +26140,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (event.ctrlKey || event.metaKey || event.altKey) {
                     return;
                 }
-                if (isPeriodFilterShortcutBlockedTarget(event.target)) {
+                if (isKeyboardShortcutBlockedByTextEntry(event)) {
                     return;
                 }
                 if (!sheetManager) {
@@ -26539,6 +26570,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                     return;
                 }
                 if (event.shiftKey || event.ctrlKey || event.metaKey || event.altKey || event.repeat) {
+                    return;
+                }
+                if (isKeyboardShortcutBlockedByTextEntry(event)) {
                     return;
                 }
                 event.preventDefault();
