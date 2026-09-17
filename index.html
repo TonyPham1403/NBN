@@ -7347,6 +7347,14 @@
             border-color: transparent !important;
         }
 
+        /*
+         * Trong cửa sổ 10: border trong suốt để không đè viền đen ngoài.
+         * Kẻ ngang giữa row vẽ bằng inset shadow — vẫn hiện khi note xuống dòng (ô cao).
+         */
+        .sheet-data-table td.window-selected:not(.window-edge-bottom) {
+            box-shadow: inset 0 -1px 0 #d4d4d4;
+        }
+
         .sheet-data-table td.window-edge-top {
             border-top: 4px solid #000 !important;
         }
