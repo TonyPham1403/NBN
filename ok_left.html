@@ -448,6 +448,21 @@
             animation: neonStroke 2.4s linear infinite
         }
 
+        /* Mobile shell: bớt filter/shadow — tránh nháy khi parent scale */
+        .answer-neon.mobile-neon-lite .neon-streak .halo,
+        .answer-neon.mobile-neon-lite .neon-streak .trail,
+        .answer-neon.mobile-neon-lite .neon-streak .core {
+            filter: none;
+        }
+
+        .cell.answer-neon.mobile-neon-lite.animate {
+            animation: neonPulse 1.35s ease-in-out infinite;
+        }
+
+        .selected.answer-neon.mobile-neon-lite.animate {
+            animation: neonPulseSelected 1.35s ease-in-out infinite;
+        }
+
         @keyframes neonStroke {
             from {
                 stroke-dashoffset: 0
@@ -8387,6 +8402,9 @@
                     }
                     if (submitActive && answerNums.includes(n)) {
                         cls += ' answer-neon animate';
+                        if (isParentMobileShell()) {
+                            cls += ' mobile-neon-lite';
+                        }
                     } else if (submitActive && submitTextColor && !isFreqZeroRow) {
                         style = `color:${submitTextColor};font-weight:bold;`;
                     }
@@ -8877,7 +8895,12 @@
                 // A chuỗi should go neon immediately when it contains at least 2 submit numbers.
                 let isNeon = submitActive && rowHasTwoOrMoreAnswers;
                 // when neon is active, mark the label cell so CSS animations apply
-                if (isNeon) chuoiTdClass = 'answer-neon animate';
+                if (isNeon) {
+                    chuoiTdClass = 'answer-neon animate';
+                    if (isParentMobileShell()) {
+                        chuoiTdClass += ' mobile-neon-lite';
+                    }
+                }
                 let labelVars = '';
                 if (isNeon) labelVars = '--neon-color:#00ff66;--neon-mid:rgba(0,255,102,0.85);--neon-outer:rgba(0,255,102,0.7);--neon-inner:rgba(0,255,102,1);';
                 // NOTE: Inline SVG generation removed here to avoid being overwritten by
@@ -8903,7 +8926,12 @@
                     cls += freqOneItalicFromCh11Ch12Class(n);
                     let style = '';
                     if (submitActive && answerNums.indexOf(n) !== -1) cls += ' submit-highlight';
-                    if (submitActive && answerNums.indexOf(n) !== -1) cls += ' answer-neon animate';
+                    if (submitActive && answerNums.indexOf(n) !== -1) {
+                        cls += ' answer-neon animate';
+                        if (isParentMobileShell()) {
+                            cls += ' mobile-neon-lite';
+                        }
+                    }
                     return `<span class="cell num${cls}" data-num="${n}" ${clickAttr} style='${style}'><span class="num-label">${n}</span></span>`;
                 }).join('') + `<button id="copyBtn-${i}" class="copyBtn" onclick="copyLine(${i})">📑</button></td>`;
                 html += `</tr>`;
@@ -11755,14 +11783,40 @@
         }
 
         // Restart neon animation classes so newly loaded data shows animated glow immediately.
+        function isParentMobileShell() {
+            try {
+                return !!(window.parent && window.parent !== window && window.parent.__NBN_MOBILE_SHELL__);
+            } catch (e) {
+                return false;
+            }
+        }
+
+        function applyNeonLiteClass(el, enabled) {
+            if (!el) {
+                return;
+            }
+            el.classList.toggle('mobile-neon-lite', !!(enabled && isParentMobileShell()));
+        }
+
         function restartNeonAnimationsInDOM() {
             try {
                 var neonEls = document.querySelectorAll('#right td.answer-neon, #right .cell.answer-neon, #left .cell.answer-neon');
                 if (!neonEls || !neonEls.length) return;
+                /* Mobile: không remove/reflow/add — dễ cảm giác “reset màn” liên tục. */
+                if (isParentMobileShell()) {
+                    neonEls.forEach(function (el) {
+                        el.classList.add('animate');
+                        applyNeonLiteClass(el, true);
+                    });
+                    return;
+                }
                 neonEls.forEach(function (el) { el.classList.remove('animate'); });
                 // Force reflow to restart CSS keyframes deterministically.
                 void document.body.offsetHeight;
-                neonEls.forEach(function (el) { el.classList.add('animate'); });
+                neonEls.forEach(function (el) {
+                    el.classList.add('animate');
+                    applyNeonLiteClass(el, false);
+                });
             } catch (e) { /* non-fatal */ }
         }
 
@@ -11825,8 +11879,16 @@
                             debugLog('applySubmitState: removed neon for row', i);
                         }
                         // toggle animation classes so CSS rules run (and remove when off)
-                        if (isNeon) { labelTd.classList.add('answer-neon'); labelTd.classList.add('animate'); }
-                        else { labelTd.classList.remove('answer-neon'); labelTd.classList.remove('animate'); }
+                        if (isNeon) {
+                            labelTd.classList.add('answer-neon');
+                            labelTd.classList.add('animate');
+                            applyNeonLiteClass(labelTd, true);
+                        }
+                        else {
+                            labelTd.classList.remove('answer-neon');
+                            labelTd.classList.remove('animate');
+                            applyNeonLiteClass(labelTd, false);
+                        }
                     }
 
                     // Apply deterministic base color promotion for Chuoi label (match renderTable2)
@@ -11856,6 +11918,7 @@
                             span.classList.toggle('auto-circled', false);
                             span.classList.toggle('answer-neon', isSubmitAnswer);
                             span.classList.toggle('animate', isSubmitAnswer);
+                            applyNeonLiteClass(span, isSubmitAnswer);
                             span.classList.toggle('selected', selected.has(val) && !autoringOverlay);
                             span.classList.toggle('pre-submit-manual-pick', showPreSubmitManualPickRings && preSubmitSelected.has(val));
                             span.classList.toggle('blocked', isBlocked(val));
@@ -11895,6 +11958,7 @@
                         span.classList.add('submit-highlight');
                         span.classList.add('answer-neon');
                         span.classList.add('animate');
+                        applyNeonLiteClass(span, true);
                         span.classList.remove('auto-circled');
                         span.classList.toggle('nonexist-intersect', leftNonexistSet.indexOf(val) !== -1);
                         span.classList.toggle(
@@ -11905,6 +11969,7 @@
                         try { span.style.removeProperty('font-weight'); } catch (e) { }
                     } else {
                         stripLeftTableSubmitPreviewStyles(span);
+                        applyNeonLiteClass(span, false);
                         span.classList.remove('auto-circled');
                         if (span.classList.contains('num') && answerSet.has(val)) {
                             syncLeftTableNumSemanticClasses(span, val, leftNoteSet, leftNonexistSet);
