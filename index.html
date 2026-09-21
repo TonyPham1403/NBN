@@ -9021,7 +9021,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260917chatFocusKeys02"></script>
-    <script src="right-pane-sheets.js?v=20260917mobileWarm01"></script>
+    <script src="right-pane-sheets.js?v=20260921trackEmptyBelly01"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -19286,23 +19286,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             const skipMainSync = opts.skipMainSync === true || isTrackingFilterMode(periodFilterMode);
             if (!isFilterPopupSubfilterOnlyActive()) {
                 const displayList = getFilterPopupDisplayIndices();
-                const keepFollowAnchor = isFollowPctFilterMode(periodFilterMode)
-                    && typeof filterPopupActiveIdx === 'number'
-                    && filterPopupActiveIdx >= 0
-                    && displayList.includes(filterPopupActiveIdx);
-                // PHASE1: giữ hàng đang xem (vd 115) — không nhảy theo focus main (thường cuối sheet).
-                const keepPhase1Anchor = isPhase1FilterMode(periodFilterMode)
-                    && typeof filterPopupActiveIdx === 'number'
-                    && filterPopupActiveIdx >= 0
-                    && displayList.includes(filterPopupActiveIdx);
-                // Tracking: giữ hàng đang xem khi rebuild / đổi mode — không snap theo main.
-                const keepTrackingAnchor = isTrackingFilterMode(periodFilterMode)
-                    && typeof filterPopupActiveIdx === 'number'
-                    && filterPopupActiveIdx >= 0
-                    && displayList.includes(filterPopupActiveIdx);
-                if (!keepFollowAnchor && !keepPhase1Anchor && !keepTrackingAnchor) {
-                    filterPopupActiveIdx = resolveFilterPopupActiveIdx(displayList);
-                }
+                filterPopupActiveIdx = resolveFilterPopupActiveIdx(displayList);
                 applyFilterPopupRowFocus(filterPopupActiveIdx);
                 if (!skipMainSync && filterPopupActiveIdx >= 0) {
                     syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly });
@@ -19389,9 +19373,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return;
             }
             if (isPhase1FilterMode(periodFilterMode) && list.includes(filterPopupActiveIdx)) {
-                // Giữ hàng đang xem khi thu hẹp % — không nhảy list[0].
+                // Giữ hàng đang xem khi thu hẹp % — không nhảy.
             } else if (!list.includes(filterPopupActiveIdx)) {
-                filterPopupActiveIdx = list[0];
+                filterPopupActiveIdx = list[list.length - 1];
             }
             applyFilterPopupRowFocus(filterPopupActiveIdx);
             if (!skipMainSync) {
@@ -23148,23 +23132,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!indices || indices.length === 0) {
                 return -1;
             }
-            const mainIdx = getMainSourceSheetFocusRowIndex();
-            if (typeof mainIdx === 'number' && mainIdx >= 0) {
-                if (indices.includes(mainIdx)) {
-                    return mainIdx;
-                }
-                return -1;
-            }
-            if (indices.includes(filterPopupActiveIdx)) {
-                return filterPopupActiveIdx;
-            }
-            const target = sheetManager && sheetManager.activeWindowRange
-                ? sheetManager.activeWindowRange.target
-                : -1;
-            if (typeof target === 'number' && indices.includes(target)) {
-                return target;
-            }
-            return -1;
+            /* Mọi mode: mặc định hàng cuối bảng lọc. */
+            return indices[indices.length - 1];
         }
 
         function syncMainRowFromFilter(idx, options = {}) {
@@ -24233,16 +24202,10 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
         }
 
-        /** Sau khi đổi mode / rebuild danh sách: ưu tiên focus id đang chọn ở bảng chính nếu có trong list mới. */
+        /** Sau khi đổi mode / rebuild danh sách: mặc định focus + scroll hàng cuối bảng lọc. */
         function reconcileFilterPopupFocusAfterListChange(displayIndices, options = {}) {
             const indices = Array.isArray(displayIndices) ? displayIndices : getFilterPopupDisplayIndices();
-            const prevIdx = filterPopupActiveIdx;
-            // Tracking / PHASE1: giữ hàng đang xem trong list mới — không snap theo main (thường cuối sheet).
-            const keepPrevAnchor = (isTrackingFilterMode(periodFilterMode) || isPhase1FilterMode(periodFilterMode))
-                && typeof prevIdx === 'number'
-                && prevIdx >= 0
-                && indices.includes(prevIdx);
-            filterPopupActiveIdx = keepPrevAnchor ? prevIdx : resolveFilterPopupActiveIdx(indices);
+            filterPopupActiveIdx = resolveFilterPopupActiveIdx(indices);
             if (filterPopupActiveIdx >= 0) {
                 if (options.clearPopupNav) {
                     syncFilterPopupFocusFromMainRow(filterPopupActiveIdx);

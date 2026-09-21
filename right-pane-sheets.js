@@ -2205,8 +2205,14 @@ class RightPaneSheetManager {
         if (mode === 'tracking') {
             const o = filterOptions || {};
             const specs = RightPaneSheetManager.normalizeTrackingBellySpecs(o);
+            const lastIdx = rows.length - 1;
             for (let i = 0; i < rows.length; i++) {
-                if (this.isEmptyResultRow(rows[i])) {
+                const empty = this.isEmptyResultRow(rows[i]);
+                if (empty) {
+                    /* Hàng rỗng cuối (chưa result): vẫn đưa vào nếu khớp tên bụng tham số lọc. */
+                    if (i === lastIdx && this.rowHasAllBasicTrackingBellies(i, specs)) {
+                        indices.push(i);
+                    }
                     continue;
                 }
                 if (this.rowHasAllBasicTrackingBellies(i, specs)) {
