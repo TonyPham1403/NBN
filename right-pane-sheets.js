@@ -2230,6 +2230,20 @@ class RightPaneSheetManager {
             return indices;
         }
 
+        if (mode === 'p1_dist') {
+            const o = filterOptions || {};
+            const specs = RightPaneSheetManager.normalizeP1DistRows(o.p1DistRows);
+            for (let i = 0; i < rows.length; i++) {
+                if (this.isEmptyResultRow(rows[i])) {
+                    continue;
+                }
+                if (this.rowMatchesP1DistFilter(rows, i, specs)) {
+                    indices.push(i);
+                }
+            }
+            return indices;
+        }
+
         for (let i = 0; i < rows.length; i++) {
             if (this.isEmptyResultRow(rows[i])) {
                 continue;
@@ -2649,6 +2663,339 @@ class RightPaneSheetManager {
             lines.push({ label, nums });
         }
         return lines;
+    }
+
+    /**
+     * P1_dist: mỗi hàng tham số gán một số distinct trên Chuỗi 1.
+     * freq = số chuỗi trong cửa sổ 10 có số đó.
+     * posSlots length === freq; posSlots[0] luôn '1'; các ô còn lại: trống=any, 2–9=chuỗi (unique), chữ=nhóm cùng hàng.
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {{ num: number|null, freq: number, posSlots: string[] }[]} specs
+     * @returns {boolean}
+     */
+    rowMatchesP1DistFilter(rows, rowIndex, specs) {
+        return this.matchP1DistFilter(rows, rowIndex, specs).ok;
+    }
+
+    /**
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {{ num: number|null, freq: number, posSlots: string[] }[]} specs
+     * @returns {{ ok: boolean, groupBind: Record<string, number>, groupNums: Record<string, number[]> }}
+     */
+    matchP1DistFilter(rows, rowIndex, specs) {
+        /** @type {Record<string, number>} */
+        const emptyBind = {};
+        /** @type {Record<string, number[]>} */
+        const emptyNums = {};
+        if (!Array.isArray(specs) || !specs.length) {
+            return { ok: false, groupBind: emptyBind, groupNums: emptyNums };
+        }
+        const lines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        if (lines.length < 10) {
+            return { ok: false, groupBind: emptyBind, groupNums: emptyNums };
+        }
+        const line1 = lines.find((l) => l.label === 1);
+        if (!line1 || !line1.nums.length) {
+            return { ok: false, groupBind: emptyBind, groupNums: emptyNums };
+        }
+        /** @type {number[]} */
+        const uniqOn1 = [];
+        const seenOn1 = new Set();
+        for (let k = 0; k < line1.nums.length; k++) {
+            const n = line1.nums[k];
+            if (n >= 1 && n <= 35 && !seenOn1.has(n)) {
+                seenOn1.add(n);
+                uniqOn1.push(n);
+            }
+        }
+        if (uniqOn1.length < specs.length) {
+            return { ok: false, groupBind: emptyBind, groupNums: emptyNums };
+        }
+
+        const chainsForNum = (n) => {
+            /** @type {number[]} */
+            const out = [];
+            for (let li = 0; li < lines.length; li++) {
+                if (lines[li].nums.indexOf(n) !== -1) {
+                    out.push(lines[li].label);
+                }
+            }
+            return out;
+        };
+
+        const lettersInSpec = (spec) => {
+            /** @type {string[]} */
+            const out = [];
+            const slots = Array.isArray(spec.posSlots) ? spec.posSlots : [];
+            for (let i = 1; i < slots.length; i++) {
+                const raw = String(slots[i] == null ? '' : slots[i]).trim().toLowerCase();
+                if (/^[a-z]$/.test(raw) && out.indexOf(raw) === -1) {
+                    out.push(raw);
+                }
+            }
+            return out;
+        };
+
+        /**
+         * @param {number[]} rem
+         * @param {string[]} slots
+         * @param {Record<string, number>} groupBind
+         */
+        const remMatchesSlots = (rem, slots, groupBind) => {
+            if (rem.length !== slots.length) {
+                return false;
+            }
+            const used = new Array(rem.length).fill(false);
+            const trySlot = (si) => {
+                if (si >= slots.length) {
+                    return true;
+                }
+                const raw = String(slots[si] == null ? '' : slots[si]).trim().toLowerCase();
+                for (let ri = 0; ri < rem.length; ri++) {
+                    if (used[ri]) {
+                        continue;
+                    }
+                    const chain = rem[ri];
+                    let ok = true;
+                    let boundKey = null;
+                    let prevBind = null;
+                    if (!raw) {
+                        ok = true;
+                    } else {
+                        const asNum = parseInt(raw, 10);
+                        if (Number.isFinite(asNum) && String(asNum) === raw && asNum >= 2 && asNum <= 9) {
+                            ok = chain === asNum;
+                        } else if (/^[a-z]$/.test(raw)) {
+                            boundKey = raw;
+                            if (Object.prototype.hasOwnProperty.call(groupBind, raw)) {
+                                ok = groupBind[raw] === chain;
+                            } else {
+                                prevBind = undefined;
+                                groupBind[raw] = chain;
+                            }
+                        } else {
+                            ok = false;
+                        }
+                    }
+                    if (!ok) {
+                        continue;
+                    }
+                    used[ri] = true;
+                    if (trySlot(si + 1)) {
+                        return true;
+                    }
+                    used[ri] = false;
+                    if (boundKey != null && prevBind === undefined && groupBind[boundKey] === chain) {
+                        delete groupBind[boundKey];
+                    }
+                }
+                return false;
+            };
+            return trySlot(0);
+        };
+
+        const numMatchesSpec = (n, spec, groupBind) => {
+            if (spec.num != null && spec.num !== n) {
+                return false;
+            }
+            const chains = chainsForNum(n);
+            if (chains.length !== spec.freq) {
+                return false;
+            }
+            if (chains.indexOf(1) === -1) {
+                return false;
+            }
+            const rem = chains.filter((c) => c !== 1);
+            const slots = Array.isArray(spec.posSlots) ? spec.posSlots.slice(1) : [];
+            return remMatchesSlots(rem, slots, groupBind);
+        };
+
+        /** @type {Record<string, number>} */
+        const groupBind = {};
+        /** @type {(number|null)[]} */
+        const assigned = new Array(specs.length).fill(null);
+        /** @param {number} specIndex @param {Set<number>} used */
+        const tryAssign = (specIndex, used) => {
+            if (specIndex >= specs.length) {
+                return true;
+            }
+            const spec = specs[specIndex];
+            for (let ci = 0; ci < uniqOn1.length; ci++) {
+                const n = uniqOn1[ci];
+                if (used.has(n)) {
+                    continue;
+                }
+                const bindKeys = Object.keys(groupBind);
+                const bindSnap = {};
+                for (let bi = 0; bi < bindKeys.length; bi++) {
+                    bindSnap[bindKeys[bi]] = groupBind[bindKeys[bi]];
+                }
+                if (!numMatchesSpec(n, spec, groupBind)) {
+                    for (const k of Object.keys(groupBind)) {
+                        if (!Object.prototype.hasOwnProperty.call(bindSnap, k)) {
+                            delete groupBind[k];
+                        }
+                    }
+                    for (const k of Object.keys(bindSnap)) {
+                        groupBind[k] = bindSnap[k];
+                    }
+                    continue;
+                }
+                used.add(n);
+                assigned[specIndex] = n;
+                if (tryAssign(specIndex + 1, used)) {
+                    return true;
+                }
+                assigned[specIndex] = null;
+                used.delete(n);
+                for (const k of Object.keys(groupBind)) {
+                    if (!Object.prototype.hasOwnProperty.call(bindSnap, k)) {
+                        delete groupBind[k];
+                    }
+                }
+                for (const k of Object.keys(bindSnap)) {
+                    groupBind[k] = bindSnap[k];
+                }
+            }
+            return false;
+        };
+
+        const ok = tryAssign(0, new Set());
+        if (!ok) {
+            return { ok: false, groupBind: emptyBind, groupNums: emptyNums };
+        }
+        /** @type {Record<string, number>} */
+        const bindOut = {};
+        const keys = Object.keys(groupBind);
+        for (let i = 0; i < keys.length; i++) {
+            bindOut[keys[i]] = groupBind[keys[i]];
+        }
+        /** @type {Record<string, number[]>} */
+        const groupNums = {};
+        for (let si = 0; si < specs.length; si++) {
+            const n = assigned[si];
+            if (n == null) {
+                continue;
+            }
+            const letters = lettersInSpec(specs[si]);
+            for (let li = 0; li < letters.length; li++) {
+                const letter = letters[li];
+                if (!groupNums[letter]) {
+                    groupNums[letter] = [];
+                }
+                if (groupNums[letter].indexOf(n) === -1) {
+                    groupNums[letter].push(n);
+                }
+            }
+        }
+        return { ok: true, groupBind: bindOut, groupNums };
+    }
+
+    /**
+     * P1_dist result [a;b]: ≥1 số đáp án trên chuỗi trong [lo,hi].
+     * Endpoint số 1–10 = nhãn chuỗi tuyệt đối.
+     * Endpoint chữ (x/y/a…) = nhóm chữ đã gán từ pos (groupBind → chuỗi; groupNums → số specimen).
+     * Chữ chưa gán trong khối → không khớp.
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {unknown} rawLo
+     * @param {unknown} rawHi
+     * @param {Record<string, number>} [groupBind]
+     * @param {Record<string, number[]>} [groupNums]
+     */
+    rowMatchesP1DistResultRange(rows, rowIndex, rawLo, rawHi, groupBind, groupNums) {
+        const binds = groupBind && typeof groupBind === 'object' ? groupBind : {};
+        const numsByLetter = groupNums && typeof groupNums === 'object' ? groupNums : {};
+        const asLetter = (raw) => {
+            if (raw == null || raw === '') {
+                return null;
+            }
+            const s = String(raw).trim().toLowerCase();
+            return /^[a-z]$/.test(s) ? s : null;
+        };
+        const resolveEnd = (raw) => {
+            if (raw == null || raw === '') {
+                return null;
+            }
+            const s = String(raw).trim().toLowerCase();
+            if (!s) {
+                return null;
+            }
+            if (/^[a-z]$/.test(s)) {
+                if (!Object.prototype.hasOwnProperty.call(binds, s)) {
+                    return null;
+                }
+                const chain = Number(binds[s]);
+                return Number.isFinite(chain) && chain >= 1 && chain <= 10 ? chain : null;
+            }
+            const n = parseInt(s, 10);
+            if (!Number.isFinite(n) || n < 1 || n > 10 || String(n) !== s) {
+                return null;
+            }
+            return n;
+        };
+        const row = rows[rowIndex];
+        if (!row || this.isEmptyResultRow(row)) {
+            return false;
+        }
+        const answer = this.parseMainNums(row.result || row.Result || '');
+        if (answer.length !== 5) {
+            return false;
+        }
+        const answerSet = new Set(answer);
+
+        // Cùng chữ hai đầu [x;x]: khớp nếu đáp án chứa specimen nhóm x HOẶC có mặt trên chuỗi x gắn.
+        const letterLo = asLetter(rawLo);
+        const letterHi = asLetter(rawHi);
+        if (letterLo && letterHi && letterLo === letterHi) {
+            const specsNums = numsByLetter[letterLo];
+            if (Array.isArray(specsNums)) {
+                for (let i = 0; i < specsNums.length; i++) {
+                    if (answerSet.has(specsNums[i])) {
+                        return true;
+                    }
+                }
+            }
+        }
+
+        const lo = resolveEnd(rawLo);
+        const hi = resolveEnd(rawHi);
+        if (lo == null || hi == null) {
+            // Chữ chưa bind chuỗi nhưng đã có specimen trong đáp án (nhánh trên) → đã return.
+            // Nếu chỉ một đầu chữ / chữ khác nhau mà thiếu bind → fail.
+            if (letterLo && letterHi && letterLo !== letterHi) {
+                const leftNums = numsByLetter[letterLo];
+                const rightNums = numsByLetter[letterHi];
+                if (Array.isArray(leftNums) && leftNums.some((n) => answerSet.has(n))) {
+                    return true;
+                }
+                if (Array.isArray(rightNums) && rightNums.some((n) => answerSet.has(n))) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        const a = Math.min(lo, hi);
+        const b = Math.max(lo, hi);
+        const lines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
+        if (lines.length < 10) {
+            return false;
+        }
+        for (let li = 0; li < lines.length; li++) {
+            const label = lines[li].label;
+            if (label < a || label > b) {
+                continue;
+            }
+            const nums = lines[li].nums || [];
+            for (let k = 0; k < nums.length; k++) {
+                if (answerSet.has(nums[k])) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**
@@ -10982,6 +11329,80 @@ class RightPaneSheetManager {
         }
         if (!out.length) {
             pushSpec(2, 3);
+        }
+        return out;
+    }
+
+    /**
+     * @param {unknown} rawRows
+     * @returns {{ num: number|null, freq: number, posSlots: string[] }[]}
+     */
+    static normalizeP1DistRows(rawRows) {
+        const src = Array.isArray(rawRows) ? rawRows : [];
+        /** @type {{ num: number|null, freq: number, posSlots: string[] }[]} */
+        const out = [];
+        const normalizeSlot = (raw) => {
+            const s = String(raw == null ? '' : raw).trim().toLowerCase();
+            if (!s) {
+                return '';
+            }
+            const chain = parseInt(s, 10);
+            if (Number.isFinite(chain) && chain >= 2 && chain <= 9) {
+                return String(chain);
+            }
+            if (/^[a-z]$/.test(s)) {
+                return s;
+            }
+            return '';
+        };
+        const buildSlots = (freq, row) => {
+            /** @type {string[]} */
+            let slots = [];
+            if (Array.isArray(row.posSlots) && row.posSlots.length) {
+                slots = row.posSlots.map((v, idx) => (idx === 0 ? '1' : normalizeSlot(v)));
+            } else if (row.pos != null && row.pos !== '') {
+                // Legacy single pos → ô phần vơi đầu
+                const legacy = normalizeSlot(row.pos);
+                slots = ['1'];
+                if (freq >= 2) {
+                    slots.push(legacy);
+                }
+            } else {
+                slots = ['1'];
+            }
+            slots[0] = '1';
+            while (slots.length < freq) {
+                slots.push('');
+            }
+            if (slots.length > freq) {
+                slots = slots.slice(0, freq);
+            }
+            slots[0] = '1';
+            return slots;
+        };
+        for (let i = 0; i < src.length; i++) {
+            const row = src[i];
+            if (!row || typeof row !== 'object') {
+                continue;
+            }
+            let freq = parseInt(row.freq, 10);
+            if (!Number.isFinite(freq)) {
+                continue;
+            }
+            freq = Math.min(9, Math.max(1, freq));
+            let num = null;
+            const numRaw = row.num;
+            if (numRaw !== null && numRaw !== undefined && numRaw !== '') {
+                const n = parseInt(numRaw, 10);
+                if (Number.isFinite(n) && n >= 1 && n <= 35) {
+                    num = n;
+                }
+            }
+            out.push({ num, freq, posSlots: buildSlots(freq, row) });
+        }
+        if (!out.length) {
+            out.push({ num: null, freq: 2, posSlots: ['1', 'x'] });
+            out.push({ num: null, freq: 2, posSlots: ['1', 'x'] });
         }
         return out;
     }

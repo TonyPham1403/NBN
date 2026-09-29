@@ -4799,11 +4799,11 @@
         .filter-popup-position-input:focus::after {
             content: '';
             display: inline-block;
-            width: 1.5px;
-            height: 14px;
+            width: 1px;
+            height: 0.9em;
             margin-left: 1px;
             background: #111111;
-            vertical-align: middle;
+            vertical-align: -0.12em;
             pointer-events: none;
             animation: filter-popup-position-caret-blink 1s step-start infinite;
         }
@@ -5150,7 +5150,8 @@
             height: 100%;
             min-height: 24px;
             max-height: 24px;
-            flex: 0 1 auto;
+            flex: 1 1 auto;
+            min-width: 0;
             gap: 2px;
             padding: 0 2px;
             margin: 0;
@@ -5159,7 +5160,16 @@
             box-sizing: border-box;
             overflow-x: auto;
             overflow-y: hidden;
-            max-width: min(520px, 55vw);
+            max-width: min(520px, 100%);
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .filter-popup-tracking-belly::-webkit-scrollbar,
+        .filter-popup-p1-dist::-webkit-scrollbar {
+            display: none;
+            width: 0;
+            height: 0;
         }
 
         .filter-popup-tracking-io {
@@ -5217,22 +5227,120 @@
         .filter-popup-tracking-belly-list {
             display: inline-flex;
             align-items: center;
-            gap: 3px;
+            gap: 4px;
             flex: 0 0 auto;
         }
 
-        .filter-popup-tracking-belly-row {
+        .filter-popup-param-row {
+            display: inline-flex;
+            align-items: stretch;
+            flex: 0 0 auto;
+            height: 20px;
+            min-height: 20px;
+            max-height: 20px;
+            border: 2px solid #334155;
+            border-radius: 5px;
+            background: linear-gradient(180deg, #ffffff 0%, #e2e8f0 100%);
+            box-shadow: none;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+
+        .filter-popup-param-cluster {
             display: inline-flex;
             align-items: center;
-            gap: 1px;
+            gap: 0;
             flex: 0 0 auto;
-            padding-right: 3px;
-            border-right: 1px solid #cbd5e1;
+            padding: 0 1px;
+            min-height: 0;
+            height: 100%;
         }
 
-        .filter-popup-tracking-belly-row:last-child {
-            border-right: 0;
-            padding-right: 0;
+        /* Bên trong khối: ép ô/spin gọn (không inherit height 24px của position-input) */
+        .filter-popup-param-row .filter-popup-intersection-freq-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 0;
+            height: 100%;
+            min-height: 0;
+        }
+
+        .filter-popup-param-row .filter-popup-position-input {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 14px;
+            min-height: 14px;
+            max-height: 14px;
+            line-height: 14px;
+            font-size: 11px;
+            vertical-align: middle;
+        }
+
+        .filter-popup-param-row .filter-popup-position-input:focus::after {
+            display: block;
+            width: 1px;
+            height: 11px;
+            margin-left: 1px;
+            margin-top: 0;
+            margin-bottom: 0;
+            flex: 0 0 auto;
+            align-self: center;
+        }
+
+        .filter-popup-param-row .filter-popup-tracking-belly-spin,
+        .filter-popup-param-row .filter-popup-p1-dist-spin {
+            width: 12px;
+            min-width: 12px;
+            height: auto !important;
+            min-height: 0;
+            max-height: none;
+            align-self: stretch;
+            margin: 0;
+            border-radius: 0;
+            border-top: 0;
+            border-bottom: 0;
+        }
+
+        .filter-popup-param-row .filter-popup-nonexist-num-spin-btn {
+            font-size: 8px;
+            line-height: 1;
+            padding: 0;
+        }
+
+        .filter-popup-param-row .filter-popup-bracket-char {
+            font-size: 11px;
+            line-height: 14px;
+            padding: 0;
+            margin: 0;
+        }
+
+        .filter-popup-param-row .filter-popup-tracking-belly-remove,
+        .filter-popup-param-row .filter-popup-p1-dist-remove {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            align-self: stretch;
+            width: 14px;
+            min-width: 14px;
+            height: auto !important;
+            min-height: 0;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            border-left: 1px solid #cc0000;
+            border-radius: 0;
+            background: #ff0000;
+            color: #ffffff;
+            font: 700 11px/1 Inter, Segoe UI, Arial, sans-serif;
+            box-sizing: border-box;
+            flex: 0 0 14px;
+        }
+
+        .filter-popup-param-row .filter-popup-tracking-belly-remove:hover:not(:disabled),
+        .filter-popup-param-row .filter-popup-p1-dist-remove:hover:not(:disabled) {
+            background: #ff3333;
+            color: #ffffff;
         }
 
         .filter-popup-tracking-belly .filter-popup-intersection-freq-item {
@@ -5265,9 +5373,10 @@
             justify-content: center;
             width: 16px;
             min-width: 16px;
-            height: 18px;
+            height: 20px;
+            min-height: 20px;
             margin: 0;
-            padding: 0;
+            padding: 1px 0 0;
             border-radius: 3px;
             color: #ffffff;
             font: 700 12px/1 Inter, Segoe UI, Arial, sans-serif;
@@ -5299,6 +5408,179 @@
         .filter-popup-tracking-belly-remove:disabled {
             opacity: 0.4;
             cursor: not-allowed;
+        }
+
+        .filter-popup-p1-dist.hidden {
+            display: none !important;
+        }
+
+        /* Cùng shell layout với TRACKING belly (hàng 24px, không wrap) */
+        .filter-popup-p1-dist {
+            display: inline-flex;
+            align-items: center;
+            align-self: center;
+            height: 100%;
+            min-height: 24px;
+            max-height: 24px;
+            flex: 1 1 auto;
+            min-width: 0;
+            flex-wrap: nowrap;
+            gap: 2px;
+            padding: 0 2px;
+            margin: 0;
+            border-left: 1px solid #cbd5e1;
+            background: #f8fafc;
+            box-sizing: border-box;
+            overflow-x: auto;
+            overflow-y: hidden;
+            max-width: min(520px, 100%);
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .filter-popup-p1-dist-list {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            flex: 0 0 auto;
+        }
+
+        .filter-popup-p1-dist .filter-popup-intersection-freq-item {
+            gap: 1px;
+        }
+
+        .filter-popup-p1-dist .filter-popup-bracket-char {
+            padding: 0;
+            margin: 0;
+        }
+
+        .filter-popup-p1-dist .filter-popup-p1-dist-spin {
+            margin: 0;
+        }
+
+        .filter-popup-p1-dist-result-tools {
+            display: inline-flex;
+            align-items: center;
+            gap: 2px;
+            flex: 0 0 auto;
+            margin-right: 2px;
+            padding-right: 3px;
+            border-right: 1px solid #cbd5e1;
+        }
+
+        .filter-popup-p1-dist-result-range {
+            display: inline-flex;
+            align-items: center;
+            gap: 0;
+            height: 18px;
+            padding: 0 1px;
+            border: 1px solid #cbd5e1;
+            border-radius: 3px;
+            background: #ffffff;
+            box-sizing: border-box;
+        }
+
+        .filter-popup-p1-dist-result-range.hidden {
+            display: none !important;
+        }
+
+        .filter-popup-p1-dist-result-sep {
+            font: 700 11px/1 Inter, Segoe UI, Arial, sans-serif;
+            color: #64748b;
+            user-select: none;
+            padding: 0;
+        }
+
+        .filter-popup-p1-dist .filter-popup-p1-dist-result-end {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: auto;
+            min-width: 1ch;
+            max-width: 2.2ch;
+            height: 14px;
+            min-height: 14px;
+            max-height: 14px;
+            line-height: 14px;
+            font-size: 11px;
+            text-align: center;
+            padding: 0;
+            margin: 0;
+        }
+
+        .filter-popup-p1-dist .filter-popup-p1-dist-pos-wrap {
+            display: inline-flex;
+            align-items: center;
+            gap: 0;
+        }
+
+        .filter-popup-p1-dist .filter-popup-p1-dist-pos-fixed {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 1ch;
+            min-width: 1ch;
+            padding: 0;
+            margin: 0;
+            font: 700 11px/14px Inter, Segoe UI, Arial, sans-serif;
+            color: #64748b;
+            user-select: none;
+            opacity: 0.85;
+        }
+
+        .filter-popup-p1-dist .filter-popup-p1-dist-pos-sep {
+            font: 700 11px/14px Inter, Segoe UI, Arial, sans-serif;
+            color: #64748b;
+            user-select: none;
+            padding: 0;
+            margin: 0;
+            letter-spacing: 0;
+        }
+
+        .filter-popup-p1-dist .filter-popup-p1-dist-pos-slot {
+            display: inline-flex;
+            align-items: center;
+            gap: 0;
+        }
+
+        .filter-popup-p1-dist .filter-popup-p1-dist-num,
+        .filter-popup-p1-dist .filter-popup-p1-dist-freq,
+        .filter-popup-p1-dist .filter-popup-p1-dist-pos {
+            text-align: center;
+        }
+
+        .filter-popup-p1-dist .filter-popup-p1-dist-num {
+            width: 2.5ch;
+            min-width: 2.5ch;
+        }
+
+        .filter-popup-p1-dist .filter-popup-p1-dist-freq {
+            width: 2.5ch;
+            min-width: 2.5ch;
+        }
+
+        .filter-popup-p1-dist .filter-popup-p1-dist-pos {
+            width: 2ch;
+            min-width: 2ch;
+        }
+
+        .filter-popup-p1-dist .filter-popup-p1-dist-pos.is-p1-dist-pos-dup {
+            color: #b91c1c;
+            outline: 1.5px solid #ef4444;
+            outline-offset: 0;
+            border-radius: 2px;
+            background: #fef2f2;
+        }
+
+        .filter-popup-p1-dist-remove:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .filter-popup-p1-dist .filter-popup-p1-dist-spin {
+            display: inline-flex;
+            flex-direction: column;
+            margin: 0;
         }
 
         .filter-popup-special-trends-picker .filter-popup-special-trend-dir-picker,
@@ -6443,6 +6725,14 @@
         }
 
         #filterTableWrap.filter-popup-follow-question-only tbody tr[data-idx]:not(.filter-popup-follow-question-hit) {
+            display: none !important;
+        }
+
+        #filterTableWrap.filter-popup-p1-dist-result-hit-only tbody tr[data-idx]:not(.filter-popup-p1-dist-result-hit) {
+            display: none !important;
+        }
+
+        #filterTableWrap.filter-popup-p1-dist-result-miss-only tbody tr[data-idx]:not(.filter-popup-p1-dist-result-miss) {
             display: none !important;
         }
 
@@ -8636,6 +8926,37 @@
                         <button type="button" id="filterPopupTrackingBellyAdd"
                             class="filter-popup-tracking-belly-add" title="Thêm bụng lọc" aria-label="Thêm bụng">+</button>
                     </div>
+                    <div id="filterPopupP1DistPicker" class="filter-popup-p1-dist hidden" role="group"
+                        aria-label="P1_dist: num, freq, pos trên Chuỗi 1; result [a;b] = đáp án trong khoảng chuỗi"
+                        aria-hidden="true"
+                        title="P1_dist: khối num|freq|pos trước. result [a;b]: số = chuỗi tuyệt đối; chữ (x/y…) = đúng nhóm chữ đã dùng trong pos (vd [1,x] → result [x;x] = chuỗi mà x gắn). R% lọc khớp/bù. AND giữa các hàng.">
+                        <div id="filterPopupP1DistResultTools" class="filter-popup-p1-dist-result-tools" role="group"
+                            aria-label="Result: khoảng chuỗi có đáp án">
+                            <button type="button" id="filterPopupP1DistResultBtn"
+                                class="filter-popup-tracking-io-btn filter-popup-p1-dist-result-btn"
+                                aria-pressed="false"
+                                title="Bật: AND điều kiện đáp án nằm trong khoảng chuỗi [a;b]">result</button>
+                            <div id="filterPopupP1DistResultRange" class="filter-popup-p1-dist-result-range hidden"
+                                aria-hidden="true">
+                                <span class="filter-popup-bracket-char" aria-hidden="true">[</span>
+                                <span id="filterPopupP1DistResultLo"
+                                    class="filter-popup-position-input filter-popup-p1-dist-result-end"
+                                    data-p1-dist-result-end="lo" tabindex="0" role="textbox"
+                                    title="Đầu khoảng: 1–10 hoặc chữ nhóm pos (x/y/a…)"
+                                    aria-label="Result khoảng chuỗi: đầu">x</span>
+                                <span class="filter-popup-p1-dist-result-sep" aria-hidden="true">;</span>
+                                <span id="filterPopupP1DistResultHi"
+                                    class="filter-popup-position-input filter-popup-p1-dist-result-end"
+                                    data-p1-dist-result-end="hi" tabindex="0" role="textbox"
+                                    title="Cuối khoảng: 1–10 hoặc chữ nhóm pos; blur = sort số tăng dần"
+                                    aria-label="Result khoảng chuỗi: cuối">x</span>
+                                <span class="filter-popup-bracket-char" aria-hidden="true">]</span>
+                            </div>
+                        </div>
+                        <div id="filterPopupP1DistList" class="filter-popup-p1-dist-list"></div>
+                        <button type="button" id="filterPopupP1DistAdd"
+                            class="filter-popup-tracking-belly-add" title="Thêm hàng tham số" aria-label="Thêm hàng P1_dist">+</button>
+                    </div>
                     <div id="filterPopupPhase1MechPicker" class="filter-popup-phase1-mech hidden"
                         role="group" aria-label="PHASE1: above / same / below / none" aria-hidden="true"
                         title="PHASE1: >=2 = ≥2 tham khảo kề chuỗi; relative = số gọi luôn trên/cùng/dưới số phase1.">
@@ -8831,6 +9152,10 @@
                         class="filter-popup-posnfreq-overlap-pct is-phase1-pct-btn" hidden aria-pressed="false"
                         title="T = hiện đủ. Nhấn: T → (hợp xanh→vàng) → A→YA → S→YS → B→YB (relative). Xanh = trong đáp án; vàng = thỏa quan hệ nhưng không trong đáp án."
                         aria-label="Lọc mẫu PHASE1 T / xanh / vàng">T 0%</button>
+                    <button type="button" id="filterPopupP1DistResultPct"
+                        class="filter-popup-posnfreq-overlap-pct is-p1-dist-result-pct-btn" hidden aria-pressed="false"
+                        title="R = con của khối P1_dist. Chữ trong [a;b] trỏ nhóm pos. Nhấn: khớp → bù đỏ → đủ."
+                        aria-label="Phần trăm P1_dist result">R 0%</button>
                     <button type="button" id="filterPopupConnectionOverlapPct"
                         class="filter-popup-posnfreq-overlap-pct is-connection-pct-btn" hidden aria-pressed="false"
                         title="U/D = connection unique/duplicate. Nhấn: chỉ unique (xanh) → chỉ duplicate (đỏ) → hiện đủ. AND với nút F (follow)."
@@ -9021,7 +9346,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20260716unreadBadge"></script>
     <script src="chat.js?v=20260917chatFocusKeys02"></script>
-    <script src="right-pane-sheets.js?v=20260921trackEmptyBelly01"></script>
+    <script src="right-pane-sheets.js?v=20260930p1DistResultLetter01"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -9273,9 +9598,21 @@
             posnfreq: 'posnfreq',
             special: 'special',
             tracking: 'TRACKING',
-            phase1: 'PHASE1'
+            phase1: 'PHASE1',
+            p1_dist: 'P1_dist'
         };
         const FILTER_TRACKING_BELLY_KEY = 'filterTrackingBelly';
+        const FILTER_P1_DIST_KEY = 'filterP1DistRows';
+        const FILTER_P1_DIST_RESULT_KEY = 'filterP1DistResult';
+        const FILTER_P1_DIST_COUNT_MIN = 1;
+        const FILTER_P1_DIST_COUNT_MAX = 5;
+        const FILTER_P1_DIST_FREQ_MIN = 1;
+        const FILTER_P1_DIST_FREQ_MAX = 9;
+        const FILTER_P1_DIST_DEFAULT_ROWS = Object.freeze([
+            { num: null, freq: 2, posSlots: Object.freeze(['1', 'x']) },
+            { num: null, freq: 2, posSlots: Object.freeze(['1', 'x']) }
+        ]);
+        const FILTER_P1_DIST_RESULT_DEFAULT = Object.freeze({ enabled: false, lo: 'x', hi: 'x' });
         const FILTER_PHASE1_MECH_KEY = 'filterPhase1Mech';
         const FILTER_PHASE1_POS_MODE_KEY = 'filterPhase1PosMode';
         const FILTER_PHASE1_POS_GE2 = 'ge2';
@@ -9405,6 +9742,18 @@
         let filterPopupPhase1Subfilter = 't';
         /** Mode TRACKING: danh sách bụng [{size, streak}] — AND, tối thiểu 1 (mặc định 2三) */
         let filterTrackingBellies = [{ size: 2, streak: 3 }];
+        let filterP1DistRows = FILTER_P1_DIST_DEFAULT_ROWS.map((r) => ({
+            num: r.num,
+            freq: r.freq,
+            posSlots: [...r.posSlots]
+        }));
+        /** P1_dist result [a;b]: AND đáp án nằm trong khoảng chuỗi (cấu hình); lọc thực qua nút R% */
+        let filterP1DistResultEnabled = false;
+        let filterP1DistResultLo = 'x';
+        let filterP1DistResultHi = 'x';
+        /** off | hit | miss — subfilter nút R% (con của khối) */
+        let filterPopupP1DistResultSubfilter = 'off';
+        let filterPopupP1DistResultHitPct = 0;
         /** TRACKING: viền xanh khi pick trong bụng (mặc định bật — hành vi cũ) */
         let filterTrackingPickIn = true;
         /** TRACKING: viền xanh khi pick số ngay dưới brace bụng */
@@ -11601,6 +11950,9 @@
             if (isPhase1FilterMode(mode)) {
                 return 'PHASE1: mẫu = tổng lịch sử. ABOVE/SAME/BELOW = ≥2 số tham khảo ở Chuỗi L+1 / L / L−1 so với một số tím phase1 xuất hiện trên Chuỗi L; NONE = phần bù';
             }
+            if (isP1DistFilterMode(mode)) {
+                return 'P1_dist: khối trước; result chữ = nhóm pos (vd x của [1,x]); R% khớp/bù.';
+            }
             return getFilterModeLabel(mode);
         }
 
@@ -11641,6 +11993,10 @@
 
         function isPhase1FilterMode(mode) {
             return normalizeFilterMode(mode) === 'phase1';
+        }
+
+        function isP1DistFilterMode(mode) {
+            return normalizeFilterMode(mode) === 'p1_dist';
         }
 
         function isAllFilterMode(mode) {
@@ -11877,6 +12233,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             if (isTrackingFilterMode(mode)) {
                 return getTrackingFilterOptions();
+            }
+            if (isP1DistFilterMode(mode)) {
+                return getP1DistFilterOptions();
             }
             if (isPhase1FilterMode(mode)) {
                 return getPhase1FilterOptions();
@@ -17488,7 +17847,14 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!chainOnly) {
                 reconcileFilterPopupFocusAfterListChange(getFilterPopupDisplayIndices(), {});
             }
-            updateFilterPopupMatchCount();
+            // Secondary đổi mẫu → làm lại % F / U-D theo mẫu mới (tránh F “to hơn” F tắt).
+            if (periodFilterEnabled && isFollowPctFilterMode(periodFilterMode)) {
+                syncFilterPopupFollowDeterminedOverlap();
+            } else if (periodFilterEnabled && isConnectionFilterMode(periodFilterMode)) {
+                syncFilterPopupConnectionOverlap();
+            } else {
+                updateFilterPopupMatchCount();
+            }
             if (chainOnly) {
                 syncFilterPopupChainFilterUi({ skipBestLabel: true });
             } else {
@@ -17948,6 +18314,14 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             if (isPhase1FilterMode(normalized)) {
                 return getPhase1FilterOptions();
+            }
+            if (isP1DistFilterMode(normalized)) {
+                return {
+                    p1DistRows: getNormalizedFilterP1DistRows(),
+                    p1DistResultEnabled: false,
+                    p1DistResultLo: filterP1DistResultLo,
+                    p1DistResultHi: filterP1DistResultHi
+                };
             }
             if (isPosnfreqFilterMode(normalized)) {
                 return getPosnfreqFilterOptionsForMatching();
@@ -19138,13 +19512,20 @@ function getFilterNoteTRefMaxSelections(mode) {
                 || isFilterPopupPhase1SubfilterActive()
                 || isFilterPopupFollowSubfilterActive()
                 || isFilterPopupConnectionSubfilterActive()
+                || isFilterPopupP1DistResultSubfilterActive()
                 || isFilterSpecialKindsSubfilterActive();
         }
 
         function getFilterPopupEffectiveListIndices() {
+            // Mẫu gốc đang xem: mode + header2 + chuỗi (secondary).
+            // Mọi subfilter (F / U-D / …) phải là tập con của mẫu này — không nhảy ra ngoài ALL.
+            const tableIndices = getFilterPopupTableIndices();
+            const tableSet = new Set(tableIndices);
+
             if (filterPopupPosnfreqGreenOnly && periodFilterEnabled && isPosnfreqFilterMode(periodFilterMode)) {
                 const wrap = el('filterTableWrap');
-                const green = collectFilterPopupPosnfreqGreenHitIndicesOrdered(wrap);
+                const green = collectFilterPopupPosnfreqGreenHitIndicesOrdered(wrap)
+                    .filter((idx) => tableSet.has(idx));
                 if (green.length) {
                     return green;
                 }
@@ -19154,39 +19535,65 @@ function getFilterNoteTRefMaxSelections(mode) {
             let followHits = null;
             if (periodFilterEnabled && isFollowPctFilterMode(periodFilterMode)) {
                 if (filterPopupFollowSubfilter === 'determined') {
-                    followHits = collectFilterPopupFollowDeterminedHitIndicesOrdered(wrap);
+                    followHits = collectFilterPopupFollowDeterminedHitIndicesOrdered(wrap)
+                        .filter((idx) => tableSet.has(idx));
                 } else if (filterPopupFollowSubfilter === 'undetermined') {
-                    followHits = collectFilterPopupFollowQuestionHitIndicesOrdered(wrap);
+                    followHits = collectFilterPopupFollowQuestionHitIndicesOrdered(wrap)
+                        .filter((idx) => tableSet.has(idx));
+                }
+            }
+            let p1DistResultHits = null;
+            if (periodFilterEnabled && isP1DistFilterMode(periodFilterMode) && filterP1DistResultEnabled) {
+                if (filterPopupP1DistResultSubfilter === 'hit') {
+                    p1DistResultHits = collectFilterPopupP1DistResultHitIndicesOrdered(wrap)
+                        .filter((idx) => tableSet.has(idx));
+                } else if (filterPopupP1DistResultSubfilter === 'miss') {
+                    p1DistResultHits = collectFilterPopupP1DistResultMissIndicesOrdered(wrap)
+                        .filter((idx) => tableSet.has(idx));
                 }
             }
             let connectionHits = null;
             if (periodFilterEnabled && isConnectionFilterMode(periodFilterMode)) {
                 if (filterPopupConnectionSubfilter === 'unique') {
-                    connectionHits = collectFilterPopupConnectionUniqueHitIndicesOrdered(wrap);
+                    connectionHits = collectFilterPopupConnectionUniqueHitIndicesOrdered(wrap)
+                        .filter((idx) => tableSet.has(idx));
                 } else if (filterPopupConnectionSubfilter === 'duplicate') {
-                    connectionHits = collectFilterPopupConnectionDuplicateHitIndicesOrdered(wrap);
+                    connectionHits = collectFilterPopupConnectionDuplicateHitIndicesOrdered(wrap)
+                        .filter((idx) => tableSet.has(idx));
                 }
             }
             let conn3Hits = null;
             if (filterPopupConn3WindowOnly && periodFilterEnabled && isConn3FilterMode(periodFilterMode)) {
-                conn3Hits = collectFilterPopupPosnfreqGreenHitIndicesOrdered(wrap);
+                conn3Hits = collectFilterPopupPosnfreqGreenHitIndicesOrdered(wrap)
+                    .filter((idx) => tableSet.has(idx));
             }
             let trackingHits = null;
             if (isFilterPopupTrackingSubfilterActive()) {
-                trackingHits = collectFilterPopupTrackingHitIndicesOrdered(wrap);
+                trackingHits = collectFilterPopupTrackingHitIndicesOrdered(wrap)
+                    .filter((idx) => tableSet.has(idx));
             }
             let phase1Hits = null;
             if (isFilterPopupPhase1SubfilterActive()) {
-                phase1Hits = collectFilterPopupPhase1HitIndicesOrdered(wrap);
+                phase1Hits = collectFilterPopupPhase1HitIndicesOrdered(wrap)
+                    .filter((idx) => tableSet.has(idx));
             }
             let specialHits = null;
             if (isFilterSpecialKindsSubfilterActive()) {
-                specialHits = collectFilterPopupSpecialHitIndicesOrdered(wrap);
+                specialHits = collectFilterPopupSpecialHitIndicesOrdered(wrap)
+                    .filter((idx) => tableSet.has(idx));
             }
 
             let list = null;
             if (followHits !== null) {
                 list = followHits;
+            }
+            if (p1DistResultHits !== null) {
+                if (list === null) {
+                    list = p1DistResultHits;
+                } else {
+                    const setB = new Set(p1DistResultHits);
+                    list = list.filter((idx) => setB.has(idx));
+                }
             }
             if (connectionHits !== null) {
                 if (list === null) {
@@ -19231,7 +19638,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (list !== null) {
                 return list;
             }
-            return getFilterPopupTableIndices();
+            return tableIndices;
         }
 
         function getFilterPopupNavListLength() {
@@ -19255,6 +19662,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return getPhase1LiveFilteredCount();
             }
             if (isFilterPopupFollowSubfilterActive()) {
+                return getFilterPopupNavListLength();
+            }
+            if (isFilterPopupP1DistResultSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
             if (isFilterPopupConnectionSubfilterActive()) {
@@ -19349,6 +19759,27 @@ function getFilterNoteTRefMaxSelections(mode) {
                 } else {
                     clearFilterPopupRowFocus();
                     resetFilterPopupPositionUi();
+                }
+                return;
+            }
+            if (isP1DistFilterMode(periodFilterMode) && isFilterPopupP1DistResultSubfilterActive()) {
+                // R% hit/miss: giữ hàng nếu còn trong mẫu hẹp; không thì nhảy cuối + sync pane phải.
+                if (!list.includes(filterPopupActiveIdx)) {
+                    filterPopupActiveIdx = list[list.length - 1];
+                }
+                applyFilterPopupRowFocus(filterPopupActiveIdx);
+                if (!skipMainSync && filterPopupActiveIdx >= 0) {
+                    syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly });
+                }
+                const positionInput = el('filterPopupPositionInput');
+                if (positionInput && filterPopupActiveIdx >= 0) {
+                    const pos = list.indexOf(filterPopupActiveIdx);
+                    const posText = pos >= 0 ? String(pos + 1) : '';
+                    setFilterPopupPositionText(positionInput, posText);
+                    setFilterPopupPositionInputWidth(positionInput, posText);
+                }
+                if (!skipScroll && filterPopupActiveIdx >= 0) {
+                    scrollFilterPopupRowIntoView();
                 }
                 return;
             }
@@ -20713,13 +21144,11 @@ function getFilterNoteTRefMaxSelections(mode) {
                     streakEl.blur();
                     return;
                 }
-                const code = String(event.code || '');
-                const isPlus = key === '+' || code === 'NumpadAdd' || (code === 'Equal' && event.shiftKey);
-                const isMinus = key === '-' || code === 'NumpadSubtract' || code === 'Minus';
-                if (isPlus || isMinus) {
+                const step = getFilterPopupValueStepDelta(event);
+                if (step) {
                     event.preventDefault();
                     event.stopPropagation();
-                    bumpFilterPopupTrackingBellyField(bellyIdx, 'streak', isPlus ? 1 : -1);
+                    bumpFilterPopupTrackingBellyField(bellyIdx, 'streak', step);
                 }
             }, true);
         }
@@ -20939,13 +21368,11 @@ function getFilterNoteTRefMaxSelections(mode) {
                     sizeEl.blur();
                     return;
                 }
-                const code = String(event.code || '');
-                const isPlus = key === '+' || code === 'NumpadAdd' || (code === 'Equal' && event.shiftKey);
-                const isMinus = key === '-' || code === 'NumpadSubtract' || code === 'Minus';
-                if (isPlus || isMinus) {
+                const step = getFilterPopupValueStepDelta(event);
+                if (step) {
                     event.preventDefault();
                     event.stopPropagation();
-                    bumpFilterPopupTrackingBellyField(bellyIdx, 'size', isPlus ? 1 : -1);
+                    bumpFilterPopupTrackingBellyField(bellyIdx, 'size', step);
                 }
             }, true);
         }
@@ -20963,8 +21390,10 @@ function getFilterNoteTRefMaxSelections(mode) {
                 const spec = bellies[i];
                 const hintStreak = (streakHints[i] && streakHints[i].streak) || spec.streak;
                 const row = document.createElement('div');
-                row.className = 'filter-popup-tracking-belly-row';
+                row.className = 'filter-popup-tracking-belly-row filter-popup-param-row';
                 row.dataset.idx = String(i);
+                const cluster = document.createElement('div');
+                cluster.className = 'filter-popup-param-cluster';
 
                 const sizeItem = document.createElement('div');
                 sizeItem.className = 'filter-popup-intersection-freq-item';
@@ -21085,8 +21514,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 removeBtn.textContent = '−';
                 removeBtn.disabled = !show;
 
-                row.appendChild(sizeItem);
-                row.appendChild(streakItem);
+                cluster.appendChild(sizeItem);
+                cluster.appendChild(streakItem);
+                row.appendChild(cluster);
                 row.appendChild(removeBtn);
                 list.appendChild(row);
 
@@ -21131,9 +21561,23 @@ function getFilterNoteTRefMaxSelections(mode) {
             let nextSize = cur.size;
             let nextStreak = cur.streak;
             if (field === 'size') {
-                nextSize = normalizeFilterTrackingBellySize(cur.size + (Number(delta) || 0));
+                let n = cur.size + (Number(delta) || 0);
+                if (n > FILTER_TRACKING_BELLY_SIZE_MAX) {
+                    n = FILTER_TRACKING_BELLY_SIZE_MIN;
+                }
+                if (n < FILTER_TRACKING_BELLY_SIZE_MIN) {
+                    n = FILTER_TRACKING_BELLY_SIZE_MAX;
+                }
+                nextSize = normalizeFilterTrackingBellySize(n);
             } else {
-                nextStreak = normalizeFilterTrackingBellyStreak(cur.streak + (Number(delta) || 0));
+                let n = cur.streak + (Number(delta) || 0);
+                if (n > FILTER_TRACKING_BELLY_STREAK_MAX) {
+                    n = FILTER_TRACKING_BELLY_STREAK_MIN;
+                }
+                if (n < FILTER_TRACKING_BELLY_STREAK_MIN) {
+                    n = FILTER_TRACKING_BELLY_STREAK_MAX;
+                }
+                nextStreak = normalizeFilterTrackingBellyStreak(n);
             }
             if (nextSize === cur.size && nextStreak === cur.streak) {
                 return false;
@@ -21227,6 +21671,1491 @@ function getFilterNoteTRefMaxSelections(mode) {
             return true;
         }
 
+        const FILTER_P1_DIST_POS_CYCLE = Object.freeze(['', '2', '3', '4', '5', '6', '7', '8', '9', 'x', 'y', 'z']);
+
+        function createDefaultFilterP1DistRow() {
+            return { num: null, freq: 2, posSlots: ['1', 'x'] };
+        }
+
+        function normalizeFilterP1DistFreq(raw) {
+            const n = parseInt(raw, 10);
+            if (!Number.isFinite(n)) {
+                return 2;
+            }
+            return Math.min(FILTER_P1_DIST_FREQ_MAX, Math.max(FILTER_P1_DIST_FREQ_MIN, n));
+        }
+
+        function normalizeFilterP1DistNum(raw) {
+            if (raw === null || raw === undefined || raw === '') {
+                return null;
+            }
+            const n = parseInt(raw, 10);
+            if (!Number.isFinite(n) || n < 1 || n > 35) {
+                return null;
+            }
+            return n;
+        }
+
+        function normalizeFilterP1DistPosSlot(raw) {
+            const s = String(raw == null ? '' : raw).trim().toLowerCase();
+            if (!s) {
+                return '';
+            }
+            const chain = parseInt(s, 10);
+            if (Number.isFinite(chain) && chain >= 2 && chain <= 9) {
+                return String(chain);
+            }
+            if (/^[a-z]$/.test(s)) {
+                return s;
+            }
+            return '';
+        }
+
+        /** Sort ô phần vơi (sau 1 cố định): số 2–9 tăng dần, rồi chữ, rồi trống. */
+        function sortFilterP1DistPosSlots(slots) {
+            const src = Array.isArray(slots) ? slots.slice() : ['1'];
+            const head = '1';
+            const rest = src.slice(1).map(normalizeFilterP1DistPosSlot);
+            const rank = (v) => {
+                if (!v) {
+                    return 1000;
+                }
+                const n = parseInt(v, 10);
+                if (Number.isFinite(n) && String(n) === v) {
+                    return n;
+                }
+                return 100 + String(v).charCodeAt(0);
+            };
+            rest.sort((a, b) => rank(a) - rank(b) || String(a).localeCompare(String(b)));
+            return [head, ...rest];
+        }
+
+        /** Số 2–9 trong [] phải unique (chữ nhóm / trống được trùng). */
+        function isFilterP1DistPosSlotDuplicate(slots, slotIdx, value) {
+            const v = normalizeFilterP1DistPosSlot(value);
+            if (!v || !/^\d+$/.test(v)) {
+                return false;
+            }
+            const list = Array.isArray(slots) ? slots : [];
+            for (let i = 0; i < list.length; i++) {
+                if (i === slotIdx) {
+                    continue;
+                }
+                if (normalizeFilterP1DistPosSlot(list[i]) === v) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        function flashFilterP1DistPosDupWarn(inputEl, message) {
+            if (!inputEl) {
+                return;
+            }
+            inputEl.classList.add('is-p1-dist-pos-dup');
+            const prevTitle = inputEl.getAttribute('title') || '';
+            inputEl.setAttribute('title', message || 'Số này đã có trong []');
+            inputEl.setAttribute('aria-invalid', 'true');
+            clearTimeout(Number(inputEl.dataset.dupWarnTimer || 0));
+            inputEl.dataset.dupWarnTimer = String(setTimeout(() => {
+                inputEl.classList.remove('is-p1-dist-pos-dup');
+                inputEl.setAttribute('title', prevTitle);
+                inputEl.removeAttribute('aria-invalid');
+                delete inputEl.dataset.dupWarnTimer;
+            }, 1400));
+        }
+
+        function syncFilterP1DistPosSlots(freq, row) {
+            const f = normalizeFilterP1DistFreq(freq);
+            /** @type {string[]} */
+            let slots = [];
+            if (Array.isArray(row && row.posSlots) && row.posSlots.length) {
+                slots = row.posSlots.map((v, idx) => (idx === 0 ? '1' : normalizeFilterP1DistPosSlot(v)));
+            } else if (row && row.pos != null && String(row.pos).trim() !== '') {
+                const legacy = normalizeFilterP1DistPosSlot(row.pos);
+                slots = ['1'];
+                if (f >= 2) {
+                    slots.push(legacy);
+                }
+            } else {
+                slots = ['1'];
+            }
+            slots[0] = '1';
+            while (slots.length < f) {
+                slots.push(f === 2 && slots.length === 1 ? 'x' : '');
+            }
+            if (slots.length > f) {
+                slots = slots.slice(0, f);
+            }
+            slots[0] = '1';
+            // Unique số trong []: giữ lần xuất hiện đầu, các lần sau → trống
+            const seenNum = new Set(['1']);
+            for (let i = 1; i < slots.length; i++) {
+                const v = normalizeFilterP1DistPosSlot(slots[i]);
+                if (v && /^\d+$/.test(v)) {
+                    if (seenNum.has(v)) {
+                        slots[i] = '';
+                    } else {
+                        seenNum.add(v);
+                        slots[i] = v;
+                    }
+                } else {
+                    slots[i] = v;
+                }
+            }
+            return slots;
+        }
+
+        function normalizeFilterP1DistRow(raw) {
+            const src = raw && typeof raw === 'object' ? raw : {};
+            const freq = normalizeFilterP1DistFreq(src.freq);
+            /** @type {{ num: number|null, freq: number, posSlots: string[], _posStream?: string[] }} */
+            const out = {
+                num: normalizeFilterP1DistNum(src.num),
+                freq,
+                posSlots: syncFilterP1DistPosSlots(freq, src)
+            };
+            if (Array.isArray(src._posStream)) {
+                out._posStream = src._posStream.map((v) => String(v));
+            }
+            return out;
+        }
+
+        function getNormalizedFilterP1DistRows() {
+            const src = Array.isArray(filterP1DistRows) ? filterP1DistRows : [];
+            const out = [];
+            for (let i = 0; i < src.length && out.length < FILTER_P1_DIST_COUNT_MAX; i++) {
+                out.push(normalizeFilterP1DistRow(src[i]));
+            }
+            if (!out.length) {
+                for (let j = 0; j < FILTER_P1_DIST_DEFAULT_ROWS.length; j++) {
+                    out.push(normalizeFilterP1DistRow(FILTER_P1_DIST_DEFAULT_ROWS[j]));
+                }
+            }
+            filterP1DistRows = out;
+            return out;
+        }
+
+        function formatFilterP1DistNumDisplay(num) {
+            return num == null ? '' : String(num);
+        }
+
+        function normalizeFilterP1DistResultEndpoint(raw) {
+            const t = String(raw == null ? '' : raw).trim().toLowerCase();
+            if (!t) {
+                return 'x';
+            }
+            // Chữ nhóm pos (x/y/a…) — giữ nguyên, không còn nghĩa “any mở”
+            if (/^[a-z]$/.test(t)) {
+                return t;
+            }
+            const n = parseInt(t, 10);
+            if (Number.isFinite(n) && n >= 1 && n <= 10 && String(n) === t) {
+                return String(n);
+            }
+            // Gõ dở "1" khi chưa blur: giữ partial số 1–10
+            if (/^\d{1,2}$/.test(t)) {
+                const p = parseInt(t, 10);
+                if (p >= 1 && p <= 10) {
+                    return String(p);
+                }
+            }
+            return 'x';
+        }
+
+        /** Sort tăng dần: [7;3]→[3;7]; chữ giữ nguyên; [n;x] giữ thứ tự sau normalize. */
+        function sortFilterP1DistResultRange(loRaw, hiRaw) {
+            const lo = normalizeFilterP1DistResultEndpoint(loRaw);
+            const hi = normalizeFilterP1DistResultEndpoint(hiRaw);
+            const loLetter = /^[a-z]$/.test(lo);
+            const hiLetter = /^[a-z]$/.test(hi);
+            if (loLetter || hiLetter) {
+                return [lo, hi];
+            }
+            const a = parseInt(lo, 10);
+            const b = parseInt(hi, 10);
+            return a <= b ? [lo, hi] : [hi, lo];
+        }
+
+        function applySortedFilterP1DistResultRange() {
+            const sorted = sortFilterP1DistResultRange(filterP1DistResultLo, filterP1DistResultHi);
+            filterP1DistResultLo = sorted[0];
+            filterP1DistResultHi = sorted[1];
+        }
+
+        function loadFilterP1DistSettings() {
+            try {
+                const raw = localStorage.getItem(FILTER_P1_DIST_KEY);
+                if (!raw) {
+                    filterP1DistRows = FILTER_P1_DIST_DEFAULT_ROWS.map((r) => normalizeFilterP1DistRow(r));
+                } else {
+                    const parsed = JSON.parse(raw);
+                    if (Array.isArray(parsed) && parsed.length) {
+                        filterP1DistRows = parsed.map(normalizeFilterP1DistRow);
+                    } else {
+                        filterP1DistRows = FILTER_P1_DIST_DEFAULT_ROWS.map((r) => normalizeFilterP1DistRow(r));
+                    }
+                }
+            } catch (eLoadP1) {
+                filterP1DistRows = FILTER_P1_DIST_DEFAULT_ROWS.map((r) => normalizeFilterP1DistRow(r));
+            }
+            try {
+                const rawR = localStorage.getItem(FILTER_P1_DIST_RESULT_KEY);
+                if (!rawR) {
+                    filterP1DistResultEnabled = FILTER_P1_DIST_RESULT_DEFAULT.enabled;
+                    filterP1DistResultLo = FILTER_P1_DIST_RESULT_DEFAULT.lo;
+                    filterP1DistResultHi = FILTER_P1_DIST_RESULT_DEFAULT.hi;
+                    filterPopupP1DistResultSubfilter = 'off';
+                    return;
+                }
+                const parsedR = JSON.parse(rawR);
+                filterP1DistResultEnabled = !!(parsedR && parsedR.enabled);
+                const sorted = sortFilterP1DistResultRange(
+                    parsedR && parsedR.lo,
+                    parsedR && parsedR.hi
+                );
+                filterP1DistResultLo = sorted[0];
+                filterP1DistResultHi = sorted[1];
+                const sf = parsedR && parsedR.subfilter;
+                filterPopupP1DistResultSubfilter = (sf === 'hit' || sf === 'miss') ? sf : 'off';
+            } catch (eLoadP1R) {
+                filterP1DistResultEnabled = FILTER_P1_DIST_RESULT_DEFAULT.enabled;
+                filterP1DistResultLo = FILTER_P1_DIST_RESULT_DEFAULT.lo;
+                filterP1DistResultHi = FILTER_P1_DIST_RESULT_DEFAULT.hi;
+                filterPopupP1DistResultSubfilter = 'off';
+            }
+        }
+
+        function saveFilterP1DistSettings() {
+            try {
+                const rows = getNormalizedFilterP1DistRows().map((r) => ({
+                    num: r.num,
+                    freq: r.freq,
+                    posSlots: sortFilterP1DistPosSlots(r.posSlots)
+                }));
+                localStorage.setItem(FILTER_P1_DIST_KEY, JSON.stringify(rows));
+            } catch (eSaveP1) { /* ignore */ }
+            try {
+                applySortedFilterP1DistResultRange();
+                localStorage.setItem(FILTER_P1_DIST_RESULT_KEY, JSON.stringify({
+                    enabled: !!filterP1DistResultEnabled,
+                    lo: filterP1DistResultLo,
+                    hi: filterP1DistResultHi,
+                    subfilter: filterPopupP1DistResultSubfilter === 'hit' || filterPopupP1DistResultSubfilter === 'miss'
+                        ? filterPopupP1DistResultSubfilter
+                        : 'off'
+                }));
+            } catch (eSaveP1R) { /* ignore */ }
+        }
+
+        function isFilterPopupP1DistInputFocused() {
+            const active = document.activeElement;
+            if (!(active instanceof HTMLElement)) {
+                return false;
+            }
+            if (active.dataset && active.dataset.p1DistField
+                && active.closest('#filterPopupP1DistList')) {
+                return true;
+            }
+            return !!(active.dataset && active.dataset.p1DistResultEnd
+                && active.closest('#filterPopupP1DistResultRange'));
+        }
+
+        function bumpFilterP1DistCycle(values, current, delta) {
+            let idx = values.indexOf(current);
+            if (idx < 0) {
+                idx = 0;
+            }
+            idx = (idx + delta + values.length) % values.length;
+            return values[idx];
+        }
+
+        /** ArrowUp/W/+ = +1; ArrowDown/S/− = −1; khác = 0. */
+        function getFilterPopupValueStepDelta(event) {
+            if (!event) {
+                return 0;
+            }
+            const key = String(event.key || '');
+            const code = String(event.code || '');
+            const lower = key.length === 1 ? key.toLowerCase() : '';
+            if (key === 'ArrowUp' || lower === 'w'
+                || key === '+' || code === 'NumpadAdd' || (code === 'Equal' && event.shiftKey)) {
+                return 1;
+            }
+            if (key === 'ArrowDown' || lower === 's'
+                || key === '-' || code === 'NumpadSubtract' || code === 'Minus') {
+                return -1;
+            }
+            return 0;
+        }
+
+        function refocusFilterPopupP1DistField(index, field, posSlotIdx) {
+            requestAnimationFrame(() => {
+                const list = el('filterPopupP1DistList');
+                if (!list) {
+                    return;
+                }
+                const rowEl = list.querySelector(`.filter-popup-p1-dist-row[data-idx="${index}"]`);
+                if (!rowEl) {
+                    return;
+                }
+                let target = null;
+                if (field === 'num') {
+                    target = rowEl.querySelector('.filter-popup-p1-dist-num');
+                } else if (field === 'freq') {
+                    target = rowEl.querySelector('.filter-popup-p1-dist-freq');
+                } else if (field === 'pos') {
+                    const inputs = rowEl.querySelectorAll('.filter-popup-p1-dist-pos');
+                    const editableIdx = Number(posSlotIdx) - 1;
+                    if (editableIdx >= 0 && editableIdx < inputs.length) {
+                        target = inputs[editableIdx];
+                    }
+                }
+                if (target && typeof target.focus === 'function') {
+                    target.focus({ preventScroll: true });
+                }
+            });
+        }
+
+        function bumpFilterPopupP1DistField(index, field, delta, posSlotIdx) {
+            if (!periodFilterEnabled || !isP1DistFilterMode(periodFilterMode)) {
+                return false;
+            }
+            const rows = getNormalizedFilterP1DistRows();
+            if (!(index >= 0 && index < rows.length)) {
+                return false;
+            }
+            const row = rows[index];
+            if (field === 'num') {
+                const cycle = [''];
+                for (let n = 1; n <= 35; n++) {
+                    cycle.push(String(n));
+                }
+                const cur = row.num == null ? '' : String(row.num);
+                const next = bumpFilterP1DistCycle(cycle, cur, delta);
+                row.num = next === '' ? null : parseInt(next, 10);
+            } else if (field === 'freq') {
+                let f = row.freq + delta;
+                if (f > FILTER_P1_DIST_FREQ_MAX) {
+                    f = FILTER_P1_DIST_FREQ_MIN;
+                }
+                if (f < FILTER_P1_DIST_FREQ_MIN) {
+                    f = FILTER_P1_DIST_FREQ_MAX;
+                }
+                row.freq = f;
+                row.posSlots = syncFilterP1DistPosSlots(f, row);
+                delete row._posStream;
+            } else if (field === 'pos') {
+                const slots = Array.isArray(row.posSlots) ? row.posSlots.slice() : ['1'];
+                const si = Number(posSlotIdx);
+                if (!(si >= 1 && si < slots.length)) {
+                    return false;
+                }
+                const posCycle = ['2', '3', '4', '5', '6', '7', '8', '9'];
+                let cur = normalizeFilterP1DistPosSlot(slots[si]);
+                if (posCycle.indexOf(cur) < 0) {
+                    cur = delta > 0 ? '9' : '2';
+                }
+                let next = bumpFilterP1DistCycle(posCycle, cur, delta);
+                let guard = 0;
+                while (isFilterP1DistPosSlotDuplicate(slots, si, next) && guard < posCycle.length) {
+                    next = bumpFilterP1DistCycle(posCycle, next, delta);
+                    guard += 1;
+                }
+                if (isFilterP1DistPosSlotDuplicate(slots, si, next)) {
+                    return false;
+                }
+                slots[si] = next;
+                slots[0] = '1';
+                delete row._posStream;
+                row.posSlots = slots;
+            } else {
+                return false;
+            }
+            filterP1DistRows = rows;
+            saveFilterP1DistSettings();
+            rebuildFilterPopupP1DistList();
+            refocusFilterPopupP1DistField(index, field, posSlotIdx);
+            deferFilterPopupHeavyWork(() => {
+                rebuildFilterPopupAfterParamChange();
+            });
+            return true;
+        }
+
+        function commitFilterPopupP1DistFieldFromInput(inputEl, index, field, posSlotIdx) {
+            if (!inputEl) {
+                return;
+            }
+            if (inputEl.dataset.skipCommit === '1') {
+                delete inputEl.dataset.skipCommit;
+                delete inputEl.dataset.draft;
+                delete inputEl.dataset.dirty;
+                delete inputEl.dataset.replaceOnType;
+                delete inputEl.dataset.p1DistPosTyping;
+                return;
+            }
+            const rows = getNormalizedFilterP1DistRows();
+            if (!(index >= 0 && index < rows.length)) {
+                return;
+            }
+            const raw = inputEl.dataset.draft != null
+                ? String(inputEl.dataset.draft).trim()
+                : String(inputEl.textContent || '').trim();
+            const row = rows[index];
+            if (field === 'num') {
+                row.num = normalizeFilterP1DistNum(raw);
+                setFilterPopupPositionText(inputEl, formatFilterP1DistNumDisplay(row.num));
+            } else if (field === 'freq') {
+                row.freq = normalizeFilterP1DistFreq(raw);
+                row.posSlots = syncFilterP1DistPosSlots(row.freq, row);
+                delete row._posStream;
+                setFilterPopupPositionText(inputEl, String(row.freq));
+            } else if (field === 'pos') {
+                // Digit-stream đã cập nhật posSlots live; letter dùng draft ô đang focus.
+                const slots = Array.isArray(row.posSlots) ? row.posSlots.slice() : ['1'];
+                const si = Number(posSlotIdx);
+                if (si >= 1 && si < slots.length && inputEl.dataset.p1DistPosTyping !== 'digit') {
+                    const next = normalizeFilterP1DistPosSlot(raw);
+                    if (next && /^\d+$/.test(next) && isFilterP1DistPosSlotDuplicate(slots, si, next)) {
+                        flashFilterP1DistPosDupWarn(inputEl, `Số ${next} đã có trong []`);
+                    } else if (!next || !/^\d+$/.test(next)) {
+                        // letter / trống từ ô focus
+                        slots[si] = next;
+                    }
+                }
+                slots[0] = '1';
+                delete row._posStream;
+                row.posSlots = sortFilterP1DistPosSlots(slots);
+                filterP1DistRows = rows;
+                saveFilterP1DistSettings();
+                rebuildFilterPopupP1DistList();
+                deferFilterPopupHeavyWork(() => {
+                    rebuildFilterPopupAfterParamChange();
+                });
+                return;
+            }
+            filterP1DistRows = rows;
+            saveFilterP1DistSettings();
+            if (field === 'freq') {
+                rebuildFilterPopupP1DistList();
+            }
+            deferFilterPopupHeavyWork(() => {
+                rebuildFilterPopupAfterParamChange();
+            });
+        }
+
+        function getFilterP1DistPosEditableLen(row) {
+            return Math.max(0, normalizeFilterP1DistFreq(row && row.freq) - 1);
+        }
+
+        function seedFilterP1DistPosStream(row) {
+            const slots = Array.isArray(row.posSlots) ? row.posSlots : ['1'];
+            /** @type {string[]} */
+            const stream = [];
+            for (let i = 1; i < slots.length; i++) {
+                const v = normalizeFilterP1DistPosSlot(slots[i]);
+                // Số 2–9 hoặc chữ nhóm (x/y…) đều giữ trong stream tuyến tính
+                if (v && (/^\d+$/.test(v) || /^[a-z]$/.test(v))) {
+                    stream.push(v);
+                }
+            }
+            return stream;
+        }
+
+        function applyFilterP1DistPosStreamToRow(row, stream) {
+            const winLen = getFilterP1DistPosEditableLen(row);
+            const window = stream.slice(-winLen);
+            /** @type {string[]} */
+            const slots = ['1'];
+            for (let i = 0; i < winLen; i++) {
+                slots.push(window[i] || '');
+            }
+            row.posSlots = slots;
+            row._posStream = stream.slice();
+        }
+
+        function paintFilterP1DistPosSlotsLive(rowIndex) {
+            const rows = getNormalizedFilterP1DistRows();
+            const row = rows[rowIndex];
+            if (!row) {
+                return;
+            }
+            const list = el('filterPopupP1DistList');
+            if (!list) {
+                return;
+            }
+            const rowEl = list.querySelector(`.filter-popup-p1-dist-row[data-idx="${rowIndex}"]`);
+            if (!rowEl) {
+                return;
+            }
+            const inputs = rowEl.querySelectorAll('.filter-popup-p1-dist-pos');
+            const rem = (row.posSlots || []).slice(1);
+            for (let i = 0; i < inputs.length; i++) {
+                const text = rem[i] != null ? String(rem[i]) : '';
+                const node = inputs[i];
+                setFilterPopupPositionText(node, text);
+                node.dataset.draft = text;
+                node.dataset.dirty = '1';
+                node.dataset.p1DistPosTyping = 'digit';
+            }
+        }
+
+        /**
+         * Spam tuyến tính vào pos []: cửa sổ trượt dài = freq−1.
+         * Token = số 2–9 (unique trong cửa sổ) hoặc chữ nhóm a–z (x/y…; được lặp).
+         */
+        function pushFilterP1DistPosToken(rowIndex, rawToken, focusEl) {
+            const t = normalizeFilterP1DistPosSlot(rawToken);
+            const isDigit = !!(t && /^\d+$/.test(t));
+            const isLetter = !!(t && /^[a-z]$/.test(t));
+            if (!isDigit && !isLetter) {
+                flashFilterP1DistPosDupWarn(focusEl, 'pos chỉ nhận 2–9, trống hoặc x/y');
+                return false;
+            }
+            const rows = getNormalizedFilterP1DistRows();
+            if (!(rowIndex >= 0 && rowIndex < rows.length)) {
+                return false;
+            }
+            const row = rows[rowIndex];
+            const winLen = getFilterP1DistPosEditableLen(row);
+            if (winLen <= 0) {
+                return false;
+            }
+            let stream = Array.isArray(row._posStream) ? row._posStream.slice() : seedFilterP1DistPosStream(row);
+            // Lần gõ đầu sau focus: bắt đầu stream mới
+            if (focusEl && focusEl.dataset.replaceOnType === '1') {
+                stream = [];
+                delete focusEl.dataset.replaceOnType;
+                const rowEl = focusEl.closest('.filter-popup-p1-dist-row');
+                if (rowEl) {
+                    rowEl.querySelectorAll('.filter-popup-p1-dist-pos').forEach((node) => {
+                        delete node.dataset.replaceOnType;
+                    });
+                }
+            }
+            stream.push(t);
+            if (isDigit) {
+                let window = stream.slice(-winLen);
+                const digitInWin = window.filter((v) => /^\d+$/.test(v));
+                if (new Set(digitInWin).size !== digitInWin.length) {
+                    // Trùng số trong cửa sổ: bỏ lần xuất hiện cũ của t rồi giữ t ở cuối
+                    stream.pop();
+                    const prevIdx = stream.lastIndexOf(t);
+                    if (prevIdx >= 0) {
+                        stream.splice(prevIdx, 1);
+                    }
+                    stream.push(t);
+                    window = stream.slice(-winLen);
+                    const digitInWin2 = window.filter((v) => /^\d+$/.test(v));
+                    if (new Set(digitInWin2).size !== digitInWin2.length) {
+                        flashFilterP1DistPosDupWarn(focusEl, `Số ${t} đã có trong []`);
+                        return false;
+                    }
+                }
+            }
+            applyFilterP1DistPosStreamToRow(row, stream);
+            filterP1DistRows = rows;
+            paintFilterP1DistPosSlotsLive(rowIndex);
+            return true;
+        }
+
+        /** @deprecated alias — giữ tên cũ cho chỗ gọi digit */
+        function pushFilterP1DistPosDigit(rowIndex, digitChar, focusEl) {
+            return pushFilterP1DistPosToken(rowIndex, digitChar, focusEl);
+        }
+
+        function backspaceFilterP1DistPosStream(rowIndex, focusEl) {
+            const rows = getNormalizedFilterP1DistRows();
+            if (!(rowIndex >= 0 && rowIndex < rows.length)) {
+                return false;
+            }
+            const row = rows[rowIndex];
+            let stream = Array.isArray(row._posStream) ? row._posStream.slice() : seedFilterP1DistPosStream(row);
+            if (focusEl && focusEl.dataset.replaceOnType === '1') {
+                delete focusEl.dataset.replaceOnType;
+            }
+            if (!stream.length) {
+                applyFilterP1DistPosStreamToRow(row, []);
+                filterP1DistRows = rows;
+                paintFilterP1DistPosSlotsLive(rowIndex);
+                return true;
+            }
+            stream.pop();
+            applyFilterP1DistPosStreamToRow(row, stream);
+            filterP1DistRows = rows;
+            paintFilterP1DistPosSlotsLive(rowIndex);
+            return true;
+        }
+
+        function appendFilterPopupP1DistDraftChar(inputEl, ch, maxLen, field, index, posSlotIdx) {
+            if (!inputEl) {
+                return false;
+            }
+            if (field === 'pos') {
+                return pushFilterP1DistPosDigit(index, ch, inputEl);
+            }
+            let draft = inputEl.dataset.draft != null
+                ? String(inputEl.dataset.draft)
+                : getFilterPopupPositionText(inputEl);
+            if (inputEl.dataset.replaceOnType === '1') {
+                draft = '';
+                delete inputEl.dataset.replaceOnType;
+            }
+            const next = (draft + ch).slice(0, maxLen);
+            inputEl.dataset.draft = next;
+            inputEl.dataset.dirty = '1';
+            setFilterPopupPositionText(inputEl, next);
+            return true;
+        }
+
+        function backspaceFilterPopupP1DistDraft(inputEl, field, index) {
+            if (!inputEl) {
+                return false;
+            }
+            if (field === 'pos') {
+                return backspaceFilterP1DistPosStream(index, inputEl);
+            }
+            let draft = inputEl.dataset.draft != null
+                ? String(inputEl.dataset.draft)
+                : getFilterPopupPositionText(inputEl);
+            const next = draft.slice(0, -1);
+            inputEl.dataset.draft = next;
+            inputEl.dataset.dirty = '1';
+            setFilterPopupPositionText(inputEl, next);
+            return true;
+        }
+
+        function bindFilterPopupP1DistInput(inputEl, index, field, posSlotIdx) {
+            if (!inputEl || inputEl.dataset.p1DistBound === '1') {
+                return;
+            }
+            inputEl.dataset.p1DistBound = '1';
+            inputEl.dataset.p1DistField = field;
+            inputEl.dataset.p1DistRow = String(index);
+            if (posSlotIdx != null) {
+                inputEl.dataset.p1DistPosSlot = String(posSlotIdx);
+            }
+            inputEl.addEventListener('mousedown', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                inputEl.focus({ preventScroll: true });
+            });
+            inputEl.addEventListener('click', (event) => {
+                event.stopPropagation();
+            });
+            inputEl.addEventListener('focus', () => {
+                if (!periodFilterEnabled || !isP1DistFilterMode(periodFilterMode)) {
+                    return;
+                }
+                const rows = getNormalizedFilterP1DistRows();
+                const row = rows[index];
+                if (!row) {
+                    return;
+                }
+                let text = '';
+                if (field === 'num') {
+                    text = formatFilterP1DistNumDisplay(row.num);
+                } else if (field === 'freq') {
+                    text = String(row.freq);
+                } else if (field === 'pos') {
+                    const si = Number(posSlotIdx);
+                    text = (row.posSlots && row.posSlots[si]) || '';
+                    // Chuẩn bị spam số: lần gõ đầu reset stream
+                    inputEl.dataset.replaceOnType = '1';
+                    delete row._posStream;
+                }
+                inputEl.dataset.draft = text;
+                if (field !== 'pos') {
+                    inputEl.dataset.replaceOnType = '1';
+                }
+                delete inputEl.dataset.dirty;
+                delete inputEl.dataset.p1DistPosTyping;
+                setFilterPopupPositionText(inputEl, text);
+            });
+            inputEl.addEventListener('blur', () => {
+                commitFilterPopupP1DistFieldFromInput(inputEl, index, field, posSlotIdx);
+                delete inputEl.dataset.draft;
+                delete inputEl.dataset.dirty;
+                delete inputEl.dataset.replaceOnType;
+                delete inputEl.dataset.p1DistPosTyping;
+            });
+            inputEl.addEventListener('keydown', (event) => {
+                if (!periodFilterEnabled || !isP1DistFilterMode(periodFilterMode)) {
+                    return;
+                }
+                const key = String(event.key || '');
+                if (key >= '0' && key <= '9') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const maxLen = field === 'pos' ? 1 : 2;
+                    appendFilterPopupP1DistDraftChar(inputEl, key, maxLen, field, index, posSlotIdx);
+                    return;
+                }
+                const stepEarly = getFilterPopupValueStepDelta(event);
+                if (stepEarly) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    delete inputEl.dataset.replaceOnType;
+                    bumpFilterPopupP1DistField(index, field, stepEarly, posSlotIdx);
+                    return;
+                }
+                if (key === 'Backspace') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    delete inputEl.dataset.replaceOnType;
+                    backspaceFilterPopupP1DistDraft(inputEl, field, index);
+                    return;
+                }
+                if (key === 'Enter') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    inputEl.blur();
+                    return;
+                }
+                if (key === 'Escape') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const rows = getNormalizedFilterP1DistRows();
+                    const row = rows[index];
+                    let text = '';
+                    if (field === 'num') {
+                        text = formatFilterP1DistNumDisplay(row && row.num);
+                    } else if (field === 'freq') {
+                        text = String((row && row.freq) || 2);
+                    } else if (field === 'pos') {
+                        const si = Number(posSlotIdx);
+                        text = (row && row.posSlots && row.posSlots[si]) || '';
+                        delete row._posStream;
+                    }
+                    inputEl.dataset.draft = text;
+                    delete inputEl.dataset.dirty;
+                    inputEl.blur();
+                    return;
+                }
+                if (field === 'pos') {
+                    const letter = key.length === 1 ? key.toLowerCase() : '';
+                    // w/s đã dùng để step; còn lại a–z (vd x/y) chèn vào stream tuyến tính như số
+                    if (/^[a-z]$/.test(letter) && letter !== 'w' && letter !== 's') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        pushFilterP1DistPosToken(index, letter, inputEl);
+                    }
+                }
+            }, true);
+        }
+
+        function createFilterPopupP1DistFieldCell(index, field, className, title, ariaLabel, displayText, show) {
+            const wrap = document.createElement('div');
+            wrap.className = 'filter-popup-intersection-freq-item';
+            wrap.title = title;
+            const inputEl = document.createElement('span');
+            inputEl.className = `filter-popup-position-input ${className}`;
+            inputEl.tabIndex = 0;
+            inputEl.setAttribute('role', 'textbox');
+            inputEl.setAttribute('aria-label', ariaLabel);
+            inputEl.title = title;
+            setFilterPopupPositionText(inputEl, displayText);
+            const spin = document.createElement('div');
+            spin.className = 'filter-popup-tracking-belly-spin filter-popup-p1-dist-spin';
+            spin.setAttribute('role', 'group');
+            const inc = document.createElement('button');
+            inc.type = 'button';
+            inc.className = 'filter-popup-nonexist-num-spin-btn';
+            inc.textContent = '▴';
+            inc.disabled = !show;
+            const dec = document.createElement('button');
+            dec.type = 'button';
+            dec.className = 'filter-popup-nonexist-num-spin-btn';
+            dec.textContent = '▾';
+            dec.disabled = !show;
+            spin.appendChild(inc);
+            spin.appendChild(dec);
+            wrap.appendChild(inputEl);
+            wrap.appendChild(spin);
+            bindFilterPopupTrackingSpinButton(inc, () => bumpFilterPopupP1DistField(index, field, 1));
+            bindFilterPopupTrackingSpinButton(dec, () => bumpFilterPopupP1DistField(index, field, -1));
+            bindFilterPopupP1DistInput(inputEl, index, field);
+            return wrap;
+        }
+
+        function createFilterPopupP1DistPosCell(index, posSlots, show) {
+            const wrap = document.createElement('div');
+            wrap.className = 'filter-popup-intersection-freq-item filter-popup-p1-dist-pos-wrap';
+            wrap.title = 'pos: [1 cố định,…]; số ô = freq. Spam số 2–9: cửa sổ trượt (freq=2 → ký số cuối; freq=3 → 2 ô trượt). Blur = sort tăng dần. x/y = cùng hàng.';
+            const brOpen = document.createElement('span');
+            brOpen.className = 'filter-popup-bracket-char';
+            brOpen.setAttribute('aria-hidden', 'true');
+            brOpen.textContent = '[';
+            wrap.appendChild(brOpen);
+
+            const slots = Array.isArray(posSlots) && posSlots.length ? posSlots : ['1'];
+            for (let si = 0; si < slots.length; si++) {
+                if (si > 0) {
+                    const sep = document.createElement('span');
+                    sep.className = 'filter-popup-p1-dist-pos-sep';
+                    sep.setAttribute('aria-hidden', 'true');
+                    sep.textContent = ',';
+                    wrap.appendChild(sep);
+                }
+                if (si === 0) {
+                    const fixed = document.createElement('span');
+                    fixed.className = 'filter-popup-p1-dist-pos-fixed';
+                    fixed.textContent = '1';
+                    fixed.title = 'Chuỗi 1 (cố định, không sửa)';
+                    wrap.appendChild(fixed);
+                    continue;
+                }
+                const inputEl = document.createElement('span');
+                inputEl.className = 'filter-popup-position-input filter-popup-p1-dist-pos';
+                inputEl.tabIndex = show ? 0 : -1;
+                inputEl.setAttribute('role', 'textbox');
+                inputEl.setAttribute('aria-label', `P1_dist pos ô #${si + 1} hàng #${index + 1}`);
+                inputEl.title = 'Spam số 2–9 (cửa sổ trượt); trống; x/y. Blur → sort tăng dần';
+                setFilterPopupPositionText(inputEl, normalizeFilterP1DistPosSlot(slots[si]));
+                wrap.appendChild(inputEl);
+                bindFilterPopupP1DistInput(inputEl, index, 'pos', si);
+            }
+
+            const brClose = document.createElement('span');
+            brClose.className = 'filter-popup-bracket-char';
+            brClose.setAttribute('aria-hidden', 'true');
+            brClose.textContent = ']';
+            wrap.appendChild(brClose);
+            return wrap;
+        }
+
+        /** Trước rebuild: tránh blur commit draft cũ đè giá trị vừa bump/Arrow. */
+        function disarmFilterPopupP1DistInputsForRebuild() {
+            const list = el('filterPopupP1DistList');
+            if (!list) {
+                return;
+            }
+            const inputs = list.querySelectorAll(
+                '.filter-popup-p1-dist-num, .filter-popup-p1-dist-freq, .filter-popup-p1-dist-pos'
+            );
+            for (let i = 0; i < inputs.length; i++) {
+                const node = inputs[i];
+                node.dataset.skipCommit = '1';
+                delete node.dataset.draft;
+                delete node.dataset.dirty;
+                delete node.dataset.replaceOnType;
+                delete node.dataset.p1DistPosTyping;
+            }
+        }
+
+        function rebuildFilterPopupP1DistList() {
+            const list = el('filterPopupP1DistList');
+            if (!list) {
+                return;
+            }
+            disarmFilterPopupP1DistInputsForRebuild();
+            const show = periodFilterEnabled && isP1DistFilterMode(periodFilterMode);
+            const rows = getNormalizedFilterP1DistRows();
+            list.replaceChildren();
+            for (let i = 0; i < rows.length; i++) {
+                const spec = rows[i];
+                const row = document.createElement('div');
+                row.className = 'filter-popup-p1-dist-row filter-popup-param-row';
+                row.dataset.idx = String(i);
+                const cluster = document.createElement('div');
+                cluster.className = 'filter-popup-param-cluster';
+                cluster.appendChild(createFilterPopupP1DistFieldCell(
+                    i,
+                    'num',
+                    'filter-popup-p1-dist-num',
+                    'num 1–35; trống = any',
+                    `P1_dist num hàng #${i + 1}`,
+                    formatFilterP1DistNumDisplay(spec.num),
+                    show
+                ));
+                cluster.appendChild(createFilterPopupP1DistFieldCell(
+                    i,
+                    'freq',
+                    'filter-popup-p1-dist-freq',
+                    'freq 1–9 (bắt buộc); số ô trong pos [] = freq',
+                    `P1_dist freq hàng #${i + 1}`,
+                    String(spec.freq),
+                    show
+                ));
+                cluster.appendChild(createFilterPopupP1DistPosCell(i, spec.posSlots, show));
+                row.appendChild(cluster);
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'filter-popup-p1-dist-remove';
+                const isOnly = rows.length <= FILTER_P1_DIST_COUNT_MIN;
+                removeBtn.title = isOnly ? 'Đặt lại mặc định empty|2|[1,x] ×2' : 'Bỏ hàng này';
+                removeBtn.setAttribute('aria-label', isOnly ? 'Đặt lại P1_dist mặc định' : `Bỏ hàng P1_dist #${i + 1}`);
+                removeBtn.textContent = '−';
+                removeBtn.disabled = !show;
+                bindFilterPopupTrackingSpinButton(removeBtn, () => removeFilterPopupP1DistRow(i));
+                row.appendChild(removeBtn);
+                list.appendChild(row);
+            }
+            const addBtn = el('filterPopupP1DistAdd');
+            if (addBtn) {
+                addBtn.disabled = !show || rows.length >= FILTER_P1_DIST_COUNT_MAX;
+            }
+        }
+
+        function syncFilterPopupP1DistResultRangeUi() {
+            const btn = el('filterPopupP1DistResultBtn');
+            const range = el('filterPopupP1DistResultRange');
+            const loEl = el('filterPopupP1DistResultLo');
+            const hiEl = el('filterPopupP1DistResultHi');
+            const show = periodFilterEnabled && isP1DistFilterMode(periodFilterMode);
+            const on = show && !!filterP1DistResultEnabled;
+            if (btn) {
+                btn.disabled = !show;
+                btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+            }
+            if (range) {
+                range.classList.toggle('hidden', !on);
+                range.setAttribute('aria-hidden', on ? 'false' : 'true');
+            }
+            if (loEl && document.activeElement !== loEl) {
+                setFilterPopupPositionText(loEl, filterP1DistResultLo);
+            }
+            if (hiEl && document.activeElement !== hiEl) {
+                setFilterPopupPositionText(hiEl, filterP1DistResultHi);
+            }
+            syncFilterPopupP1DistResultPct();
+        }
+
+        function setFilterPopupP1DistResultEnabled(next) {
+            const on = !!next;
+            filterP1DistResultEnabled = on;
+            if (!on) {
+                filterPopupP1DistResultSubfilter = 'off';
+                applyFilterPopupP1DistResultSubfilterWrapClasses(el('filterTableWrap'), 'off');
+            }
+            saveFilterP1DistSettings();
+            syncFilterPopupP1DistResultRangeUi();
+            deferFilterPopupHeavyWork(() => {
+                rebuildFilterPopupAfterParamChange();
+            });
+        }
+
+        function commitFilterPopupP1DistResultEnd(which) {
+            const loEl = el('filterPopupP1DistResultLo');
+            const hiEl = el('filterPopupP1DistResultHi');
+            const rawLo = which === 'lo' && loEl && loEl.dataset.draft != null
+                ? loEl.dataset.draft
+                : (loEl ? getFilterPopupPositionText(loEl) : filterP1DistResultLo);
+            const rawHi = which === 'hi' && hiEl && hiEl.dataset.draft != null
+                ? hiEl.dataset.draft
+                : (hiEl ? getFilterPopupPositionText(hiEl) : filterP1DistResultHi);
+            // Đọc cả hai ô (draft nếu đang dirty)
+            const loText = loEl && loEl.dataset.draft != null
+                ? String(loEl.dataset.draft)
+                : (loEl ? getFilterPopupPositionText(loEl) : rawLo);
+            const hiText = hiEl && hiEl.dataset.draft != null
+                ? String(hiEl.dataset.draft)
+                : (hiEl ? getFilterPopupPositionText(hiEl) : rawHi);
+            const sorted = sortFilterP1DistResultRange(loText, hiText);
+            filterP1DistResultLo = sorted[0];
+            filterP1DistResultHi = sorted[1];
+            if (loEl) {
+                setFilterPopupPositionText(loEl, filterP1DistResultLo);
+                delete loEl.dataset.draft;
+                delete loEl.dataset.dirty;
+                delete loEl.dataset.replaceOnType;
+            }
+            if (hiEl) {
+                setFilterPopupPositionText(hiEl, filterP1DistResultHi);
+                delete hiEl.dataset.draft;
+                delete hiEl.dataset.dirty;
+                delete hiEl.dataset.replaceOnType;
+            }
+            saveFilterP1DistSettings();
+            syncFilterPopupP1DistResultPct();
+            if (filterP1DistResultEnabled) {
+                deferFilterPopupHeavyWork(() => {
+                    rebuildFilterPopupAfterParamChange();
+                });
+            }
+        }
+
+        function bindFilterPopupP1DistResultEnd(inputEl, which) {
+            if (!inputEl || inputEl.dataset.p1DistResultBound === '1') {
+                return;
+            }
+            inputEl.dataset.p1DistResultBound = '1';
+            inputEl.dataset.p1DistResultEnd = which;
+            inputEl.addEventListener('mousedown', (event) => event.stopPropagation());
+            inputEl.addEventListener('click', (event) => event.stopPropagation());
+            inputEl.addEventListener('focus', () => {
+                const text = which === 'lo' ? filterP1DistResultLo : filterP1DistResultHi;
+                inputEl.dataset.draft = text;
+                inputEl.dataset.replaceOnType = '1';
+                delete inputEl.dataset.dirty;
+                setFilterPopupPositionText(inputEl, text);
+            });
+            inputEl.addEventListener('blur', () => {
+                commitFilterPopupP1DistResultEnd(which);
+            });
+            inputEl.addEventListener('keydown', (event) => {
+                if (!periodFilterEnabled || !isP1DistFilterMode(periodFilterMode)) {
+                    return;
+                }
+                const key = String(event.key || '');
+                if (key >= '0' && key <= '9') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    let draft = inputEl.dataset.replaceOnType === '1'
+                        ? ''
+                        : (inputEl.dataset.draft != null
+                            ? String(inputEl.dataset.draft)
+                            : getFilterPopupPositionText(inputEl));
+                    delete inputEl.dataset.replaceOnType;
+                    draft = (draft + key).slice(-2);
+                    const n = parseInt(draft, 10);
+                    if (!Number.isFinite(n) || n < 1 || n > 10) {
+                        draft = key;
+                        const n2 = parseInt(draft, 10);
+                        if (!Number.isFinite(n2) || n2 < 1 || n2 > 10) {
+                            return;
+                        }
+                    }
+                    inputEl.dataset.draft = draft;
+                    inputEl.dataset.dirty = '1';
+                    setFilterPopupPositionText(inputEl, draft);
+                    return;
+                }
+                const lower = key.length === 1 ? key.toLowerCase() : '';
+                if (/^[a-z]$/.test(lower)) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    delete inputEl.dataset.replaceOnType;
+                    inputEl.dataset.draft = lower;
+                    inputEl.dataset.dirty = '1';
+                    setFilterPopupPositionText(inputEl, lower);
+                    return;
+                }
+                const step = getFilterPopupValueStepDelta(event);
+                if (step) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const cycle = ['x', 'y', 'z', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
+                    const cur = normalizeFilterP1DistResultEndpoint(
+                        inputEl.dataset.draft != null
+                            ? inputEl.dataset.draft
+                            : getFilterPopupPositionText(inputEl)
+                    );
+                    const next = bumpFilterP1DistCycle(cycle, cur, step);
+                    inputEl.dataset.draft = next;
+                    inputEl.dataset.dirty = '1';
+                    delete inputEl.dataset.replaceOnType;
+                    setFilterPopupPositionText(inputEl, next);
+                    return;
+                }
+                if (key === 'Backspace') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    delete inputEl.dataset.replaceOnType;
+                    let draft = inputEl.dataset.draft != null
+                        ? String(inputEl.dataset.draft)
+                        : getFilterPopupPositionText(inputEl);
+                    draft = draft.slice(0, -1);
+                    inputEl.dataset.draft = draft;
+                    inputEl.dataset.dirty = '1';
+                    setFilterPopupPositionText(inputEl, draft);
+                    return;
+                }
+                if (key === 'Enter') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    inputEl.blur();
+                    return;
+                }
+                if (key === 'Escape') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    const text = which === 'lo' ? filterP1DistResultLo : filterP1DistResultHi;
+                    inputEl.dataset.draft = text;
+                    delete inputEl.dataset.dirty;
+                    setFilterPopupPositionText(inputEl, text);
+                    inputEl.blur();
+                }
+            });
+        }
+
+        function isFilterPopupP1DistResultSubfilterActive() {
+            return !!periodFilterEnabled
+                && isP1DistFilterMode(periodFilterMode)
+                && !!filterP1DistResultEnabled
+                && (filterPopupP1DistResultSubfilter === 'hit'
+                    || filterPopupP1DistResultSubfilter === 'miss');
+        }
+
+        function getNextFilterPopupP1DistResultSubfilter(current) {
+            if (current === 'off') {
+                return 'hit';
+            }
+            if (current === 'hit') {
+                return 'miss';
+            }
+            return 'off';
+        }
+
+        function applyFilterPopupP1DistResultSubfilterWrapClasses(wrap, mode) {
+            if (!wrap) {
+                return;
+            }
+            wrap.classList.toggle('filter-popup-p1-dist-result-hit-only', mode === 'hit');
+            wrap.classList.toggle('filter-popup-p1-dist-result-miss-only', mode === 'miss');
+        }
+
+        function applyFilterPopupP1DistResultSubfilterButtonUi(btn, mode, hitPct) {
+            if (!btn || btn.hidden) {
+                return;
+            }
+            const complementPct = Math.max(0, Math.min(100, 100 - hitPct));
+            if (mode === 'off') {
+                btn.textContent = `R ${hitPct}%`;
+                btn.setAttribute('aria-pressed', 'false');
+                btn.classList.remove('is-follow-question-mode');
+            } else if (mode === 'hit') {
+                btn.textContent = `R ${hitPct}%`;
+                btn.setAttribute('aria-pressed', 'true');
+                btn.classList.remove('is-follow-question-mode');
+            } else {
+                btn.textContent = `R ${complementPct}%`;
+                btn.setAttribute('aria-pressed', 'true');
+                btn.classList.add('is-follow-question-mode');
+            }
+        }
+
+        function collectFilterPopupP1DistResultHitIndicesOrdered(wrap) {
+            if (!wrap) {
+                return [];
+            }
+            return [...wrap.querySelectorAll('tbody tr.filter-popup-p1-dist-result-hit[data-idx]')]
+                .map((tr) => Number(tr.dataset.idx))
+                .filter((idx) => Number.isFinite(idx));
+        }
+
+        function collectFilterPopupP1DistResultMissIndicesOrdered(wrap) {
+            if (!wrap) {
+                return [];
+            }
+            return [...wrap.querySelectorAll('tbody tr.filter-popup-p1-dist-result-miss[data-idx]')]
+                .map((tr) => Number(tr.dataset.idx))
+                .filter((idx) => Number.isFinite(idx));
+        }
+
+        function setFilterPopupP1DistResultSubfilter(mode, opts = {}) {
+            const next = mode === 'hit' || mode === 'miss' ? mode : 'off';
+            filterPopupP1DistResultSubfilter = next;
+            if (!opts.skipPersist) {
+                saveFilterP1DistSettings();
+            }
+            const wrap = el('filterTableWrap');
+            const btn = el('filterPopupP1DistResultPct');
+            if (btn && !btn.hidden) {
+                applyFilterPopupP1DistResultSubfilterButtonUi(btn, next, filterPopupP1DistResultHitPct);
+            }
+            const applyHeavy = () => {
+                const live = filterPopupP1DistResultSubfilter === 'hit'
+                    || filterPopupP1DistResultSubfilter === 'miss'
+                    ? filterPopupP1DistResultSubfilter
+                    : 'off';
+                applyFilterPopupP1DistResultSubfilterWrapClasses(wrap, live);
+                if (btn && !btn.hidden) {
+                    applyFilterPopupP1DistResultSubfilterButtonUi(btn, live, filterPopupP1DistResultHitPct);
+                }
+                rememberKeyboardFocusTarget('filter');
+                if (wrap) {
+                    try {
+                        wrap.focus({ preventScroll: true });
+                    } catch (eFocusR) { /* ignore */ }
+                }
+                if (!opts.skipReconcile) {
+                    // syncPreview:false → syncMain đầy đủ (cửa sổ + left), không chỉ previewOnly
+                    reconcileFilterPopupActiveAfterSubfilterToggle({ syncPreview: false });
+                }
+                if (!opts.skipCounts) {
+                    updateFilterPopupMatchCount();
+                    syncPeriodFilterNavModeToIframe();
+                }
+                requestAnimationFrame(() => {
+                    if (filterPopupActiveIdx >= 0) {
+                        scrollFilterPopupRowIntoView();
+                        if (!opts.skipReconcile) {
+                            syncMainRowFromFilter(filterPopupActiveIdx);
+                        }
+                    }
+                });
+            };
+            if (opts.skipReconcile && opts.skipCounts) {
+                applyFilterPopupP1DistResultSubfilterWrapClasses(wrap, next);
+                return;
+            }
+            showFilterPopupLoading();
+            yieldAfterFilterPopupPaint(() => {
+                try {
+                    applyHeavy();
+                } finally {
+                    clearFilterPopupLoadingState();
+                }
+            });
+        }
+
+        function syncFilterPopupP1DistResultPct() {
+            const wrap = el('filterTableWrap');
+            const pctEl = el('filterPopupP1DistResultPct');
+            const hidePct = () => {
+                // Chỉ ẩn nút + gỡ CSS lọc tạm. KHÔNG xóa hit/miss — tắt/mở popup phải giữ R đỏ/xanh.
+                applyFilterPopupP1DistResultSubfilterWrapClasses(el('filterTableWrap'), 'off');
+                if (pctEl) {
+                    pctEl.hidden = true;
+                    pctEl.textContent = '';
+                    pctEl.setAttribute('aria-pressed', 'false');
+                    pctEl.classList.remove('is-follow-question-mode');
+                }
+                updateFilterPopupMatchCount();
+                syncPeriodFilterNavModeToIframe();
+            };
+            if (!pctEl) {
+                return;
+            }
+            const show = periodFilterEnabled
+                && isP1DistFilterMode(periodFilterMode)
+                && !!filterP1DistResultEnabled
+                && isPeriodFilterContextSheet()
+                && sheetManager
+                && wrap;
+            if (!show) {
+                hidePct();
+                return;
+            }
+            wrap.querySelectorAll(
+                'tbody tr.filter-popup-p1-dist-result-hit, tbody tr.filter-popup-p1-dist-result-miss'
+            ).forEach((tr) => {
+                tr.classList.remove(
+                    'filter-popup-p1-dist-result-hit',
+                    'filter-popup-p1-dist-result-miss'
+                );
+            });
+            const rows = sheetManager.getSourceSheetRows();
+            if (!Array.isArray(rows) || !rows.length) {
+                hidePct();
+                return;
+            }
+            const lo = filterP1DistResultLo;
+            const hi = filterP1DistResultHi;
+            const specs = getNormalizedFilterP1DistRows();
+            const sampleSet = new Set(getFilterPopupTableIndices());
+            let tableTotal = 0;
+            let hit = 0;
+            let miss = 0;
+            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                const idx = Number(tr.dataset.idx);
+                if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
+                    return;
+                }
+                if (!sampleSet.has(idx)) {
+                    return;
+                }
+                tableTotal += 1;
+                let isHit = false;
+                if (typeof sheetManager.rowMatchesP1DistResultRange === 'function') {
+                    let groupBind = {};
+                    let groupNums = {};
+                    let blocksOk = true;
+                    if (typeof sheetManager.matchP1DistFilter === 'function') {
+                        const matched = sheetManager.matchP1DistFilter(rows, idx, specs);
+                        blocksOk = !!(matched && matched.ok);
+                        groupBind = (matched && matched.groupBind) || {};
+                        groupNums = (matched && matched.groupNums) || {};
+                    } else if (typeof sheetManager.rowMatchesP1DistFilter === 'function') {
+                        blocksOk = !!sheetManager.rowMatchesP1DistFilter(rows, idx, specs);
+                    }
+                    if (blocksOk) {
+                        isHit = !!sheetManager.rowMatchesP1DistResultRange(
+                            rows, idx, lo, hi, groupBind, groupNums
+                        );
+                    }
+                }
+                if (isHit) {
+                    tr.classList.add('filter-popup-p1-dist-result-hit');
+                    hit += 1;
+                } else {
+                    tr.classList.add('filter-popup-p1-dist-result-miss');
+                    miss += 1;
+                }
+            });
+            if (tableTotal === 0) {
+                hidePct();
+                return;
+            }
+            const hitPct = Math.round((hit / tableTotal) * 100);
+            filterPopupP1DistResultHitPct = hitPct;
+            pctEl.hidden = false;
+            // Khôi phục hit/miss đã chọn trước khi tắt popup (nếu mẫu còn đủ)
+            let liveSub = filterPopupP1DistResultSubfilter;
+            if (liveSub === 'hit' && hit === 0) {
+                liveSub = 'off';
+            } else if (liveSub === 'miss' && miss === 0) {
+                liveSub = 'off';
+            }
+            if (liveSub !== filterPopupP1DistResultSubfilter) {
+                filterPopupP1DistResultSubfilter = liveSub;
+                saveFilterP1DistSettings();
+            }
+            applyFilterPopupP1DistResultSubfilterButtonUi(pctEl, filterPopupP1DistResultSubfilter, hitPct);
+            applyFilterPopupP1DistResultSubfilterWrapClasses(wrap, filterPopupP1DistResultSubfilter);
+            if (isFilterPopupP1DistResultSubfilterActive()) {
+                reconcileFilterPopupActiveAfterSubfilterToggle({ syncPreview: false });
+            }
+            pctEl.title = `R = con khối. Chữ trong [a;b] = nhóm pos (vd x của [1,x]).`
+                + ` Khớp=${hit}/${tableTotal} (${hitPct}%). Nhấn: khớp → bù đỏ → đủ.`
+                + ` [${filterP1DistResultLo};${filterP1DistResultHi}]`;
+            updateFilterPopupMatchCount();
+            syncPeriodFilterNavModeToIframe();
+        }
+
+        function initFilterPopupP1DistResultPctToggle() {
+            const btn = el('filterPopupP1DistResultPct');
+            if (!btn || btn.dataset.p1DistResultPctBound === '1') {
+                return;
+            }
+            btn.dataset.p1DistResultPctBound = '1';
+            const run = () => {
+                if (btn.hidden) {
+                    return;
+                }
+                setFilterPopupP1DistResultSubfilter(
+                    getNextFilterPopupP1DistResultSubfilter(filterPopupP1DistResultSubfilter)
+                );
+            };
+            btn.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                run();
+            });
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.detail === 0) {
+                    run();
+                }
+            });
+        }
+
+        function syncFilterPopupP1DistUi() {
+            const picker = el('filterPopupP1DistPicker');
+            const show = periodFilterEnabled && isP1DistFilterMode(periodFilterMode);
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+                picker.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+            syncFilterPopupP1DistResultRangeUi();
+            if (isFilterPopupP1DistInputFocused()) {
+                return;
+            }
+            rebuildFilterPopupP1DistList();
+        }
+
+        function addFilterPopupP1DistRow() {
+            const rows = getNormalizedFilterP1DistRows();
+            if (rows.length >= FILTER_P1_DIST_COUNT_MAX) {
+                return;
+            }
+            rows.push(createDefaultFilterP1DistRow());
+            filterP1DistRows = rows;
+            saveFilterP1DistSettings();
+            rebuildFilterPopupP1DistList();
+            deferFilterPopupHeavyWork(() => {
+                rebuildFilterPopupAfterParamChange();
+            });
+        }
+
+        function removeFilterPopupP1DistRow(index) {
+            let rows = getNormalizedFilterP1DistRows();
+            if (rows.length <= FILTER_P1_DIST_COUNT_MIN) {
+                filterP1DistRows = FILTER_P1_DIST_DEFAULT_ROWS.map((r) => normalizeFilterP1DistRow(r));
+            } else {
+                rows = rows.filter((_, idx) => idx !== index);
+                filterP1DistRows = rows;
+            }
+            saveFilterP1DistSettings();
+            rebuildFilterPopupP1DistList();
+            deferFilterPopupHeavyWork(() => {
+                rebuildFilterPopupAfterParamChange();
+            });
+        }
+
+        /** Ẩn scrollbar; lăn chuột dọc → cuộn ngang khi nội dung tràn. */
+        function bindFilterPopupParamStripWheelScroll(root) {
+            if (!root || root.dataset.wheelScrollBound === '1') {
+                return;
+            }
+            root.dataset.wheelScrollBound = '1';
+            root.addEventListener('wheel', (event) => {
+                const maxScroll = root.scrollWidth - root.clientWidth;
+                if (!(maxScroll > 1)) {
+                    return;
+                }
+                const dy = Number(event.deltaY) || 0;
+                const dx = Number(event.deltaX) || 0;
+                let delta = Math.abs(dy) >= Math.abs(dx) ? dy : dx;
+                if (!delta) {
+                    return;
+                }
+                if (event.deltaMode === 1) {
+                    delta *= 16;
+                } else if (event.deltaMode === 2) {
+                    delta *= Math.max(root.clientWidth, 1);
+                }
+                const prev = root.scrollLeft;
+                const next = Math.max(0, Math.min(maxScroll, prev + delta));
+                root.scrollLeft = next;
+                event.preventDefault();
+                event.stopPropagation();
+            }, { passive: false, capture: true });
+        }
+
+        function getP1DistFilterOptions() {
+            return {
+                p1DistRows: getNormalizedFilterP1DistRows(),
+                p1DistResultEnabled: !!filterP1DistResultEnabled,
+                p1DistResultLo: normalizeFilterP1DistResultEndpoint(filterP1DistResultLo),
+                p1DistResultHi: normalizeFilterP1DistResultEndpoint(filterP1DistResultHi)
+            };
+        }
+
+        function initFilterPopupP1DistControls() {
+            loadFilterP1DistSettings();
+            syncFilterPopupP1DistUi();
+            const root = el('filterPopupP1DistPicker');
+            if (!root || root.dataset.bound === '1') {
+                return;
+            }
+            root.dataset.bound = '1';
+            root.addEventListener('mousedown', (event) => event.stopPropagation());
+            root.addEventListener('click', (event) => event.stopPropagation());
+            bindFilterPopupParamStripWheelScroll(root);
+            const addBtn = el('filterPopupP1DistAdd');
+            bindFilterPopupTrackingSpinButton(addBtn, () => addFilterPopupP1DistRow());
+            const resultBtn = el('filterPopupP1DistResultBtn');
+            if (resultBtn) {
+                resultBtn.addEventListener('mousedown', (event) => event.stopPropagation());
+                resultBtn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (!periodFilterEnabled || !isP1DistFilterMode(periodFilterMode)) {
+                        return;
+                    }
+                    setFilterPopupP1DistResultEnabled(!filterP1DistResultEnabled);
+                });
+            }
+            bindFilterPopupP1DistResultEnd(el('filterPopupP1DistResultLo'), 'lo');
+            bindFilterPopupP1DistResultEnd(el('filterPopupP1DistResultHi'), 'hi');
+        }
+
         function initFilterPopupTrackingBellyControls() {
             loadFilterTrackingBellySettings();
             syncFilterPopupTrackingBellyUi();
@@ -21237,6 +23166,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             root.dataset.bound = '1';
             root.addEventListener('mousedown', (event) => event.stopPropagation());
             root.addEventListener('click', (event) => event.stopPropagation());
+            bindFilterPopupParamStripWheelScroll(root);
             // Ô tabindex không luôn mất focus khi click chỗ không nhận focus → caret còn nhấp nháy.
             // Capture: click ngoài ô (trừ ▴▾ cùng hàng) thì blur.
             if (!document.documentElement.dataset.trackingBellyOutsideBlurBound) {
@@ -21634,6 +23564,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return getPhase1LiveFilteredCount();
             }
             if (isFilterPopupFollowSubfilterActive()) {
+                return getFilterPopupNavListLength();
+            }
+            if (isFilterPopupP1DistResultSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
             if (isFilterPopupConnectionSubfilterActive()) {
@@ -22095,6 +24028,11 @@ function getFilterNoteTRefMaxSelections(mode) {
                     return;
                 }
 
+                // P1_dist num/freq/pos đang focus: để handler ô (capture) nhận phím, không để digit-nav nuốt.
+                if (isFilterPopupP1DistInputFocused()) {
+                    return;
+                }
+
                 // Đang focus ô số chuyên dụng khác → để handler của ô đó nhận phím.
                 const ae = document.activeElement;
                 if (ae === input || ae === nonexistNumInput
@@ -22105,9 +24043,11 @@ function getFilterNoteTRefMaxSelections(mode) {
                     return;
                 }
 
-                // Cho gõ tham số nonexist/TRACKING cả khi bảng lọc 0 dòng (nav inactive).
+                // Cho gõ tham số nonexist/TRACKING/P1_dist cả khi bảng lọc 0 dòng (nav inactive).
                 const canTypeModeParams = popupOpen && (
-                    isNonexistFilterMode(periodFilterMode) || isTrackingFilterMode(periodFilterMode)
+                    isNonexistFilterMode(periodFilterMode)
+                    || isTrackingFilterMode(periodFilterMode)
+                    || isP1DistFilterMode(periodFilterMode)
                 );
                 if (!isFilterPopupNavActive() && !canTypeModeParams) {
                     return;
@@ -22284,6 +24224,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupChainFilterUi();
             syncFilterPopupSpecialKindsUi();
             syncFilterPopupTrackingBellyUi();
+            syncFilterPopupP1DistUi();
             syncFilterPopupPhase1MechUi();
 
             if (light) {
@@ -23608,7 +25549,12 @@ function getFilterNoteTRefMaxSelections(mode) {
                 setFilterPopupPositionText(positionInput, posText);
                 setFilterPopupPositionInputWidth(positionInput, posText);
             }
-            syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly: true });
+            // R% hit/miss: nhảy thưa trên sheet chính — sync đầy đủ ngay (không chỉ previewOnly)
+            if (isFilterPopupP1DistResultSubfilterActive()) {
+                syncMainRowFromFilter(filterPopupActiveIdx);
+            } else {
+                syncMainRowFromFilter(filterPopupActiveIdx, { previewOnly: true });
+            }
             return true;
         }
 
@@ -23948,6 +25894,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             const phase1Key = isPhase1FilterMode(periodFilterMode)
                 ? `p1:v6:${filterPhase1PosMode}`
                 : '';
+            const p1DistKey = isP1DistFilterMode(periodFilterMode)
+                ? `p1d:r:${filterP1DistResultEnabled ? 1 : 0}:${filterP1DistResultLo}:${filterP1DistResultHi}`
+                : '';
             return [
                 periodFilterMode,
                 tags,
@@ -23966,7 +25915,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                 nxBracketKey,
                 h2on,
                 chainOn,
-                phase1Key
+                phase1Key,
+                p1DistKey
             ].join('|');
         }
 
@@ -24334,6 +26284,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupPhase1Overlap();
             syncFilterPopupFollowDeterminedOverlap();
             syncFilterPopupConnectionOverlap();
+            syncFilterPopupP1DistResultPct();
             applyFilterPopupSpecialKindsRowClasses(wrap);
             applyFilterPopupNonexist005000RowBorders(wrap);
             reconcileFilterPopupFocusAfterListChange(getFilterPopupDisplayIndices(), options);
@@ -24911,9 +26862,24 @@ function getFilterNoteTRefMaxSelections(mode) {
                     tr.classList.add('filter-popup-follow-question-hit');
                 }
             });
-            const tableTotal = wrap.querySelectorAll('tbody tr[data-idx]').length;
-            const green = wrap.querySelectorAll('tbody tr.filter-popup-follow-determined-hit').length;
-            const question = wrap.querySelectorAll('tbody tr.filter-popup-follow-question-hit').length;
+            // % và empty-check theo mẫu đang xem (mode + header2 + chuỗi), không theo cả bảng DOM.
+            const sampleSet = new Set(getFilterPopupTableIndices());
+            let tableTotal = 0;
+            let green = 0;
+            let question = 0;
+            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                const idx = Number(tr.dataset.idx);
+                if (!sampleSet.has(idx)) {
+                    return;
+                }
+                tableTotal += 1;
+                if (tr.classList.contains('filter-popup-follow-determined-hit')) {
+                    green += 1;
+                }
+                if (tr.classList.contains('filter-popup-follow-question-hit')) {
+                    question += 1;
+                }
+            });
             if (!pctEl) {
                 return;
             }
@@ -24993,9 +26959,24 @@ function getFilterNoteTRefMaxSelections(mode) {
                     tr.classList.add('filter-popup-connection-duplicate-hit');
                 }
             });
-            const tableTotal = wrap.querySelectorAll('tbody tr[data-idx]').length;
-            const unique = wrap.querySelectorAll('tbody tr.filter-popup-connection-unique-hit').length;
-            const duplicate = wrap.querySelectorAll('tbody tr.filter-popup-connection-duplicate-hit').length;
+            // % theo mẫu đang xem (mode + header2 + chuỗi).
+            const sampleSet = new Set(getFilterPopupTableIndices());
+            let tableTotal = 0;
+            let unique = 0;
+            let duplicate = 0;
+            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                const idx = Number(tr.dataset.idx);
+                if (!sampleSet.has(idx)) {
+                    return;
+                }
+                tableTotal += 1;
+                if (tr.classList.contains('filter-popup-connection-unique-hit')) {
+                    unique += 1;
+                }
+                if (tr.classList.contains('filter-popup-connection-duplicate-hit')) {
+                    duplicate += 1;
+                }
+            });
             if (!pctEl) {
                 return;
             }
@@ -25044,6 +27025,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupPhase1Overlap();
             syncFilterPopupFollowDeterminedOverlap();
             syncFilterPopupConnectionOverlap();
+            syncFilterPopupP1DistResultPct();
             applyFilterPopupSpecialKindsRowClasses(wrap);
             applyFilterPopupNonexist005000RowBorders(wrap);
             filterPopupRenderCacheKey = cacheKey;
@@ -25106,6 +27088,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 applyFilterPopupFollowSubfilterWrapClasses(wrap, 'off');
                 filterPopupConnectionSubfilter = 'off';
                 applyFilterPopupConnectionSubfilterWrapClasses(wrap, 'off');
+                applyFilterPopupP1DistResultSubfilterWrapClasses(wrap, 'off');
                 wrap.classList.remove('filter-popup-posnfreq-green-only');
                 applyFilterPopupTrackingSubfilterWrapClasses(wrap, 'off');
                 applyFilterPopupPhase1SubfilterWrapClasses(wrap, 'off');
@@ -25120,6 +27103,12 @@ function getFilterNoteTRefMaxSelections(mode) {
                     phase1Pct.hidden = true;
                     phase1Pct.textContent = '';
                     phase1Pct.setAttribute('aria-pressed', 'false');
+                }
+                const p1DistResultPct = el('filterPopupP1DistResultPct');
+                if (p1DistResultPct) {
+                    p1DistResultPct.hidden = true;
+                    p1DistResultPct.textContent = '';
+                    p1DistResultPct.setAttribute('aria-pressed', 'false');
                 }
                 wrap.innerHTML = '<div class="filter-popup-empty">' + getFilterPopupEmptyMessage(periodFilterMode) + '</div>';
                 finishFilterPopupOpen({ syncMain });
@@ -26167,6 +28156,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             initFilterPopupPosnfreqOverlapPctToggle();
             initFilterPopupConn3OverlapPctToggle();
             initFilterPopupTrackingBellyControls();
+            initFilterPopupP1DistControls();
+            initFilterPopupP1DistResultPctToggle();
             initFilterPopupTrackingOverlapPctToggle();
             initFilterPopupPhase1MechControls();
             initFilterPopupPhase1PosModeControls();
