@@ -3026,11 +3026,30 @@
             return !!phaseToolbarEnabled;
         }
 
+        function notifyParentPhaseVisualUpdated() {
+            try {
+                if (!window.parent || window.parent === window) {
+                    return;
+                }
+                var nums = [];
+                phaseMarkedNums.forEach(function (n) {
+                    nums.push(n);
+                });
+                window.parent.postMessage({
+                    type: 'phaseVisualUpdated',
+                    enabled: isPhaseToolbarActive(),
+                    nums: nums,
+                    maxFreqNum: phaseMaxFreqNum == null ? null : phaseMaxFreqNum
+                }, '*');
+            } catch (eNotifyPh) { /* ignore */ }
+        }
+
         function clearPhaseVisualOnly() {
             phaseMarkedNums.clear();
             phaseMaxFreqNum = null;
             syncPhaseToolbarBodyClass();
             applyPhaseVisualInDOM();
+            notifyParentPhaseVisualUpdated();
         }
 
         function refreshPhaseVisualFromConfig() {
@@ -3133,6 +3152,7 @@
             phaseMaxFreqNum = resolvePhaseMaxFreqHighlightNum(getPhaseChainNumsRawSelected());
             syncPhaseToolbarBodyClass();
             applyPhaseVisualInDOM();
+            notifyParentPhaseVisualUpdated();
             return phaseMarkedNums.size > 0 || phaseMaxFreqNum != null;
         }
 
@@ -10605,15 +10625,16 @@
                         try { applySelectionAndBlockedInDOM(); } catch (e) { }
                         try { updatePairList(); } catch (e) { }
                         refreshPairTailSelectionState();
-                        try { refreshLeftPickSelectionUi({ forceSync: true }); } catch (e) { /* ignore */ }
+                        // Báo Submit ON/OFF trước — tránh parent ghi nhớ nhầm 5 số đáp án như khoanh đỏ.
                         try { postSubmitStateChangedToParent(); } catch (e) { }
+                        try { refreshLeftPickSelectionUi({ forceSync: true }); } catch (e) { /* ignore */ }
                         return;
                     }
                 } catch (e) { /* fallback below */ }
                 // fallback: full rerender when DOM not present
                 renderTable1(); renderTable2(); try { updatePairList(); } catch (e) { } try { refreshPairTailSelectionState(); } catch (e) { } alignTableActionsAndCenter(); updateFloatingCopyButtons();
-                try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
                 try { postSubmitStateChangedToParent(); } catch (e) { }
+                try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
                 try { scheduleRefreshChecknoteTooltipIfOpen(); } catch (eCnFb) { /* ignore */ }
             } catch (e) { console.error(e); }
         }

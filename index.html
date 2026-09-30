@@ -7636,7 +7636,7 @@
             font-weight: 800;
         }
 
-        /* Nhãn 1–5 ngoài trên cửa sổ (liền trên nhãn 10 vàng) */
+        /* Nhãn 1–6 ngoài trên cửa sổ (liền trên nhãn 10 vàng) */
         .win-label-inline.win-label-inline--outer {
             background: #dc2626;
             border-color: #7f1d1d;
@@ -7645,42 +7645,173 @@
         }
 
         /*
-         * Focus-chain hit — giữ vẻ chip cũ, nhưng padding/viền vẽ bằng ::after absolute
-         * để không tăng min-content của cột result (tránh phình cột / lag / lệch bảng).
+         * Focus-chain hit + sync màu nửa trái + viền phase1.
+         * Nền chip vẽ bằng ::after; viền phase bằng ::before (giống ok_left).
          */
-        .sheet-data-table td.cell-result .result-focus-chain-hit {
+        .sheet-data-table td.cell-result .result-num-decor {
             position: relative;
             z-index: 0;
-            color: #0c4a6e;
-            font-weight: 800;
             padding: 0;
             margin: 0;
-            background: transparent;
             border-radius: 0;
+            background: transparent;
             box-shadow: none;
         }
 
-        .sheet-data-table td.cell-result .result-focus-chain-hit::after {
+        /* Focus-chain hit / sync submit: nền xanh lá như submit-on nửa trái */
+        .sheet-data-table td.cell-result .result-focus-chain-hit:not(.result-focus-chain-hit--circle),
+        .sheet-data-table td.cell-result .result-num-sync-submit {
+            color: #ffffff;
+            font-weight: 800;
+        }
+
+        .sheet-data-table td.cell-result .result-focus-chain-hit:not(.result-focus-chain-hit--circle)::after,
+        .sheet-data-table td.cell-result .result-num-sync-submit:not(.result-focus-chain-hit--circle)::after {
             content: '';
             position: absolute;
             left: -2px;
             right: -2px;
             top: -1px;
             bottom: -1px;
-            background: #93c5fd;
+            background: green;
             border-radius: 2px;
-            box-shadow: inset 0 0 0 1px #1d4ed8;
+            box-shadow: inset 0 0 0 1px #006400;
             z-index: -1;
             pointer-events: none;
         }
 
-        .sheet-data-table td.cell-result .result-focus-chain-hit.result-focus-chain-hit--nonexist {
+        /* Focus-hit nonexist: nền vàng (chỉ mode submit-on / chip, không khoanh đỏ) */
+        .sheet-data-table td.cell-result .result-focus-chain-hit.result-focus-chain-hit--nonexist:not(.result-focus-chain-hit--circle) {
             color: #000;
         }
 
-        .sheet-data-table td.cell-result .result-focus-chain-hit.result-focus-chain-hit--nonexist::after {
+        .sheet-data-table td.cell-result .result-focus-chain-hit.result-focus-chain-hit--nonexist:not(.result-focus-chain-hit--circle)::after {
             background: #ff0;
             box-shadow: inset 0 0 0 1px #a16207;
+        }
+
+        /* Submit ON + khoanh đỏ cùng số: nền xanh/vàng trên span, ::after dành cho vòng đỏ */
+        .sheet-data-table td.cell-result .result-focus-chain-hit.result-focus-chain-hit--circle:not(.result-focus-chain-hit--nonexist) {
+            color: #ffffff;
+            font-weight: 800;
+            background: green;
+            border-radius: 2px;
+            box-shadow: inset 0 0 0 1px #006400;
+        }
+
+        .sheet-data-table td.cell-result .result-focus-chain-hit.result-focus-chain-hit--nonexist.result-focus-chain-hit--circle {
+            color: #000;
+            font-weight: 800;
+            background: #ff0;
+            border-radius: 2px;
+            box-shadow: inset 0 0 0 1px #a16207;
+        }
+
+        /* Khoanh đỏ: ::after = vòng tròn (có thể chồng lên chip xanh) */
+        .sheet-data-table td.cell-result .result-num-decor.result-focus-chain-hit--circle::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            right: auto;
+            bottom: auto;
+            width: calc(1em + 12px);
+            height: calc(1em + 12px);
+            min-width: 22px;
+            min-height: 22px;
+            transform: translate(-50%, -50%);
+            background: transparent !important;
+            border-radius: 50%;
+            border: 3px solid rgba(255, 0, 0, 0.95);
+            box-shadow: 0 0 6px rgba(255, 0, 0, 0.12);
+            z-index: 2;
+            pointer-events: none;
+            box-sizing: border-box;
+        }
+
+        /* Sync note / nonexist từ bảng 10 chuỗi nửa trái (chỉ cửa sổ 10) */
+        .sheet-data-table td.cell-result .result-num-sync-note:not(.result-num-sync-submit):not(.result-focus-chain-hit),
+        .sheet-data-table td.cell-result .result-focus-chain-hit--circle.result-num-sync-note:not(.result-num-sync-submit) {
+            color: #0097a7;
+            font-weight: 800;
+        }
+
+        .sheet-data-table td.cell-result .result-num-sync-nonexist:not(.result-num-sync-submit):not(.result-focus-chain-hit),
+        .sheet-data-table td.cell-result .result-focus-chain-hit--circle.result-num-sync-nonexist:not(.result-num-sync-submit) {
+            color: #e6b800;
+            font-weight: 800;
+        }
+
+        .sheet-data-table td.cell-result .result-num-sync-submit.result-num-sync-note,
+        .sheet-data-table td.cell-result .result-focus-chain-hit.result-num-sync-note:not(.result-focus-chain-hit--nonexist):not(.result-focus-chain-hit--circle) {
+            color: #00e2d2;
+        }
+
+        .sheet-data-table td.cell-result .result-num-sync-submit.result-num-sync-nonexist,
+        .sheet-data-table td.cell-result .result-focus-chain-hit.result-num-sync-nonexist:not(.result-focus-chain-hit--nonexist):not(.result-focus-chain-hit--circle) {
+            color: #e0ca42;
+        }
+
+        /* Phase1: viền mỏng; màu/glow đậm hơn cho sát bên trái */
+        .sheet-data-table td.cell-result .result-num-phase::before {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            width: calc(1em + 6px);
+            height: calc(1em + 6px);
+            border-radius: 3px;
+            border: 2px solid #7e22ce;
+            box-shadow:
+                0 0 4px rgba(126, 34, 206, 0.85),
+                0 0 10px rgba(147, 51, 234, 0.55);
+            pointer-events: none;
+            z-index: 1;
+            box-sizing: border-box;
+            background: transparent;
+        }
+
+        .sheet-data-table td.cell-result .result-num-phase.result-num-phase-max::before {
+            width: calc(1em + 8px);
+            height: calc(1em + 8px);
+            border: 2px solid #ff1493;
+            box-shadow:
+                0 0 5px rgba(255, 20, 147, 0.9),
+                0 0 14px rgba(255, 63, 183, 0.55);
+        }
+
+        .sheet-data-table td.cell-nonexist .nonexist-pick-circle,
+        .sheet-data-table td.cell-nonexist .nonexist-submit-square {
+            position: relative;
+            z-index: 0;
+        }
+
+        /* Submit OFF: khoanh đỏ đúng 1 neo nonexist */
+        .sheet-data-table td.cell-nonexist .nonexist-pick-circle::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: calc(1em + 12px);
+            height: calc(1em + 12px);
+            min-width: 22px;
+            min-height: 22px;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            border: 3px solid rgba(255, 0, 0, 0.95);
+            box-shadow: 0 0 6px rgba(255, 0, 0, 0.12);
+            background: transparent;
+            pointer-events: none;
+            box-sizing: border-box;
+            z-index: 2;
+        }
+
+        /* Submit ON: viền vuông #005000 đúng neo nonexist */
+        .sheet-data-table td.cell-nonexist .nonexist-submit-square {
+            box-shadow: inset 0 0 0 2px #005000;
+            border-radius: 2px;
+            padding: 0 1px;
         }
 
         .sheet-data-table td.window-selected {
@@ -8571,7 +8702,7 @@
         <div id="appStage">
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20260917neonStatic01"
+            <iframe id="okFrame" src="ok_left.html?v=20261001phaseSync02"
                 style="width:100%;height:100%;border:0"></iframe>
         </section>
 
@@ -9396,7 +9527,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261001geoIpWho01"></script>
     <script src="chat.js?v=20260917chatFocusKeys02"></script>
-    <script src="right-pane-sheets.js?v=20260930p1DistResultLetter01"></script>
+    <script src="right-pane-sheets.js?v=20261001nxPickDecor09"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -11009,10 +11140,16 @@
 
         function sendPhaseConfigToIframe() {
             const frame = el('okFrame');
+            const labels = getPhaseChainSelectedLabels();
+            if (sheetManager && typeof sheetManager.setPhaseToolbarConfig === 'function') {
+                sheetManager.setPhaseToolbarConfig({
+                    enabled: !!phaseToolbarEnabled,
+                    selected: Array.isArray(phaseChainSelected) ? phaseChainSelected.slice() : labels
+                });
+            }
             if (!frame || !frame.contentWindow) {
                 return;
             }
-            const labels = getPhaseChainSelectedLabels();
             frame.contentWindow.postMessage({
                 type: 'phaseChanged',
                 enabled: !!phaseToolbarEnabled,
@@ -28428,6 +28565,12 @@ function getFilterNoteTRefMaxSelections(mode) {
                     sheetManager = new RightPaneSheetManager();
                 }
                 sheetManager.loadData(j);
+                if (typeof sheetManager.setPhaseToolbarConfig === 'function') {
+                    sheetManager.setPhaseToolbarConfig({
+                        enabled: !!phaseToolbarEnabled,
+                        selected: Array.isArray(phaseChainSelected) ? phaseChainSelected.slice() : null
+                    });
+                }
                 invalidateFilterPopupRenderCache();
                 rebuildFilterModeCounts();
                 syncComboLogicUi();
@@ -28467,6 +28610,12 @@ function getFilterNoteTRefMaxSelections(mode) {
                     sheetManager = new RightPaneSheetManager();
                 }
                 sheetManager.loadData([]);
+                if (typeof sheetManager.setPhaseToolbarConfig === 'function') {
+                    sheetManager.setPhaseToolbarConfig({
+                        enabled: !!phaseToolbarEnabled,
+                        selected: Array.isArray(phaseChainSelected) ? phaseChainSelected.slice() : null
+                    });
+                }
                 invalidateFilterPopupRenderCache();
                 rebuildFilterModeCounts();
                 syncComboLogicUi();
@@ -29253,6 +29402,14 @@ function getFilterNoteTRefMaxSelections(mode) {
                     }
                     syncAnswerPopupSheet1FocusMask();
                     scheduleComboH1ReplaceFromLeftCircled();
+                } else if (msg.type === 'phaseVisualUpdated') {
+                    if (sheetManager && typeof sheetManager.setLeftPhaseVisual === 'function') {
+                        sheetManager.setLeftPhaseVisual({
+                            enabled: !!msg.enabled,
+                            nums: Array.isArray(msg.nums) ? msg.nums : [],
+                            maxFreqNum: msg.maxFreqNum
+                        });
+                    }
                 } else if (msg.type === 'leftCircledNumsReady') {
                     if (sheetManager && typeof sheetManager.setLeftBasicPreviewPickNums === 'function') {
                         const forceSync = !!msg.forceSync;
@@ -29267,7 +29424,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                             // Echo từ sync tracking: giữ focus chuột phải (retainFocus).
                             // Click tắt khoanh nửa trái: không có flag → cập nhật focus = tip chuỗi.
                             const changed = sheetManager.setLeftBasicPreviewPickNums(msg.nums || [], {
-                                skipFocusUpdate: fromBasicTrackingPreview
+                                skipFocusUpdate: fromBasicTrackingPreview,
+                                submitActive: !!msg.submitActive
                             });
                             if (changed || forceSync) {
                                 window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));

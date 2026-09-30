@@ -437,12 +437,20 @@ class RightPaneSheetManager {
         this._sheet1DomCache = null;
         /** Submit ON ở nửa màn trái (iframe ok_left) — ảnh hưởng basic tracking. */
         this.leftSubmitActive = false;
+        /** Phase1: 5 số tím / số hồng freq max (tính từ cửa sổ sheet1 + sync từ ok_left). */
+        this.leftPhaseMarkedNums = new Set();
+        this.leftPhaseMaxFreqNum = null;
+        this.leftPhaseVisualEnabled = false;
+        /** @type {boolean[]} index 0 = chuỗi 1 … index 9 = chuỗi 10 */
+        this.phaseChainSelected = [true, false, false, false, false, false, false, false, false, false];
         /** Autoring ON (toolbar) — ảnh hưởng basic tracking. */
         this.leftAutoringEnabled = false;
         /** Số khoanh trái — preview freq trên basic tracking (kỳ cuối chưa có đáp án). */
         this.leftBasicPreviewPickNums = [];
         /** Nhớ pick giả lập khi bật Submit (khôi phục khi tắt Submit). */
         this.leftBasicPreviewPickNumsStash = [];
+        /** Số khoanh đỏ nhớ bền (không xóa khi Submit ON). */
+        this.leftCircleRememberNums = [];
         /** Special tracking: giả lập đúng 1 bar (chỉ panel tracking, không đồng bộ nửa trái). */
         this.leftSpecialPreviewPickNum = null;
         this.leftSpecialPreviewPickNumStash = null;
@@ -5022,6 +5030,12 @@ class RightPaneSheetManager {
         const specialBellyIo = this.getSheet1SpecialPickBellyIo(displayRows);
         const bellyCounts = this.countSheet1SpecialPickBellyIo(specialBellyIo, rowIndices);
         const bellyStatsAttr = this.encodeSheet1BellyStatsTooltipAttr(bellyCounts);
+        const focusForNxDecor = typeof highlightIdx === 'number' && highlightIdx >= 0
+            ? highlightIdx
+            : (this.activeWindowRange && typeof this.activeWindowRange.target === 'number'
+                ? this.activeWindowRange.target
+                : -1);
+        const pickDecorMaps = this.buildNonexistPickDecorationMaps(focusForNxDecor);
 
         let html = '<table class="sheet-data-table sheet1-source-table"><thead><tr>'
             + '<th>date</th><th>id</th>'
@@ -5051,7 +5065,10 @@ class RightPaneSheetManager {
             let noteHtml = this.renderNoteHtml(noteMeta.text, noteMeta.highlightYellow, connectionNums);
             const noteStyle = noteMeta.highlightYellow ? ' style="background:#ff0;"' : '';
             const nonexistMeta = this.getNonexistMetaForSourceRow(i, row);
-            let nonexistHtml = this.renderNonexistHtml(i, nonexistMeta.text, result);
+            let nonexistHtml = this.renderNonexistHtml(i, nonexistMeta.text, result, {
+                pickDecorMaps: pickDecorMaps,
+                windowRange: this.activeWindowRange
+            });
             const idStyle = idBg ? ` style="background:${idBg};"` : '';
             const activeClass = highlightIdx === i ? ' filter-popup-row-active' : '';
             const prevRecallFold = !isEmptyResultRow && this.recallsAtLeastOneFromImmediatePrevPeriod(displayRows, i);
@@ -6262,9 +6279,7 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Tập số dùng tô overlap ngoài cửa sổ 10:
-     * - hàng có result → 5 số chính
-     * - chỉ row rỗng cuối → số khoanh giả lập (leftBasicPreviewPickNums)
+     * Chip xanh/vàng focus-chain (chỉ Submit ON): 5 số đáp án kỳ focus.
      * @param {number} focusRowIdx
      * @returns {Set<number>}
      */
@@ -6272,26 +6287,39 @@ class RightPaneSheetManager {
         if (this.isAnswerPopupOpenForFocusChainHit()) {
             return new Set();
         }
+        if (!this.leftSubmitActive) {
+            return new Set();
+        }
         const rows = this.getSourceSheetRows();
         if (typeof focusRowIdx !== 'number' || focusRowIdx < 0 || focusRowIdx >= rows.length) {
             return new Set();
         }
         const focusData = rows[focusRowIdx];
-        if (!focusData) {
+        if (!focusData || this.isEmptyResultRow(focusData)) {
             return new Set();
         }
-        if (!this.isEmptyResultRow(focusData)) {
-            return new Set(this.parseMainNums(focusData.result || focusData.Result || ''));
-        }
-        // Chỉ row rỗng cuối được dùng pick giả lập.
-        if (focusRowIdx !== rows.length - 1) {
+        return new Set(this.parseMainNums(focusData.result || focusData.Result || ''));
+    }
+
+    /**
+     * Viền tròn đỏ theo số khoanh lúc Submit OFF — giữ nguyên khi Submit ON.
+     * @returns {Set<number>}
+     */
+    resolveFocusChainCircleNumSet() {
+        if (this.isAnswerPopupOpenForFocusChainHit()) {
             return new Set();
         }
-        const picks = this.leftBasicPreviewPickNums || [];
+        let picks = Array.isArray(this.leftCircleRememberNums)
+            ? this.leftCircleRememberNums
+            : [];
+        // Submit OFF: fallback pick đang sống. Submit ON: không fallback sang đáp án/pick khác.
+        if (!picks.length && !this.leftSubmitActive) {
+            picks = this.leftBasicPreviewPickNums || [];
+        }
         const out = new Set();
         for (let i = 0; i < picks.length; i++) {
-            const n = picks[i];
-            if (n >= 1 && n <= 35) {
+            const n = parseInt(picks[i], 10);
+            if (Number.isFinite(n) && n >= 1 && n <= 35) {
                 out.add(n);
             }
         }
@@ -6318,43 +6346,14 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Khi khoanh giả lập đổi trên row rỗng cuối — chỉ cập nhật hit (không vẽ lại cả nhãn cửa sổ).
+     * Khi khoanh giả lập / submit / phase đổi — cập nhật decoration số result.
      */
     refreshFocusChainOverlapHighlightsFromActiveWindow() {
-        const r = this.activeWindowRange;
-        if (!r || typeof r.start !== 'number' || typeof r.end !== 'number') {
-            return;
-        }
-        const focusIdx = (typeof r.target === 'number' && r.target >= 0) ? r.target : r.end;
-        const rows = this.getSourceSheetRows();
-        if (focusIdx < 0 || focusIdx >= rows.length) {
-            return;
-        }
-        if (!this.isEmptyResultRow(rows[focusIdx]) || focusIdx !== rows.length - 1) {
-            return;
-        }
-        const tableWrap = this._sheet1NavTableWrap || document.getElementById('tableWrap');
-        if (!tableWrap || tableWrap.classList.contains('table-wrap--tracking')) {
-            return;
-        }
-        if (this.activeSheet !== 'sheet1') {
-            return;
-        }
-        const focusNumSet = this.resolveFocusChainHitNumSet(focusIdx);
-        const focusNxSet = focusNumSet.size
-            ? this.getRowNonexistNumSetForFocusChainHit(focusIdx)
-            : new Set();
-        this.applyFocusChainHitsToOuterRows(
-            tableWrap,
-            r.start,
-            focusIdx,
-            focusNumSet,
-            focusNxSet
-        );
+        this.refreshResultNumDecorationsFromActiveWindow();
     }
 
     /**
-     * Gỡ highlight số result trùng chuỗi 0 focus (ngoài cửa sổ 10).
+     * Gỡ highlight / sync / phase trên số result (ngoài 0–6 + trong cửa sổ 10).
      * @param {HTMLElement} tableWrapEl
      */
     clearFocusChainOverlapResultHighlights(tableWrapEl) {
@@ -6362,7 +6361,7 @@ class RightPaneSheetManager {
         if (!tableWrap) {
             return;
         }
-        const hits = tableWrap.querySelectorAll('td.cell-result .result-focus-chain-hit');
+        const hits = tableWrap.querySelectorAll('td.cell-result .result-num-decor');
         if (!hits.length) {
             return;
         }
@@ -6380,7 +6379,7 @@ class RightPaneSheetManager {
             const tr = tableWrap.querySelector(`tbody tr[data-idx="${idx}"]`);
             const cell = tr && tr.querySelector('td.cell-result');
             if (cell) {
-                this.rebuildResultCellMainWithFocusHits(cell, idx, null);
+                this.rebuildResultCellMainWithFocusHits(cell, idx, null, null, {});
             }
         });
     }
@@ -6411,41 +6410,140 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Bọc số chính (trước |) trùng tập focus bằng .result-focus-chain-hit.
+     * Đọc style số trên bảng 10 chuỗi nửa trái (iframe ok_left).
+     * @returns {Map<number, {submit:boolean, note:boolean, nonexist:boolean, phase:boolean, phaseMax:boolean}>}
+     */
+    readLeftNumDecorMap() {
+        const map = new Map();
+        try {
+            const frame = document.getElementById('okFrame');
+            const doc = frame && frame.contentDocument;
+            if (!doc) {
+                return map;
+            }
+            doc.querySelectorAll('.cell.num[data-num]').forEach((span) => {
+                const n = parseInt(span.getAttribute('data-num'), 10);
+                if (!Number.isFinite(n) || n < 1 || n > 35) {
+                    return;
+                }
+                const prev = map.get(n) || {
+                    submit: false,
+                    note: false,
+                    nonexist: false,
+                    phase: false,
+                    phaseMax: false
+                };
+                map.set(n, {
+                    submit: prev.submit || span.classList.contains('submit-highlight'),
+                    note: prev.note || span.classList.contains('note-highlight'),
+                    nonexist: prev.nonexist || span.classList.contains('nonexist-intersect'),
+                    phase: prev.phase
+                        || span.classList.contains('phase-chain-square')
+                        || span.classList.contains('phase-max-freq'),
+                    phaseMax: prev.phaseMax || span.classList.contains('phase-max-freq')
+                });
+            });
+        } catch (e) { /* cross-origin / unloaded */ }
+        return map;
+    }
+
+    /**
+     * Bọc số chính (trước |) — focus-chain hit, sync màu nửa trái, viền phase1.
      * @param {string} resultHtml
-     * @param {Set<number>|null} focusNumSet
-     * @param {Set<number>|null} [focusNonexistNumSet]
+     * @param {{
+     *   focusHitSet?: Set<number>|null,
+     *   focusNxSet?: Set<number>|null,
+     *   focusCircleSet?: Set<number>|null,
+     *   leftMap?: Map<number, object>|null,
+     *   syncColors?: boolean,
+     *   applyPhase?: boolean
+     * }} [opts]
      * @returns {string}
      */
-    wrapFocusChainHitsInResultHtml(resultHtml, focusNumSet, focusNonexistNumSet = null) {
-        if (!resultHtml || !focusNumSet || !focusNumSet.size) {
-            return resultHtml || '';
+    decorateResultMainNums(resultHtml, opts = {}) {
+        if (!resultHtml) {
+            return '';
         }
-        const nxSet = focusNonexistNumSet && focusNonexistNumSet.size ? focusNonexistNumSet : null;
+        const focusHitSet = opts.focusHitSet && opts.focusHitSet.size ? opts.focusHitSet : null;
+        const focusNxSet = opts.focusNxSet && opts.focusNxSet.size ? opts.focusNxSet : null;
+        const focusCircleSet = opts.focusCircleSet && opts.focusCircleSet.size ? opts.focusCircleSet : null;
+        const leftMap = opts.leftMap || null;
+        const syncColors = !!opts.syncColors;
+        const applyPhase = !!opts.applyPhase;
+        if (!focusHitSet && !focusCircleSet && !syncColors && !applyPhase) {
+            return resultHtml;
+        }
         const pipeIndex = resultHtml.indexOf('|');
         const before = pipeIndex >= 0 ? resultHtml.slice(0, pipeIndex) : resultHtml;
         const after = pipeIndex >= 0 ? resultHtml.slice(pipeIndex) : '';
         const wrapped = before.replace(/\b(\d{1,2})\b/g, (m) => {
             const n = parseInt(m, 10);
-            if (Number.isFinite(n) && focusNumSet.has(n)) {
-                const cls = (nxSet && nxSet.has(n))
-                    ? 'result-focus-chain-hit result-focus-chain-hit--nonexist'
-                    : 'result-focus-chain-hit';
-                return `<span class="${cls}">${m}</span>`;
+            if (!Number.isFinite(n)) {
+                return m;
             }
-            return m;
+            const left = leftMap ? leftMap.get(n) : null;
+            const classes = [];
+            const isGreenHit = !!(focusHitSet && focusHitSet.has(n));
+            const isCircle = !!(focusCircleSet && focusCircleSet.has(n));
+            if (isGreenHit) {
+                classes.push('result-focus-chain-hit');
+                if (focusNxSet && focusNxSet.has(n)) {
+                    classes.push('result-focus-chain-hit--nonexist');
+                }
+            }
+            if (isCircle) {
+                classes.push('result-focus-chain-hit--circle');
+            }
+            if (syncColors && left) {
+                if (left.submit) {
+                    classes.push('result-num-sync-submit');
+                }
+                if (left.note) {
+                    classes.push('result-num-sync-note');
+                }
+                if (left.nonexist) {
+                    classes.push('result-num-sync-nonexist');
+                }
+            }
+            if (applyPhase && this.leftPhaseVisualEnabled) {
+                if (this.leftPhaseMaxFreqNum != null && n === this.leftPhaseMaxFreqNum) {
+                    classes.push('result-num-phase', 'result-num-phase-max');
+                } else if (this.leftPhaseMarkedNums && this.leftPhaseMarkedNums.has(n)) {
+                    classes.push('result-num-phase');
+                }
+            }
+            if (!classes.length) {
+                return m;
+            }
+            classes.unshift('result-num-decor');
+            return `<span class="${classes.join(' ')}">${m}</span>`;
         });
         return wrapped + after;
     }
 
     /**
-     * Render lại nội dung result (giữ fold + win-label), optional bọc số trùng focus.
+     * @deprecated Dùng decorateResultMainNums.
+     */
+    wrapFocusChainHitsInResultHtml(resultHtml, focusNumSet, focusNonexistNumSet = null) {
+        return this.decorateResultMainNums(resultHtml, {
+            focusHitSet: focusNumSet,
+            focusNxSet: focusNonexistNumSet
+        });
+    }
+
+    /**
+     * Render lại nội dung result (giữ fold + win-label) kèm decoration.
      * @param {HTMLElement} resultCell
      * @param {number} rowIndex
-     * @param {Set<number>|null} focusNumSet
-     * @param {Set<number>|null} [focusNonexistNumSet]
+     * @param {{
+     *   focusHitSet?: Set<number>|null,
+     *   focusNxSet?: Set<number>|null,
+     *   leftMap?: Map<number, object>|null,
+     *   syncColors?: boolean,
+     *   applyPhase?: boolean
+     * }} [opts]
      */
-    rebuildResultCellMainWithFocusHits(resultCell, rowIndex, focusNumSet, focusNonexistNumSet = null) {
+    rebuildResultCellMainWithFocusHits(resultCell, rowIndex, focusNumSet, focusNonexistNumSet = null, opts = null) {
         if (!resultCell || !Number.isFinite(rowIndex)) {
             return;
         }
@@ -6460,42 +6558,59 @@ class RightPaneSheetManager {
         const winLabel = resultCell.querySelector('.win-label-inline');
         const winLabelHtml = winLabel ? winLabel.outerHTML : '';
         let resultHtml = this.highlightResultByFrequency(result);
-        if (focusNumSet && focusNumSet.size) {
-            resultHtml = this.wrapFocusChainHitsInResultHtml(
-                resultHtml,
-                focusNumSet,
-                focusNonexistNumSet
-            );
-        }
+        const decorOpts = opts && typeof opts === 'object'
+            ? opts
+            : {
+                focusHitSet: focusNumSet,
+                focusNxSet: focusNonexistNumSet
+            };
+        resultHtml = this.decorateResultMainNums(resultHtml, decorOpts);
         resultCell.innerHTML = foldHtml + resultHtml + winLabelHtml;
     }
 
     /**
-     * Áp focus-chain hit (chip span) lên chuỗi ngoài 0–5.
+     * Áp decoration số result: ngoài 0–6 + trong cửa sổ 10.
+     * - Focus-chain hit: ngoài + trong (trừ chuỗi 0 / hàng focus)
+     * - Sync màu nửa trái: chỉ trong cửa sổ chuỗi 1–10 (không chuỗi 0)
+     * - Viền phase1: ngoài + trong (không chuỗi 0)
      * @param {HTMLElement} tableWrap
      * @param {number} startIdx
      * @param {number} focusRowIdx
      * @param {Set<number>} focusNumSet
      * @param {Set<number>} focusNxSet
+     * @param {number} [endIdx]
      */
-    applyFocusChainHitsToOuterRows(tableWrap, startIdx, focusRowIdx, focusNumSet, focusNxSet) {
+    applyFocusChainHitsToOuterRows(tableWrap, startIdx, focusRowIdx, focusNumSet, focusNxSet, endIdx = null) {
         if (!tableWrap || typeof startIdx !== 'number') {
             return;
         }
 
-        // Gỡ hit cũ (giữ win-label) rồi gắn lại theo set mới.
+        const OUTER_MAX = 6;
+        const winEnd = (typeof endIdx === 'number' && endIdx >= startIdx)
+            ? endIdx
+            : (startIdx + 9);
+        // Tính phase theo cửa sổ sheet1 trước khi tô — không phụ thuộc timing iframe trái.
+        try {
+            this.recomputePhaseDecorFromActiveWindow();
+        } catch (eRePh) { /* ignore */ }
+        const leftMap = this.readLeftNumDecorMap();
+
+        // Gỡ decor cũ (giữ win-label) rồi gắn lại.
         const touched = new Set();
-        tableWrap.querySelectorAll('td.cell-result .result-focus-chain-hit').forEach((span) => {
+        tableWrap.querySelectorAll('td.cell-result .result-num-decor').forEach((span) => {
             const tr = span.closest('tr[data-idx]');
             if (tr) {
                 touched.add(Number(tr.dataset.idx));
             }
         });
-        for (let outer = 0; outer <= 5; outer++) {
+        for (let outer = 0; outer <= OUTER_MAX; outer++) {
             const rowIdx = startIdx - 1 - outer;
-            if (rowIdx >= 0 && rowIdx !== focusRowIdx) {
+            if (rowIdx >= 0) {
                 touched.add(rowIdx);
             }
+        }
+        for (let idx = startIdx; idx <= winEnd; idx++) {
+            touched.add(idx);
         }
         touched.forEach((idx) => {
             if (!Number.isFinite(idx) || idx < 0) {
@@ -6509,16 +6624,127 @@ class RightPaneSheetManager {
             if (!cell) {
                 return;
             }
-            const inOuter = typeof startIdx === 'number'
-                && idx <= startIdx - 1
-                && idx >= startIdx - 6
-                && idx !== focusRowIdx;
-            this.rebuildResultCellMainWithFocusHits(
-                cell,
-                idx,
-                inOuter && focusNumSet && focusNumSet.size ? focusNumSet : null,
-                inOuter ? focusNxSet : null
-            );
+            // Chuỗi 0 (hàng focus): không focus-hit / sync màu / viền phase.
+            if (idx === focusRowIdx) {
+                this.rebuildResultCellMainWithFocusHits(cell, idx, null, null, {});
+                return;
+            }
+            const inOuter = idx <= startIdx - 1
+                && idx >= startIdx - 1 - OUTER_MAX;
+            const inWindow = idx >= startIdx && idx <= winEnd;
+            if (!inOuter && !inWindow) {
+                this.rebuildResultCellMainWithFocusHits(cell, idx, null, null, {});
+                return;
+            }
+            const applyFocusHit = !!(focusNumSet && focusNumSet.size);
+            const circleSet = this.resolveFocusChainCircleNumSet();
+            const applyCircle = !!(circleSet && circleSet.size);
+            this.rebuildResultCellMainWithFocusHits(cell, idx, null, null, {
+                focusHitSet: applyFocusHit ? focusNumSet : null,
+                focusNxSet: applyFocusHit ? focusNxSet : null,
+                focusCircleSet: applyCircle ? circleSet : null,
+                leftMap: leftMap,
+                syncColors: inWindow,
+                applyPhase: inOuter || inWindow
+            });
+        });
+    }
+
+    /**
+     * Vẽ lại decoration số result theo activeWindowRange (submit/phase/focus đổi).
+     */
+    refreshResultNumDecorationsFromActiveWindow() {
+        const r = this.activeWindowRange;
+        if (!r || typeof r.start !== 'number' || typeof r.end !== 'number') {
+            return;
+        }
+        const focusIdx = (typeof r.target === 'number' && r.target >= 0) ? r.target : r.end;
+        const tableWrap = this._sheet1NavTableWrap || document.getElementById('tableWrap');
+        if (!tableWrap || tableWrap.classList.contains('table-wrap--tracking')) {
+            return;
+        }
+        if (this.activeSheet !== 'sheet1') {
+            return;
+        }
+        const focusNumSet = this.resolveFocusChainHitNumSet(focusIdx);
+        const focusNxSet = focusNumSet.size
+            ? this.getRowNonexistNumSetForFocusChainHit(focusIdx)
+            : new Set();
+        this.applyFocusChainHitsToOuterRows(
+            tableWrap,
+            r.start,
+            focusIdx,
+            focusNumSet,
+            focusNxSet,
+            r.end
+        );
+        // Nonexist: khoanh đỏ / viền #005000 tại neo vàng chuỗi0 | tím đầu | đỏ đầu.
+        try {
+            const pickDecorMaps = this.buildNonexistPickDecorationMaps(focusIdx);
+            const nxRows = this.collectNonexistBoostRefreshRowIndices(r);
+            pickDecorMaps.circleAnchors.forEach((row) => nxRows.add(row));
+            pickDecorMaps.squareAnchors.forEach((row) => nxRows.add(row));
+            this.refreshNonexistCellsForRowIndices(tableWrap, nxRows, {
+                windowRange: r,
+                pickDecorMaps: pickDecorMaps,
+                skipWindowLabels: true
+            });
+        } catch (eNxDecor) { /* ignore */ }
+    }
+
+    /**
+     * Gộp refresh decoration (Submit + leftCircledNums thường tới sát nhau).
+     */
+    scheduleResultNumDecorationsRefresh() {
+        if (this._resultDecorRefreshRaf) {
+            return;
+        }
+        this._resultDecorRefreshRaf = requestAnimationFrame(() => {
+            this._resultDecorRefreshRaf = 0;
+            try {
+                this.refreshResultNumDecorationsFromActiveWindow();
+            } catch (e) { /* ignore */ }
+        });
+    }
+
+    /**
+     * Gắn lại nhãn cửa sổ chỉ trên ô nonexist đã refresh (nhẹ hơn renderWindowLabels đầy đủ).
+     */
+    reattachWinLabelsOnNonexistRows(tableWrap, rowIndices, startIdx, endIdx, focusRowIdx) {
+        if (!tableWrap || typeof startIdx !== 'number' || typeof endIdx !== 'number') {
+            return;
+        }
+        const indices = rowIndices instanceof Set
+            ? rowIndices
+            : new Set(Array.isArray(rowIndices) ? rowIndices : []);
+        indices.forEach((rowIdx) => {
+            if (!Number.isFinite(rowIdx) || rowIdx < 0) {
+                return;
+            }
+            const tr = tableWrap.querySelector(`tbody tr[data-idx="${rowIdx}"]`);
+            const cell = tr && tr.querySelector('td.cell-nonexist');
+            if (!cell) {
+                return;
+            }
+            cell.querySelectorAll('.win-label-inline').forEach((el) => el.remove());
+            let text = '';
+            let extra = '';
+            if (rowIdx === focusRowIdx) {
+                text = '0';
+                extra = 'win-label-inline--focus';
+            } else if (rowIdx >= startIdx && rowIdx <= endIdx) {
+                text = String(10 - (rowIdx - startIdx));
+            } else if (rowIdx < startIdx && rowIdx >= startIdx - 7) {
+                const outer = startIdx - 1 - rowIdx;
+                text = String(outer);
+                extra = outer === 0 ? 'win-label-inline--outer-0' : 'win-label-inline--outer';
+            } else {
+                return;
+            }
+            const label = document.createElement('span');
+            label.className = extra ? `win-label-inline ${extra}` : 'win-label-inline';
+            label.textContent = text;
+            cell.appendChild(label);
         });
     }
 
@@ -6988,10 +7214,10 @@ class RightPaneSheetManager {
 
     /**
      * Draw inline chain labels on result/note/nonexist:
-     * - ngoài trên cửa sổ: 0..5 (sát nhãn 10 → 0, xa hơn → 5)
+     * - ngoài trên cửa sổ: 0..6 (sát nhãn 10 → 0, xa hơn → 6)
      * - trong cửa sổ: 10..1
      * - hàng focus: 0
-     * Đồng thời highlight số result ngoài 0–5 trùng pick chuỗi 0 focus.
+     * Đồng thời highlight số result (ngoài 0–6 + trong cửa sổ 10) trùng pick chuỗi 0 focus.
      */
     renderWindowLabels(startIdx, endIdx, tableWrapEl, focusIdx = null) {
         const tableWrap = tableWrapEl || document.getElementById('tableWrap');
@@ -7032,20 +7258,21 @@ class RightPaneSheetManager {
             ? this.getRowNonexistNumSetForFocusChainHit(focusRowIdx)
             : new Set();
 
-        // Hit trước nhãn: fallback span rebuild result không xóa win-label vừa gắn.
-        if (typeof startIdx === 'number' && startIdx > 0) {
+        // Hit trước nhãn: rebuild result không xóa win-label vừa gắn.
+        if (typeof startIdx === 'number') {
             this.applyFocusChainHitsToOuterRows(
                 tableWrap,
                 startIdx,
                 focusRowIdx,
                 focusNumSet,
-                focusNonexistNumSet
+                focusNonexistNumSet,
+                endIdx
             );
         }
 
-        // Ngoài trên cửa sổ (liền trên nhãn 10 vàng): startIdx-1=0 … startIdx-6=5.
+        // Ngoài trên cửa sổ (liền trên nhãn 10 vàng): startIdx-1=0 … startIdx-7=6.
         if (typeof startIdx === 'number' && startIdx > 0) {
-            for (let outer = 0; outer <= 5; outer++) {
+            for (let outer = 0; outer <= 6; outer++) {
                 const rowIdx = startIdx - 1 - outer;
                 if (rowIdx < 0) {
                     break;
@@ -7716,6 +7943,13 @@ class RightPaneSheetManager {
             return;
         }
 
+        const win = options.windowRange || this.activeWindowRange;
+        const focusIdx = (win && typeof win.target === 'number' && win.target >= 0)
+            ? win.target
+            : (win && typeof win.end === 'number' ? win.end : -1);
+        const pickDecorMaps = options.pickDecorMaps
+            || (forFilterPopup ? null : this.buildNonexistPickDecorationMaps(focusIdx));
+
         for (const i of indices) {
             if (i < 0 || i >= displayRows.length) {
                 continue;
@@ -7730,21 +7964,31 @@ class RightPaneSheetManager {
             }
             const row = displayRows[i];
             cell.innerHTML = this.renderSourceRowNonexistCellHtml(i, row, {
-                windowRange: options.windowRange || null
+                windowRange: options.windowRange || null,
+                pickDecorMaps: pickDecorMaps
             });
             const masked = this.shouldAnswerPopupMaskSheet1Row(i);
             tr.classList.toggle('answer-popup-focus-masked', masked);
             cell.classList.toggle('answer-popup-focus-nonexist', masked);
         }
 
-        // innerHTML nonexist xóa .win-label-inline — gắn lại nhãn chuỗi + 0 (result/note không bị refresh nên vẫn còn).
-        const win = options.windowRange || this.activeWindowRange;
+        // innerHTML nonexist xóa .win-label-inline — gắn lại nhãn.
         if (win && typeof win.start === 'number' && typeof win.end === 'number'
             && win.end >= win.start) {
-            const focusIdx = (typeof win.target === 'number' && win.target >= 0)
+            const labelFocusIdx = (typeof win.target === 'number' && win.target >= 0)
                 ? win.target
                 : win.end;
-            this.renderWindowLabels(win.start, win.end, tableWrap, focusIdx);
+            if (options.skipWindowLabels) {
+                this.reattachWinLabelsOnNonexistRows(
+                    tableWrap,
+                    indices,
+                    win.start,
+                    win.end,
+                    labelFocusIdx
+                );
+            } else {
+                this.renderWindowLabels(win.start, win.end, tableWrap, labelFocusIdx);
+            }
         }
     }
 
@@ -7918,6 +8162,218 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Hàng nonexist đầu tiên có kind trong phạm vi hẹp (không quét cả sheet — tránh lag Submit).
+     * @param {number} num
+     * @param {string} kind
+     * @param {number} lo
+     * @param {number} hi
+     * @returns {number}
+     */
+    findFirstNonexistKindRowInRange(num, kind, lo, hi) {
+        const n = parseInt(num, 10);
+        const want = String(kind || '');
+        if (!Number.isFinite(n) || !want) {
+            return -1;
+        }
+        const rows = this.getSourceSheetRows();
+        if (!this.nonexistCache || this.nonexistCache.length !== rows.length) {
+            this.refreshDerivedState();
+        }
+        const minLo = Math.max(0, Math.floor(Number(lo)) || 0);
+        const maxHi = Math.min(rows.length - 1, Math.floor(Number(hi)));
+        if (maxHi < minLo) {
+            return -1;
+        }
+        for (let i = minLo; i <= maxHi; i++) {
+            if (this.getNonexistDisplayKindForNumberOnSourceRow(i, n) === want) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /** @deprecated Dùng findFirstNonexistKindRowInRange — quét full sheet quá nặng. */
+    findFirstNonexistKindRow(num, kind) {
+        const win = this.activeWindowRange;
+        if (win && typeof win.start === 'number' && typeof win.end === 'number') {
+            return this.findFirstNonexistKindRowInRange(
+                num,
+                kind,
+                Math.max(0, win.start - 40),
+                win.end
+            );
+        }
+        const rows = this.getSourceSheetRows();
+        return this.findFirstNonexistKindRowInRange(num, kind, Math.max(0, rows.length - 80), rows.length - 1);
+    }
+
+    /**
+     * Neo duy nhất khoanh nonexist = đúng hàng đang style size x1.5 cho `num`.
+     * (Không quét cả lịch sử — chỉ cửa sổ + trail O(1).)
+     * @param {number} num
+     * @param {number} focusRowIdx
+     * @returns {number} row index hoặc -1
+     */
+    resolveNonexistPickAnchorRow(num, focusRowIdx) {
+        const n = parseInt(num, 10);
+        if (!Number.isFinite(n) || n < 1 || n > 35) {
+            return -1;
+        }
+        const win = this.activeWindowRange;
+        const focusIdx = (typeof focusRowIdx === 'number' && focusRowIdx >= 0)
+            ? focusRowIdx
+            : (win && typeof win.target === 'number' ? win.target
+                : (win && typeof win.end === 'number' ? win.end : -1));
+
+        if (win && typeof win.start === 'number' && typeof win.end === 'number') {
+            const start = win.start;
+            const end = win.end;
+            const maxLabels = Math.min(10, Math.max(0, end - start + 1));
+            const lastLabeledRow = start + maxLabels - 1;
+            const yellowHi = Math.max(lastLabeledRow, focusIdx >= 0 ? focusIdx : lastLabeledRow);
+            const trailFocus = focusIdx >= 0 ? focusIdx : end;
+
+            // 1) Trail vàng x1.5 ngoài cửa — chỉ quét tối đa 80 hàng phía trên (đủ cho UI)
+            const trailSet = this._getFocusNonexistTrailNumsCache();
+            const trailDirect = trailSet.has(n)
+                ? trailSet
+                : this.getFocusRowPurpleRedNonexistTrailNums(trailFocus);
+            if (trailDirect.has(n)
+                && this.findNearestYellowNonexistRowInRange(n, start, end) < 0) {
+                const outsideYellow = this.findNearestYellowNonexistRowInRange(
+                    n,
+                    Math.max(0, start - 80),
+                    start - 1
+                );
+                if (outsideYellow >= 0) {
+                    return outsideYellow;
+                }
+            }
+
+            // 2) Vàng x1.5 trong cửa — một lần tìm nearest + shouldBoost
+            const nearestYellow = this.findNearestYellowNonexistRowInRange(n, start, yellowHi);
+            if (nearestYellow >= 0
+                && this.shouldBoostYellowNonexistForWindow(nearestYellow, n, win)) {
+                return nearestYellow;
+            }
+
+            // 3) Xanh x1.5 — chỉ ~11 hàng cửa sổ
+            for (let row = yellowHi; row >= start; row--) {
+                const kind = this.getNonexistDisplayKindForNumberOnSourceRow(row, n);
+                if (kind === 'green'
+                    || kind === 'green-ul'
+                    || kind === 'green-italic'
+                    || kind === 'green-strike') {
+                    return row;
+                }
+            }
+
+            // 4) Fallback hẹp trong cửa sổ
+            if (focusIdx >= 0) {
+                const focusKind = this.getNonexistDisplayKindForNumberOnSourceRow(focusIdx, n);
+                if (focusKind === 'yellow') {
+                    return focusIdx;
+                }
+            }
+            const purpleRow = this.findFirstNonexistKindRowInRange(n, 'purple', start, yellowHi);
+            if (purpleRow >= 0) {
+                return purpleRow;
+            }
+            const redRow = this.findFirstNonexistKindRowInRange(n, 'red', start, yellowHi);
+            if (redRow >= 0) {
+                return redRow;
+            }
+        }
+
+        return -1;
+    }
+
+    /**
+     * Số freq=0 trong cửa sổ 10 chuỗi trước kỳ focus (không gồm chuỗi 0 / đáp án).
+     * Khớp bảng tần suất nửa trái — viền nonexist chỉ áp cho các số này.
+     * @returns {Set<number>}
+     */
+    getActiveWindowFreqZeroNumSet() {
+        const out = new Set();
+        const win = this.activeWindowRange;
+        if (!win) {
+            return out;
+        }
+        const focusIdx = (typeof win.target === 'number' && win.target >= 0)
+            ? win.target
+            : (typeof win.end === 'number' ? win.end : -1);
+        if (focusIdx < 0) {
+            return out;
+        }
+        const freq = this.computeMainNumsWindow10Freq(this.getSourceSheetRows(), focusIdx);
+        for (let i = 1; i <= 35; i++) {
+            if ((freq[i] || 0) === 0) {
+                out.add(i);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Map số → hàng neo nonexist:
+     * - Khoanh đỏ: luôn theo bộ đã khoanh ∩ freq=0 (giữ khi Submit ON)
+     * - Viền #005000: chỉ Submit ON, đáp án ∩ freq=0
+     *   (số vừa khoanh vừa đáp án freq=0 → nhận cả hai)
+     * @param {number} focusRowIdx
+     * @returns {{ circleAnchors: Map<number, number>, squareAnchors: Map<number, number> }}
+     */
+    buildNonexistPickDecorationMaps(focusRowIdx) {
+        const circleAnchors = new Map();
+        const squareAnchors = new Map();
+        if (this.isAnswerPopupOpenForFocusChainHit()) {
+            return { circleAnchors, squareAnchors };
+        }
+        const focusIdx = typeof focusRowIdx === 'number' ? focusRowIdx : -1;
+        const freqZero = this.getActiveWindowFreqZeroNumSet();
+        const remembered = this.resolveFocusChainCircleNumSet();
+        remembered.forEach((raw) => {
+            const n = parseInt(raw, 10);
+            if (!Number.isFinite(n) || !freqZero.has(n)) {
+                return;
+            }
+            const row = this.resolveNonexistPickAnchorRow(n, focusIdx);
+            if (row < 0) {
+                return;
+            }
+            circleAnchors.set(n, row);
+        });
+        if (this.leftSubmitActive && focusIdx >= 0) {
+            this.resolveFocusChainHitNumSet(focusIdx).forEach((raw) => {
+                const n = parseInt(raw, 10);
+                if (!Number.isFinite(n) || !freqZero.has(n)) {
+                    return;
+                }
+                const row = this.resolveNonexistPickAnchorRow(n, focusIdx);
+                if (row < 0) {
+                    return;
+                }
+                squareAnchors.set(n, row);
+            });
+        }
+        return { circleAnchors, squareAnchors };
+    }
+
+    getNonexistPickDecorClassAttr(rowIndex, value, options) {
+        const maps = options && options.pickDecorMaps;
+        if (!maps) {
+            return '';
+        }
+        const classes = [];
+        if (maps.circleAnchors && maps.circleAnchors.get(value) === rowIndex) {
+            classes.push('nonexist-pick-circle');
+        }
+        if (maps.squareAnchors && maps.squareAnchors.get(value) === rowIndex) {
+            classes.push('nonexist-submit-square');
+        }
+        return classes.length ? ` class="${classes.join(' ')}"` : '';
+    }
+
+    /**
      * Render nonexist text using the generated values from result data only.
      */
     renderNonexistHtml(rowIndex, nonexistText, currentResult, options = {}) {
@@ -7931,6 +8387,16 @@ class RightPaneSheetManager {
         const purpleOutsideStyle = 'color:rgb(148,55,220);font-weight:bold';
 
         const trailYellowBoostStyle = 'color:rgb(240,200,64);font-weight:bold;font-size:1.5em';
+        const wrap = (value, style) => {
+            const cls = this.getNonexistPickDecorClassAttr(rowIndex, value, options);
+            if (style) {
+                return `<span${cls} style="${style}">${value}</span>`;
+            }
+            if (cls) {
+                return `<span${cls}>${value}</span>`;
+            }
+            return String(value);
+        };
 
         return this.escapeHtml(nonexistText).replace(/\b\d+\b/g, (match) => {
             const value = parseInt(match, 10);
@@ -7944,35 +8410,36 @@ class RightPaneSheetManager {
                 || displayKind === 'green-strike'
             );
             if (!isGreenKind && this.isOutsideWindowFocusTrailBoost(rowIndex, value, windowRange)) {
-                return `<span style="${trailYellowBoostStyle}">${value}</span>`;
+                return wrap(value, trailYellowBoostStyle);
             }
 
             if (displayKind === 'red') {
-                return `<span style="${redLongestStyle}">${value}</span>`;
+                return wrap(value, redLongestStyle);
             }
             if (displayKind === 'green-ul') {
-                return `<span style="color:rgb(0,80,0);font-weight:bold;text-decoration:underline;font-size:1.5em">${value}</span>`;
+                return wrap(value, 'color:rgb(0,80,0);font-weight:bold;text-decoration:underline;font-size:1.5em');
             }
             if (displayKind === 'green-strike') {
-                return `<span style="${greenStrikeStyle}">${value}</span>`;
+                return wrap(value, greenStrikeStyle);
             }
             if (displayKind === 'purple') {
-                return `<span style="${purpleOutsideStyle}">${value}</span>`;
+                return wrap(value, purpleOutsideStyle);
             }
 
             if (!displayKind) {
-                return match;
+                const bare = wrap(value, '');
+                return bare === String(value) ? match : bare;
             }
             if (displayKind === 'green-italic') {
-                return `<span style="color:rgb(0,80,0);font-weight:bold;font-style:italic;font-size:1.5em">${value}</span>`;
+                return wrap(value, 'color:rgb(0,80,0);font-weight:bold;font-style:italic;font-size:1.5em');
             }
             if (displayKind === 'yellow') {
                 const boost = this.shouldBoostYellowNonexistForWindow(rowIndex, value, windowRange);
                 const fs = boost ? 'font-size:1.5em;' : '';
-                return `<span style="color:rgb(240,200,64);font-weight:bold;${fs}">${value}</span>`;
+                return wrap(value, `color:rgb(240,200,64);font-weight:bold;${fs}`);
             }
             if (displayKind === 'green') {
-                return `<span style="color:rgb(0,80,0);font-weight:bold;font-size:1.5em">${value}</span>`;
+                return wrap(value, 'color:rgb(0,80,0);font-weight:bold;font-size:1.5em');
             }
             return match;
         });
@@ -12446,7 +12913,12 @@ class RightPaneSheetManager {
             return;
         }
         if (next) {
-            this.leftBasicPreviewPickNumsStash = (this.leftBasicPreviewPickNums || []).slice();
+            // Chốt bộ khoanh lúc Submit OFF — dùng tô đỏ suốt lúc Submit ON (không lấy đáp án).
+            const snap = (this.leftBasicPreviewPickNums || []).slice();
+            this.leftBasicPreviewPickNumsStash = snap;
+            if (snap.length) {
+                this.leftCircleRememberNums = snap.slice();
+            }
             this.leftBasicPreviewPickNums = [];
             this.leftSpecialPreviewPickNumStash = this.leftSpecialPreviewPickNum;
             this.leftSpecialPreviewPickNum = null;
@@ -12468,9 +12940,163 @@ class RightPaneSheetManager {
             }
         }
         try {
-            this.refreshFocusChainOverlapHighlightsFromActiveWindow();
+            // Gộp với leftCircledNums / tracking — tránh refresh chồng khi toggle Submit.
+            this.scheduleResultNumDecorationsRefresh();
         } catch (eHitSub) { /* ignore */ }
-        this.requestTrackingUiRepaintIfActive();
+        // Tracking repaint để frame sau (sau decoration) — giảm khựng cùng lúc.
+        requestAnimationFrame(() => {
+            try {
+                this.requestTrackingUiRepaintIfActive();
+            } catch (eTrk) { /* ignore */ }
+        });
+    }
+
+    /**
+     * Cấu hình phase toolbar (parent) — dùng để tự tính 5 số phase theo cửa sổ sheet1.
+     * @param {{ enabled?: boolean, selected?: boolean[]|number[] }} cfg
+     */
+    setPhaseToolbarConfig(cfg) {
+        const c = cfg && typeof cfg === 'object' ? cfg : {};
+        if (typeof c.enabled === 'boolean') {
+            this.leftPhaseVisualEnabled = c.enabled;
+        }
+        if (Array.isArray(c.selected)) {
+            const next = [false, false, false, false, false, false, false, false, false, false];
+            if (c.selected.length && typeof c.selected[0] === 'boolean') {
+                for (let i = 0; i < 10; i++) {
+                    next[i] = !!c.selected[i];
+                }
+            } else {
+                c.selected.forEach((v) => {
+                    const n = parseInt(v, 10);
+                    if (Number.isFinite(n) && n >= 1 && n <= 10) {
+                        next[n - 1] = true;
+                    }
+                });
+            }
+            this.phaseChainSelected = next;
+        }
+        try {
+            this.recomputePhaseDecorFromActiveWindow();
+            this.refreshResultNumDecorationsFromActiveWindow();
+        } catch (ePhCfg) { /* ignore */ }
+    }
+
+    /**
+     * Tính tập số phase + freq max từ cửa sổ 10 hiện tại (khớp nhãn chuỗi 1–10 bên trái).
+     * Cửa sổ chuẩn [focus−10 .. focus]: 10 chuỗi = start..end−1 (nhãn 10→1); hàng focus = đáp án (nhãn 0).
+     */
+    recomputePhaseDecorFromActiveWindow() {
+        const marked = new Set();
+        let maxFreqNum = null;
+        if (!this.leftPhaseVisualEnabled) {
+            this.leftPhaseMarkedNums = marked;
+            this.leftPhaseMaxFreqNum = null;
+            return { marked, maxFreqNum };
+        }
+        const r = this.activeWindowRange;
+        if (!r || typeof r.start !== 'number' || typeof r.end !== 'number') {
+            this.leftPhaseMarkedNums = marked;
+            this.leftPhaseMaxFreqNum = null;
+            return { marked, maxFreqNum };
+        }
+        const startIdx = r.start;
+        const endIdx = r.end;
+        const focusRowIdx = (typeof r.target === 'number' && r.target >= 0) ? r.target : endIdx;
+        const rows = this.getSourceSheetRows();
+        const selected = Array.isArray(this.phaseChainSelected)
+            ? this.phaseChainSelected
+            : [true, false, false, false, false, false, false, false, false, false];
+
+        // 10 hàng chuỗi (loại hàng focus nếu focus = mốc đáp án cuối cửa sổ).
+        const standardAnswerFocus = focusRowIdx === endIdx && (endIdx - startIdx) === 10;
+        const chainLo = startIdx;
+        const chainHi = standardAnswerFocus ? (endIdx - 1) : endIdx;
+
+        for (let label = 1; label <= 10; label++) {
+            if (!selected[label - 1]) {
+                continue;
+            }
+            const rowIdx = startIdx + (10 - label);
+            if (rowIdx < chainLo || rowIdx > chainHi || rowIdx < 0 || rowIdx >= rows.length) {
+                continue;
+            }
+            if (rowIdx === focusRowIdx && standardAnswerFocus) {
+                continue;
+            }
+            const row = rows[rowIdx];
+            if (!row || this.isEmptyResultRow(row)) {
+                continue;
+            }
+            const nums = this.parseMainNums(row.result || row.Result || '');
+            for (let i = 0; i < nums.length && i < 5; i++) {
+                const n = nums[i];
+                if (n >= 1 && n <= 35) {
+                    marked.add(n);
+                }
+            }
+        }
+
+        const freq = new Map();
+        for (let rowIdx = chainLo; rowIdx <= chainHi; rowIdx++) {
+            if (rowIdx === focusRowIdx && standardAnswerFocus) {
+                continue;
+            }
+            if (rowIdx < 0 || rowIdx >= rows.length) {
+                continue;
+            }
+            const row = rows[rowIdx];
+            if (!row || this.isEmptyResultRow(row)) {
+                continue;
+            }
+            const nums = this.parseMainNums(row.result || row.Result || '');
+            for (let i = 0; i < nums.length; i++) {
+                const n = nums[i];
+                if (n >= 1 && n <= 35) {
+                    freq.set(n, (freq.get(n) || 0) + 1);
+                }
+            }
+        }
+
+        let best = -1;
+        marked.forEach((n) => {
+            const f = freq.get(n) || 0;
+            if (f > best) {
+                best = f;
+            }
+        });
+        if (best >= 0) {
+            const tied = [];
+            marked.forEach((n) => {
+                if ((freq.get(n) || 0) === best) {
+                    tied.push(n);
+                }
+            });
+            if (tied.length === 1) {
+                maxFreqNum = tied[0];
+            }
+        }
+
+        this.leftPhaseMarkedNums = marked;
+        this.leftPhaseMaxFreqNum = maxFreqNum;
+        return { marked, maxFreqNum };
+    }
+
+    /**
+     * Đồng bộ tập số phase1 từ ok_left (fallback / xác nhận sau khi tô xong).
+     * Ưu tiên vẫn là recompute từ cửa sổ sheet1 khi apply decoration.
+     * @param {{ enabled?: boolean, nums?: number[], maxFreqNum?: number|null }} payload
+     */
+    setLeftPhaseVisual(payload) {
+        const p = payload && typeof payload === 'object' ? payload : {};
+        if (typeof p.enabled === 'boolean') {
+            this.leftPhaseVisualEnabled = p.enabled;
+        }
+        // Luôn tính lại từ cửa sổ đang focus — tránh style sai khi đổi id (race iframe).
+        try {
+            this.recomputePhaseDecorFromActiveWindow();
+            this.refreshResultNumDecorationsFromActiveWindow();
+        } catch (ePh) { /* ignore */ }
     }
 
     setLeftAutoringEnabled(on) {
@@ -12494,11 +13120,16 @@ class RightPaneSheetManager {
         if (!same) {
             this.leftBasicPreviewPickNums = next;
             this._leftBasicPreviewPickGeneration += 1;
+            // Chỉ cập nhật khoanh đỏ khi Submit OFF (cả local lẫn tin từ iframe).
+            // Submit ON: getPickDisplayNums() = đáp án — không được ghi đè bộ nhớ khoanh.
+            if (!this.leftSubmitActive && !options.submitActive) {
+                this.leftCircleRememberNums = next.slice();
+            }
             if (!options.skipFocusUpdate) {
                 this.applyTrackingPreviewFocusAfterPickNumsChange(prev, next);
             }
             try {
-                this.refreshFocusChainOverlapHighlightsFromActiveWindow();
+                this.scheduleResultNumDecorationsRefresh();
             } catch (eHit) { /* ignore */ }
         }
         return !same;
@@ -12547,16 +13178,22 @@ class RightPaneSheetManager {
     /** Đổi id focus: xóa giả lập bar phải và đồng bộ sạch sang nửa trái (tránh viền đen còn mà khoanh trái đã mất). */
     clearLeftBasicBarPreviewPicksOnFocusChange() {
         const had = Array.isArray(this.leftBasicPreviewPickNums) && this.leftBasicPreviewPickNums.length > 0;
+        const hadRemember = Array.isArray(this.leftCircleRememberNums) && this.leftCircleRememberNums.length > 0;
         this.leftBasicPreviewPickNums = [];
+        this.leftCircleRememberNums = [];
+        this.leftBasicPreviewPickNumsStash = [];
         this.lastTrackingPreviewBarNum = null;
         this._leftBasicPreviewPickGeneration += 1;
         if (this.shouldSyncBasicBarPickToLeftPane()) {
             this.syncLeftPickSelectionToIframe([]);
         }
-        if (had) {
+        if (had || hadRemember) {
             try {
                 window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
             } catch (ePaint) { /* ignore */ }
+            try {
+                this.refreshFocusChainOverlapHighlightsFromActiveWindow();
+            } catch (eHitClr) { /* ignore */ }
         }
     }
 
