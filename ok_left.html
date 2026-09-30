@@ -4119,9 +4119,28 @@
             return out;
         }
 
-        /** Numbers currently circled/selected on the left pane (max 5). */
+        /** Numbers currently circled/selected on the left pane (max 5).
+         *  Không dùng getPickDisplayNums(): Submit ON trả đáp án.
+         *  Submit ON: chỉ gửi khoanh trước Submit (preSubmit*) — không gửi autoRing/đáp án. */
         function getLeftPaneCircledNums() {
-            return getPickDisplayNums();
+            if (submitActive) {
+                var next = [];
+                if (preSubmitOrder && preSubmitOrder.length) {
+                    preSubmitOrder.forEach(function (n) {
+                        if (!isNaN(n) && next.indexOf(n) === -1) {
+                            next.push(n);
+                        }
+                    });
+                } else if (preSubmitSelected && preSubmitSelected.size) {
+                    Array.from(preSubmitSelected).sort(function (a, b) { return a - b; }).forEach(function (n) {
+                        if (!isNaN(n) && next.indexOf(n) === -1) {
+                            next.push(n);
+                        }
+                    });
+                }
+                return next.slice(0, MAX_PICK_NUMBERS);
+            }
+            return getCircledPickOrderForNav();
         }
 
         /** Giữ pickOrder khớp selected (submit off): tránh thiếu số trong preview/search. */

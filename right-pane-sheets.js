@@ -4986,10 +4986,14 @@ class RightPaneSheetManager {
         }
         nonexistCell.classList.toggle('answer-popup-focus-nonexist', masked);
         const win = this.activeWindowRange;
+        const focusIdx = (win && typeof win.target === 'number' && win.target >= 0)
+            ? win.target
+            : (win && typeof win.end === 'number' ? win.end : -1);
         nonexistCell.innerHTML = this.renderSourceRowNonexistCellHtml(rowIndex, row, {
             windowRange: (win && typeof win.start === 'number' && typeof win.end === 'number')
                 ? win
-                : null
+                : null,
+            pickDecorMaps: this.buildNonexistPickDecorationMaps(focusIdx, win)
         });
     }
 
@@ -5035,7 +5039,14 @@ class RightPaneSheetManager {
             : (this.activeWindowRange && typeof this.activeWindowRange.target === 'number'
                 ? this.activeWindowRange.target
                 : -1);
-        const pickDecorMaps = this.buildNonexistPickDecorationMaps(focusForNxDecor);
+        const decorWin = (focusForNxDecor >= 0)
+            ? {
+                start: Math.max(0, focusForNxDecor - 10),
+                end: focusForNxDecor,
+                target: focusForNxDecor
+            }
+            : this.activeWindowRange;
+        const pickDecorMaps = this.buildNonexistPickDecorationMaps(focusForNxDecor, decorWin);
 
         let html = '<table class="sheet-data-table sheet1-source-table"><thead><tr>'
             + '<th>date</th><th>id</th>'
@@ -5067,7 +5078,7 @@ class RightPaneSheetManager {
             const nonexistMeta = this.getNonexistMetaForSourceRow(i, row);
             let nonexistHtml = this.renderNonexistHtml(i, nonexistMeta.text, result, {
                 pickDecorMaps: pickDecorMaps,
-                windowRange: this.activeWindowRange
+                windowRange: decorWin || this.activeWindowRange
             });
             const idStyle = idBg ? ` style="background:${idBg};"` : '';
             const activeClass = highlightIdx === i ? ' filter-popup-row-active' : '';
@@ -6303,19 +6314,18 @@ class RightPaneSheetManager {
 
     /**
      * Viền tròn đỏ theo số khoanh lúc Submit OFF — giữ nguyên khi Submit ON.
+     * Chỉ dùng leftCircleRememberNums (đã sync khi Submit OFF).
+     * Không fallback leftBasicPreviewPickNums: buffer đó nhận đáp án lúc Submit ON
+     * (getPickDisplayNums / leftCircledNumsReady) → sẽ khoanh nhầm hit/answer nums.
      * @returns {Set<number>}
      */
     resolveFocusChainCircleNumSet() {
         if (this.isAnswerPopupOpenForFocusChainHit()) {
             return new Set();
         }
-        let picks = Array.isArray(this.leftCircleRememberNums)
+        const picks = Array.isArray(this.leftCircleRememberNums)
             ? this.leftCircleRememberNums
             : [];
-        // Submit OFF: fallback pick đang sống. Submit ON: không fallback sang đáp án/pick khác.
-        if (!picks.length && !this.leftSubmitActive) {
-            picks = this.leftBasicPreviewPickNums || [];
-        }
         const out = new Set();
         for (let i = 0; i < picks.length; i++) {
             const n = parseInt(picks[i], 10);
@@ -6651,19 +6661,16 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Vẽ lại decoration số result theo activeWindowRange (submit/phase/focus đổi).
+     * Áp decoration result + nonexist (khoanh/square) lên một tableWrap theo cửa sổ.
+     * @param {HTMLElement} tableWrap
+     * @param {{ start: number, end: number, target?: number }} windowRange
+     * @param {number} focusIdx
+     * @param {{ forFilterPopup?: boolean }} [options]
      */
-    refreshResultNumDecorationsFromActiveWindow() {
-        const r = this.activeWindowRange;
-        if (!r || typeof r.start !== 'number' || typeof r.end !== 'number') {
-            return;
-        }
-        const focusIdx = (typeof r.target === 'number' && r.target >= 0) ? r.target : r.end;
-        const tableWrap = this._sheet1NavTableWrap || document.getElementById('tableWrap');
-        if (!tableWrap || tableWrap.classList.contains('table-wrap--tracking')) {
-            return;
-        }
-        if (this.activeSheet !== 'sheet1') {
+    refreshResultNumDecorationsForTableWrap(tableWrap, windowRange, focusIdx, options = {}) {
+        if (!tableWrap || !windowRange
+            || typeof windowRange.start !== 'number'
+            || typeof windowRange.end !== 'number') {
             return;
         }
         const focusNumSet = this.resolveFocusChainHitNumSet(focusIdx);
@@ -6672,24 +6679,53 @@ class RightPaneSheetManager {
             : new Set();
         this.applyFocusChainHitsToOuterRows(
             tableWrap,
-            r.start,
+            windowRange.start,
             focusIdx,
             focusNumSet,
             focusNxSet,
-            r.end
+            windowRange.end
         );
-        // Nonexist: khoanh đỏ / viền #005000 tại neo vàng chuỗi0 | tím đầu | đỏ đầu.
         try {
-            const pickDecorMaps = this.buildNonexistPickDecorationMaps(focusIdx);
-            const nxRows = this.collectNonexistBoostRefreshRowIndices(r);
+            const pickDecorMaps = this.buildNonexistPickDecorationMaps(focusIdx, windowRange);
+            const nxRows = this.collectNonexistBoostRefreshRowIndices(windowRange);
             pickDecorMaps.circleAnchors.forEach((row) => nxRows.add(row));
             pickDecorMaps.squareAnchors.forEach((row) => nxRows.add(row));
             this.refreshNonexistCellsForRowIndices(tableWrap, nxRows, {
-                windowRange: r,
+                forFilterPopup: options.forFilterPopup === true
+                    || tableWrap.id === 'filterTableWrap',
+                windowRange: windowRange,
                 pickDecorMaps: pickDecorMaps,
                 skipWindowLabels: true
             });
         } catch (eNxDecor) { /* ignore */ }
+    }
+
+    /**
+     * Vẽ lại decoration số result theo activeWindowRange (submit/phase/focus đổi).
+     * Đồng bộ cả #tableWrap và #filterTableWrap (nếu đang có bảng).
+     */
+    refreshResultNumDecorationsFromActiveWindow() {
+        const r = this.activeWindowRange;
+        if (!r || typeof r.start !== 'number' || typeof r.end !== 'number') {
+            return;
+        }
+        const focusIdx = (typeof r.target === 'number' && r.target >= 0) ? r.target : r.end;
+        if (this.activeSheet !== 'sheet1') {
+            return;
+        }
+        const tableWrap = this._sheet1NavTableWrap || document.getElementById('tableWrap');
+        if (tableWrap && !tableWrap.classList.contains('table-wrap--tracking')) {
+            this.refreshResultNumDecorationsForTableWrap(tableWrap, r, focusIdx);
+        }
+        // Filter popup: cùng leftSubmitActive / remember / focus — tránh lệch vs sheet1.
+        try {
+            const filterWrap = document.getElementById('filterTableWrap');
+            if (filterWrap && filterWrap.querySelector('tbody tr[data-idx]')) {
+                this.refreshResultNumDecorationsForTableWrap(filterWrap, r, focusIdx, {
+                    forFilterPopup: true
+                });
+            }
+        } catch (eFilterDecor) { /* ignore */ }
     }
 
     /**
@@ -7947,8 +7983,9 @@ class RightPaneSheetManager {
         const focusIdx = (win && typeof win.target === 'number' && win.target >= 0)
             ? win.target
             : (win && typeof win.end === 'number' ? win.end : -1);
+        /* Same circle/square decorations as main sheet1 (filter popup used to skip these). */
         const pickDecorMaps = options.pickDecorMaps
-            || (forFilterPopup ? null : this.buildNonexistPickDecorationMaps(focusIdx));
+            || this.buildNonexistPickDecorationMaps(focusIdx, win);
 
         for (const i of indices) {
             if (i < 0 || i >= displayRows.length) {
@@ -8214,12 +8251,12 @@ class RightPaneSheetManager {
      * @param {number} focusRowIdx
      * @returns {number} row index hoặc -1
      */
-    resolveNonexistPickAnchorRow(num, focusRowIdx) {
+    resolveNonexistPickAnchorRow(num, focusRowIdx, windowRange = null) {
         const n = parseInt(num, 10);
         if (!Number.isFinite(n) || n < 1 || n > 35) {
             return -1;
         }
-        const win = this.activeWindowRange;
+        const win = windowRange || this.activeWindowRange;
         const focusIdx = (typeof focusRowIdx === 'number' && focusRowIdx >= 0)
             ? focusRowIdx
             : (win && typeof win.target === 'number' ? win.target
@@ -8289,20 +8326,13 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Số freq=0 trong cửa sổ 10 chuỗi trước kỳ focus (không gồm chuỗi 0 / đáp án).
-     * Khớp bảng tần suất nửa trái — viền nonexist chỉ áp cho các số này.
+     * Số freq=0 trong 10 chuỗi trước kỳ focus (không gồm chuỗi 0 / đáp án).
+     * @param {number} focusIdx
      * @returns {Set<number>}
      */
-    getActiveWindowFreqZeroNumSet() {
+    getFreqZeroNumSetForFocusRow(focusIdx) {
         const out = new Set();
-        const win = this.activeWindowRange;
-        if (!win) {
-            return out;
-        }
-        const focusIdx = (typeof win.target === 'number' && win.target >= 0)
-            ? win.target
-            : (typeof win.end === 'number' ? win.end : -1);
-        if (focusIdx < 0) {
+        if (typeof focusIdx !== 'number' || focusIdx < 0) {
             return out;
         }
         const freq = this.computeMainNumsWindow10Freq(this.getSourceSheetRows(), focusIdx);
@@ -8315,28 +8345,47 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Số freq=0 trong cửa sổ 10 chuỗi trước kỳ focus hiện tại.
+     * @returns {Set<number>}
+     */
+    getActiveWindowFreqZeroNumSet() {
+        const win = this.activeWindowRange;
+        if (!win) {
+            return new Set();
+        }
+        const focusIdx = (typeof win.target === 'number' && win.target >= 0)
+            ? win.target
+            : (typeof win.end === 'number' ? win.end : -1);
+        return this.getFreqZeroNumSetForFocusRow(focusIdx);
+    }
+
+    /**
      * Map số → hàng neo nonexist:
      * - Khoanh đỏ: luôn theo bộ đã khoanh ∩ freq=0 (giữ khi Submit ON)
      * - Viền #005000: chỉ Submit ON, đáp án ∩ freq=0
      *   (số vừa khoanh vừa đáp án freq=0 → nhận cả hai)
      * @param {number} focusRowIdx
+     * @param {{ start?: number, end?: number, target?: number }|null} [windowRange]
      * @returns {{ circleAnchors: Map<number, number>, squareAnchors: Map<number, number> }}
      */
-    buildNonexistPickDecorationMaps(focusRowIdx) {
+    buildNonexistPickDecorationMaps(focusRowIdx, windowRange = null) {
         const circleAnchors = new Map();
         const squareAnchors = new Map();
         if (this.isAnswerPopupOpenForFocusChainHit()) {
             return { circleAnchors, squareAnchors };
         }
-        const focusIdx = typeof focusRowIdx === 'number' ? focusRowIdx : -1;
-        const freqZero = this.getActiveWindowFreqZeroNumSet();
+        const win = windowRange || this.activeWindowRange;
+        const focusIdx = typeof focusRowIdx === 'number' && focusRowIdx >= 0
+            ? focusRowIdx
+            : (win && typeof win.target === 'number' ? win.target : -1);
+        const freqZero = this.getFreqZeroNumSetForFocusRow(focusIdx);
         const remembered = this.resolveFocusChainCircleNumSet();
         remembered.forEach((raw) => {
             const n = parseInt(raw, 10);
             if (!Number.isFinite(n) || !freqZero.has(n)) {
                 return;
             }
-            const row = this.resolveNonexistPickAnchorRow(n, focusIdx);
+            const row = this.resolveNonexistPickAnchorRow(n, focusIdx, win);
             if (row < 0) {
                 return;
             }
@@ -8348,7 +8397,7 @@ class RightPaneSheetManager {
                 if (!Number.isFinite(n) || !freqZero.has(n)) {
                     return;
                 }
-                const row = this.resolveNonexistPickAnchorRow(n, focusIdx);
+                const row = this.resolveNonexistPickAnchorRow(n, focusIdx, win);
                 if (row < 0) {
                     return;
                 }
@@ -12913,9 +12962,14 @@ class RightPaneSheetManager {
             return;
         }
         if (next) {
-            // Chốt bộ khoanh lúc Submit OFF — dùng tô đỏ suốt lúc Submit ON (không lấy đáp án).
-            const snap = (this.leftBasicPreviewPickNums || []).slice();
-            this.leftBasicPreviewPickNumsStash = snap;
+            // Chốt bộ khoanh lúc Submit OFF — ưu tiên remember đã sync (không lấy đáp án từ preview).
+            const fromRemember = Array.isArray(this.leftCircleRememberNums)
+                && this.leftCircleRememberNums.length
+                ? this.leftCircleRememberNums.slice()
+                : [];
+            const fromPreview = (this.leftBasicPreviewPickNums || []).slice();
+            const snap = fromRemember.length ? fromRemember : fromPreview;
+            this.leftBasicPreviewPickNumsStash = fromPreview.length ? fromPreview : snap.slice();
             if (snap.length) {
                 this.leftCircleRememberNums = snap.slice();
             }
@@ -13121,7 +13175,7 @@ class RightPaneSheetManager {
             this.leftBasicPreviewPickNums = next;
             this._leftBasicPreviewPickGeneration += 1;
             // Chỉ cập nhật khoanh đỏ khi Submit OFF (cả local lẫn tin từ iframe).
-            // Submit ON: getPickDisplayNums() = đáp án — không được ghi đè bộ nhớ khoanh.
+            // Submit ON: getPickDisplayNums()/echo có thể là đáp án — không ghi đè remember.
             if (!this.leftSubmitActive && !options.submitActive) {
                 this.leftCircleRememberNums = next.slice();
             }

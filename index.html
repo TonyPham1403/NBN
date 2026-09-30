@@ -6905,7 +6905,6 @@
         }
 
         #filterTableWrap .sheet-data-table td.cell-note,
-        #filterTableWrap .sheet-data-table td.cell-nonexist,
         #filterTableWrap .sheet-data-table thead th:nth-child(9),
         #filterTableWrap .sheet-data-table thead th:nth-child(10) {
             white-space: nowrap;
@@ -6914,9 +6913,47 @@
             max-width: 220px;
         }
 
+        /* Keep nonexist overflow visible so pick circle / submit square are not clipped. */
+        #filterTableWrap .sheet-data-table td.cell-nonexist {
+            white-space: nowrap;
+            max-width: 220px;
+            overflow: visible;
+        }
+
         #filterTableWrap .sheet-data-table td.cell-note *,
         #filterTableWrap .sheet-data-table td.cell-nonexist * {
             white-space: nowrap;
+        }
+
+        #filterTableWrap .sheet-data-table td.cell-nonexist .nonexist-pick-circle,
+        #filterTableWrap .sheet-data-table td.cell-nonexist .nonexist-submit-square {
+            position: relative;
+            z-index: 0;
+        }
+
+        #filterTableWrap .sheet-data-table td.cell-nonexist .nonexist-pick-circle::after {
+            content: '';
+            position: absolute;
+            left: 50%;
+            top: 50%;
+            width: calc(1em + 12px);
+            height: calc(1em + 12px);
+            min-width: 22px;
+            min-height: 22px;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            border: 3px solid rgba(255, 0, 0, 0.95);
+            box-shadow: 0 0 6px rgba(255, 0, 0, 0.12);
+            background: transparent;
+            pointer-events: none;
+            box-sizing: border-box;
+            z-index: 2;
+        }
+
+        #filterTableWrap .sheet-data-table td.cell-nonexist .nonexist-submit-square {
+            box-shadow: inset 0 0 0 2px #005000;
+            border-radius: 2px;
+            padding: 0 1px;
         }
 
         .sheet-data-table {
@@ -8702,7 +8739,7 @@
         <div id="appStage">
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20261001phaseSync02"
+            <iframe id="okFrame" src="ok_left.html?v=20261001circSync01"
                 style="width:100%;height:100%;border:0"></iframe>
         </section>
 
@@ -9527,7 +9564,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261001geoIpWho01"></script>
     <script src="chat.js?v=20260917chatFocusKeys02"></script>
-    <script src="right-pane-sheets.js?v=20261001nxPickDecor09"></script>
+    <script src="right-pane-sheets.js?v=20261001nxPickDecor13"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -25076,10 +25113,30 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
             }
             filterAllModeNonexistRefreshPrev = null;
-            sheetManager.refreshNonexistCellsForRowIndices(wrap, indices, {
-                forFilterPopup: true,
-                windowRange: nextWin
-            });
+            /* Match main sheet1: result hit/circle + nonexist pick/square for same submit state. */
+            if (typeof sheetManager.refreshResultNumDecorationsForTableWrap === 'function') {
+                const prevOnly = new Set();
+                indices.forEach((i) => {
+                    if (i < start || i > end) {
+                        prevOnly.add(i);
+                    }
+                });
+                if (prevOnly.size) {
+                    sheetManager.refreshNonexistCellsForRowIndices(wrap, prevOnly, {
+                        forFilterPopup: true,
+                        skipWindowLabels: true
+                    });
+                }
+                sheetManager.refreshResultNumDecorationsForTableWrap(wrap, nextWin, idx, {
+                    forFilterPopup: true
+                });
+            } else {
+                sheetManager.refreshNonexistCellsForRowIndices(wrap, indices, {
+                    forFilterPopup: true,
+                    windowRange: nextWin,
+                    skipWindowLabels: true
+                });
+            }
         }
 
         function resetFilterAllModeWindow() {
@@ -25230,6 +25287,13 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!sheetManager) {
                 return -1;
             }
+            /* Sheet1: ưu tiên đúng hàng cửa sổ đang focus trên nửa phải (tránh comboFocus lệch). */
+            if (sheetManager.activeSheet === 'sheet1'
+                && sheetManager.activeWindowRange
+                && typeof sheetManager.activeWindowRange.target === 'number'
+                && sheetManager.activeWindowRange.target >= 0) {
+                return sheetManager.activeWindowRange.target;
+            }
             if (typeof sheetManager.getBasicTrackingFocusRowIndex === 'function') {
                 const idx = sheetManager.getBasicTrackingFocusRowIndex();
                 if (typeof idx === 'number' && idx >= 0) {
@@ -25260,7 +25324,12 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!indices || indices.length === 0) {
                 return -1;
             }
-            /* Mọi mode: mặc định hàng cuối bảng lọc. */
+            /* Prefer the same row as the main right-pane focus when it is in the list. */
+            const mainIdx = getMainSourceSheetFocusRowIndex();
+            if (typeof mainIdx === 'number' && mainIdx >= 0 && indices.includes(mainIdx)) {
+                return mainIdx;
+            }
+            /* Fallback: last row in the filter table. */
             return indices[indices.length - 1];
         }
 
@@ -26339,7 +26408,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
         }
 
-        /** Sau khi đổi mode / rebuild danh sách: mặc định focus + scroll hàng cuối bảng lọc. */
+        /** Sau khi đổi mode / rebuild danh sách: focus trùng main sheet nếu có trong list, không thì hàng cuối. */
         function reconcileFilterPopupFocusAfterListChange(displayIndices, options = {}) {
             const indices = Array.isArray(displayIndices) ? displayIndices : getFilterPopupDisplayIndices();
             filterPopupActiveIdx = resolveFilterPopupActiveIdx(indices);
