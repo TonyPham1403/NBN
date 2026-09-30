@@ -6421,6 +6421,8 @@ class RightPaneSheetManager {
 
     /**
      * Đọc style số trên bảng 10 chuỗi nửa trái (iframe ok_left).
+     * submit/phase: OR theo số (toàn bảng). note/nonexist trên map này chỉ còn fallback —
+     * sync cửa sổ 10 dùng getRowSyncNoteNonexistSets (per-row, khớp ok_left table 2).
      * @returns {Map<number, {submit:boolean, note:boolean, nonexist:boolean, phase:boolean, phaseMax:boolean}>}
      */
     readLeftNumDecorMap() {
@@ -6458,6 +6460,58 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Số trong ngoặc {...} của note (cùng parse ok_left renderTable2 per-row).
+     * @param {string} noteText
+     * @returns {Set<number>}
+     */
+    extractNumsFromNoteBraces(noteText) {
+        const set = new Set();
+        const txt = String(noteText || '').trim();
+        if (!txt || txt === '?' || txt === '？') {
+            return set;
+        }
+        const re = /\{([^}]*)\}/g;
+        let m;
+        while ((m = re.exec(txt)) !== null) {
+            if (!m[1]) {
+                continue;
+            }
+            String(m[1]).split(',').forEach((item) => {
+                const n = parseInt(String(item).trim(), 10);
+                if (Number.isFinite(n) && n >= 1 && n <= 35) {
+                    set.add(n);
+                }
+            });
+        }
+        return set;
+    }
+
+    /**
+     * note/nonexist sync cho một hàng cửa sổ — khớp ok_left chuỗi table (per-row, không OR toàn cửa sổ).
+     * @param {number} rowIndex
+     * @returns {{ noteSet: Set<number>, nonexistSet: Set<number> }}
+     */
+    getRowSyncNoteNonexistSets(rowIndex) {
+        const empty = { noteSet: new Set(), nonexistSet: new Set() };
+        const rows = this.getSourceSheetRows();
+        if (!Number.isFinite(rowIndex) || rowIndex < 0 || rowIndex >= rows.length) {
+            return empty;
+        }
+        const row = rows[rowIndex];
+        if (!row || this.isEmptyResultRow(row)) {
+            return empty;
+        }
+        const noteMeta = this.getComputedNoteMeta(rowIndex, row);
+        const noteSet = this.extractNumsFromNoteBraces(noteMeta && noteMeta.text);
+        const nxMeta = this.getComputedNonexistMeta(rowIndex, row);
+        const nxText = String(nxMeta && nxMeta.text || '').trim();
+        const nonexistSet = (!nxText || nxText === 'N/A')
+            ? new Set()
+            : new Set(this.parseNums(nxText));
+        return { noteSet, nonexistSet };
+    }
+
+    /**
      * Bọc số chính (trước |) — focus-chain hit, sync màu nửa trái, viền phase1.
      * @param {string} resultHtml
      * @param {{
@@ -6465,6 +6519,8 @@ class RightPaneSheetManager {
      *   focusNxSet?: Set<number>|null,
      *   focusCircleSet?: Set<number>|null,
      *   leftMap?: Map<number, object>|null,
+     *   rowNoteSet?: Set<number>|null,
+     *   rowNonexistSet?: Set<number>|null,
      *   syncColors?: boolean,
      *   applyPhase?: boolean
      * }} [opts]
@@ -6478,6 +6534,9 @@ class RightPaneSheetManager {
         const focusNxSet = opts.focusNxSet && opts.focusNxSet.size ? opts.focusNxSet : null;
         const focusCircleSet = opts.focusCircleSet && opts.focusCircleSet.size ? opts.focusCircleSet : null;
         const leftMap = opts.leftMap || null;
+        const rowNoteSet = opts.rowNoteSet || null;
+        const rowNonexistSet = opts.rowNonexistSet || null;
+        const useRowSync = !!(rowNoteSet || rowNonexistSet);
         const syncColors = !!opts.syncColors;
         const applyPhase = !!opts.applyPhase;
         if (!focusHitSet && !focusCircleSet && !syncColors && !applyPhase) {
@@ -6504,15 +6563,26 @@ class RightPaneSheetManager {
             if (isCircle) {
                 classes.push('result-focus-chain-hit--circle');
             }
-            if (syncColors && left) {
-                if (left.submit) {
+            if (syncColors) {
+                // submit: vẫn theo left (answer overlay toàn bảng)
+                if (left && left.submit) {
                     classes.push('result-num-sync-submit');
                 }
-                if (left.note) {
-                    classes.push('result-num-sync-note');
-                }
-                if (left.nonexist) {
-                    classes.push('result-num-sync-nonexist');
+                // note/nonexist: per-row như ok_left renderTable2 (không OR chuỗi khác)
+                if (useRowSync) {
+                    if (rowNoteSet && rowNoteSet.has(n)) {
+                        classes.push('result-num-sync-note');
+                    }
+                    if (rowNonexistSet && rowNonexistSet.has(n)) {
+                        classes.push('result-num-sync-nonexist');
+                    }
+                } else if (left) {
+                    if (left.note) {
+                        classes.push('result-num-sync-note');
+                    }
+                    if (left.nonexist) {
+                        classes.push('result-num-sync-nonexist');
+                    }
                 }
             }
             if (applyPhase && this.leftPhaseVisualEnabled) {
@@ -6549,6 +6619,8 @@ class RightPaneSheetManager {
      *   focusHitSet?: Set<number>|null,
      *   focusNxSet?: Set<number>|null,
      *   leftMap?: Map<number, object>|null,
+     *   rowNoteSet?: Set<number>|null,
+     *   rowNonexistSet?: Set<number>|null,
      *   syncColors?: boolean,
      *   applyPhase?: boolean
      * }} [opts]
@@ -6581,7 +6653,8 @@ class RightPaneSheetManager {
     /**
      * Áp decoration số result: ngoài 0–6 + trong cửa sổ 10.
      * - Focus-chain hit: ngoài + trong (trừ chuỗi 0 / hàng focus)
-     * - Sync màu nửa trái: chỉ trong cửa sổ chuỗi 1–10 (không chuỗi 0)
+     * - Sync màu nửa trái: chỉ trong cửa sổ chuỗi 1–10 (không chuỗi 0);
+     *   note/nonexist theo từng hàng (ok_left table 2), không OR toàn cửa sổ
      * - Viền phase1: ngoài + trong (không chuỗi 0)
      * @param {HTMLElement} tableWrap
      * @param {number} startIdx
@@ -6649,11 +6722,21 @@ class RightPaneSheetManager {
             const applyFocusHit = !!(focusNumSet && focusNumSet.size);
             const circleSet = this.resolveFocusChainCircleNumSet();
             const applyCircle = !!(circleSet && circleSet.size);
+            let rowNoteSet = null;
+            let rowNonexistSet = null;
+            if (inWindow) {
+                // Per-row note/nonexist — khớp ok_left Chuỗi N (không OR từ chuỗi khác / bảng tần suất).
+                const syncSets = this.getRowSyncNoteNonexistSets(idx);
+                rowNoteSet = syncSets.noteSet;
+                rowNonexistSet = syncSets.nonexistSet;
+            }
             this.rebuildResultCellMainWithFocusHits(cell, idx, null, null, {
                 focusHitSet: applyFocusHit ? focusNumSet : null,
                 focusNxSet: applyFocusHit ? focusNxSet : null,
                 focusCircleSet: applyCircle ? circleSet : null,
                 leftMap: leftMap,
+                rowNoteSet: rowNoteSet,
+                rowNonexistSet: rowNonexistSet,
                 syncColors: inWindow,
                 applyPhase: inOuter || inWindow
             });
