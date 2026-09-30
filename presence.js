@@ -4,7 +4,7 @@
  *
  * Offline ~5 phút ghi trên Firebase (online:false + offlineAt). Tab còn mở có thể
  * tái tạo tombstone nếu peer bị xóa (code cũ / cancel onDisconnect) để người vào sau vẫn thấy.
- * GeoIP (geojs.io): quốc gia + lat/lon ghi kèm presence; khoảng cách Haversine tới (You).
+ * GeoIP (ipwho.is → geojs): quốc gia/tỉnh theo IP công khai; khoảng cách Haversine tới (You).
  * Device ID bền (localStorage). Mã máy 3 chữ (AYU); tab cùng máy AYU1, AYU2…
  * Đếm online = số device unique. Máy khác chỉ hiện tên đại diện AYU (không liệt kê từng tab).
  * Mã máy đổi sau ~10 phút không còn tab (cùng cơ chế idle với chat local).
@@ -24,8 +24,62 @@
     const TAB_SLOTS_KEY = 'presenceTabSlots';
     const ALIVE_KEY = 'deviceChatAliveAt';
     const AWAY_KEY = 'deviceChatAwayAt';
-    const GEO_SELF_URL = 'https://get.geojs.io/v1/ip/geo.json';
-    const GEO_IP_URL = 'https://get.geojs.io/v1/ip/geo/';
+    const GEO_PROVIDERS = {
+        ipwhoSelf: 'https://ipwho.is/',
+        ipwhoIp: 'https://ipwho.is/',
+        geojsSelf: 'https://get.geojs.io/v1/ip/geo.json',
+        geojsIp: 'https://get.geojs.io/v1/ip/geo/'
+    };
+    /** Chuẩn hóa tên tỉnh/thành VN thường gặp từ GeoIP (tiếng Anh → tiếng Việt). */
+    const VN_PLACE_MAP = {
+        'ha noi': 'Hà Nội',
+        'hanoi': 'Hà Nội',
+        'ho chi minh': 'TP. Hồ Chí Minh',
+        'ho chi minh city': 'TP. Hồ Chí Minh',
+        'hcm': 'TP. Hồ Chí Minh',
+        'saigon': 'TP. Hồ Chí Minh',
+        'da nang': 'Đà Nẵng',
+        'danang': 'Đà Nẵng',
+        'hai phong': 'Hải Phòng',
+        'haiphong': 'Hải Phòng',
+        'can tho': 'Cần Thơ',
+        'cantho': 'Cần Thơ',
+        'dong nai': 'Đồng Nai',
+        'binh duong': 'Bình Dương',
+        'ba ria - vung tau': 'Bà Rịa - Vũng Tàu',
+        'ba ria vung tau': 'Bà Rịa - Vũng Tàu',
+        'vung tau': 'Bà Rịa - Vũng Tàu',
+        'khanh hoa': 'Khánh Hòa',
+        'lam dong': 'Lâm Đồng',
+        'thua thien hue': 'Thừa Thiên Huế',
+        'hue': 'Thừa Thiên Huế',
+        'quang nam': 'Quảng Nam',
+        'quang ninh': 'Quảng Ninh',
+        'nghe an': 'Nghệ An',
+        'thanh hoa': 'Thanh Hóa',
+        'binh dinh': 'Bình Định',
+        'gia lai': 'Gia Lai',
+        'dak lak': 'Đắk Lắk',
+        'daklak': 'Đắk Lắk',
+        'an giang': 'An Giang',
+        'kien giang': 'Kiên Giang',
+        'long an': 'Long An',
+        'tay ninh': 'Tây Ninh',
+        'tien giang': 'Tiền Giang',
+        'ben tre': 'Bến Tre',
+        'vinh long': 'Vĩnh Long',
+        'dong thap': 'Đồng Tháp',
+        'soc trang': 'Sóc Trăng',
+        'bac ninh': 'Bắc Ninh',
+        'bac giang': 'Bắc Giang',
+        'hung yen': 'Hưng Yên',
+        'hai duong': 'Hải Dương',
+        'nam dinh': 'Nam Định',
+        'ninh binh': 'Ninh Bình',
+        'phu tho': 'Phú Thọ',
+        'thai nguyen': 'Thái Nguyên',
+        'vinh phuc': 'Vĩnh Phúc'
+    };
 
     let sessionId = '';
     /** Hiển thị tab: AYU1, AYU2… */
@@ -42,6 +96,10 @@
     let heartbeatTimer = 0;
     let renderTickTimer = 0;
     let publicIp = '';
+    /** Id kỳ sheet đang focus trên tab này (đồng bộ qua presence). */
+    let localFocusRowId = '';
+    let focusPublishTimer = 0;
+    let lastPublishedFocusRowId = '';
     /** @type {{ country: string, countryCode: string, region: string, city: string, lat: number, lon: number }|null} */
     let selfGeo = null;
     let lastSnapVal = {};
@@ -636,10 +694,31 @@
     }
 
     function extractIpFromRow(row) {
-        if (row && row.ip) {
-            return String(row.ip);
+        return rowIp(row);
+    }
+
+    function pickBestGeoRow(rows) {
+        if (!rows || !rows.length) {
+            return null;
         }
-        return extractIpFromLabel(row && row.label);
+        const scored = rows.slice().sort((a, b) => {
+            const score = (r) => {
+                let s = 0;
+                if (rowIp(r)) {
+                    s += 4;
+                }
+                if (Number.isFinite(Number(r.lat)) && Number.isFinite(Number(r.lon))) {
+                    s += 2;
+                }
+                if (String(r.region || r.city || '').trim()) {
+                    s += 1;
+                }
+                s += (Number(r.updatedAt) || Number(r.at) || 0) / 1e15;
+                return s;
+            };
+            return score(b) - score(a);
+        });
+        return scored[0];
     }
 
     function resolvePeerDeviceCode(row) {
@@ -802,8 +881,25 @@
         return remH ? (days + ' ngày ' + remH + ' giờ') : (days + ' ngày');
     }
 
+    function normalizeVnPlace(name) {
+        const raw = String(name || '').trim();
+        if (!raw) {
+            return '';
+        }
+        const key = raw.toLowerCase()
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .replace(/đ/g, 'd')
+            .replace(/\s+/g, ' ')
+            .trim();
+        return VN_PLACE_MAP[key] || raw;
+    }
+
     function parseGeoFromPayload(j) {
         if (!j || typeof j !== 'object') {
+            return null;
+        }
+        if (j.success === false) {
             return null;
         }
         const lat = Number(j.latitude != null ? j.latitude : j.lat);
@@ -811,17 +907,26 @@
         if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
             return null;
         }
+        const countryCode = String(j.country_code || j.countryCode || '').trim().toUpperCase();
+        const country = String(j.country || '').trim() || countryCode;
+        let region = String(j.region || j.regionName || j.region_name || '').trim();
+        let city = String(j.city || '').trim();
+        if (countryCode === 'VN' || /viet\s*nam/i.test(country)) {
+            region = normalizeVnPlace(region);
+            city = normalizeVnPlace(city);
+        }
         return {
-            country: String(j.country || '').trim(),
-            countryCode: String(j.country_code || j.countryCode || '').trim(),
-            region: String(j.region || j.regionName || '').trim(),
-            city: String(j.city || '').trim(),
+            country: country,
+            countryCode: countryCode,
+            region: region,
+            city: city,
             lat: lat,
-            lon: lon
+            lon: lon,
+            ip: String(j.ip || '').trim()
         };
     }
 
-    /** Quốc gia · tỉnh/thành (region ưu tiên, không trùng city). */
+    /** Quốc gia · tỉnh/thành (ưu tiên tỉnh/region; bỏ trùng city). */
     function formatGeoPlace(geo) {
         if (!geo) {
             return '—';
@@ -856,7 +961,7 @@
         if (!Number.isFinite(v)) {
             return '—';
         }
-        return v.toFixed(2);
+        return v.toFixed(4);
     }
 
     function formatDistanceKm(km) {
@@ -877,9 +982,21 @@
         return m ? m[1] : '';
     }
 
+    function rowIp(row) {
+        if (!row || typeof row !== 'object') {
+            return '';
+        }
+        return String(row.ip || '').trim() || extractIpFromLabel(row.label);
+    }
+
+    /** Geo từ IP (ưu tiên) hoặc lat/lon peer ghi trên Firebase. */
     function geoFromRow(row) {
         if (!row || typeof row !== 'object') {
             return null;
+        }
+        const ip = rowIp(row);
+        if (ip && geoCache.has(ip)) {
+            return geoCache.get(ip);
         }
         const lat = Number(row.lat);
         const lon = Number(row.lon);
@@ -887,17 +1004,36 @@
             return {
                 country: String(row.country || '').trim(),
                 countryCode: String(row.countryCode || '').trim(),
-                region: String(row.region || '').trim(),
-                city: String(row.city || '').trim(),
+                region: normalizeVnPlace(row.region),
+                city: normalizeVnPlace(row.city),
                 lat: lat,
                 lon: lon
             };
         }
-        const ip = extractIpFromLabel(row.label) || String(row.ip || '');
-        if (ip && geoCache.has(ip)) {
-            return geoCache.get(ip);
-        }
         return null;
+    }
+
+    function fetchJson(url) {
+        return fetch(url, { cache: 'no-store' })
+            .then((r) => (r.ok ? r.json() : null))
+            .catch(() => null);
+    }
+
+    /** ipwho.is (tỉnh/thành tốt hơn) → geojs fallback. */
+    function lookupGeoByIp(ip) {
+        const key = String(ip || '').trim();
+        if (!key) {
+            return Promise.resolve(null);
+        }
+        return fetchJson(GEO_PROVIDERS.ipwhoIp + encodeURIComponent(key))
+            .then((j) => parseGeoFromPayload(j))
+            .then((g) => {
+                if (g) {
+                    return g;
+                }
+                return fetchJson(GEO_PROVIDERS.geojsIp + encodeURIComponent(key) + '.json')
+                    .then((j2) => parseGeoFromPayload(j2));
+            });
     }
 
     function ensureGeoForIp(ip) {
@@ -906,10 +1042,8 @@
             return;
         }
         geoFetchInflight.add(key);
-        fetch(GEO_IP_URL + encodeURIComponent(key) + '.json', { cache: 'no-store' })
-            .then((r) => (r.ok ? r.json() : null))
-            .then((j) => {
-                const g = parseGeoFromPayload(j);
+        lookupGeoByIp(key)
+            .then((g) => {
                 if (g) {
                     geoCache.set(key, g);
                     if (lastSnapVal != null) {
@@ -931,6 +1065,10 @@
             out.deviceCode = deviceTag;
             out.tabIndex = tabIndex;
         }
+        const focusId = getLocalFocusRowId();
+        if (focusId) {
+            out.focusRowId = focusId;
+        }
         if (publicIp) {
             out.ip = publicIp;
         }
@@ -944,6 +1082,86 @@
         }
         Object.assign(out, clientDevicePayloadFields(selfClientDevice));
         return out;
+    }
+
+    function normalizeFocusRowId(raw) {
+        const s = String(raw == null ? '' : raw).trim();
+        if (!s) {
+            return '';
+        }
+        // Chỉ giữ id số / chuỗi ngắn (tránh payload lạ)
+        if (!/^[0-9A-Za-z._-]{1,24}$/.test(s)) {
+            return '';
+        }
+        return s;
+    }
+
+    function getLocalFocusRowId() {
+        if (typeof window.getSheetFocusRowId === 'function') {
+            const live = normalizeFocusRowId(window.getSheetFocusRowId());
+            if (live) {
+                localFocusRowId = live;
+                return live;
+            }
+        }
+        return normalizeFocusRowId(localFocusRowId);
+    }
+
+    function publishFocusRowIdSoon() {
+        const next = getLocalFocusRowId();
+        if (next === lastPublishedFocusRowId && sessionRef) {
+            return;
+        }
+        localFocusRowId = next;
+        if (!sessionRef) {
+            return;
+        }
+        if (focusPublishTimer) {
+            clearTimeout(focusPublishTimer);
+        }
+        focusPublishTimer = setTimeout(() => {
+            focusPublishTimer = 0;
+            lastPublishedFocusRowId = getLocalFocusRowId();
+            writePresence(true).catch(() => { /* ignore */ });
+        }, 280);
+    }
+
+    function focusSheetRowById(rawId) {
+        const id = normalizeFocusRowId(rawId);
+        if (!id) {
+            return false;
+        }
+        if (typeof window.focusSheetByRowId === 'function') {
+            try {
+                return !!window.focusSheetByRowId(id);
+            } catch (eFocus) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    function formatFocusRowIdLabel(raw) {
+        const id = normalizeFocusRowId(raw);
+        return id || '—';
+    }
+
+    /** Cột avatar + id kỳ đang focus (bấm để nhảy tới). */
+    function personColHtml(offline, opts, focusRowId) {
+        const id = normalizeFocusRowId(focusRowId);
+        const label = formatFocusRowIdLabel(id);
+        const emptyCls = id ? '' : ' is-empty';
+        const title = id
+            ? ('Focus kỳ id ' + id)
+            : 'Chưa có id focus';
+        return '<span class="presence-avatar-col">' +
+            personIconHtml(offline, opts) +
+            '<button type="button" class="presence-focus-id' + emptyCls + '"' +
+            (id ? (' data-focus-row-id="' + escapeHtml(id) + '"') : ' disabled') +
+            ' title="' + escapeHtml(title) + '"' +
+            ' aria-label="' + escapeHtml(title) + '">' +
+            escapeHtml(label) +
+            '</button></span>';
     }
 
     function deviceMetaLine(row, deviceCounts) {
@@ -960,10 +1178,14 @@
         return line;
     }
 
-    /** Khoảng cách tới You — không hiện với tab cùng máy. */
+    /** Khoảng cách tới You — ước lượng theo IP công khai (không GPS). */
     function distanceFromYouLine(row, skip) {
         if (skip) {
             return '';
+        }
+        const ip = rowIp(row);
+        if (ip) {
+            ensureGeoForIp(ip);
         }
         const geo = geoFromRow(row);
         if (!geo || !selfGeo || !Number.isFinite(selfGeo.lat) || !Number.isFinite(selfGeo.lon)
@@ -971,6 +1193,12 @@
             return '';
         }
         const km = haversineKm(selfGeo.lat, selfGeo.lon, geo.lat, geo.lon);
+        if (publicIp && ip && publicIp === ip) {
+            return '~cùng IP công khai';
+        }
+        if (km < 3) {
+            return '~cùng khu vực (ước lượng IP)';
+        }
         return '~' + formatDistanceKm(km) + ' từ You';
     }
 
@@ -979,21 +1207,24 @@
     }
 
     function fetchSelfGeo() {
-        return fetch(GEO_SELF_URL, { cache: 'no-store' })
-            .then((r) => (r.ok ? r.json() : null))
-            .then((j) => {
-                if (!j) {
+        return fetchJson(GEO_PROVIDERS.ipwhoSelf)
+            .then((j) => parseGeoFromPayload(j))
+            .then((g) => {
+                if (g) {
+                    return g;
+                }
+                return fetchJson(GEO_PROVIDERS.geojsSelf).then((j2) => parseGeoFromPayload(j2));
+            })
+            .then((g) => {
+                if (!g) {
                     return;
                 }
-                if (j.ip) {
-                    publicIp = String(j.ip);
+                if (g.ip) {
+                    publicIp = String(g.ip);
                 }
-                const g = parseGeoFromPayload(j);
-                if (g) {
-                    selfGeo = g;
-                    if (publicIp) {
-                        geoCache.set(publicIp, g);
-                    }
+                selfGeo = g;
+                if (publicIp) {
+                    geoCache.set(publicIp, g);
                 }
             })
             .catch(() => { /* offline / blocked */ });
@@ -1021,6 +1252,7 @@
         if (!online) {
             return sessionRef.set(offlinePayload(now));
         }
+        lastPublishedFocusRowId = getLocalFocusRowId();
         return sessionRef.set(attachGeoFields({
             online: true,
             label: buildLabel(),
@@ -1089,6 +1321,10 @@
         if (m.tabIndex != null) {
             payload.tabIndex = Number(m.tabIndex) || 0;
         }
+        const focusId = normalizeFocusRowId(m.focusRowId);
+        if (focusId) {
+            payload.focusRowId = focusId;
+        }
         Object.assign(payload, clientDevicePayloadFields(m));
         db.ref(PATH + '/' + id).set(payload)
             .catch(() => { /* ignore */ })
@@ -1106,12 +1342,12 @@
     }
 
     function geoMetaLine(row, isSelf) {
+        const ip = rowIp(row) || (isSelf ? publicIp : '');
+        if (ip) {
+            ensureGeoForIp(ip);
+        }
         const geo = geoFromRow(row) || (isSelf ? selfGeo : null);
         if (!geo) {
-            const ip = extractIpFromLabel(row && row.label) || (row && row.ip) || '';
-            if (ip) {
-                ensureGeoForIp(ip);
-            }
             return '';
         }
         const place = formatGeoPlace(geo);
@@ -1123,11 +1359,11 @@
         return {
             country: String(row.country || '').trim(),
             countryCode: String(row.countryCode || '').trim(),
-            region: String(row.region || '').trim(),
-            city: String(row.city || '').trim(),
+            region: normalizeVnPlace(row.region),
+            city: normalizeVnPlace(row.city),
             lat: Number(row.lat),
             lon: Number(row.lon),
-            ip: String(row.ip || '').trim(),
+            ip: String(row.ip || '').trim() || extractIpFromLabel(row.label),
             label: String(row.label || '')
         };
     }
@@ -1190,7 +1426,7 @@
             }
             const rep = isOfflineList
                 ? rows.slice().sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0))[0]
-                : rows[0];
+                : pickBestGeoRow(rows);
             const tag = resolvePeerDeviceCode(rep);
             const ip = extractIpFromRow(rep);
             out.push(Object.assign({}, rep, {
@@ -1280,6 +1516,7 @@
                 deviceCode: row.deviceCode || row.deviceTag
             }));
             const rowTabIndex = Number(row.tabIndex) || 0;
+            const rowFocusRowId = normalizeFocusRowId(row.focusRowId);
             const clientFields = pickClientDevice(row);
             nextMeta[id] = Object.assign({
                 label: label,
@@ -1295,7 +1532,8 @@
                 deviceId: rowDeviceId,
                 deviceTag: rowDeviceTag,
                 deviceCode: rowDeviceTag,
-                tabIndex: rowTabIndex
+                tabIndex: rowTabIndex,
+                focusRowId: rowFocusRowId
             }, clientFields);
 
             const alive = !!row.online && updatedAt > 0 && (now - updatedAt) <= STALE_ONLINE_MS;
@@ -1310,7 +1548,8 @@
                     deviceId: rowDeviceId,
                     deviceTag: rowDeviceTag,
                     deviceCode: rowDeviceTag,
-                    tabIndex: rowTabIndex
+                    tabIndex: rowTabIndex,
+                    focusRowId: rowFocusRowId
                 }, geoFields, clientFields));
                 return;
             }
@@ -1340,7 +1579,8 @@
                 deviceId: rowDeviceId,
                 deviceTag: rowDeviceTag,
                 deviceCode: rowDeviceTag,
-                tabIndex: rowTabIndex
+                tabIndex: rowTabIndex,
+                focusRowId: rowFocusRowId
             }, geoFields, clientFields));
             pendingGone.delete(id);
         });
@@ -1386,7 +1626,8 @@
                     deviceId: meta.deviceId,
                     deviceTag: meta.deviceTag,
                     deviceCode: meta.deviceCode || meta.deviceTag,
-                    tabIndex: meta.tabIndex
+                    tabIndex: meta.tabIndex,
+                    focusRowId: meta.focusRowId
                 }, pickClientDevice(meta)));
             }
             requestTombstone(id, meta, at);
@@ -1422,7 +1663,8 @@
                 deviceId: entry.deviceId,
                 deviceTag: entry.deviceTag,
                 deviceCode: entry.deviceCode || entry.deviceTag,
-                tabIndex: entry.tabIndex
+                tabIndex: entry.tabIndex,
+                focusRowId: entry.focusRowId
             }, pickClientDevice(entry)));
         });
 
@@ -1486,6 +1728,9 @@
                 deviceMetaInner += (deviceMetaInner ? ' · ' : '') + escapeHtml(distLine);
             }
             deviceMetaInner += you;
+            const focusIdShow = isSelf
+                ? (getLocalFocusRowId() || r.focusRowId)
+                : r.focusRowId;
             html += '<li class="presence-item presence-item--online' +
                 (isSelf ? ' presence-item--self' : '') +
                 (sameDevice ? ' presence-item--same-device' : '') +
@@ -1496,12 +1741,12 @@
                 ' data-label="' + escapeHtml(r.displayLabel || r.label || '') + '"' +
                 ' data-place="' + escapeHtml(place && place !== '—' ? place : '') + '"' +
                 ' data-online="1">' +
-                personIconHtml(false, {
+                personColHtml(false, {
                     canChat: canChat,
                     unread: canChat ? getUnreadForDevice(r.deviceId) : 0,
                     deviceId: r.deviceId || '',
                     deviceTag: r.deviceTag || resolvePeerDeviceCode(r) || ''
-                }) +
+                }, focusIdShow) +
                 '<span class="presence-text">' +
                 '<span class="presence-label">' + escapeHtml(r.displayLabel || r.label) +
                 ' <span class="presence-status presence-status--online">đang online</span></span>' +
@@ -1539,12 +1784,12 @@
                 ' data-label="' + escapeHtml(r.displayLabel || r.label || '') + '"' +
                 ' data-place="' + escapeHtml(place && place !== '—' ? place : '') + '"' +
                 ' data-online="0">' +
-                personIconHtml(true, {
+                personColHtml(true, {
                     canChat: canChat,
                     unread: canChat ? getUnreadForDevice(r.deviceId) : 0,
                     deviceId: r.deviceId || '',
                     deviceTag: r.deviceTag || resolvePeerDeviceCode(r) || ''
-                }) +
+                }, r.focusRowId) +
                 '<span class="presence-text">' +
                 '<span class="presence-label">' + escapeHtml(r.displayLabel || r.label) +
                 ' <span class="presence-status presence-status--offline">vừa offline</span></span>' +
@@ -1596,6 +1841,18 @@
         if (list && list.dataset.chatDelegate !== '1') {
             list.dataset.chatDelegate = '1';
             list.addEventListener('click', (e) => {
+                const focusBtn = e.target && e.target.closest
+                    ? e.target.closest('[data-focus-row-id]')
+                    : null;
+                if (focusBtn) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const rid = String(focusBtn.getAttribute('data-focus-row-id') || '').trim();
+                    if (rid) {
+                        focusSheetRowById(rid);
+                    }
+                    return;
+                }
                 const openBtn = e.target && e.target.closest
                     ? e.target.closest('[data-chat-open]')
                     : null;
@@ -1624,6 +1881,25 @@
             });
         }
         bindDeviceTip(list, panel);
+        if (!window.__presenceFocusRowBound) {
+            window.__presenceFocusRowBound = '1';
+            window.addEventListener('rowClicked', (ev) => {
+                const detail = (ev && ev.detail) || {};
+                const fromId = detail.clickedRowId != null
+                    ? detail.clickedRowId
+                    : (detail.focusRowId != null ? detail.focusRowId : '');
+                const next = normalizeFocusRowId(fromId);
+                if (next) {
+                    localFocusRowId = next;
+                } else if (typeof detail.focusRowIndex === 'number' && typeof window.getSheetFocusRowId === 'function') {
+                    localFocusRowId = normalizeFocusRowId(window.getSheetFocusRowId());
+                }
+                publishFocusRowIdSoon();
+                if (lastSnapVal != null) {
+                    renderPresence(lastSnapVal);
+                }
+            });
+        }
     }
 
     function ensureDeviceTipEl() {
@@ -1877,6 +2153,11 @@
                     getSessionId: () => sessionId,
                     getTabIndex: () => tabIndex,
                     getDisplayCode: () => displayCode,
+                    getFocusRowId: () => getLocalFocusRowId(),
+                    setFocusRowId: (rawId) => {
+                        localFocusRowId = normalizeFocusRowId(rawId);
+                        publishFocusRowIdSoon();
+                    },
                     rerender: () => {
                         renderPresence(lastSnapVal && typeof lastSnapVal === 'object' ? lastSnapVal : {});
                     }
