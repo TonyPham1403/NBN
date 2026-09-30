@@ -16161,15 +16161,67 @@ class RightPaneSheetManager {
         };
 
         let trendTipBoundFrameIndex = -1;
+        let pinTipFollowRaf = 0;
         const refreshPinnedTrendBarTooltip = () => {
             if (!prevRecallFoldTooltipPinned || isBasic) {
                 return;
             }
-            const tipEl = root.querySelector(
-                '.special-tracking-rank-trend:not([hidden])[data-trend-stats]'
-            );
-            if (!tipEl) {
-                // Kỳ không có nhãn trend — ẩn tip tạm, giữ pin để kỳ sau hiện lại.
+            const kind = prevRecallFoldTooltipPinnedKind || 'trend';
+            const labelSel = kind === 'belly'
+                ? '.special-tracking-rank-belly'
+                : (kind === 'special'
+                    ? '.special-tracking-rank-action'
+                    : '.special-tracking-rank-trend');
+            const visibleSel = `${labelSel}:not([hidden])`;
+            const statsAttr = kind === 'belly'
+                ? 'data-belly-stats'
+                : (kind === 'special' ? 'data-special-stats' : 'data-trend-stats');
+            const hlAttr = kind === 'belly'
+                ? 'data-belly-hl'
+                : (kind === 'special' ? 'data-special-hl' : 'data-trend-hl');
+
+            let tipEl = null;
+            let anchorEl = null;
+
+            if (kind === 'trend') {
+                // Trend chỉ có 1 nhãn — pin cột = bám bar đang hiện trend (pick/giả lập).
+                tipEl = root.querySelector(`${visibleSel}[${statsAttr}]`);
+                if (tipEl) {
+                    const barRow = tipEl.closest('[data-st-bar], [data-special-num]');
+                    const n = barRow
+                        ? parseInt(
+                            barRow.getAttribute('data-st-bar')
+                            || barRow.getAttribute('data-special-num'),
+                            10
+                        )
+                        : NaN;
+                    if (Number.isFinite(n) && n >= 1 && n <= 12) {
+                        prevRecallFoldTooltipPinnedBarNum = n;
+                    }
+                    anchorEl = tipEl;
+                }
+            } else {
+                const barNum = Number.isFinite(prevRecallFoldTooltipPinnedBarNum)
+                    ? (prevRecallFoldTooltipPinnedBarNum | 0)
+                    : 0;
+                if (barNum >= 1 && barNum <= 12) {
+                    const barRow = root.querySelector(
+                        `[data-st-bar="${barNum}"], [data-special-num="${barNum}"]`
+                    );
+                    if (barRow) {
+                        tipEl = barRow.querySelector(`${visibleSel}[${statsAttr}]`);
+                        anchorEl = tipEl
+                            || barRow.querySelector('.special-tracking-rank-labels')
+                            || barRow.querySelector('.special-tracking-rank-bar-main')
+                            || barRow;
+                        if (!tipEl) {
+                            tipEl = barRow.querySelector(labelSel);
+                        }
+                    }
+                }
+            }
+
+            if (!anchorEl) {
                 if (prevRecallFoldTooltipEl) {
                     prevRecallFoldTooltipEl.classList.remove(
                         'is-visible',
@@ -16178,21 +16230,78 @@ class RightPaneSheetManager {
                 }
                 if (prevRecallFoldTooltipPinnedHit
                     && prevRecallFoldTooltipPinnedHit.classList) {
-                    prevRecallFoldTooltipPinnedHit.classList.remove('is-trend-tip-pinned');
+                    prevRecallFoldTooltipPinnedHit.classList.remove('is-st-col-tip-pinned');
                 }
                 prevRecallFoldTooltipPinnedHit = null;
                 return;
             }
-            if (prevRecallFoldTooltipPinnedHit
-                && prevRecallFoldTooltipPinnedHit !== tipEl
-                && prevRecallFoldTooltipPinnedHit.classList) {
-                prevRecallFoldTooltipPinnedHit.classList.remove('is-trend-tip-pinned');
+
+            let stats = (tipEl && tipEl.getAttribute(statsAttr)) || '';
+            let hl = (tipEl && tipEl.getAttribute(hlAttr)) || '';
+            if (!stats) {
+                const anyVisible = root.querySelector(`${visibleSel}[${statsAttr}]`);
+                if (anyVisible) {
+                    stats = anyVisible.getAttribute(statsAttr) || '';
+                } else {
+                    stats = prevRecallFoldTooltipPinnedStats || '';
+                    hl = prevRecallFoldTooltipPinnedHl || '';
+                }
             }
-            prevRecallFoldTooltipPinnedHit = tipEl;
-            tipEl.classList.add('is-trend-tip-pinned');
+            if (!stats) {
+                if (prevRecallFoldTooltipEl) {
+                    prevRecallFoldTooltipEl.classList.remove(
+                        'is-visible',
+                        'prev-recall-fold-tooltip--special'
+                    );
+                }
+                return;
+            }
+            prevRecallFoldTooltipPinnedStats = stats;
+
+            const markEl = tipEl && !tipEl.hidden ? tipEl : anchorEl;
+            if (prevRecallFoldTooltipPinnedHit
+                && prevRecallFoldTooltipPinnedHit !== markEl
+                && prevRecallFoldTooltipPinnedHit.classList) {
+                prevRecallFoldTooltipPinnedHit.classList.remove('is-st-col-tip-pinned');
+            }
+            prevRecallFoldTooltipPinnedHit = markEl;
+            if (markEl && markEl.classList) {
+                markEl.classList.add('is-st-col-tip-pinned');
+            }
             try {
-                showSpecialTrackingTrendBarTooltip(tipEl);
+                showSpecialTrackingColumnBarTooltip(anchorEl, { stats, hl });
             } catch (ePinTip) { /* ignore */ }
+        };
+        /** Bar transition top 0.45s — cập nhật vị trí tooltip suốt lúc giả lập lên/xuống. */
+        const followPinnedColumnTipAfterBarMove = () => {
+            if (!prevRecallFoldTooltipPinned || isBasic) {
+                return;
+            }
+            refreshPinnedTrendBarTooltip();
+            const instant = root.classList.contains('special-tracking-root--scrubbing')
+                || root.classList.contains('special-tracking-root--playing');
+            if (instant) {
+                return;
+            }
+            const durationMs = root.classList.contains('special-tracking-root--frame-stepping')
+                ? 130
+                : 500;
+            if (pinTipFollowRaf) {
+                cancelAnimationFrame(pinTipFollowRaf);
+                pinTipFollowRaf = 0;
+            }
+            const started = performance.now();
+            const tick = (now) => {
+                pinTipFollowRaf = 0;
+                if (!prevRecallFoldTooltipPinned) {
+                    return;
+                }
+                refreshPinnedTrendBarTooltip();
+                if (now - started < durationMs) {
+                    pinTipFollowRaf = requestAnimationFrame(tick);
+                }
+            };
+            pinTipFollowRaf = requestAnimationFrame(tick);
         };
         const paint = () => {
             // Đổi kỳ/id: chưa pin → ẩn tip; đang pin → giữ và refresh sau paint.
@@ -16424,14 +16533,28 @@ class RightPaneSheetManager {
                 )
                 : null;
             let trendStatsAttr = '';
-            if (pickFreqTrend) {
+            let bellyStatsAttr = '';
+            let specialStatsAttr = '';
+            if (!isBasic) {
                 try {
                     const srcRows = this.getSourceSheetRows();
-                    const allTrends = this.getSheet1SpecialPickTrends(srcRows);
-                    const detailed = this.countSheet1SpecialPickTrendsDetailed(allTrends);
-                    trendStatsAttr = this.encodeSheet1TrendStatsTooltipAttr(detailed);
-                } catch (eTrendStats) {
+                    if (pickFreqTrend) {
+                        const allTrends = this.getSheet1SpecialPickTrends(srcRows);
+                        const detailed = this.countSheet1SpecialPickTrendsDetailed(allTrends);
+                        trendStatsAttr = this.encodeSheet1TrendStatsTooltipAttr(detailed);
+                    }
+                    if (showActionLabels) {
+                        const allBelly = this.getSheet1SpecialPickBellyIo(srcRows);
+                        const bellyCounts = this.countSheet1SpecialPickBellyIo(allBelly);
+                        bellyStatsAttr = this.encodeSheet1BellyStatsTooltipAttr(bellyCounts);
+                        const allKinds = this.getSheet1SpecialContiguousKinds(srcRows);
+                        const kindCounts = this.countSheet1SpecialContiguousKinds(allKinds);
+                        specialStatsAttr = this.encodeSheet1SpecialStatsTooltipAttr(kindCounts);
+                    }
+                } catch (eColStats) {
                     trendStatsAttr = '';
+                    bellyStatsAttr = '';
+                    specialStatsAttr = '';
                 }
             }
 
@@ -16530,10 +16653,22 @@ class RightPaneSheetManager {
                         'special-tracking-rank-action--trans'
                     );
                     if (show) {
-                        actionEl.textContent = String(kind).toUpperCase();
+                        const hlLabel = String(kind).toUpperCase();
+                        actionEl.textContent = hlLabel;
                         actionEl.classList.add(`special-tracking-rank-action--${kind}`);
-                    } else if (actionEl.textContent) {
-                        actionEl.textContent = '';
+                        if (specialStatsAttr) {
+                            actionEl.setAttribute('data-special-stats', specialStatsAttr);
+                            actionEl.setAttribute('data-special-hl', hlLabel);
+                        } else {
+                            actionEl.removeAttribute('data-special-stats');
+                            actionEl.removeAttribute('data-special-hl');
+                        }
+                    } else {
+                        if (actionEl.textContent) {
+                            actionEl.textContent = '';
+                        }
+                        actionEl.removeAttribute('data-special-stats');
+                        actionEl.removeAttribute('data-special-hl');
                     }
                 }
                 if (bellyEl) {
@@ -16546,10 +16681,22 @@ class RightPaneSheetManager {
                         'special-tracking-rank-belly--out'
                     );
                     if (showBelly) {
-                        bellyEl.textContent = String(io).toUpperCase();
+                        const hlLabel = String(io).toUpperCase();
+                        bellyEl.textContent = hlLabel;
                         bellyEl.classList.add(`special-tracking-rank-belly--${io}`);
-                    } else if (bellyEl.textContent) {
-                        bellyEl.textContent = '';
+                        if (bellyStatsAttr) {
+                            bellyEl.setAttribute('data-belly-stats', bellyStatsAttr);
+                            bellyEl.setAttribute('data-belly-hl', hlLabel);
+                        } else {
+                            bellyEl.removeAttribute('data-belly-stats');
+                            bellyEl.removeAttribute('data-belly-hl');
+                        }
+                    } else {
+                        if (bellyEl.textContent) {
+                            bellyEl.textContent = '';
+                        }
+                        bellyEl.removeAttribute('data-belly-stats');
+                        bellyEl.removeAttribute('data-belly-hl');
                     }
                 }
                 if (trendEl) {
@@ -16821,7 +16968,7 @@ class RightPaneSheetManager {
                 }
             }
             syncTimelineUi();
-            refreshPinnedTrendBarTooltip();
+            followPinnedColumnTipAfterBarMove();
         };
 
         const schedulePaint = () => {
@@ -17160,6 +17307,11 @@ class RightPaneSheetManager {
 
         root.querySelectorAll('[data-st-bar]').forEach((row) => {
             const onPick = (ev) => {
+                // Click nhãn trend/belly/special = pin tooltip cột, không giả lập bar.
+                if (ev && ev.target && ev.target.closest
+                    && ev.target.closest(SPECIAL_TRACKING_COL_TIP_SEL)) {
+                    return;
+                }
                 rememberMainKeyboardFocus();
                 const n = parseInt(row.dataset.specialNum, 10);
                 if (!Number.isFinite(n)) {
@@ -17921,10 +18073,44 @@ class RightPaneSheetManager {
 let prevRecallFoldTooltipEl = null;
 let prevRecallFoldTooltipShowTimer = null;
 let prevRecallFoldTooltipHoverTarget = null;
-/** Click-pin trên nhãn UP/DOWN/FLAT của bar TRACKING special. */
+/** Click-pin cột trend/belly/special trên bar TRACKING special. */
 let prevRecallFoldTooltipPinned = false;
 let prevRecallFoldTooltipPinnedHit = null;
+/** @type {'trend'|'belly'|'special'|null} */
+let prevRecallFoldTooltipPinnedKind = null;
+/** @type {number|null} Bar 1–12 vừa pin (không nhảy về bar đầu DOM sau paint). */
+let prevRecallFoldTooltipPinnedBarNum = null;
+/** Stats/hl lúc pin — giữ khi nhãn trend chỉ còn hiện trên bar giả lập khác. */
+let prevRecallFoldTooltipPinnedStats = '';
+let prevRecallFoldTooltipPinnedHl = '';
 const PREV_RECALL_FOLD_TOOLTIP_SHOW_MS = 35;
+
+const SPECIAL_TRACKING_COL_TIP_SEL = (
+    '.special-tracking-rank-trend[data-trend-stats],'
+    + '.special-tracking-rank-belly[data-belly-stats],'
+    + '.special-tracking-rank-action[data-special-stats]'
+);
+const SHEET1_AND_ST_COL_TIP_SEL = (
+    'th.cell-special-h[data-special-stats], th.cell-trend-h[data-trend-stats],'
+    + ' th.cell-belly-h[data-belly-stats],'
+    + ' ' + SPECIAL_TRACKING_COL_TIP_SEL
+);
+
+function resolveSpecialTrackingColTipKind(hit) {
+    if (!hit || !hit.classList) {
+        return null;
+    }
+    if (hit.classList.contains('special-tracking-rank-trend')) {
+        return 'trend';
+    }
+    if (hit.classList.contains('special-tracking-rank-belly')) {
+        return 'belly';
+    }
+    if (hit.classList.contains('special-tracking-rank-action')) {
+        return 'special';
+    }
+    return null;
+}
 
 function ensurePrevRecallFoldTooltipEl() {
     if (prevRecallFoldTooltipEl && prevRecallFoldTooltipEl.isConnected) {
@@ -17944,10 +18130,14 @@ function ensurePrevRecallFoldTooltipEl() {
 function clearPrevRecallFoldTooltipPin() {
     if (prevRecallFoldTooltipPinnedHit
         && prevRecallFoldTooltipPinnedHit.classList) {
-        prevRecallFoldTooltipPinnedHit.classList.remove('is-trend-tip-pinned');
+        prevRecallFoldTooltipPinnedHit.classList.remove('is-st-col-tip-pinned');
     }
     prevRecallFoldTooltipPinned = false;
     prevRecallFoldTooltipPinnedHit = null;
+    prevRecallFoldTooltipPinnedKind = null;
+    prevRecallFoldTooltipPinnedBarNum = null;
+    prevRecallFoldTooltipPinnedStats = '';
+    prevRecallFoldTooltipPinnedHl = '';
 }
 
 /**
@@ -17970,15 +18160,26 @@ function hidePrevRecallFoldTooltip(options) {
     }
 }
 
-function showSpecialTrackingTrendBarTooltip(hit) {
+function showSpecialTrackingColumnBarTooltip(hit, options) {
     if (!hit) {
         return;
     }
-    const stats = hit.getAttribute('data-trend-stats') || '';
+    const opts = options || {};
+    const stats = opts.stats != null
+        ? String(opts.stats)
+        : (hit.getAttribute('data-trend-stats')
+            || hit.getAttribute('data-belly-stats')
+            || hit.getAttribute('data-special-stats')
+            || '');
     if (!stats) {
         return;
     }
-    const hl = hit.getAttribute('data-trend-hl') || '';
+    const hl = opts.hl != null
+        ? String(opts.hl)
+        : (hit.getAttribute('data-trend-hl')
+            || hit.getAttribute('data-belly-hl')
+            || hit.getAttribute('data-special-hl')
+            || '');
     prevRecallFoldTooltipHoverTarget = hit;
     clearTimeout(prevRecallFoldTooltipShowTimer);
     showPrevRecallFoldTooltip(
@@ -17988,6 +18189,11 @@ function showSpecialTrackingTrendBarTooltip(hit) {
         null,
         { html: true, preferLeft: true }
     );
+}
+
+/** @deprecated dùng showSpecialTrackingColumnBarTooltip */
+function showSpecialTrackingTrendBarTooltip(hit) {
+    showSpecialTrackingColumnBarTooltip(hit);
 }
 
 function showPrevRecallFoldTooltip(hit, text, clientX, clientY, options) {
@@ -18083,21 +18289,44 @@ function bindPrevPeriodRecallFoldTooltipGlobal() {
 
     document.addEventListener('click', function (event) {
         const hit = event.target && event.target.closest
-            ? event.target.closest('.special-tracking-rank-trend[data-trend-stats]')
+            ? event.target.closest(SPECIAL_TRACKING_COL_TIP_SEL)
             : null;
         if (!hit) {
             return;
         }
-        // Không stopPropagation — để click vẫn tới bar (giả lập +freq), chỉ pin tooltip.
-        if (prevRecallFoldTooltipPinned && prevRecallFoldTooltipPinnedHit === hit) {
-            hidePrevRecallFoldTooltip({ force: true });
-            return;
+        // Chặn bubble/capture xuống bar — pin cột ≠ giả lập chọn bar.
+        event.preventDefault();
+        event.stopPropagation();
+        const kind = resolveSpecialTrackingColTipKind(hit);
+        const barRow = hit.closest('[data-st-bar], [data-special-num]');
+        const barNum = barRow
+            ? (parseInt(barRow.getAttribute('data-st-bar')
+                || barRow.getAttribute('data-special-num'), 10) || null)
+            : null;
+        // Trend: pin theo cột — click lại nhãn trend (bar nào cũng được) để gỡ.
+        // Belly/special: cùng cột + cùng bar → gỡ; bar khác → chuyển neo.
+        if (prevRecallFoldTooltipPinned && prevRecallFoldTooltipPinnedKind === kind) {
+            if (kind === 'trend'
+                || prevRecallFoldTooltipPinnedBarNum === barNum) {
+                hidePrevRecallFoldTooltip({ force: true });
+                return;
+            }
         }
         clearPrevRecallFoldTooltipPin();
         prevRecallFoldTooltipPinned = true;
         prevRecallFoldTooltipPinnedHit = hit;
-        hit.classList.add('is-trend-tip-pinned');
-        showSpecialTrackingTrendBarTooltip(hit);
+        prevRecallFoldTooltipPinnedKind = kind;
+        prevRecallFoldTooltipPinnedBarNum = Number.isFinite(barNum) ? barNum : null;
+        prevRecallFoldTooltipPinnedStats = hit.getAttribute('data-trend-stats')
+            || hit.getAttribute('data-belly-stats')
+            || hit.getAttribute('data-special-stats')
+            || '';
+        prevRecallFoldTooltipPinnedHl = hit.getAttribute('data-trend-hl')
+            || hit.getAttribute('data-belly-hl')
+            || hit.getAttribute('data-special-hl')
+            || '';
+        hit.classList.add('is-st-col-tip-pinned');
+        showSpecialTrackingColumnBarTooltip(hit);
     }, true);
 
     document.addEventListener('mouseover', function (event) {
@@ -18105,11 +18334,7 @@ function bindPrevPeriodRecallFoldTooltipGlobal() {
             return;
         }
         const specialHit = event.target && event.target.closest
-            ? event.target.closest(
-                'th.cell-special-h[data-special-stats], th.cell-trend-h[data-trend-stats],'
-                + ' th.cell-belly-h[data-belly-stats],'
-                + ' .special-tracking-rank-trend[data-trend-stats]'
-            )
+            ? event.target.closest(SHEET1_AND_ST_COL_TIP_SEL)
             : null;
         if (specialHit) {
             const stats = specialHit.getAttribute('data-special-stats')
@@ -18126,8 +18351,11 @@ function bindPrevPeriodRecallFoldTooltipGlobal() {
             clearTimeout(prevRecallFoldTooltipShowTimer);
             const mx = event.clientX;
             const my = event.clientY;
-            const hl = specialHit.getAttribute('data-trend-hl') || '';
-            const preferLeft = specialHit.classList.contains('special-tracking-rank-trend');
+            const hl = specialHit.getAttribute('data-trend-hl')
+                || specialHit.getAttribute('data-belly-hl')
+                || specialHit.getAttribute('data-special-hl')
+                || '';
+            const preferLeft = !!resolveSpecialTrackingColTipKind(specialHit);
             prevRecallFoldTooltipShowTimer = setTimeout(function () {
                 if (prevRecallFoldTooltipPinned) {
                     return;
@@ -18171,11 +18399,7 @@ function bindPrevPeriodRecallFoldTooltipGlobal() {
 
     document.addEventListener('mouseout', function (event) {
         const specialHit = event.target && event.target.closest
-            ? event.target.closest(
-                'th.cell-special-h[data-special-stats], th.cell-trend-h[data-trend-stats],'
-                + ' th.cell-belly-h[data-belly-stats],'
-                + ' .special-tracking-rank-trend[data-trend-stats]'
-            )
+            ? event.target.closest(SHEET1_AND_ST_COL_TIP_SEL)
             : null;
         if (specialHit) {
             const to = event.relatedTarget;

@@ -1229,12 +1229,17 @@
             text-shadow: 0 0 2px rgba(255, 255, 255, 0.95), 0 0 4px rgba(255, 255, 255, 0.75);
         }
 
-        /* Cho phép rê vào nhãn UP/DOWN/FLAT để xem tooltip stats (labels mặc định pointer-events:none). */
-        .special-tracking-rank-trend:not([hidden]) {
+        /* Cho phép rê/click nhãn trend|belly|special để xem/pin tooltip cột (labels mặc định pointer-events:none). */
+        .special-tracking-rank-trend:not([hidden]),
+        .special-tracking-rank-belly:not([hidden]),
+        .special-tracking-rank-action:not([hidden]) {
             pointer-events: auto;
             cursor: pointer;
         }
 
+        .special-tracking-rank-trend.is-st-col-tip-pinned,
+        .special-tracking-rank-belly.is-st-col-tip-pinned,
+        .special-tracking-rank-action.is-st-col-tip-pinned,
         .special-tracking-rank-trend.is-trend-tip-pinned {
             outline: 1px solid rgba(184, 134, 11, 0.85);
             outline-offset: 2px;
@@ -5164,14 +5169,8 @@
             color: #422006;
         }
 
-        .filter-popup-special-kinds-picker {
-            display: inline-flex;
-            align-items: center;
-            gap: 4px;
-            flex: 0 0 auto;
-            margin-left: 4px;
-        }
-
+        .filter-popup-special-kinds-picker,
+        .filter-popup-special-belly-picker,
         .filter-popup-special-trends-picker {
             display: inline-flex;
             align-items: center;
@@ -5187,6 +5186,7 @@
         }
 
         .filter-popup-special-kinds-picker.hidden,
+        .filter-popup-special-belly-picker.hidden,
         .filter-popup-special-trends-picker.hidden,
         .filter-popup-tracking-belly.hidden {
             display: none !important;
@@ -5633,6 +5633,8 @@
             margin: 0;
         }
 
+        .filter-popup-special-kinds-picker .filter-popup-special-kinds-dir-picker,
+        .filter-popup-special-belly-picker .filter-popup-special-belly-dir-picker,
         .filter-popup-special-trends-picker .filter-popup-special-trend-dir-picker,
         .filter-popup-special-trends-picker .filter-popup-special-trend-streak-picker {
             display: inline-flex;
@@ -5645,6 +5647,8 @@
             margin-left: -1px;
         }
 
+        .filter-popup-special-kinds-picker .period-filter-mode-btn,
+        .filter-popup-special-belly-picker .period-filter-mode-btn,
         .filter-popup-special-trends-picker .period-filter-mode-btn {
             height: 24px;
             min-height: 24px;
@@ -5660,6 +5664,21 @@
             letter-spacing: 0.03em;
         }
 
+        .filter-popup-special-kinds-picker .period-filter-mode-btn {
+            min-width: 52px;
+            max-width: 88px;
+        }
+
+        .filter-popup-special-belly-picker .period-filter-mode-btn {
+            min-width: 44px;
+            max-width: 72px;
+        }
+
+        .filter-popup-special-trends-picker .filter-popup-special-trend-dir-picker .period-filter-mode-btn {
+            min-width: 44px;
+            max-width: 72px;
+        }
+
         .filter-popup-special-trends-picker .filter-popup-special-trend-dir-picker .period-filter-mode-btn {
             border-top-right-radius: 0;
             border-bottom-right-radius: 0;
@@ -5672,6 +5691,8 @@
             padding: 0 6px;
         }
 
+        .filter-popup-special-kinds-picker .period-filter-mode-btn:disabled,
+        .filter-popup-special-belly-picker .period-filter-mode-btn:disabled,
         .filter-popup-special-trends-picker .period-filter-mode-btn:disabled {
             opacity: 1;
             color: #64748b;
@@ -5680,15 +5701,44 @@
             border-color: #cbd5e1;
         }
 
-        .filter-popup-special-trends-picker .period-filter-mode-btn[data-dir="up"]:not(:disabled) {
-            border-color: #004d00;
-            background: #006400;
+        .filter-popup-special-kinds-picker .period-filter-mode-btn[data-kinds="plain"]:not(:disabled) {
+            border-color: #000000;
+            background: #111111;
             color: #ffffff;
         }
 
+        .filter-popup-special-kinds-picker .period-filter-mode-btn[data-kinds="merge"]:not(:disabled) {
+            border-color: #008000;
+            background: #00e000;
+            color: #003300;
+        }
+
+        .filter-popup-special-kinds-picker .period-filter-mode-btn[data-kinds="split"]:not(:disabled),
+        .filter-popup-special-belly-picker .period-filter-mode-btn[data-belly="out"]:not(:disabled),
         .filter-popup-special-trends-picker .period-filter-mode-btn[data-dir="down"]:not(:disabled) {
             border-color: #990000;
             background: #ff0000;
+            color: #ffffff;
+        }
+
+        .filter-popup-special-kinds-picker .period-filter-mode-btn[data-kinds="trans"]:not(:disabled) {
+            border-color: #003399;
+            background: #0050ff;
+            color: #ffffff;
+        }
+
+        .filter-popup-special-kinds-picker .period-filter-mode-btn[data-kinds="multi"]:not(:disabled),
+        .filter-popup-special-belly-picker .period-filter-mode-btn[data-belly="multi"]:not(:disabled),
+        .filter-popup-special-trends-picker .period-filter-mode-btn[data-dir="multi"]:not(:disabled) {
+            border-color: #334155;
+            background: #475569;
+            color: #ffffff;
+        }
+
+        .filter-popup-special-belly-picker .period-filter-mode-btn[data-belly="in"]:not(:disabled),
+        .filter-popup-special-trends-picker .period-filter-mode-btn[data-dir="up"]:not(:disabled) {
+            border-color: #004d00;
+            background: #006400;
             color: #ffffff;
         }
 
@@ -5698,67 +5748,10 @@
             color: #ffffff;
         }
 
+        .filter-popup-special-kinds-picker .period-filter-mode-btn.is-menu-open,
+        .filter-popup-special-belly-picker .period-filter-mode-btn.is-menu-open,
         .filter-popup-special-trends-picker .period-filter-mode-btn.is-menu-open {
             box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
-        }
-
-        .filter-popup-special-kind-btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            min-width: 28px;
-            height: 20px;
-            padding: 0 6px;
-            margin: 0;
-            font: 800 10px/1 Inter, Segoe UI, Arial, sans-serif;
-            letter-spacing: 0.03em;
-            border: 1px solid #cbd5e1;
-            border-radius: 3px;
-            background: #ffffff;
-            color: #64748b;
-            cursor: pointer;
-            user-select: none;
-        }
-
-        .filter-popup-special-kind-btn:hover {
-            border-color: #94a3b8;
-            color: #334155;
-        }
-
-        .filter-popup-special-kind-btn[aria-pressed="true"] {
-            border-color: #334155;
-            background: #e2e8f0;
-            color: #0f172a;
-        }
-
-        .filter-popup-special-kind-btn[data-special-kind="all"][aria-pressed="true"] {
-            border-color: #004d00;
-            background: #006400;
-            color: #ffffff;
-        }
-
-        .filter-popup-special-kind-btn[data-special-kind="plain"][aria-pressed="true"] {
-            border-color: #000000;
-            background: #111111;
-            color: #ffffff;
-        }
-
-        .filter-popup-special-kind-btn[data-special-kind="merge"][aria-pressed="true"] {
-            border-color: #008000;
-            background: #00e000;
-            color: #003300;
-        }
-
-        .filter-popup-special-kind-btn[data-special-kind="split"][aria-pressed="true"] {
-            border-color: #990000;
-            background: #ff0000;
-            color: #ffffff;
-        }
-
-        .filter-popup-special-kind-btn[data-special-kind="trans"][aria-pressed="true"] {
-            border-color: #003399;
-            background: #0050ff;
-            color: #ffffff;
         }
 
         #filterTableWrap tbody tr.filter-popup-special-disabled {
@@ -9022,7 +9015,36 @@
                         aria-label="Chọn nhãn chuỗi 1–10"></div>
                     <div id="filterPopupSpecialKindsPicker" class="filter-popup-special-kinds-picker hidden"
                         role="group" aria-label="Lọc special action: All / PLAIN / MERGE / SPLIT / TRANS"
-                        aria-hidden="true"></div>
+                        aria-hidden="true">
+                        <div id="filterPopupSpecialKindsDirPicker"
+                            class="period-filter-mode-picker filter-popup-special-kinds-dir-picker">
+                            <button type="button" id="filterPopupSpecialKindsBtn" class="period-filter-mode-btn"
+                                aria-haspopup="listbox" aria-expanded="false" data-kinds="all"
+                                title="Special: All / PLAIN / MERGE / SPLIT / TRANS (chọn nhiều)">
+                                <span id="filterPopupSpecialKindsBtnLabel">All</span>
+                                <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
+                            </button>
+                            <ul id="filterPopupSpecialKindsMenu"
+                                class="period-filter-mode-menu filter-popup-special-kinds-menu hidden" role="listbox"
+                                aria-multiselectable="true" aria-label="Special kinds"></ul>
+                        </div>
+                    </div>
+                    <div id="filterPopupSpecialBellyPicker" class="filter-popup-special-belly-picker hidden"
+                        role="group" aria-label="Lọc belly: All / IN / OUT"
+                        aria-hidden="true">
+                        <div id="filterPopupSpecialBellyDirPicker"
+                            class="period-filter-mode-picker filter-popup-special-belly-dir-picker">
+                            <button type="button" id="filterPopupSpecialBellyBtn" class="period-filter-mode-btn"
+                                aria-haspopup="listbox" aria-expanded="false" data-belly="all"
+                                title="Belly: All / IN / OUT (chọn nhiều)">
+                                <span id="filterPopupSpecialBellyBtnLabel">All</span>
+                                <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
+                            </button>
+                            <ul id="filterPopupSpecialBellyMenu"
+                                class="period-filter-mode-menu filter-popup-special-belly-menu hidden" role="listbox"
+                                aria-multiselectable="true" aria-label="Belly IN/OUT"></ul>
+                        </div>
+                    </div>
                     <div id="filterPopupSpecialTrendsPicker" class="filter-popup-special-trends-picker hidden"
                         role="group" aria-label="Lọc special trend: hướng + streak"
                         aria-hidden="true">
@@ -9030,13 +9052,13 @@
                             class="period-filter-mode-picker filter-popup-special-trend-dir-picker">
                             <button type="button" id="filterPopupSpecialTrendDirBtn" class="period-filter-mode-btn"
                                 aria-haspopup="listbox" aria-expanded="false" data-dir="all"
-                                title="Hướng trend: All / UP / DOWN / FLAT">
+                                title="Hướng trend: All / UP / DOWN / FLAT (chọn nhiều)">
                                 <span id="filterPopupSpecialTrendDirBtnLabel">All</span>
                                 <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
                             </button>
                             <ul id="filterPopupSpecialTrendDirMenu"
                                 class="period-filter-mode-menu filter-popup-special-trend-menu hidden" role="listbox"
-                                aria-label="Hướng trend"></ul>
+                                aria-multiselectable="true" aria-label="Hướng trend"></ul>
                         </div>
                         <div id="filterPopupSpecialTrendStreakPicker"
                             class="period-filter-mode-picker filter-popup-special-trend-streak-picker">
@@ -9048,7 +9070,7 @@
                             </button>
                             <ul id="filterPopupSpecialTrendStreakMenu"
                                 class="period-filter-mode-menu filter-popup-special-trend-menu hidden" role="listbox"
-                                aria-label="Số streak"></ul>
+                                aria-multiselectable="true" aria-label="Số streak"></ul>
                         </div>
                     </div>
                     <div id="filterPopupIntersectionPicker"
@@ -9564,7 +9586,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261001geoIpWho01"></script>
     <script src="chat.js?v=20260917chatFocusKeys02"></script>
-    <script src="right-pane-sheets.js?v=20261001rowSyncColor01"></script>
+    <script src="right-pane-sheets.js?v=20261001stColTipPin05"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -9842,11 +9864,14 @@
         const FILTER_TRACKING_BELLY_COUNT_MIN = 1;
         const FILTER_TRACKING_BELLY_COUNT_MAX = 8;
         const FILTER_TRACKING_BELLY_DEFAULT = Object.freeze({ size: 2, streak: 3 });
+        const FILTER_SPECIAL_KINDS_KEY = 'filterSpecialKinds';
         const FILTER_SPECIAL_TREND_DIR_KEY = 'filterSpecialTrendDir';
         const FILTER_SPECIAL_TREND_STREAK_KEY = 'filterSpecialTrendStreak';
+        const FILTER_SPECIAL_BELLY_KEY = 'filterSpecialBelly';
         const FILTER_SPECIAL_ALL = 'all';
         const FILTER_SPECIAL_KIND_VALUES = ['plain', 'merge', 'split', 'trans'];
         const FILTER_SPECIAL_TREND_DIRS = ['up', 'down', 'flat'];
+        const FILTER_SPECIAL_BELLY_VALUES = ['in', 'out'];
         const FILTER_SPECIAL_TREND_STREAK_MAX_FALLBACK = 20;
         const DATEBAND_FILTER_MODE = 'dateband';
         const TAIL_FILTER_MODE = 'tail';
@@ -9989,9 +10014,11 @@
         let filterPopupConnectionUniquePct = 0;
         /** Mode special: ['all'] hoặc ≥1 trong plain/merge/split/trans */
         let filterSpecialKinds = [FILTER_SPECIAL_ALL];
-        /** Mode special trend: hướng all|up|down|flat + streak (0 = mọi x của hướng) */
-        let filterSpecialTrendDir = FILTER_SPECIAL_ALL;
-        let filterSpecialTrendStreak = 0;
+        /** Mode special trend: ['all'] hoặc ≥1 up/down/flat; streaks [] = mọi streak */
+        let filterSpecialTrendDirs = [FILTER_SPECIAL_ALL];
+        let filterSpecialTrendStreaks = [];
+        /** Mode special belly: ['all'] hoặc ≥1 in/out */
+        let filterSpecialBelly = [FILTER_SPECIAL_ALL];
         let filterModeCounts = {};
         let filterPopupLayoutSaveTimer = null;
         let filterPopupResizeActive = false;
@@ -12745,6 +12772,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupIntersectionKindMenu();
             closeFilterPopupSpecialTrendMenus();
+            closeFilterPopupSpecialBellyMenu();
+            closeFilterPopupSpecialKindsMenu();
             const menu = el('filterPopupNoteTagMenu');
             const btn = el('filterPopupNoteTagBtn');
             const picker = el('filterPopupNoteTagPicker');
@@ -14076,6 +14105,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             closeFilterPopupNoteTagMenu();
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupSpecialTrendMenus();
+            closeFilterPopupSpecialBellyMenu();
+            closeFilterPopupSpecialKindsMenu();
             const menu = el('filterPopupIntersectionKindMenu');
             const btn = el('filterPopupIntersectionKindBtn');
             const picker = el('filterPopupIntersectionPicker');
@@ -14584,6 +14615,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             closeFilterPopupNoteTagMenu();
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupIntersectionKindMenu();
+            closeFilterPopupSpecialTrendMenus();
+            closeFilterPopupSpecialBellyMenu();
+            closeFilterPopupSpecialKindsMenu();
             const menu = el('filterPopupNoteTRefMenu');
             const btn = el('filterPopupNoteTRefBtn');
             const picker = el('filterPopupNoteTRefPicker');
@@ -14979,6 +15013,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             closeFilterPopupNoteTagMenu();
             closeFilterPopupIntersectionKindMenu();
             closeFilterPopupNonexistGreen005Menu();
+            closeFilterPopupSpecialTrendMenus();
+            closeFilterPopupSpecialBellyMenu();
+            closeFilterPopupSpecialKindsMenu();
             const menu = el('filterPopupNonexistColorMenu');
             const btn = el('filterPopupNonexistColorBtn');
             const picker = el('filterPopupNonexistColorPicker');
@@ -16577,15 +16614,39 @@ function getFilterNoteTRefMaxSelections(mode) {
             filterSpecialKinds = unique.length ? unique : [FILTER_SPECIAL_ALL];
         }
 
-        function normalizeFilterSpecialTrendDir(value) {
+        function normalizeOneFilterSpecialTrendDirToken(value) {
             const raw = String(value == null ? '' : value).trim().toLowerCase();
-            if (!raw || raw === FILTER_SPECIAL_ALL) {
+            if (!raw) {
+                return null;
+            }
+            if (raw === FILTER_SPECIAL_ALL) {
                 return FILTER_SPECIAL_ALL;
             }
             if (FILTER_SPECIAL_TREND_DIRS.includes(raw)) {
                 return raw;
             }
-            return FILTER_SPECIAL_ALL;
+            return null;
+        }
+
+        function normalizeFilterSpecialTrendDirs() {
+            if (!Array.isArray(filterSpecialTrendDirs) || filterSpecialTrendDirs.length === 0) {
+                filterSpecialTrendDirs = [FILTER_SPECIAL_ALL];
+                return;
+            }
+            if (filterSpecialTrendDirs.includes(FILTER_SPECIAL_ALL)
+                || filterSpecialTrendDirs.some((v) => normalizeOneFilterSpecialTrendDirToken(v) === FILTER_SPECIAL_ALL)) {
+                filterSpecialTrendDirs = [FILTER_SPECIAL_ALL];
+                return;
+            }
+            const unique = [];
+            for (const raw of filterSpecialTrendDirs) {
+                const token = normalizeOneFilterSpecialTrendDirToken(raw);
+                if (!token || token === FILTER_SPECIAL_ALL || unique.includes(token)) {
+                    continue;
+                }
+                unique.push(token);
+            }
+            filterSpecialTrendDirs = unique.length ? unique : [FILTER_SPECIAL_ALL];
         }
 
         function normalizeFilterSpecialTrendStreak(value) {
@@ -16596,17 +16657,66 @@ function getFilterNoteTRefMaxSelections(mode) {
             return Math.min(FILTER_SPECIAL_TREND_STREAK_MAX_FALLBACK, n);
         }
 
-        function normalizeFilterSpecialTrendSelection() {
-            filterSpecialTrendDir = normalizeFilterSpecialTrendDir(filterSpecialTrendDir);
-            if (filterSpecialTrendDir === FILTER_SPECIAL_ALL) {
-                filterSpecialTrendStreak = 0;
+        function normalizeFilterSpecialTrendStreaks() {
+            if (!Array.isArray(filterSpecialTrendStreaks)) {
+                const one = normalizeFilterSpecialTrendStreak(filterSpecialTrendStreaks);
+                filterSpecialTrendStreaks = one >= 1 ? [one] : [];
+            }
+            if (isFilterSpecialTrendsAllSelected()) {
+                filterSpecialTrendStreaks = [];
                 return;
             }
-            filterSpecialTrendStreak = normalizeFilterSpecialTrendStreak(filterSpecialTrendStreak);
-            const maxStreak = getMaxFilterSpecialTrendStreakForDir(filterSpecialTrendDir);
-            if (filterSpecialTrendStreak > maxStreak) {
-                filterSpecialTrendStreak = 0;
+            const maxStreak = getMaxFilterSpecialTrendStreakForDirs(getActiveFilterSpecialTrendDirs());
+            const unique = [];
+            for (const raw of filterSpecialTrendStreaks) {
+                const n = normalizeFilterSpecialTrendStreak(raw);
+                if (n < 1 || n > maxStreak || unique.includes(n)) {
+                    continue;
+                }
+                unique.push(n);
             }
+            unique.sort((a, b) => a - b);
+            filterSpecialTrendStreaks = unique;
+        }
+
+        function normalizeFilterSpecialTrendSelection() {
+            normalizeFilterSpecialTrendDirs();
+            normalizeFilterSpecialTrendStreaks();
+        }
+
+        function normalizeOneFilterSpecialBellyToken(value) {
+            const raw = String(value == null ? '' : value).trim().toLowerCase();
+            if (!raw) {
+                return null;
+            }
+            if (raw === FILTER_SPECIAL_ALL) {
+                return FILTER_SPECIAL_ALL;
+            }
+            if (FILTER_SPECIAL_BELLY_VALUES.includes(raw)) {
+                return raw;
+            }
+            return null;
+        }
+
+        function normalizeFilterSpecialBellySelection() {
+            if (!Array.isArray(filterSpecialBelly) || filterSpecialBelly.length === 0) {
+                filterSpecialBelly = [FILTER_SPECIAL_ALL];
+                return;
+            }
+            if (filterSpecialBelly.includes(FILTER_SPECIAL_ALL)
+                || filterSpecialBelly.some((v) => normalizeOneFilterSpecialBellyToken(v) === FILTER_SPECIAL_ALL)) {
+                filterSpecialBelly = [FILTER_SPECIAL_ALL];
+                return;
+            }
+            const unique = [];
+            for (const raw of filterSpecialBelly) {
+                const token = normalizeOneFilterSpecialBellyToken(raw);
+                if (!token || token === FILTER_SPECIAL_ALL || unique.includes(token)) {
+                    continue;
+                }
+                unique.push(token);
+            }
+            filterSpecialBelly = unique.length ? unique : [FILTER_SPECIAL_ALL];
         }
 
         function saveFilterSpecialKindsSettings() {
@@ -16617,8 +16727,14 @@ function getFilterNoteTRefMaxSelections(mode) {
 
         function saveFilterSpecialTrendsSettings() {
             try {
-                localStorage.setItem(FILTER_SPECIAL_TREND_DIR_KEY, filterSpecialTrendDir);
-                localStorage.setItem(FILTER_SPECIAL_TREND_STREAK_KEY, String(filterSpecialTrendStreak));
+                localStorage.setItem(FILTER_SPECIAL_TREND_DIR_KEY, JSON.stringify(filterSpecialTrendDirs));
+                localStorage.setItem(FILTER_SPECIAL_TREND_STREAK_KEY, JSON.stringify(filterSpecialTrendStreaks));
+            } catch (e) { /* ignore */ }
+        }
+
+        function saveFilterSpecialBellySettings() {
+            try {
+                localStorage.setItem(FILTER_SPECIAL_BELLY_KEY, JSON.stringify(filterSpecialBelly));
             } catch (e) { /* ignore */ }
         }
 
@@ -16637,19 +16753,68 @@ function getFilterNoteTRefMaxSelections(mode) {
             normalizeFilterSpecialKinds();
         }
 
+        function parseStoredFilterSpecialList(raw, legacyNormalizeOne) {
+            if (raw == null || raw === '') {
+                return [FILTER_SPECIAL_ALL];
+            }
+            try {
+                const parsed = JSON.parse(raw);
+                if (Array.isArray(parsed)) {
+                    return parsed;
+                }
+                if (typeof parsed === 'string' || typeof parsed === 'number') {
+                    return [parsed];
+                }
+            } catch (e) { /* legacy plain string */ }
+            const token = legacyNormalizeOne(raw);
+            return token ? [token] : [FILTER_SPECIAL_ALL];
+        }
+
         function loadFilterSpecialTrendsSettings() {
             try {
-                filterSpecialTrendDir = normalizeFilterSpecialTrendDir(
-                    localStorage.getItem(FILTER_SPECIAL_TREND_DIR_KEY)
-                );
-                filterSpecialTrendStreak = normalizeFilterSpecialTrendStreak(
-                    localStorage.getItem(FILTER_SPECIAL_TREND_STREAK_KEY)
+                const dirRaw = localStorage.getItem(FILTER_SPECIAL_TREND_DIR_KEY);
+                filterSpecialTrendDirs = parseStoredFilterSpecialList(
+                    dirRaw,
+                    (v) => normalizeOneFilterSpecialTrendDirToken(v) || FILTER_SPECIAL_ALL
                 );
             } catch (e) {
-                filterSpecialTrendDir = FILTER_SPECIAL_ALL;
-                filterSpecialTrendStreak = 0;
+                filterSpecialTrendDirs = [FILTER_SPECIAL_ALL];
+            }
+            try {
+                const streakRaw = localStorage.getItem(FILTER_SPECIAL_TREND_STREAK_KEY);
+                if (streakRaw == null || streakRaw === '') {
+                    filterSpecialTrendStreaks = [];
+                } else {
+                    try {
+                        const parsed = JSON.parse(streakRaw);
+                        if (Array.isArray(parsed)) {
+                            filterSpecialTrendStreaks = parsed;
+                        } else {
+                            const one = normalizeFilterSpecialTrendStreak(parsed);
+                            filterSpecialTrendStreaks = one >= 1 ? [one] : [];
+                        }
+                    } catch (e2) {
+                        const one = normalizeFilterSpecialTrendStreak(streakRaw);
+                        filterSpecialTrendStreaks = one >= 1 ? [one] : [];
+                    }
+                }
+            } catch (e) {
+                filterSpecialTrendStreaks = [];
             }
             normalizeFilterSpecialTrendSelection();
+        }
+
+        function loadFilterSpecialBellySettings() {
+            try {
+                const raw = localStorage.getItem(FILTER_SPECIAL_BELLY_KEY);
+                filterSpecialBelly = parseStoredFilterSpecialList(
+                    raw,
+                    (v) => normalizeOneFilterSpecialBellyToken(v) || FILTER_SPECIAL_ALL
+                );
+            } catch (e) {
+                filterSpecialBelly = [FILTER_SPECIAL_ALL];
+            }
+            normalizeFilterSpecialBellySelection();
         }
 
         function isFilterSpecialKindsAllSelected() {
@@ -16658,8 +16823,13 @@ function getFilterNoteTRefMaxSelections(mode) {
         }
 
         function isFilterSpecialTrendsAllSelected() {
-            normalizeFilterSpecialTrendSelection();
-            return filterSpecialTrendDir === FILTER_SPECIAL_ALL;
+            normalizeFilterSpecialTrendDirs();
+            return filterSpecialTrendDirs.length === 1 && filterSpecialTrendDirs[0] === FILTER_SPECIAL_ALL;
+        }
+
+        function isFilterSpecialBellyAllSelected() {
+            normalizeFilterSpecialBellySelection();
+            return filterSpecialBelly.length === 1 && filterSpecialBelly[0] === FILTER_SPECIAL_ALL;
         }
 
         function getActiveFilterSpecialKinds() {
@@ -16670,22 +16840,49 @@ function getFilterNoteTRefMaxSelections(mode) {
             return filterSpecialKinds.filter((k) => FILTER_SPECIAL_KIND_VALUES.includes(k));
         }
 
-        /** Token active: [] | ['up'] | ['down:2'] … */
-        function getActiveFilterSpecialTrends() {
-            normalizeFilterSpecialTrendSelection();
-            if (filterSpecialTrendDir === FILTER_SPECIAL_ALL) {
+        function getActiveFilterSpecialTrendDirs() {
+            normalizeFilterSpecialTrendDirs();
+            if (isFilterSpecialTrendsAllSelected()) {
                 return [];
             }
-            if (filterSpecialTrendStreak >= 1) {
-                return [filterSpecialTrendDir + ':' + filterSpecialTrendStreak];
+            return filterSpecialTrendDirs.filter((d) => FILTER_SPECIAL_TREND_DIRS.includes(d));
+        }
+
+        /** Token active cho match: [] | ['up','down'] | ['up:2','down:3'] … */
+        function getActiveFilterSpecialTrends() {
+            normalizeFilterSpecialTrendSelection();
+            const dirs = getActiveFilterSpecialTrendDirs();
+            if (!dirs.length) {
+                return [];
             }
-            return [filterSpecialTrendDir];
+            const streaks = filterSpecialTrendStreaks.slice();
+            if (!streaks.length) {
+                return dirs.slice();
+            }
+            const tokens = [];
+            for (let i = 0; i < dirs.length; i++) {
+                for (let j = 0; j < streaks.length; j++) {
+                    tokens.push(dirs[i] + ':' + streaks[j]);
+                }
+            }
+            return tokens;
+        }
+
+        /** Active belly: [] khi All, else ['in'] | ['out'] | ['in','out']. */
+        function getActiveFilterSpecialBelly() {
+            normalizeFilterSpecialBellySelection();
+            if (isFilterSpecialBellyAllSelected()) {
+                return [];
+            }
+            return filterSpecialBelly.filter((b) => FILTER_SPECIAL_BELLY_VALUES.includes(b));
         }
 
         function isFilterSpecialKindsSubfilterActive() {
             return periodFilterEnabled
                 && isSpecialFilterMode(periodFilterMode)
-                && (getActiveFilterSpecialKinds().length > 0 || getActiveFilterSpecialTrends().length > 0);
+                && (getActiveFilterSpecialKinds().length > 0
+                    || getActiveFilterSpecialTrends().length > 0
+                    || getActiveFilterSpecialBelly().length > 0);
         }
 
         function rowMatchesFilterSpecialTrend(meta, wantedTokens) {
@@ -16711,8 +16908,17 @@ function getFilterNoteTRefMaxSelections(mode) {
             return false;
         }
 
-        function getMaxFilterSpecialTrendStreakForDir(dir) {
-            const wantDir = normalizeFilterSpecialTrendDir(dir);
+        function rowMatchesFilterSpecialBelly(io, wantedList) {
+            const wanted = Array.isArray(wantedList) ? wantedList : (wantedList ? [wantedList] : []);
+            if (!wanted.length) {
+                return true;
+            }
+            const val = String(io == null ? '' : io).trim().toLowerCase();
+            return wanted.includes(val);
+        }
+
+        function getMaxFilterSpecialTrendStreakForDirs(dirs) {
+            const wantDirs = Array.isArray(dirs) ? dirs.filter((d) => FILTER_SPECIAL_TREND_DIRS.includes(d)) : [];
             let max = 0;
             if (!sheetManager || typeof sheetManager.getSheet1SpecialPickTrends !== 'function') {
                 return FILTER_SPECIAL_TREND_STREAK_MAX_FALLBACK;
@@ -16728,12 +16934,20 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (!FILTER_SPECIAL_TREND_DIRS.includes(d)) {
                     continue;
                 }
-                if (wantDir !== FILTER_SPECIAL_ALL && d !== wantDir) {
+                if (wantDirs.length && !wantDirs.includes(d)) {
                     continue;
                 }
                 max = Math.max(max, Math.max(1, (t.streak | 0) || 1));
             }
             return max > 0 ? max : FILTER_SPECIAL_TREND_STREAK_MAX_FALLBACK;
+        }
+
+        function getMaxFilterSpecialTrendStreakForDir(dir) {
+            const token = normalizeOneFilterSpecialTrendDirToken(dir);
+            if (!token || token === FILTER_SPECIAL_ALL) {
+                return getMaxFilterSpecialTrendStreakForDirs([]);
+            }
+            return getMaxFilterSpecialTrendStreakForDirs([token]);
         }
 
         function applyFilterSpecialTrendSelectionAndRefresh() {
@@ -16746,23 +16960,93 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncPeriodFilterNavModeToIframe();
         }
 
-        function setFilterSpecialTrendDir(dir) {
-            const next = normalizeFilterSpecialTrendDir(dir);
-            const dirChanged = next !== normalizeFilterSpecialTrendDir(filterSpecialTrendDir);
-            filterSpecialTrendDir = next;
-            if (filterSpecialTrendDir === FILTER_SPECIAL_ALL || dirChanged) {
-                filterSpecialTrendStreak = 0;
+        function applyFilterSpecialBellySelectionAndRefresh() {
+            normalizeFilterSpecialBellySelection();
+            saveFilterSpecialBellySettings();
+            syncFilterPopupSpecialBellyUi();
+            applyFilterPopupSpecialKindsRowClasses();
+            reconcileFilterPopupActiveAfterSubfilterToggle();
+            updateFilterPopupMatchCount();
+            syncPeriodFilterNavModeToIframe();
+        }
+
+        function toggleFilterSpecialTrendDir(dir) {
+            const token = normalizeOneFilterSpecialTrendDirToken(dir);
+            if (!token) {
+                return;
+            }
+            if (token === FILTER_SPECIAL_ALL) {
+                filterSpecialTrendDirs = [FILTER_SPECIAL_ALL];
+                filterSpecialTrendStreaks = [];
+            } else {
+                const cur = getActiveFilterSpecialTrendDirs();
+                const idx = cur.indexOf(token);
+                if (idx >= 0) {
+                    cur.splice(idx, 1);
+                } else {
+                    cur.push(token);
+                }
+                filterSpecialTrendDirs = cur.length ? cur : [FILTER_SPECIAL_ALL];
+                if (!cur.length) {
+                    filterSpecialTrendStreaks = [];
+                }
             }
             applyFilterSpecialTrendSelectionAndRefresh();
         }
 
-        function setFilterSpecialTrendStreak(streak) {
-            if (normalizeFilterSpecialTrendDir(filterSpecialTrendDir) === FILTER_SPECIAL_ALL) {
-                filterSpecialTrendStreak = 0;
+        function toggleFilterSpecialTrendStreak(streak) {
+            if (isFilterSpecialTrendsAllSelected()) {
+                filterSpecialTrendStreaks = [];
+                applyFilterSpecialTrendSelectionAndRefresh();
+                return;
+            }
+            const n = normalizeFilterSpecialTrendStreak(streak);
+            if (n < 1) {
+                filterSpecialTrendStreaks = [];
             } else {
-                filterSpecialTrendStreak = normalizeFilterSpecialTrendStreak(streak);
+                const cur = filterSpecialTrendStreaks.slice();
+                const idx = cur.indexOf(n);
+                if (idx >= 0) {
+                    cur.splice(idx, 1);
+                } else {
+                    cur.push(n);
+                }
+                cur.sort((a, b) => a - b);
+                filterSpecialTrendStreaks = cur;
             }
             applyFilterSpecialTrendSelectionAndRefresh();
+        }
+
+        function toggleFilterSpecialBelly(value) {
+            const token = normalizeOneFilterSpecialBellyToken(value);
+            if (!token) {
+                return;
+            }
+            if (token === FILTER_SPECIAL_ALL) {
+                filterSpecialBelly = [FILTER_SPECIAL_ALL];
+            } else {
+                const cur = getActiveFilterSpecialBelly();
+                const idx = cur.indexOf(token);
+                if (idx >= 0) {
+                    cur.splice(idx, 1);
+                } else {
+                    cur.push(token);
+                }
+                filterSpecialBelly = cur.length ? cur : [FILTER_SPECIAL_ALL];
+            }
+            applyFilterSpecialBellySelectionAndRefresh();
+        }
+
+        function setFilterSpecialTrendDir(dir) {
+            toggleFilterSpecialTrendDir(dir);
+        }
+
+        function setFilterSpecialTrendStreak(streak) {
+            toggleFilterSpecialTrendStreak(streak);
+        }
+
+        function setFilterSpecialBelly(value) {
+            toggleFilterSpecialBelly(value);
         }
 
         function toggleFilterSpecialKind(kind) {
@@ -16793,38 +17077,213 @@ function getFilterNoteTRefMaxSelections(mode) {
 
         function syncFilterPopupSpecialKindsUi() {
             const picker = el('filterPopupSpecialKindsPicker');
+            const btn = el('filterPopupSpecialKindsBtn');
+            const label = el('filterPopupSpecialKindsBtnLabel');
             const show = periodFilterEnabled && isSpecialFilterMode(periodFilterMode);
             if (picker) {
                 picker.classList.toggle('hidden', !show);
                 picker.setAttribute('aria-hidden', show ? 'false' : 'true');
             }
-            syncFilterPopupSpecialTrendsUi();
-            if (!picker) {
-                return;
+            if (!show) {
+                closeFilterPopupSpecialKindsMenu();
             }
+            syncFilterPopupSpecialBellyUi();
+            syncFilterPopupSpecialTrendsUi();
             normalizeFilterSpecialKinds();
             const allOn = isFilterSpecialKindsAllSelected();
-            const active = new Set(getActiveFilterSpecialKinds());
-            picker.querySelectorAll('.filter-popup-special-kind-btn').forEach((btn) => {
-                const kind = normalizeOneFilterSpecialKindToken(btn.dataset.specialKind);
-                let pressed = false;
-                if (kind === FILTER_SPECIAL_ALL) {
-                    pressed = allOn;
-                } else if (kind) {
-                    pressed = !allOn && active.has(kind);
-                }
-                btn.setAttribute('aria-pressed', pressed ? 'true' : 'false');
-            });
+            const active = getActiveFilterSpecialKinds();
+            if (btn) {
+                btn.disabled = !show;
+                btn.dataset.kinds = allOn
+                    ? FILTER_SPECIAL_ALL
+                    : (active.length === 1 ? active[0] : 'multi');
+                btn.title = 'Special: All / PLAIN / MERGE / SPLIT / TRANS (chọn nhiều; click ngoài để đóng)';
+            }
+            if (label) {
+                label.textContent = getFilterSpecialKindsButtonLabel();
+            }
+            highlightFilterPopupSpecialKindsMenu();
+        }
+
+        function getFilterSpecialKindsButtonLabel() {
+            normalizeFilterSpecialKinds();
+            if (isFilterSpecialKindsAllSelected()) {
+                return 'All';
+            }
+            const active = getActiveFilterSpecialKinds();
+            if (!active.length) {
+                return 'All';
+            }
+            if (active.length === 1) {
+                return active[0].toUpperCase();
+            }
+            return active.map((k) => k.slice(0, 1).toUpperCase()).join('+');
         }
 
         function getFilterSpecialTrendDirButtonLabel() {
-            const dir = normalizeFilterSpecialTrendDir(filterSpecialTrendDir);
-            return dir === FILTER_SPECIAL_ALL ? 'All' : dir.toUpperCase();
+            normalizeFilterSpecialTrendDirs();
+            if (isFilterSpecialTrendsAllSelected()) {
+                return 'All';
+            }
+            const active = getActiveFilterSpecialTrendDirs();
+            if (!active.length) {
+                return 'All';
+            }
+            if (active.length === 1) {
+                return active[0].toUpperCase();
+            }
+            return active.map((d) => d.slice(0, 1).toUpperCase()).join('+');
         }
 
         function getFilterSpecialTrendStreakButtonLabel() {
-            const streak = normalizeFilterSpecialTrendStreak(filterSpecialTrendStreak);
-            return streak >= 1 ? String(streak) : 'streak';
+            normalizeFilterSpecialTrendStreaks();
+            if (!filterSpecialTrendStreaks.length) {
+                return 'streak';
+            }
+            if (filterSpecialTrendStreaks.length === 1) {
+                return String(filterSpecialTrendStreaks[0]);
+            }
+            return filterSpecialTrendStreaks.join('+');
+        }
+
+        function getFilterSpecialBellyButtonLabel() {
+            normalizeFilterSpecialBellySelection();
+            if (isFilterSpecialBellyAllSelected()) {
+                return 'All';
+            }
+            const active = getActiveFilterSpecialBelly();
+            if (!active.length) {
+                return 'All';
+            }
+            if (active.length === 1) {
+                return active[0].toUpperCase();
+            }
+            return active.map((b) => b.toUpperCase()).join('+');
+        }
+
+        function highlightFilterPopupSpecialBellyMenu() {
+            const menu = el('filterPopupSpecialBellyMenu');
+            if (!menu) {
+                return;
+            }
+            normalizeFilterSpecialBellySelection();
+            const allOn = isFilterSpecialBellyAllSelected();
+            const active = new Set(getActiveFilterSpecialBelly());
+            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
+                const belly = normalizeOneFilterSpecialBellyToken(item.dataset.belly);
+                let on = false;
+                if (belly === FILTER_SPECIAL_ALL) {
+                    on = allOn;
+                } else if (belly) {
+                    on = !allOn && active.has(belly);
+                }
+                item.classList.toggle('selected', on);
+                item.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+        }
+
+        function buildFilterPopupSpecialBellyMenu() {
+            const menu = el('filterPopupSpecialBellyMenu');
+            if (!menu) {
+                return;
+            }
+            if (menu.dataset.built === '1') {
+                highlightFilterPopupSpecialBellyMenu();
+                return;
+            }
+            menu.dataset.built = '1';
+            menu.innerHTML = '';
+            const items = [
+                { belly: FILTER_SPECIAL_ALL, label: 'All' },
+                { belly: 'in', label: 'IN' },
+                { belly: 'out', label: 'OUT' }
+            ];
+            for (let i = 0; i < items.length; i++) {
+                const item = document.createElement('li');
+                item.className = 'period-filter-mode-item';
+                item.setAttribute('role', 'option');
+                item.dataset.belly = items[i].belly;
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'period-filter-mode-item-label';
+                labelSpan.textContent = items[i].label;
+                item.appendChild(labelSpan);
+                item.addEventListener('mousedown', (event) => event.preventDefault());
+                item.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    // Multi-select — giữ menu mở cho đến khi click ngoài.
+                    toggleFilterSpecialBelly(items[i].belly);
+                });
+                menu.appendChild(item);
+            }
+            highlightFilterPopupSpecialBellyMenu();
+        }
+
+        function closeFilterPopupSpecialBellyMenu() {
+            const menu = el('filterPopupSpecialBellyMenu');
+            const btn = el('filterPopupSpecialBellyBtn');
+            const picker = el('filterPopupSpecialBellyDirPicker') || el('filterPopupSpecialBellyPicker');
+            if (menu) {
+                menu.classList.add('hidden');
+                if (picker && menu.parentElement === document.body) {
+                    picker.appendChild(menu);
+                }
+            }
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+                btn.classList.remove('is-menu-open');
+            }
+        }
+
+        function openFilterPopupSpecialBellyMenu() {
+            closePeriodFilterModeMenu();
+            closeFilterPopupNoteTagMenu();
+            closeFilterPopupNoteTRefMenu();
+            closeFilterPopupNonexistColorMenu();
+            closeFilterPopupIntersectionKindMenu();
+            closeFilterPopupSpecialKindsMenu();
+            closeFilterPopupSpecialTrendMenus();
+            const menu = el('filterPopupSpecialBellyMenu');
+            const btn = el('filterPopupSpecialBellyBtn');
+            const picker = el('filterPopupSpecialBellyDirPicker') || el('filterPopupSpecialBellyPicker');
+            if (!menu || !btn || btn.disabled || !picker) {
+                return;
+            }
+            buildFilterPopupSpecialBellyMenu();
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
+            positionFilterPopupSpecialTrendMenu('filterPopupSpecialBellyMenu', 'filterPopupSpecialBellyBtn');
+            menu.classList.remove('hidden');
+            btn.setAttribute('aria-expanded', 'true');
+            btn.classList.add('is-menu-open');
+        }
+
+        function syncFilterPopupSpecialBellyUi() {
+            const picker = el('filterPopupSpecialBellyPicker');
+            const btn = el('filterPopupSpecialBellyBtn');
+            const label = el('filterPopupSpecialBellyBtnLabel');
+            const show = periodFilterEnabled && isSpecialFilterMode(periodFilterMode);
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+                picker.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+            if (!show) {
+                closeFilterPopupSpecialBellyMenu();
+            }
+            normalizeFilterSpecialBellySelection();
+            const allOn = isFilterSpecialBellyAllSelected();
+            const active = getActiveFilterSpecialBelly();
+            if (btn) {
+                btn.disabled = !show;
+                btn.dataset.belly = allOn
+                    ? FILTER_SPECIAL_ALL
+                    : (active.length === 1 ? active[0] : 'multi');
+                btn.title = 'Belly: All / IN / OUT (chọn nhiều; click ngoài để đóng)';
+            }
+            if (label) {
+                label.textContent = getFilterSpecialBellyButtonLabel();
+            }
+            highlightFilterPopupSpecialBellyMenu();
         }
 
         function highlightFilterPopupSpecialTrendDirMenu() {
@@ -16832,9 +17291,19 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!menu) {
                 return;
             }
-            const cur = normalizeFilterSpecialTrendDir(filterSpecialTrendDir);
+            normalizeFilterSpecialTrendDirs();
+            const allOn = isFilterSpecialTrendsAllSelected();
+            const active = new Set(getActiveFilterSpecialTrendDirs());
             menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
-                item.classList.toggle('selected', (item.dataset.dir || '') === cur);
+                const dir = normalizeOneFilterSpecialTrendDirToken(item.dataset.dir);
+                let on = false;
+                if (dir === FILTER_SPECIAL_ALL) {
+                    on = allOn;
+                } else if (dir) {
+                    on = !allOn && active.has(dir);
+                }
+                item.classList.toggle('selected', on);
+                item.setAttribute('aria-selected', on ? 'true' : 'false');
             });
         }
 
@@ -16843,9 +17312,12 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!menu) {
                 return;
             }
-            const cur = String(normalizeFilterSpecialTrendStreak(filterSpecialTrendStreak));
+            normalizeFilterSpecialTrendStreaks();
+            const selected = new Set(filterSpecialTrendStreaks.map(String));
             menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
-                item.classList.toggle('selected', String(item.dataset.streak || '0') === cur);
+                const on = selected.has(String(item.dataset.streak || '0'));
+                item.classList.toggle('selected', on);
+                item.setAttribute('aria-selected', on ? 'true' : 'false');
             });
         }
 
@@ -16876,9 +17348,10 @@ function getFilterNoteTRefMaxSelections(mode) {
                 labelSpan.textContent = items[i].label;
                 item.appendChild(labelSpan);
                 item.addEventListener('mousedown', (event) => event.preventDefault());
-                item.addEventListener('click', () => {
-                    closeFilterPopupSpecialTrendDirMenu();
-                    setFilterSpecialTrendDir(items[i].dir);
+                item.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    // Multi-select — giữ menu mở cho đến khi click ngoài.
+                    toggleFilterSpecialTrendDir(items[i].dir);
                 });
                 menu.appendChild(item);
             }
@@ -16890,15 +17363,11 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!menu) {
                 return;
             }
-            const dir = normalizeFilterSpecialTrendDir(filterSpecialTrendDir);
-            const maxStreak = dir === FILTER_SPECIAL_ALL
+            normalizeFilterSpecialTrendSelection();
+            const dirs = getActiveFilterSpecialTrendDirs();
+            const maxStreak = !dirs.length
                 ? 0
-                : getMaxFilterSpecialTrendStreakForDir(dir);
-            const keep = dir === FILTER_SPECIAL_ALL
-                ? 0
-                : normalizeFilterSpecialTrendStreak(filterSpecialTrendStreak);
-            const clamped = keep > maxStreak ? 0 : keep;
-            filterSpecialTrendStreak = clamped;
+                : getMaxFilterSpecialTrendStreakForDirs(dirs);
             menu.innerHTML = '';
             for (let n = 1; n <= maxStreak; n++) {
                 const streak = n;
@@ -16911,14 +17380,10 @@ function getFilterNoteTRefMaxSelections(mode) {
                 labelSpan.textContent = String(streak);
                 item.appendChild(labelSpan);
                 item.addEventListener('mousedown', (event) => event.preventDefault());
-                item.addEventListener('click', () => {
-                    closeFilterPopupSpecialTrendStreakMenu();
-                    // Chọn lại cùng số → về mọi streak của hướng (nút hiện "streak")
-                    if (normalizeFilterSpecialTrendStreak(filterSpecialTrendStreak) === streak) {
-                        setFilterSpecialTrendStreak(0);
-                    } else {
-                        setFilterSpecialTrendStreak(streak);
-                    }
+                item.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    // Multi-select streak — giữ menu mở; chọn lại số đang chọn để bỏ.
+                    toggleFilterSpecialTrendStreak(streak);
                 });
                 menu.appendChild(item);
             }
@@ -16980,6 +17445,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             closeFilterPopupNoteTRefMenu();
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupIntersectionKindMenu();
+            closeFilterPopupSpecialKindsMenu();
+            closeFilterPopupSpecialBellyMenu();
             closeFilterPopupSpecialTrendStreakMenu();
             const menu = el('filterPopupSpecialTrendDirMenu');
             const btn = el('filterPopupSpecialTrendDirBtn');
@@ -17003,6 +17470,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             closeFilterPopupNoteTRefMenu();
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupIntersectionKindMenu();
+            closeFilterPopupSpecialKindsMenu();
+            closeFilterPopupSpecialBellyMenu();
             closeFilterPopupSpecialTrendDirMenu();
             const menu = el('filterPopupSpecialTrendStreakMenu');
             const btn = el('filterPopupSpecialTrendStreakBtn');
@@ -17036,21 +17505,27 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             normalizeFilterSpecialTrendSelection();
             rebuildFilterPopupSpecialTrendStreakMenu();
-            const dirActive = filterSpecialTrendDir !== FILTER_SPECIAL_ALL;
+            const allOn = isFilterSpecialTrendsAllSelected();
+            const activeDirs = getActiveFilterSpecialTrendDirs();
+            const dirActive = activeDirs.length > 0;
             if (dirBtn) {
                 dirBtn.disabled = !show;
-                dirBtn.dataset.dir = filterSpecialTrendDir;
-                dirBtn.title = 'Hướng trend: All / UP / DOWN / FLAT';
+                dirBtn.dataset.dir = allOn
+                    ? FILTER_SPECIAL_ALL
+                    : (activeDirs.length === 1 ? activeDirs[0] : 'multi');
+                dirBtn.title = 'Hướng trend: All / UP / DOWN / FLAT (chọn nhiều; click ngoài để đóng)';
             }
             if (dirLabel) {
                 dirLabel.textContent = getFilterSpecialTrendDirButtonLabel();
             }
             if (streakBtn) {
                 streakBtn.disabled = !show || !dirActive;
-                streakBtn.dataset.dir = dirActive ? filterSpecialTrendDir : 'all';
+                streakBtn.dataset.dir = dirActive
+                    ? (activeDirs.length === 1 ? activeDirs[0] : 'multi')
+                    : 'all';
                 streakBtn.title = dirActive
-                    ? ('Số streak cho ' + filterSpecialTrendDir.toUpperCase()
-                        + ' (nút "streak" = mọi streak; chọn lại số đang chọn để về mọi streak)')
+                    ? ('Số streak cho ' + activeDirs.map((d) => d.toUpperCase()).join('+')
+                        + ' (chọn nhiều; nút "streak" = mọi streak; chọn lại số đang chọn để bỏ)')
                     : 'Chọn hướng UP/DOWN/FLAT trước';
             }
             if (streakLabel) {
@@ -17060,36 +17535,130 @@ function getFilterNoteTRefMaxSelections(mode) {
             highlightFilterPopupSpecialTrendStreakMenu();
         }
 
-        function buildFilterPopupSpecialKindsButtons() {
-            const picker = el('filterPopupSpecialKindsPicker');
-            if (!picker || picker.dataset.specialKindsBuilt === '1') {
+        function buildFilterPopupSpecialKindsMenu() {
+            const menu = el('filterPopupSpecialKindsMenu');
+            if (!menu) {
                 return;
             }
-            picker.dataset.specialKindsBuilt = '1';
-            picker.innerHTML = '';
-            const items = [
-                { kind: FILTER_SPECIAL_ALL, label: 'All', title: 'Tất cả giá trị special' },
-                { kind: 'plain', label: 'PLAIN', title: 'Lọc PLAIN' },
-                { kind: 'merge', label: 'MERGE', title: 'Lọc MERGE' },
-                { kind: 'split', label: 'SPLIT', title: 'Lọc SPLIT' },
-                { kind: 'trans', label: 'TRANS', title: 'Lọc TRANS' }
-            ];
-            for (const item of items) {
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'filter-popup-special-kind-btn';
-                btn.dataset.specialKind = item.kind;
-                btn.textContent = item.label;
-                btn.setAttribute('aria-pressed', item.kind === FILTER_SPECIAL_ALL ? 'true' : 'false');
-                btn.setAttribute('aria-label', item.title);
-                btn.title = item.title;
-                btn.addEventListener('mousedown', (event) => event.stopPropagation());
-                btn.addEventListener('click', (event) => {
-                    event.stopPropagation();
-                    toggleFilterSpecialKind(item.kind);
-                });
-                picker.appendChild(btn);
+            if (menu.dataset.built === '1') {
+                highlightFilterPopupSpecialKindsMenu();
+                return;
             }
+            menu.dataset.built = '1';
+            menu.innerHTML = '';
+            const items = [
+                { kind: FILTER_SPECIAL_ALL, label: 'All' },
+                { kind: 'plain', label: 'PLAIN' },
+                { kind: 'merge', label: 'MERGE' },
+                { kind: 'split', label: 'SPLIT' },
+                { kind: 'trans', label: 'TRANS' }
+            ];
+            for (let i = 0; i < items.length; i++) {
+                const item = document.createElement('li');
+                item.className = 'period-filter-mode-item';
+                item.setAttribute('role', 'option');
+                item.dataset.specialKind = items[i].kind;
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'period-filter-mode-item-label';
+                labelSpan.textContent = items[i].label;
+                item.appendChild(labelSpan);
+                item.addEventListener('mousedown', (event) => event.preventDefault());
+                item.addEventListener('click', (event) => {
+                    event.stopPropagation();
+                    // Multi-select — giữ menu mở cho đến khi click ngoài.
+                    toggleFilterSpecialKind(items[i].kind);
+                });
+                menu.appendChild(item);
+            }
+            highlightFilterPopupSpecialKindsMenu();
+        }
+
+        function highlightFilterPopupSpecialKindsMenu() {
+            const menu = el('filterPopupSpecialKindsMenu');
+            if (!menu) {
+                return;
+            }
+            normalizeFilterSpecialKinds();
+            const allOn = isFilterSpecialKindsAllSelected();
+            const active = new Set(getActiveFilterSpecialKinds());
+            menu.querySelectorAll('.period-filter-mode-item').forEach((item) => {
+                const kind = normalizeOneFilterSpecialKindToken(item.dataset.specialKind);
+                let on = false;
+                if (kind === FILTER_SPECIAL_ALL) {
+                    on = allOn;
+                } else if (kind) {
+                    on = !allOn && active.has(kind);
+                }
+                item.classList.toggle('selected', on);
+                item.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+        }
+
+        function closeFilterPopupSpecialKindsMenu() {
+            const menu = el('filterPopupSpecialKindsMenu');
+            const btn = el('filterPopupSpecialKindsBtn');
+            const picker = el('filterPopupSpecialKindsDirPicker') || el('filterPopupSpecialKindsPicker');
+            if (menu) {
+                menu.classList.add('hidden');
+                if (picker && menu.parentElement === document.body) {
+                    picker.appendChild(menu);
+                }
+            }
+            if (btn) {
+                btn.setAttribute('aria-expanded', 'false');
+                btn.classList.remove('is-menu-open');
+            }
+        }
+
+        function openFilterPopupSpecialKindsMenu() {
+            closePeriodFilterModeMenu();
+            closeFilterPopupNoteTagMenu();
+            closeFilterPopupNoteTRefMenu();
+            closeFilterPopupNonexistColorMenu();
+            closeFilterPopupIntersectionKindMenu();
+            closeFilterPopupSpecialBellyMenu();
+            closeFilterPopupSpecialTrendMenus();
+            const menu = el('filterPopupSpecialKindsMenu');
+            const btn = el('filterPopupSpecialKindsBtn');
+            const picker = el('filterPopupSpecialKindsDirPicker') || el('filterPopupSpecialKindsPicker');
+            if (!menu || !btn || btn.disabled || !picker) {
+                return;
+            }
+            buildFilterPopupSpecialKindsMenu();
+            if (menu.parentElement !== document.body) {
+                document.body.appendChild(menu);
+            }
+            positionFilterPopupSpecialTrendMenu('filterPopupSpecialKindsMenu', 'filterPopupSpecialKindsBtn');
+            menu.classList.remove('hidden');
+            btn.setAttribute('aria-expanded', 'true');
+            btn.classList.add('is-menu-open');
+        }
+
+        function initFilterPopupSpecialBellyControls() {
+            const root = el('filterPopupSpecialBellyPicker');
+            const btn = el('filterPopupSpecialBellyBtn');
+            const menu = el('filterPopupSpecialBellyMenu');
+            if (!root || !btn || !menu || root.dataset.bound === '1') {
+                return;
+            }
+            root.dataset.bound = '1';
+            root.addEventListener('mousedown', (event) => event.stopPropagation());
+            root.addEventListener('click', (event) => event.stopPropagation());
+            buildFilterPopupSpecialBellyMenu();
+            btn.addEventListener('mousedown', (event) => event.stopPropagation());
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (btn.disabled) {
+                    return;
+                }
+                if (menu.classList.contains('hidden')) {
+                    openFilterPopupSpecialBellyMenu();
+                } else {
+                    closeFilterPopupSpecialBellyMenu();
+                }
+            });
+            menu.addEventListener('click', (event) => event.stopPropagation());
         }
 
         function initFilterPopupSpecialTrendsControls() {
@@ -17137,9 +17706,33 @@ function getFilterNoteTRefMaxSelections(mode) {
         }
 
         function initFilterPopupSpecialKindsControls() {
+            const root = el('filterPopupSpecialKindsPicker');
+            const btn = el('filterPopupSpecialKindsBtn');
+            const menu = el('filterPopupSpecialKindsMenu');
             loadFilterSpecialKindsSettings();
+            loadFilterSpecialBellySettings();
             loadFilterSpecialTrendsSettings();
-            buildFilterPopupSpecialKindsButtons();
+            if (root && btn && menu && root.dataset.bound !== '1') {
+                root.dataset.bound = '1';
+                root.addEventListener('mousedown', (event) => event.stopPropagation());
+                root.addEventListener('click', (event) => event.stopPropagation());
+                buildFilterPopupSpecialKindsMenu();
+                btn.addEventListener('mousedown', (event) => event.stopPropagation());
+                btn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (btn.disabled) {
+                        return;
+                    }
+                    if (menu.classList.contains('hidden')) {
+                        openFilterPopupSpecialKindsMenu();
+                    } else {
+                        closeFilterPopupSpecialKindsMenu();
+                    }
+                });
+                menu.addEventListener('click', (event) => event.stopPropagation());
+            }
+            initFilterPopupSpecialBellyControls();
             initFilterPopupSpecialTrendsControls();
             syncFilterPopupSpecialKindsUi();
         }
@@ -17168,9 +17761,11 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             const wantedKinds = getActiveFilterSpecialKinds();
             const wantedTrends = getActiveFilterSpecialTrends();
+            const wantedBelly = getActiveFilterSpecialBelly();
             const kindsActive = wantedKinds.length > 0;
             const trendsActive = wantedTrends.length > 0;
-            const subActive = kindsActive || trendsActive;
+            const bellyActive = wantedBelly.length > 0;
+            const subActive = kindsActive || trendsActive || bellyActive;
             if (!subActive) {
                 return;
             }
@@ -17181,6 +17776,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             const trends = typeof sheetManager.getSheet1SpecialPickTrends === 'function'
                 ? sheetManager.getSheet1SpecialPickTrends(rows)
                 : [];
+            const bellies = typeof sheetManager.getSheet1SpecialPickBellyIo === 'function'
+                ? sheetManager.getSheet1SpecialPickBellyIo(rows)
+                : [];
             wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
                 const idx = Number(tr.dataset.idx);
                 if (!Number.isFinite(idx) || idx < 0) {
@@ -17189,7 +17787,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                 const kind = kinds[idx] || '';
                 const kindMatch = !kindsActive || (kind && wantedKinds.includes(kind));
                 const trendMatch = !trendsActive || rowMatchesFilterSpecialTrend(trends[idx], wantedTrends);
-                if (kindMatch && trendMatch) {
+                const bellyMatch = !bellyActive || rowMatchesFilterSpecialBelly(bellies[idx], wantedBelly);
+                if (kindMatch && trendMatch && bellyMatch) {
                     tr.classList.add('filter-popup-special-hit');
                 } else {
                     tr.classList.add('filter-popup-special-disabled');
@@ -19046,6 +19645,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupIntersectionKindMenu();
             closeFilterPopupSpecialTrendMenus();
+            closeFilterPopupSpecialBellyMenu();
+            closeFilterPopupSpecialKindsMenu();
             closeFilterPopupPhase1PosModeMenu();
             periodFilterMenuAnchor = anchor === 'popup' ? 'popup' : 'toolbar';
             const menu = getPeriodFilterMenu();
@@ -20343,6 +20944,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             closeFilterPopupNonexistColorMenu();
             closeFilterPopupIntersectionKindMenu();
             closeFilterPopupSpecialTrendMenus();
+            closeFilterPopupSpecialBellyMenu();
+            closeFilterPopupSpecialKindsMenu();
             const menu = el('filterPopupPhase1PosModeMenu');
             const btn = el('filterPopupPhase1PosModeBtn');
             const picker = el('filterPopupPhase1PosModePicker');
@@ -24783,9 +25386,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             closeFilterPopupNonexistGreen005Menu();
             closeFilterPopupIntersectionKindMenu();
             closeFilterPopupSpecialTrendMenus();
+            closeFilterPopupSpecialBellyMenu();
+            closeFilterPopupSpecialKindsMenu();
         }
-
-        /** true nếu click nằm trên menu đang mở hoặc nút mở của nó — không dismiss. */
         function isFilterPopupFloatingMenuKeepOpenTarget(target) {
             if (!(target instanceof Node)) {
                 return false;
@@ -24802,10 +25405,20 @@ function getFilterNoteTRefMaxSelections(mode) {
                 ['filterPopupNoteTRefMenu', 'filterPopupNoteTRefBtn'],
                 ['filterPopupIntersectionKindMenu', 'filterPopupIntersectionKindBtn'],
                 ['filterPopupSpecialTrendDirMenu', 'filterPopupSpecialTrendDirBtn'],
-                ['filterPopupSpecialTrendStreakMenu', 'filterPopupSpecialTrendStreakBtn']
+                ['filterPopupSpecialTrendStreakMenu', 'filterPopupSpecialTrendStreakBtn'],
+                ['filterPopupSpecialBellyMenu', 'filterPopupSpecialBellyBtn'],
+                ['filterPopupSpecialKindsMenu', 'filterPopupSpecialKindsBtn']
             ];
+            const specialKindsPicker = el('filterPopupSpecialKindsPicker');
+            if (specialKindsPicker && specialKindsPicker.contains(target)) {
+                return true;
+            }
             const specialTrendsPicker = el('filterPopupSpecialTrendsPicker');
             if (specialTrendsPicker && specialTrendsPicker.contains(target)) {
+                return true;
+            }
+            const specialBellyPicker = el('filterPopupSpecialBellyPicker');
+            if (specialBellyPicker && specialBellyPicker.contains(target)) {
                 return true;
             }
             const trackingBellyPicker = el('filterPopupTrackingBellyPicker');
