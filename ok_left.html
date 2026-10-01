@@ -37,7 +37,8 @@
             position: relative;
             margin-top: 6px;
             height: 100%;
-            overflow-y: hidden;
+            /* visible để panel gợi ý (portal midwrap) không bị cắt mép trên */
+            overflow: visible;
             box-sizing: border-box;
         }
 
@@ -566,8 +567,9 @@
             box-sizing: border-box;
             padding-right: 8px;
             min-height: 0;
-            overflow-y: hidden;
-            /* prevent meaningless vertical scrollbar in left half */
+            /* visible: panel kéo lên không bị cắt; tránh overflow-x:hidden
+               (CSS sẽ đổi overflow-y:visible → auto và clip) */
+            overflow: visible;
             --left-table-scale: 0.81;
             transform-origin: left center;
             transform: scale(var(--left-table-scale));
@@ -611,40 +613,98 @@
             background: transparent;
         }
 
-        /* Gợi ý kỳ tham khảo (sheet1) — panel 3-connection + nút Apply */
+        /* Gợi ý kỳ tham khảo (sheet1) — panel 3-tail; cao lên tới top bảng 2, scroll khi vượt */
         #referenceHint.reference-hint-panel {
             width: 100%;
+            max-width: 100%;
+            min-width: 0;
             box-sizing: border-box;
-            min-height: calc(1lh + 8px);
-            max-height: calc(3lh + 8px);
+            min-height: calc(1lh + 6px);
+            max-height: none;
             height: auto;
             font-size: 12px;
-            line-height: 1.35;
+            line-height: 1.25;
             color: #153015;
             background: #f2faf2;
             border: 1px solid #9ec49e;
-            overflow-y: auto;
             overflow-x: hidden;
+            overflow-y: auto;
             margin-bottom: 6px;
             font-family: system-ui, "Segoe UI", sans-serif;
             flex-shrink: 0;
             flex-grow: 0;
-            padding: 4px 6px;
+            padding: 3px 6px;
+            scrollbar-width: thin;
+            scrollbar-color: #6b9f6b #e4f3e4;
+        }
+
+        #referenceHint.reference-hint-panel::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        #referenceHint.reference-hint-panel::-webkit-scrollbar-thumb {
+            background: #6b9f6b;
+            border-radius: 4px;
+        }
+
+        #referenceHint.reference-hint-panel::-webkit-scrollbar-track {
+            background: #e4f3e4;
+        }
+
+        /* Giữ chỗ trong flow; panel absolute neo mép dưới spacer, kéo mép trên lên */
+        #referenceHintSpacer {
+            flex-shrink: 0;
+            width: 100%;
+            margin-bottom: 6px;
+            visibility: hidden;
+            pointer-events: none;
+        }
+
+        #referenceHint.reference-hint-panel.is-anchored-up {
+            position: absolute;
+            margin-bottom: 0;
+            z-index: 5;
+            /* host = .midwrap (ngoài transform scale) — không bị clip */
         }
 
         .reference-hint-head {
             font-weight: 600;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
         }
 
         .reference-hint-head-muted {
-            margin-bottom: 2px;
+            margin-bottom: 1px;
         }
 
         .reference-hint-row {
             display: flex;
             align-items: center;
-            gap: 6px;
-            margin: 2px 0;
+            gap: 4px;
+            margin: 0;
+            padding: 0 2px;
+            min-height: 0;
+            line-height: 1.25;
+            box-sizing: border-box;
+            border-radius: 3px;
+            border: 1.5px solid transparent;
+            cursor: pointer;
+        }
+
+        .reference-hint-row:hover {
+            background: #eef7ee;
+        }
+
+        .reference-hint-row.is-applied:hover {
+            background: #d0e4fc;
+        }
+
+        .reference-hint-row.is-applied {
+            border-color: #1d4ed8;
+            background: #dbeafe;
+            box-shadow: inset 0 0 0 1px rgba(29, 78, 216, 0.35);
         }
 
         .reference-hint-line {
@@ -653,6 +713,7 @@
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            line-height: 1.25;
         }
 
         .reference-hint-line.answer-triplet {
@@ -660,15 +721,51 @@
             font-weight: 600;
         }
 
+        /* Số phase1 (Y): viền vuông tím/hồng — gọn, không đội chiều cao hàng */
+        .reference-hint-tail-y {
+            position: relative;
+            display: inline;
+            padding: 0 1px;
+            margin: 0 1px;
+            font-weight: 800;
+            line-height: inherit;
+            box-sizing: border-box;
+            /* outline thay ::before để không phình hàng */
+            border-radius: 2px;
+            box-shadow: inset 0 0 0 1.5px #9333ea;
+        }
+
+        .reference-hint-tail-y.is-phase-max {
+            box-shadow: inset 0 0 0 1.5px #ff3fb7;
+        }
+
+        .reference-hint-tail-y::before {
+            content: none;
+        }
+
+        .reference-hint-tail-edges {
+            font-variant-numeric: tabular-nums;
+            margin-right: 0.55em;
+        }
+
+        .reference-hint-tail-arrow {
+            font-weight: 600;
+        }
+
+        /* X thuộc freq=0: nền vàng chữ đen như focus-chain hit nonexist */
+        .reference-hint-tail-x.is-freq-zero {
+            display: inline;
+            padding: 0 2px;
+            margin: 0 1px;
+            border-radius: 2px;
+            font-weight: 800;
+            color: #000;
+            background: #ff0;
+            box-shadow: inset 0 0 0 1px #a16207;
+        }
+
         .reference-hint-apply-btn {
-            flex: 0 0 auto;
-            font: 600 10px/1.2 system-ui, "Segoe UI", sans-serif;
-            padding: 2px 7px;
-            border: 1px solid #6b9f6b;
-            border-radius: 4px;
-            background: #e8f5e8;
-            color: #153015;
-            cursor: pointer;
+            display: none;
         }
 
         .reference-hint-apply-btn:hover {
@@ -676,8 +773,65 @@
         }
 
         .reference-hint-foot {
-            margin-top: 4px;
+            margin-top: 2px;
             font-weight: 600;
+        }
+
+        /* Gộp Y→X: xếp ngang trong đúng bề ngang panel; hết chỗ mới xuống dòng */
+        .reference-hint-groups {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: baseline;
+            gap: 2px 10px;
+            margin: 2px 0 6px;
+            line-height: 1.35;
+            font-weight: 600;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+        }
+
+        .reference-hint-group-item {
+            flex: 0 1 auto;
+            white-space: nowrap;
+            font-variant-numeric: tabular-nums;
+            max-width: 100%;
+            box-sizing: border-box;
+            padding: 0 3px;
+            border-radius: 3px;
+            border: 1.5px solid transparent;
+            cursor: pointer;
+            line-height: 1.35;
+        }
+
+        .reference-hint-group-item:hover {
+            background: #eef7ee;
+        }
+
+        .reference-hint-group-item.is-applied {
+            border-color: #1d4ed8;
+            background: #dbeafe;
+            box-shadow: inset 0 0 0 1px rgba(29, 78, 216, 0.35);
+        }
+
+        .reference-hint-group-item.is-applied:hover {
+            background: #d0e4fc;
+        }
+
+        .reference-hint-group-item.is-answer {
+            color: #0d5c0d;
+        }
+
+        .reference-hint-group-x.is-freq-zero {
+            display: inline;
+            padding: 0 2px;
+            margin: 0 1px;
+            border-radius: 2px;
+            font-weight: 800;
+            color: #000;
+            background: #ff0;
+            box-shadow: inset 0 0 0 1px #a16207;
         }
 
         .reference-hint-empty-note {
@@ -700,7 +854,9 @@
         }
 
         .left-container>.controls {
+            position: relative;
             flex-shrink: 0;
+            overflow: visible;
         }
 
         .mode-row {
@@ -792,6 +948,7 @@
 
         /* midwrap: JS căn giữa .container theo full chiều ngang iframe */
         .midwrap {
+            position: relative;
             display: flex;
             justify-content: flex-start;
             width: 100%;
@@ -1945,9 +2102,10 @@
         <div class="container">
             <div class="left-container">
                 <div class="controls">
+                    <div id="referenceHintSpacer" aria-hidden="true"></div>
                     <div id="referenceHint" class="reference-hint-panel" role="region"
-                        aria-label="3-connection của kỳ đang chọn (sheet1)">
-                        <div class="reference-hint-empty-note">Toàn bộ bộ 3-connection trong cửa sổ 10 chuỗi trước kỳ —
+                        aria-label="3-tail của kỳ đang chọn (sheet1)">
+                        <div class="reference-hint-empty-note">Số có thể tạo 3-tail với phase1 (ngoài 11–20 + cửa sổ 10) —
                             hiện khi chọn dòng ở bảng phải…</div>
                     </div>
                     <div class="mode-row">
@@ -2163,13 +2321,27 @@
         let blockFeatureEnabled = false;
 
         function applyConn3TripletToSelection(sortedNums) {
-            const pickNums = (sortedNums || [])
-                .map(function (x) { return parseInt(x, 10); })
-                .filter(function (n) { return !isNaN(n) && n >= 1 && n <= 35; })
-                .slice(0, 3);
-            if (pickNums.length !== 3) {
+            // Submit ON: không khoanh/xóa khoanh từ textarea — chỉ khi Submit OFF.
+            if (submitActive) {
                 return;
             }
+            const pickNums = (sortedNums || [])
+                .map(function (x) { return parseInt(x, 10); })
+                .filter(function (n) { return !isNaN(n) && n >= 1 && n <= 35; });
+            // 3-tail: Apply 1 số ứng viên; (cũ 3-connection: đủ 3 số)
+            if (pickNums.length < 1 || pickNums.length > 3) {
+                return;
+            }
+            const unique = [];
+            for (let i = 0; i < pickNums.length; i++) {
+                if (unique.indexOf(pickNums[i]) < 0) {
+                    unique.push(pickNums[i]);
+                }
+            }
+            const alreadyOn = unique.length > 0 && unique.every(function (n) {
+                return selected.has(n);
+            });
+
             selectionCleared = false;
             invalidateClearSelectionToggleBackup();
             autoRingPicked.clear();
@@ -2177,17 +2349,35 @@
             pairNeonObserveNum = null;
             currentPairIndex = -1;
             currentTailIndex = -1;
-            selected.clear();
-            transientSelected.clear();
-            simulatedSelected.clear();
-            pickOrder = pickNums.slice();
-            pickNums.forEach(function (n) { selected.add(n); });
+
+            if (alreadyOn) {
+                // Apply lần nữa → bỏ khoanh đỏ các số của hàng này
+                unique.forEach(function (n) {
+                    selected.delete(n);
+                    transientSelected.delete(n);
+                    simulatedSelected.delete(n);
+                });
+                pickOrder = (pickOrder || []).filter(function (n) {
+                    return selected.has(n);
+                });
+            } else {
+                selected.clear();
+                transientSelected.clear();
+                simulatedSelected.clear();
+                pickOrder = unique.slice();
+                unique.forEach(function (n) { selected.add(n); });
+            }
+
             try { recomputePairsFromSelected(); } catch (eR) { /* ignore */ }
             try { updateBlocked(); } catch (eB) { /* ignore */ }
             if (submitActive) {
                 try { applySubmitState(); } catch (eS) { /* ignore */ }
-            } else {
-                try { assignPairNeonObserveNumFromAutoRingCircleNums(pickNums); } catch (eOb) { /* ignore */ }
+            } else if (selected.size) {
+                try {
+                    assignPairNeonObserveNumFromAutoRingCircleNums(
+                        Array.from(selected)
+                    );
+                } catch (eOb) { /* ignore */ }
             }
             try {
                 applySelectionAndBlockedInDOM();
@@ -2200,6 +2390,218 @@
 
         let referenceConn3TripletsCache = [];
         let referenceConn3PanelActive = false;
+        /** Key hàng đang có viền (khớp số đang khoanh đỏ). */
+        let referenceHintAppliedKeys = new Set();
+        /** Index nhóm mũi tên đang focus bàn phím A/D (−1 = chưa). */
+        let arrowGroupNavIndex = -1;
+
+        function getReferenceHintArrowGroupItems() {
+            const panel = document.getElementById('referenceHint');
+            if (!panel) {
+                return [];
+            }
+            return Array.prototype.slice.call(
+                panel.querySelectorAll('.reference-hint-group-item[data-hint-nums]')
+            );
+        }
+
+        function syncArrowGroupNavFocusClass() {
+            const items = getReferenceHintArrowGroupItems();
+            for (let i = 0; i < items.length; i++) {
+                items[i].classList.toggle('is-nav-focus', i === arrowGroupNavIndex);
+            }
+        }
+
+        function setArrowGroupNavIndex(idx) {
+            const items = getReferenceHintArrowGroupItems();
+            if (!items.length) {
+                arrowGroupNavIndex = -1;
+                return;
+            }
+            const n = items.length;
+            arrowGroupNavIndex = ((idx % n) + n) % n;
+            syncArrowGroupNavFocusClass();
+        }
+
+        /**
+         * A/D trên nhóm mũi tên: bước ±1, wrap vòng; Apply phần tử đích.
+         * @returns {boolean} true nếu đã xử lý
+         */
+        function navigateArrowGroupByDir(dir) {
+            const items = getReferenceHintArrowGroupItems();
+            if (!items.length) {
+                return false;
+            }
+            let idx = arrowGroupNavIndex;
+            if (idx < 0 || idx >= items.length) {
+                idx = -1;
+                for (let i = 0; i < items.length; i++) {
+                    if (items[i].classList.contains('is-applied')
+                        || items[i].classList.contains('is-nav-focus')) {
+                        idx = i;
+                        break;
+                    }
+                }
+                if (idx < 0) {
+                    idx = 0;
+                } else {
+                    idx = (idx + dir + items.length) % items.length;
+                }
+            } else {
+                idx = (idx + dir + items.length) % items.length;
+            }
+            setArrowGroupNavIndex(idx);
+            lastClickedRegion = 'arrowGroup';
+            syncLeftKeyboardRegion('arrowGroup');
+            if (items.length === 1) {
+                return true;
+            }
+            let nums = [];
+            try {
+                nums = JSON.parse(items[idx].getAttribute('data-hint-nums') || '[]');
+            } catch (eJ) {
+                nums = [];
+            }
+            const xNum = nums.length ? parseInt(nums[0], 10) : NaN;
+            if (Number.isFinite(xNum)) {
+                lastClickedNumber = xNum;
+                currentPhaseNumber = xNum;
+                currentPhaseRow = null;
+            }
+            applyConn3TripletToSelection(nums);
+            lastClickedRegion = 'arrowGroup';
+            syncLeftKeyboardRegion('arrowGroup');
+            setArrowGroupNavIndex(idx);
+            return true;
+        }
+
+        function referenceHintRowKey(t) {
+            if (!t) {
+                return '';
+            }
+            if (Array.isArray(t.sorted) && t.sorted.length) {
+                return t.sorted.map(function (n) { return parseInt(n, 10); })
+                    .filter(function (n) { return Number.isFinite(n); })
+                    .slice()
+                    .sort(function (a, b) { return a - b; })
+                    .join('-');
+            }
+            const y = parseInt(t.y, 10);
+            const x = parseInt(t.x, 10);
+            if (Number.isFinite(y) && Number.isFinite(x)) {
+                return y + '\u2192' + x;
+            }
+            return String(t.label || '');
+        }
+
+        function referenceHintNumsFromKey(key) {
+            if (!key || key.indexOf('\u2192') !== -1) {
+                return [];
+            }
+            return String(key).split('-')
+                .map(function (s) { return parseInt(s, 10); })
+                .filter(function (n) { return Number.isFinite(n) && n >= 1 && n <= 35; });
+        }
+
+        /** Submit ON ưu tiên khoanh submit/autoring/đáp án; tắt thì dùng khoanh đỏ. */
+        function getReferenceHintHighlightNumSet() {
+            const out = new Set();
+            if (submitActive) {
+                (answerNums || []).forEach(function (n) {
+                    const v = parseInt(n, 10);
+                    if (!isNaN(v) && v >= 1 && v <= 35) {
+                        out.add(v);
+                    }
+                });
+                try {
+                    autoRingPicked.forEach(function (n) {
+                        if (!isNaN(n)) {
+                            out.add(n);
+                        }
+                    });
+                } catch (eA) { /* ignore */ }
+                try {
+                    selected.forEach(function (n) {
+                        if (!isNaN(n)) {
+                            out.add(n);
+                        }
+                    });
+                } catch (eS) { /* ignore */ }
+                try {
+                    if (answerTicketPreviewNums && answerTicketPreviewNums.size) {
+                        answerTicketPreviewNums.forEach(function (n) {
+                            if (!isNaN(n)) {
+                                out.add(n);
+                            }
+                        });
+                    }
+                } catch (eT) { /* ignore */ }
+                // không lấy preSubmitSelected (khoanh đỏ) — Submit ưu tiên cao hơn
+                return out;
+            }
+            try {
+                selected.forEach(function (n) {
+                    if (!isNaN(n)) {
+                        out.add(n);
+                    }
+                });
+            } catch (eSel) { /* ignore */ }
+            return out;
+        }
+
+        function isReferenceHintRowSelected(nums) {
+            if (!nums || !nums.length) {
+                return false;
+            }
+            const active = getReferenceHintHighlightNumSet();
+            for (let i = 0; i < nums.length; i++) {
+                if (!active.has(nums[i])) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        /** Viền hàng / nhóm gộp ↔ khoanh submit (ưu tiên) hoặc khoanh đỏ. */
+        function syncReferenceHintAppliedRowsFromSelection() {
+            const panel = document.getElementById('referenceHint');
+            const nextKeys = new Set();
+            if (panel) {
+                const rows = panel.querySelectorAll('.reference-hint-row[data-hint-key]');
+                for (let i = 0; i < rows.length; i++) {
+                    const row = rows[i];
+                    const key = row.getAttribute('data-hint-key') || '';
+                    let nums = [];
+                    try {
+                        nums = JSON.parse(row.getAttribute('data-hint-nums') || '[]');
+                    } catch (eJ) {
+                        nums = referenceHintNumsFromKey(key);
+                    }
+                    const on = isReferenceHintRowSelected(nums);
+                    row.classList.toggle('is-applied', on);
+                    if (on && key) {
+                        nextKeys.add(key);
+                    }
+                }
+                const groups = panel.querySelectorAll('.reference-hint-group-item[data-hint-nums]');
+                for (let gi = 0; gi < groups.length; gi++) {
+                    const item = groups[gi];
+                    let nums = [];
+                    try {
+                        nums = JSON.parse(item.getAttribute('data-hint-nums') || '[]');
+                    } catch (eG) {
+                        nums = [];
+                    }
+                    const on = isReferenceHintRowSelected(nums);
+                    item.classList.toggle('is-applied', on);
+                    const key = item.getAttribute('data-hint-key') || '';
+                    if (on && key) {
+                        nextKeys.add(key);
+                    }
+                }
+            }
+            referenceHintAppliedKeys = nextKeys;
+        }
 
         function computeConn3PickHintNumbers(effective, triplets) {
             if (!effective || effective.size === 0 || effective.size >= 3 || !triplets || !triplets.length) {
@@ -2227,6 +2629,18 @@
                 }
             }
             return Array.from(hints).sort(function (a, b) { return a - b; });
+        }
+
+        /** ★ đáp án trên hàng 3-tail: chỉ hiện khi Submit ON. */
+        function syncReferenceHintAnswerStars() {
+            const panel = document.getElementById('referenceHint');
+            if (!panel) {
+                return;
+            }
+            const stars = panel.querySelectorAll('.reference-hint-answer-star');
+            for (let i = 0; i < stars.length; i++) {
+                stars[i].hidden = !submitActive;
+            }
         }
 
         function syncReferenceConn3PickHintRow() {
@@ -2260,12 +2674,14 @@
             const headerLines = hint && Array.isArray(hint.headerLines) ? hint.headerLines : [];
             const triplets = hint && Array.isArray(hint.triplets) ? hint.triplets : [];
             const footerLine = hint && hint.footerLine ? String(hint.footerLine) : '';
+            const groupLines = hint && Array.isArray(hint.groupLines) ? hint.groupLines : [];
             referenceConn3TripletsCache = triplets.slice();
-            if (!headerLines.length && !triplets.length && !footerLine) {
+            if (!headerLines.length && !triplets.length && !footerLine && !groupLines.length) {
                 referenceConn3PanelActive = false;
+                referenceHintAppliedKeys.clear();
                 const empty = document.createElement('div');
                 empty.className = 'reference-hint-empty-note';
-                empty.textContent = 'Toàn bộ bộ 3-connection trong cửa sổ 10 chuỗi trước kỳ — hiện khi chọn dòng ở bảng phải…';
+                empty.textContent = 'Số có thể tạo 3-tail với phase1 (ngoài 11–20 + cửa sổ 10) — hiện khi chọn dòng ở bảng phải…';
                 panel.appendChild(empty);
                 syncReferenceHintPanelHeight();
                 scheduleComputeAndApplyHeights();
@@ -2280,65 +2696,334 @@
             pickHintRow.hidden = true;
             panel.appendChild(pickHintRow);
             for (let hi = 0; hi < headerLines.length; hi++) {
+                const hText = String(headerLines[hi] || '');
+                if (hText.indexOf('Đáp án:') === 0) {
+                    continue;
+                }
                 const lineEl = document.createElement('div');
-                lineEl.className = headerLines[hi].indexOf('Đáp án:') === 0
-                    ? 'reference-hint-head-muted'
-                    : 'reference-hint-head';
-                lineEl.textContent = headerLines[hi];
+                lineEl.className = 'reference-hint-head';
+                lineEl.textContent = hText;
                 panel.appendChild(lineEl);
+            }
+            if (footerLine) {
+                const foot = document.createElement('div');
+                foot.className = triplets.length || groupLines.length
+                    ? 'reference-hint-foot'
+                    : 'reference-hint-empty-note';
+                foot.textContent = footerLine;
+                panel.appendChild(foot);
+            }
+            if (groupLines.length) {
+                const groupsWrap = document.createElement('div');
+                groupsWrap.className = 'reference-hint-groups';
+                const phaseMax = hint && hint.phaseMaxNum != null
+                    ? parseInt(hint.phaseMaxNum, 10)
+                    : NaN;
+                for (let gi = 0; gi < groupLines.length; gi++) {
+                    const g = groupLines[gi];
+                    const item = document.createElement('span');
+                    item.className = 'reference-hint-group-item'
+                        + (g.inAnswer ? ' is-answer' : '');
+                    const xApply = parseInt(g.x, 10);
+                    const sortedNums = Number.isFinite(xApply) && xApply >= 1 && xApply <= 35
+                        ? [xApply]
+                        : [];
+                    const rowKey = sortedNums.length ? String(sortedNums[0]) : '';
+                    if (rowKey) {
+                        item.setAttribute('data-hint-key', rowKey);
+                    }
+                    item.setAttribute('data-hint-nums', JSON.stringify(sortedNums));
+                    if (isReferenceHintRowSelected(sortedNums)) {
+                        item.classList.add('is-applied');
+                        if (rowKey) {
+                            referenceHintAppliedKeys.add(rowKey);
+                        }
+                    }
+                    const ys = Array.isArray(g.ys) ? g.ys : [];
+                    for (let yi = 0; yi < ys.length; yi++) {
+                        if (yi > 0) {
+                            item.appendChild(document.createTextNode(','));
+                        }
+                        const yNum = parseInt(ys[yi], 10);
+                        const yEl = document.createElement('span');
+                        const yIsMax = Number.isFinite(phaseMax) && yNum === phaseMax;
+                        yEl.className = 'reference-hint-tail-y'
+                            + (yIsMax ? ' is-phase-max' : '');
+                        yEl.textContent = String(yNum);
+                        yEl.title = yIsMax
+                            ? ('Phase1 max-freq (hồng): ' + yNum)
+                            : ('Phase1 (tím): ' + yNum);
+                        item.appendChild(yEl);
+                    }
+                    item.appendChild(document.createTextNode('\u2192'));
+                    const xEl = document.createElement('span');
+                    xEl.className = 'reference-hint-group-x'
+                        + (g.xIsFreqZero ? ' is-freq-zero' : '');
+                    xEl.textContent = String(g.x);
+                    item.appendChild(xEl);
+                    if (g.inAnswer) {
+                        const star = document.createElement('span');
+                        star.className = 'reference-hint-answer-star';
+                        star.textContent = ' \u2605';
+                        star.hidden = !submitActive;
+                        item.appendChild(star);
+                    }
+                    item.title = 'Click để bật/tắt Apply: '
+                        + String(g.label || (ys.join(',') + '\u2192' + g.x));
+                    (function (itemEl, nums, groupIndex, xNum) {
+                        itemEl.addEventListener('click', function (ev) {
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                            lastClickedRegion = 'arrowGroup';
+                            syncLeftKeyboardRegion('arrowGroup');
+                            setArrowGroupNavIndex(groupIndex);
+                            if (Number.isFinite(xNum)) {
+                                lastClickedNumber = xNum;
+                                currentPhaseNumber = xNum;
+                                currentPhaseRow = null;
+                            }
+                            applyConn3TripletToSelection(nums);
+                            // Giữ region sau apply (updateFocusIndicator/autoring có thể xen vào).
+                            lastClickedRegion = 'arrowGroup';
+                            syncLeftKeyboardRegion('arrowGroup');
+                            setArrowGroupNavIndex(groupIndex);
+                        });
+                    })(item, sortedNums, gi, xApply);
+                    groupsWrap.appendChild(item);
+                }
+                panel.appendChild(groupsWrap);
+                if (leftKeyboardRegion === 'arrowGroup' || lastClickedRegion === 'arrowGroup') {
+                    if (arrowGroupNavIndex >= groupLines.length) {
+                        arrowGroupNavIndex = groupLines.length ? groupLines.length - 1 : -1;
+                    }
+                    syncArrowGroupNavFocusClass();
+                } else {
+                    arrowGroupNavIndex = -1;
+                }
             }
             for (let ti = 0; ti < triplets.length; ti++) {
                 const t = triplets[ti];
                 const row = document.createElement('div');
                 row.className = 'reference-hint-row';
+                const rowKey = referenceHintRowKey(t);
+                const sorted = Array.isArray(t.sorted) ? t.sorted.slice() : [];
+                const sortedNums = sorted
+                    .map(function (x) { return parseInt(x, 10); })
+                    .filter(function (n) { return Number.isFinite(n) && n >= 1 && n <= 35; });
+                if (rowKey) {
+                    row.setAttribute('data-hint-key', rowKey);
+                }
+                row.setAttribute('data-hint-nums', JSON.stringify(sortedNums));
+                if (isReferenceHintRowSelected(sortedNums)) {
+                    row.classList.add('is-applied');
+                    if (rowKey) {
+                        referenceHintAppliedKeys.add(rowKey);
+                    }
+                }
                 const line = document.createElement('span');
                 line.className = 'reference-hint-line' + (t.inAnswer ? ' answer-triplet' : '');
-                line.textContent = t.label || '';
-                line.title = t.label || '';
-                const btn = document.createElement('button');
-                btn.type = 'button';
-                btn.className = 'reference-hint-apply-btn';
-                btn.textContent = 'Apply';
-                btn.title = 'Khoanh đúng 3 số của bộ này (thay toàn bộ số đang khoanh)';
-                const sorted = Array.isArray(t.sorted) ? t.sorted.slice() : [];
-                btn.addEventListener('click', function (ev) {
+                const yNum = parseInt(t.y, 10);
+                const xNum = parseInt(t.x, 10);
+                const edgesArr = Array.isArray(t.edges) ? t.edges : [];
+                if (Number.isFinite(yNum) && Number.isFinite(xNum) && edgesArr.length) {
+                    const edgesEl = document.createElement('span');
+                    edgesEl.className = 'reference-hint-tail-edges';
+                    edgesEl.textContent = '[' + edgesArr.join(', ') + ']';
+                    const arrowEl = document.createElement('span');
+                    arrowEl.className = 'reference-hint-tail-arrow';
+                    const yEl = document.createElement('span');
+                    yEl.className = 'reference-hint-tail-y'
+                        + (t.yIsPhaseMax ? ' is-phase-max' : '');
+                    yEl.textContent = String(yNum);
+                    yEl.title = t.yIsPhaseMax
+                        ? ('Phase1 max-freq (hồng): ' + yNum)
+                        : ('Phase1 (tím): ' + yNum);
+                    arrowEl.appendChild(yEl);
+                    arrowEl.appendChild(document.createTextNode('\u2192'));
+                    const xEl = document.createElement('span');
+                    xEl.className = 'reference-hint-tail-x'
+                        + (t.xIsFreqZero ? ' is-freq-zero' : '');
+                    xEl.textContent = String(xNum);
+                    if (t.xIsFreqZero) {
+                        xEl.title = 'Freq 0 (vàng): ' + xNum;
+                    }
+                    arrowEl.appendChild(xEl);
+                    if (t.inAnswer) {
+                        const star = document.createElement('span');
+                        star.className = 'reference-hint-answer-star';
+                        star.textContent = ' \u2605';
+                        star.hidden = !submitActive;
+                        arrowEl.appendChild(star);
+                    }
+                    line.appendChild(edgesEl);
+                    line.appendChild(arrowEl);
+                    line.title = '[' + edgesArr.join(', ') + ']  ' + yNum + '\u2192' + xNum;
+                } else {
+                    line.textContent = t.label || '';
+                    line.title = t.label || '';
+                }
+                row.title = 'Click hàng để bật/tắt Apply';
+                row.addEventListener('click', function (ev) {
                     ev.preventDefault();
                     ev.stopPropagation();
+                    // Click hàng cạnh → thoát focus nhóm mũi tên (A/D về nav thường).
+                    if (leftKeyboardRegion === 'arrowGroup' || lastClickedRegion === 'arrowGroup') {
+                        lastClickedRegion = 'left';
+                        syncLeftKeyboardRegion('left');
+                        arrowGroupNavIndex = -1;
+                        syncArrowGroupNavFocusClass();
+                    }
                     applyConn3TripletToSelection(sorted);
                 });
                 row.appendChild(line);
-                row.appendChild(btn);
                 panel.appendChild(row);
-            }
-            if (footerLine) {
-                const foot = document.createElement('div');
-                foot.className = triplets.length ? 'reference-hint-foot' : 'reference-hint-empty-note';
-                foot.textContent = footerLine;
-                panel.appendChild(foot);
             }
             syncReferenceConn3PickHintRow();
             syncReferenceHintPanelHeight();
             scheduleComputeAndApplyHeights();
         }
 
-        function syncReferenceHintPanelHeight() {
-            const panel = document.getElementById('referenceHint');
-            if (!panel) {
+        function getLeftContainerScaleFactor() {
+            const leftContainer = document.querySelector('.left-container');
+            if (!leftContainer) {
+                return 1;
+            }
+            try {
+                const tr = window.getComputedStyle(leftContainer).transform;
+                if (tr && tr !== 'none') {
+                    const m = tr.match(/matrix\(([^,]+),/);
+                    if (m) {
+                        const a = parseFloat(m[1]);
+                        if (Number.isFinite(a) && a > 0.01) {
+                            return a;
+                        }
+                    }
+                }
+                const fromVar = parseFloat(
+                    window.getComputedStyle(leftContainer).getPropertyValue('--left-table-scale')
+                );
+                if (Number.isFinite(fromVar) && fromVar > 0.01) {
+                    return fromVar;
+                }
+            } catch (eSc) { /* ignore */ }
+            return 1;
+        }
+
+        function restoreReferenceHintPanelHome(panel, spacer) {
+            if (!panel || !spacer || !spacer.parentElement) {
                 return;
             }
-            panel.style.height = 'auto';
+            const home = spacer.parentElement;
+            if (panel.parentElement !== home || panel.previousElementSibling !== spacer) {
+                home.insertBefore(panel, spacer.nextSibling);
+            }
+        }
+
+        function syncReferenceHintPanelHeight() {
+            const panel = document.getElementById('referenceHint');
+            const spacer = document.getElementById('referenceHintSpacer');
+            if (!panel || !spacer) {
+                return;
+            }
+            const controls = spacer.parentElement;
+            if (!controls) {
+                return;
+            }
+            const modeRow = controls.querySelector('.mode-row');
+            const rightTable = document.querySelector('#right table');
+            const midwrap = document.querySelector('.midwrap');
+
+            // Về chỗ cũ trong .controls để đo (tránh nhân đôi chỗ với spacer)
+            // Khóa bề ngang theo spacer TRƯỚC khi panel vào flow — tránh nhóm Y→X phình cột.
+            const scaleEarly = getLeftContainerScaleFactor();
+            let colVisualW = 0;
+            try {
+                colVisualW = spacer.getBoundingClientRect().width;
+            } catch (eColW) { /* ignore */ }
+            restoreReferenceHintPanelHome(panel, spacer);
+            panel.classList.remove('is-anchored-up');
+            panel.style.top = '';
+            panel.style.left = '';
+            panel.style.right = '';
+            panel.style.height = '';
+            panel.style.maxHeight = '';
+            panel.style.marginTop = '';
+            panel.style.transform = '';
+            panel.style.transformOrigin = '';
+            panel.style.boxSizing = 'border-box';
+            if (colVisualW > 1) {
+                const localColW = colVisualW / scaleEarly;
+                panel.style.width = localColW + 'px';
+                panel.style.maxWidth = localColW + 'px';
+            } else {
+                panel.style.width = '100%';
+                panel.style.maxWidth = '100%';
+            }
+            spacer.style.height = '0px';
+            void panel.offsetHeight;
+
             const cs = window.getComputedStyle(panel);
             const fontSize = parseFloat(cs.fontSize) || 12;
             const lineHeightPx = parseFloat(cs.lineHeight);
-            const lineH = Number.isFinite(lineHeightPx) ? lineHeightPx : Math.round(fontSize * 1.35);
+            const lineH = Number.isFinite(lineHeightPx) ? lineHeightPx : Math.round(fontSize * 1.25);
             const padY = (parseFloat(cs.paddingTop) || 0) + (parseFloat(cs.paddingBottom) || 0);
             const borderY = (parseFloat(cs.borderTopWidth) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
-            const maxContentPx = Math.round(lineH * 3);
-            const minContentPx = Math.round(lineH);
-            const fullContentH = panel.scrollHeight;
-            const visibleContentH = Math.min(fullContentH, maxContentPx);
-            const contentClamped = Math.max(minContentPx, visibleContentH);
-            panel.style.height = (contentClamped + padY + borderY) + 'px';
+            const minOuter = Math.round(lineH) + padY + borderY;
+            // Chỗ trong flow cố định (~3 dòng) — nội dung dài cuộn trong panel
+            const footprint = Math.round(lineH * 3) + padY + borderY;
+            const scale = scaleEarly;
+
+            spacer.style.height = footprint + 'px';
+            void spacer.offsetHeight;
+
+            if (!rightTable || !modeRow || !midwrap) {
+                return;
+            }
+
+            let rightTop;
+            let spacerRect;
+            let midRect;
+            try {
+                rightTop = rightTable.getBoundingClientRect().top;
+                spacerRect = spacer.getBoundingClientRect();
+                midRect = midwrap.getBoundingClientRect();
+            } catch (eM) {
+                return;
+            }
+
+            // Trần = top bảng 2; mép dưới = đáy spacer (giữ pair/bảng)
+            let topLimit = rightTop;
+            if (Number.isFinite(midRect.top) && topLimit < midRect.top + 1) {
+                topLimit = midRect.top + 1;
+            }
+            const bottomLimit = spacerRect.bottom;
+            const spanVisual = Math.floor(bottomLimit - topLimit);
+            if (!(spanVisual > 2) || !Number.isFinite(spanVisual)) {
+                return;
+            }
+
+            // Portal ra .midwrap — ngoài transform scale của .left-container (hết bị cắt mép trên)
+            if (panel.parentElement !== midwrap) {
+                midwrap.appendChild(panel);
+            }
+            panel.classList.add('is-anchored-up');
+
+            // Tọa độ theo midwrap; scale(top-left) khớp cột trái — khóa maxWidth để không phình ngang
+            const visualW = spacerRect.width;
+            const visualH = spanVisual;
+            const localW = visualW / scale;
+            const localH = Math.max(minOuter, visualH / scale);
+
+            panel.style.left = Math.round(spacerRect.left - midRect.left) + 'px';
+            panel.style.top = Math.round(topLimit - midRect.top) + 'px';
+            panel.style.width = localW + 'px';
+            panel.style.maxWidth = localW + 'px';
+            panel.style.height = localH + 'px';
+            panel.style.maxHeight = localH + 'px';
+            panel.style.right = 'auto';
+            panel.style.boxSizing = 'border-box';
+            panel.style.transformOrigin = 'top left';
+            panel.style.transform = 'scale(' + scale + ')';
         }
 
         let computeHeightsRaf = 0;
@@ -2438,7 +3123,8 @@
         let lastClickedNumber = null;
 
         function syncLeftKeyboardRegion(region) {
-            if (region === 'left' || region === 'right' || region === 'pairList' || region === 'tailList') {
+            if (region === 'left' || region === 'right' || region === 'pairList'
+                || region === 'tailList' || region === 'arrowGroup') {
                 leftKeyboardRegion = region;
             }
         }
@@ -2604,7 +3290,10 @@
             try {
                 // Prefer explicit region from last click over document.activeElement — stale
                 // focus timeouts can move focus to #pairList after the user clicked tail/table 2.
-                if (leftKeyboardRegion === 'pairList' || leftKeyboardRegion === 'tailList' || leftKeyboardRegion === 'right') {
+                if (leftKeyboardRegion === 'arrowGroup'
+                    || leftKeyboardRegion === 'pairList'
+                    || leftKeyboardRegion === 'tailList'
+                    || leftKeyboardRegion === 'right') {
                     return leftKeyboardRegion;
                 }
                 var el = document.activeElement;
@@ -2618,7 +3307,8 @@
                 }
             } catch (e0) { }
             if (leftKeyboardRegion === 'left' || leftKeyboardRegion === 'right' ||
-                leftKeyboardRegion === 'pairList' || leftKeyboardRegion === 'tailList') {
+                leftKeyboardRegion === 'pairList' || leftKeyboardRegion === 'tailList'
+                || leftKeyboardRegion === 'arrowGroup') {
                 return leftKeyboardRegion;
             }
             var pairListExists = !!(document.getElementById && document.getElementById('pairList'));
@@ -4176,6 +4866,7 @@
             }
             try { syncPickPropertyBadges(); } catch (eBadges) { /* ignore */ }
             try { syncReferenceConn3PickHintRow(); } catch (eHint) { /* ignore */ }
+            try { syncReferenceHintAppliedRowsFromSelection(); } catch (eRow) { /* ignore */ }
         }
 
         function isSubmitAutoringOverlayNum(val) {
@@ -4415,6 +5106,7 @@
                 try { restartNeonAnimationsInDOM(); } catch (e) { }
                 try { notifyParentLeftCircledNums(); } catch (eN) { /* ignore */ }
                 try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (ePick) { /* ignore */ }
+                try { syncReferenceHintAppliedRowsFromSelection(); } catch (eHintRow) { /* ignore */ }
                 return true;
             }
 
@@ -4677,6 +5369,10 @@
 
         /** Đồng bộ phase/pair/tail focus từ khoanh autoring (Submit ON/OFF). */
         function syncCircledFocusForNav() {
+            // Đang focus nhóm mũi tên — không cướp region về pair/tail.
+            if (leftKeyboardRegion === 'arrowGroup' || lastClickedRegion === 'arrowGroup') {
+                return;
+            }
             if (!raw || !hasCircledNumbersForNav()) return;
 
             if (isAutoringCircledNavActive()) {
@@ -4836,6 +5532,9 @@
         }
 
         function needsLeftTable1Bootstrap() {
+            if (leftKeyboardRegion === 'arrowGroup' || lastClickedRegion === 'arrowGroup') {
+                return false;
+            }
             if (!hasCircledNumbersForNav()) {
                 return true;
             }
@@ -5681,6 +6380,13 @@
                 }
             } catch (e) { }
 
+            // Kỳ rỗng + Submit nhớ ON: giữ preSubmit khớp khoanh tay (bỏ/thêm → màn phải theo).
+            if (disableSubmitForCurrentData && submitActiveBeforeEmptyFocus) {
+                try {
+                    snapshotPreSubmitPickState();
+                } catch (ePreSync) { /* ignore */ }
+            }
+
             // Update only sequence-number cells in-place (have class `num`) to avoid repaint of index/footer cells
             try {
                 var numCells = document.querySelectorAll('.cell.num[data-num="' + n + '"]');
@@ -6159,13 +6865,40 @@
         // Helper utilities used by renderTable1/renderTable2
         /**
          * Gạch chân Chuỗi + follow đổi id: luôn theo viền cam BASIC (tách biệt special).
-         * Cho phép nhiều Chuỗi cùng gạch chân (union 5 số mỗi chuỗi).
+         * Nhãn Chuỗi đã pin là nguồn sự thật (không suy lại từ bộ số — tránh lệch khi đổi id liên tục).
          */
         /** Snapshot viền cam basic gần nhất (không dùng special). */
         var observeChuoiLastFocusSet = new Set();
-        /** Đang sync theo id — bỏ qua event thiếu số (race). */
+        /** Nhãn Chuỗi 1..10 đang gạch chân cam (follow giữ nguyên khi đổi id). */
+        var observeChuoiPinnedLabels = [];
+        /** Đang sync theo id — bỏ qua event thiếu số / số cũ (race). */
         var observeChuoiPinSyncing = false;
         var observeChuoiPinSyncTimer = null;
+        /** Bộ số vừa post khi sync pin — dùng để nhận đúng echo từ parent. */
+        var observeChuoiPinSyncExpectedKey = '';
+
+        function normalizeChuoiPinnedLabels(labels) {
+            var out = [];
+            var seen = new Set();
+            (Array.isArray(labels) ? labels : []).forEach(function (raw) {
+                var lab = Math.floor(Number(raw));
+                if (!Number.isFinite(lab) || lab < 1 || lab > 10 || seen.has(lab)) {
+                    return;
+                }
+                seen.add(lab);
+                out.push(lab);
+            });
+            out.sort(function (a, b) { return a - b; });
+            return out;
+        }
+
+        function setObserveChuoiPinnedLabels(labels) {
+            observeChuoiPinnedLabels = normalizeChuoiPinnedLabels(labels);
+        }
+
+        function focusNumsKey(focusSet) {
+            return numsToSortedArray(focusSet).join(',');
+        }
 
         function getChuoiNumsForLabel(label) {
             var lab = Math.floor(Number(label));
@@ -6231,10 +6964,23 @@
             return out;
         }
 
-        /** Số thuộc các Chuỗi đang gạch chân (trừ optional excludeLabel). */
-        function getNumsKeptByOtherObservedChuoi(excludeLabel, focusSet) {
+        /** Union 5 số theo danh sách nhãn pin. */
+        function buildFocusSetFromChuoiLabels(labels) {
+            var next = new Set();
+            var list = normalizeChuoiPinnedLabels(labels);
+            for (var i = 0; i < list.length; i++) {
+                var nums = getChuoiNumsForLabel(list[i]);
+                for (var j = 0; j < nums.length; j++) {
+                    next.add(nums[j]);
+                }
+            }
+            return next;
+        }
+
+        /** Số thuộc các Chuỗi đang pin (trừ optional excludeLabel). */
+        function getNumsKeptByOtherPinnedChuoi(excludeLabel) {
             var keep = new Set();
-            var labels = getFullyObservedChuoiLabels(focusSet);
+            var labels = observeChuoiPinnedLabels;
             for (var i = 0; i < labels.length; i++) {
                 if (excludeLabel != null && labels[i] === excludeLabel) {
                     continue;
@@ -6247,13 +6993,17 @@
             return keep;
         }
 
-        function beginObserveChuoiPinSyncGuard() {
+        function beginObserveChuoiPinSyncGuard(expectedFocusSet) {
             observeChuoiPinSyncing = true;
+            observeChuoiPinSyncExpectedKey = expectedFocusSet
+                ? focusNumsKey(expectedFocusSet)
+                : '';
             if (observeChuoiPinSyncTimer) {
                 clearTimeout(observeChuoiPinSyncTimer);
             }
             observeChuoiPinSyncTimer = setTimeout(function () {
                 observeChuoiPinSyncing = false;
+                observeChuoiPinSyncExpectedKey = '';
                 observeChuoiPinSyncTimer = null;
             }, 450);
         }
@@ -6273,52 +7023,48 @@
         }
 
         /**
-         * Gạch chân cam trên mọi Chuỗi đang đủ 5 viền cam basic (nhiều chuỗi cùng lúc).
+         * Gạch chân cam theo nhãn đã pin (không suy từ bộ số → không lệch nhãn khi đổi id).
          */
         function applyObserveChuoiPinUnderline() {
             var right = document.getElementById('right');
             if (!right) {
                 return;
             }
-            var satisfied = getFullyObservedChuoiLabels(observeChuoiLastFocusSet);
-            var satisfiedSet = new Set(satisfied);
+            var pinnedSet = new Set(observeChuoiPinnedLabels);
             var spans = right.querySelectorAll('tr.chuoi-main-row td:first-child span[data-chuoi-label]');
             for (var si = 0; si < spans.length; si++) {
                 var span = spans[si];
                 var lab = parseInt(span.getAttribute('data-chuoi-label') || '', 10);
-                span.classList.toggle('chuoi-observe-pin', satisfiedSet.has(lab));
+                span.classList.toggle('chuoi-observe-pin', pinnedSet.has(lab));
             }
         }
 
         /**
-         * Đổi id: mọi Chuỗi đang gạch chân → gắn lại union 5 số của từng chuỗi (basic).
+         * Đổi id: giữ nhãn đã pin → gắn lại union 5 số của từng chuỗi (basic).
          */
         function syncObserveChuoiPinFocusNums(followLabels) {
-            var labels = Array.isArray(followLabels) ? followLabels : [];
+            var labels = normalizeChuoiPinnedLabels(
+                followLabels != null ? followLabels : observeChuoiPinnedLabels
+            );
+            setObserveChuoiPinnedLabels(labels);
             if (!labels.length) {
                 applyObserveChuoiPinUnderline();
                 return;
             }
-            var next = new Set();
-            for (var i = 0; i < labels.length; i++) {
-                var nums = getChuoiNumsForLabel(labels[i]);
-                for (var j = 0; j < nums.length; j++) {
-                    next.add(nums[j]);
-                }
-            }
+            var next = buildFocusSetFromChuoiLabels(labels);
             if (!next.size) {
                 applyObserveChuoiPinUnderline();
                 return;
             }
-            beginObserveChuoiPinSyncGuard();
+            beginObserveChuoiPinSyncGuard(next);
             observeChuoiLastFocusSet = next;
             applyObserveChuoiPinUnderline();
             postBasicObserveFocusNums(next, true);
         }
 
         /**
-         * Viền cam đổi → gạch chân theo basicNums (bỏ qua bộ special).
-         * Đổi sang special không đụng gạch chân nếu basic vẫn đủ 5.
+         * Viền cam đổi → cập nhật snapshot; pin chỉ đổi khi KHÔNG đang sync follow-id
+         * (tránh event số cũ làm gạch chân nhảy sang chuỗi khác).
          */
         function onTrackingObserveFocusNumsChanged(rawNums, viewMode, basicNums) {
             var sourceNums = Array.isArray(basicNums)
@@ -6330,24 +7076,32 @@
                 return;
             }
             var next = focusSetFromNums(sourceNums);
-            var prevSatisfied = getFullyObservedChuoiLabels(observeChuoiLastFocusSet);
-            var nextSatisfied = getFullyObservedChuoiLabels(next);
-            if (
-                observeChuoiPinSyncing
-                && prevSatisfied.length > 0
-                && nextSatisfied.length === 0
-            ) {
-                /* Event cũ thiếu số lúc đang sync id — bỏ qua */
+            var nextKey = focusNumsKey(next);
+            if (observeChuoiPinSyncing) {
+                if (observeChuoiPinSyncExpectedKey && nextKey === observeChuoiPinSyncExpectedKey) {
+                    observeChuoiLastFocusSet = next;
+                    applyObserveChuoiPinUnderline();
+                    observeChuoiPinSyncing = false;
+                    observeChuoiPinSyncExpectedKey = '';
+                    if (observeChuoiPinSyncTimer) {
+                        clearTimeout(observeChuoiPinSyncTimer);
+                        observeChuoiPinSyncTimer = null;
+                    }
+                    return;
+                }
+                /* Event cũ / thiếu số lúc đang sync id — bỏ qua, giữ nhãn pin */
                 return;
             }
             observeChuoiLastFocusSet = next;
+            /* Chỉnh viền cam tay: pin = các chuỗi đang đủ 5 số */
+            setObserveChuoiPinnedLabels(getFullyObservedChuoiLabels(next));
             applyObserveChuoiPinUnderline();
         }
 
         /**
          * Click nhãn Chuỗi x:
-         * - chưa đủ bộ → thêm 5 số vào union (giữ các chuỗi khác)
-         * - đang đủ bộ / đang gạch chân → gỡ 5 số chuỗi này (số dùng chung chuỗi khác thì giữ)
+         * - chưa pin → pin + thêm 5 số vào union
+         * - đang pin → bỏ pin + gỡ 5 số (số dùng chung chuỗi pin khác thì giữ)
          */
         function toggleChuoi(i) {
             if (!raw) {
@@ -6365,20 +7119,28 @@
                 if (!nums.length) {
                     return;
                 }
-                var next = new Set(observeChuoiLastFocusSet);
-                if (isChuoiLabelFullyObserved(label, observeChuoiLastFocusSet)) {
-                    var keepByOthers = getNumsKeptByOtherObservedChuoi(label, observeChuoiLastFocusSet);
+                var pinned = observeChuoiPinnedLabels.slice();
+                var pinIdx = pinned.indexOf(label);
+                var next;
+                if (pinIdx >= 0) {
+                    pinned.splice(pinIdx, 1);
+                    setObserveChuoiPinnedLabels(pinned);
+                    next = new Set(observeChuoiLastFocusSet);
+                    var keepByOthers = getNumsKeptByOtherPinnedChuoi(null);
                     for (var ri = 0; ri < nums.length; ri++) {
                         if (!keepByOthers.has(nums[ri])) {
                             next.delete(nums[ri]);
                         }
                     }
                 } else {
+                    pinned.push(label);
+                    setObserveChuoiPinnedLabels(pinned);
+                    next = new Set(observeChuoiLastFocusSet);
                     for (var ai = 0; ai < nums.length; ai++) {
                         next.add(nums[ai]);
                     }
                 }
-                beginObserveChuoiPinSyncGuard();
+                beginObserveChuoiPinSyncGuard(next);
                 observeChuoiLastFocusSet = next;
                 applyObserveChuoiPinUnderline();
                 postBasicObserveFocusNums(next, true);
@@ -9233,6 +9995,7 @@
                 right.style.overflowY = 'hidden';
                 // align actions and center group, then position floating buttons
                 alignTableActionsAndCenter();
+                try { syncReferenceHintPanelHeight(); } catch (eHintH) { /* ignore */ }
                 updateFloatingCopyButtons();
                 try { updateFocusIndicator(); } catch (e) { }
                 return;
@@ -9304,6 +10067,7 @@
 
             // align actions and center group, then position floating buttons
             alignTableActionsAndCenter();
+            try { syncReferenceHintPanelHeight(); } catch (eHintH) { /* ignore */ }
             updateFloatingCopyButtons();
             try { updateFocusIndicator(); } catch (e) { }
         }
@@ -10231,8 +10995,12 @@
         // Toggle clear/restore all selected numbers (used by Reset button and 'q' key)
         function toggleClearSelection() {
             try {
+                // Submit ON: giữ khoanh đã chốt (preSubmit / remember) — Q/Reset chỉ khi Submit OFF.
+                if (submitActive) {
+                    return;
+                }
                 // Q/Reset chỉ xóa/khôi phục khoanh đỏ — không đổi Submit ON/OFF.
-                var submitLocked = !!submitActive;
+                var submitLocked = false;
                 // selectionCleared=true nhưng đã khoanh số mới → không restore backup cũ
                 if (selectionCleared && selected.size > 0) {
                     invalidateClearSelectionToggleBackup();
@@ -10408,6 +11176,7 @@
                     !!submitActive && !!answerPopupTicketPreviewOnly
                 );
             } catch (e) { /* ignore */ }
+            try { syncReferenceHintAnswerStars(); } catch (eStar) { /* ignore */ }
         }
 
         /** Chuỗi chữ ký bộ số đang khoanh trái (sorted) — so với phiếu Answer để tránh postMessage sync thừa gây nháy. */
@@ -11151,6 +11920,16 @@
             wasdNavStepActive = true;
             try {
                 if (!key) return;
+
+                // Nhóm mũi tên: A/D ưu tiên trước bootstrap pair (tránh nhảy về pair[0]).
+                if ((key === 'a' || key === 'A' || key === 'd' || key === 'D')
+                    && !submitActive
+                    && (leftKeyboardRegion === 'arrowGroup' || lastClickedRegion === 'arrowGroup')) {
+                    if (navigateArrowGroupByDir((key === 'd' || key === 'D') ? 1 : -1)) {
+                        return;
+                    }
+                }
+
                 if (!raw) return;
                 if (submitActive) return;
 
@@ -11291,6 +12070,11 @@
 
                 if (key === 'a' || key === 'A' || key === 'd' || key === 'D') {
                     var dir = (key === 'd' || key === 'D') ? 1 : -1;
+                    if (leftKeyboardRegion === 'arrowGroup' || lastClickedRegion === 'arrowGroup') {
+                        if (navigateArrowGroupByDir(dir)) {
+                            return;
+                        }
+                    }
                     var region = getLeftKeyboardNavRegion();
 
                     if (!hasCircledNumbersForNav() && region === 'right') {
@@ -12086,6 +12870,7 @@
                 }
                 try { updateFocusIndicator(); } catch (e) { }
                 try { syncPickPropertyBadges(); } catch (ePb) { /* ignore */ }
+                try { syncReferenceHintAppliedRowsFromSelection(); } catch (eHintRow) { /* ignore */ }
                 // Submit ON/OFF: cập nhật nền xanh 📑 ngay (không chờ rê ra/vào lại)
                 try { scheduleRefreshChecknoteTooltipIfOpen(); } catch (eCn) { /* ignore */ }
             } catch (e) { console.error(e); }
@@ -12500,14 +13285,23 @@
                         ? msg.referenceConn3Triplets
                         : [];
                     const refFooterLine = msg.referenceConn3FooterLine || '';
+                    const refGroupLines = Array.isArray(msg.referenceConn3GroupLines)
+                        ? msg.referenceConn3GroupLines
+                        : [];
+                    const refPhaseMaxNum = msg.referenceConn3PhaseMaxNum != null
+                        ? msg.referenceConn3PhaseMaxNum
+                        : null;
                     const hasReferencePayload = refHeaderLines.length > 0
                         || refTriplets.length > 0
-                        || !!String(refFooterLine || '').trim();
+                        || !!String(refFooterLine || '').trim()
+                        || refGroupLines.length > 0;
                     if (refHint && (hasReferencePayload || !trackingFrameStepProcess)) {
                         renderReferenceHintPanel({
                             headerLines: refHeaderLines,
                             triplets: refTriplets,
-                            footerLine: refFooterLine
+                            footerLine: refFooterLine,
+                            groupLines: refGroupLines,
+                            phaseMaxNum: refPhaseMaxNum
                         });
                     }
                     leftPaneRawLines = Array.isArray(msg.lines) ? msg.lines.join('\n') : '';
@@ -12576,11 +13370,15 @@
                         } catch (e) { }
                     }
                     /* Đang có gạch chân (nhiều Chuỗi) — bắt trước process vì sang id mới bộ số cũ không còn khớp.
-                     * Cả click lẫn arrow/trackingFrameStep: follow theo nhãn chuỗi tương đối (Chuỗi 1 giữ Chuỗi 1). */
+                     * Follow theo nhãn đã pin (Chuỗi 3 giữ Chuỗi 3), không suy lại từ bộ số. */
                     var chuoiFollowAcrossIds = [];
                     if (isFocusArrival) {
                         try {
-                            chuoiFollowAcrossIds = getFullyObservedChuoiLabels(observeChuoiLastFocusSet);
+                            chuoiFollowAcrossIds = observeChuoiPinnedLabels.slice();
+                            if (!chuoiFollowAcrossIds.length) {
+                                chuoiFollowAcrossIds = getFullyObservedChuoiLabels(observeChuoiLastFocusSet);
+                                setObserveChuoiPinnedLabels(chuoiFollowAcrossIds);
+                            }
                         } catch (eFollowCap) {
                             chuoiFollowAcrossIds = [];
                         }
@@ -12591,6 +13389,22 @@
                     preserveSubmitOnNextProcess = false;
                     preserveSelectionOnNextProcess = false;
                     trackingFrameStepProcess = false;
+
+                    // Kỳ rỗng + Submit đang nhớ ON: hiện lại khoanh đỏ preSubmit (nút Submit disable).
+                    if (msg.disableSubmit && submitActiveBeforeEmptyFocus
+                        && !submitActive
+                        && ((preSubmitSelected && preSubmitSelected.size)
+                            || (preSubmitOrder && preSubmitOrder.length))) {
+                        try {
+                            restorePreSubmitPickState();
+                        } catch (ePreEmpty) { /* ignore */ }
+                        try {
+                            applySelectionAndBlockedInDOM();
+                        } catch (eSelEmpty) { /* ignore */ }
+                        try {
+                            notifyParentLeftCircledNums({ forceSync: true });
+                        } catch (eNEmpty) { /* ignore */ }
+                    }
 
                     if (chuoiFollowAcrossIds.length > 0) {
                         try {

@@ -6594,7 +6594,7 @@
         .right-table-viewport {
             background: #ffffff;
             color: #111111;
-            --right-table-zoom: 0.7;
+            --right-table-zoom: 0.65;
             box-sizing: border-box;
         }
 
@@ -7111,6 +7111,11 @@
             background: #b7f7c4;
             padding: 0 2px;
             border-radius: 2px;
+        }
+
+        /* Kỳ đáp án thỏa logic 3-tail → viền xanh lá trên ô follow */
+        .sheet-data-table td.cell-follow.cell-follow--tail3-hit {
+            box-shadow: inset 0 0 0 2px #22c55e;
         }
 
         .row-pick-badges {
@@ -7658,15 +7663,14 @@
             z-index: 1;
         }
 
-        /* Nhãn 0 — id đang focus, hoặc 0 ngoài trên cửa sổ */
-        .win-label-inline.win-label-inline--focus,
-        .win-label-inline.win-label-inline--outer-0 {
+        /* Nhãn 0 — id đang focus */
+        .win-label-inline.win-label-inline--focus {
             background: #fff;
             border-color: #000;
             font-weight: 800;
         }
 
-        /* Nhãn 1–6 ngoài trên cửa sổ (liền trên nhãn 10 vàng) */
+        /* Nhãn 11–20 ngoài trên cửa sổ (liền trên nhãn 10 vàng) */
         .win-label-inline.win-label-inline--outer {
             background: #dc2626;
             border-color: #7f1d1d;
@@ -7759,7 +7763,9 @@
             box-sizing: border-box;
         }
 
-        /* Sync note / nonexist từ bảng 10 chuỗi nửa trái (chỉ cửa sổ 10) */
+        /* Sync note / nonexist từ bảng 10 chuỗi nửa trái (chỉ cửa sổ 10).
+           Submit ON: giữ màu semantic trên chip focus-hit (kể cả khoanh đỏ / chip vàng),
+           giống ok_left .submit-highlight.note-highlight / .nonexist-intersect. */
         .sheet-data-table td.cell-result .result-num-sync-note:not(.result-num-sync-submit):not(.result-focus-chain-hit),
         .sheet-data-table td.cell-result .result-focus-chain-hit--circle.result-num-sync-note:not(.result-num-sync-submit) {
             color: #0097a7;
@@ -7773,13 +7779,15 @@
         }
 
         .sheet-data-table td.cell-result .result-num-sync-submit.result-num-sync-note,
-        .sheet-data-table td.cell-result .result-focus-chain-hit.result-num-sync-note:not(.result-focus-chain-hit--nonexist):not(.result-focus-chain-hit--circle) {
-            color: #00e2d2;
+        .sheet-data-table td.cell-result .result-focus-chain-hit.result-num-sync-note {
+            color: #00e2d2 !important;
+            font-weight: 800;
         }
 
         .sheet-data-table td.cell-result .result-num-sync-submit.result-num-sync-nonexist,
-        .sheet-data-table td.cell-result .result-focus-chain-hit.result-num-sync-nonexist:not(.result-focus-chain-hit--nonexist):not(.result-focus-chain-hit--circle) {
-            color: #e0ca42;
+        .sheet-data-table td.cell-result .result-focus-chain-hit.result-num-sync-nonexist {
+            color: #e0ca42 !important;
+            font-weight: 800;
         }
 
         /* Phase1: viền mỏng; màu/glow đậm hơn cho sát bên trái */
@@ -8732,7 +8740,7 @@
         <div id="appStage">
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20261001circSync01"
+            <iframe id="okFrame" src="ok_left.html?v=20261002circleClear"
                 style="width:100%;height:100%;border:0"></iframe>
         </section>
 
@@ -8895,10 +8903,10 @@
                 <div id="sheetTabsContainer" class="sheet-tabs-container">
                     <div class="zoom-toolbar" aria-label="Zoom controls">
                         <button type="button" id="zoomOutBtn" title="Zoom out">−</button>
-                        <input id="zoomSlider" type="range" min="50" max="150" step="5" value="70"
+                        <input id="zoomSlider" type="range" min="50" max="150" step="5" value="65"
                             aria-label="Zoom slider" />
                         <button type="button" id="zoomInBtn" title="Zoom in">+</button>
-                        <span id="zoomValue" class="zoom-value">70%</span>
+                        <span id="zoomValue" class="zoom-value">65%</span>
                     </div>
                 </div>
             </div>
@@ -9384,6 +9392,10 @@
                         class="filter-popup-posnfreq-overlap-pct is-conn3-pct-btn" hidden aria-pressed="false"
                         title="3C = kỳ đáp án có 3-connection (viền xanh). Bật: chỉ kỳ 3C; tắt: đủ cửa sổ. AND với nút F (follow)."
                         aria-label="Phần trăm kỳ 3-connection">3C 0%</button>
+                    <button type="button" id="filterPopupTail3OverlapPct"
+                        class="filter-popup-posnfreq-overlap-pct is-tail3-pct-btn" hidden aria-pressed="false"
+                        title="3-tail: % kỳ đáp án tạo được 3-tail trên mẫu đánh giá được. Bật: chỉ kỳ 3-tail; tắt: đủ mẫu. AND với nút F."
+                        aria-label="Phần trăm kỳ 3-tail">0%</button>
                     <button type="button" id="filterPopupTrackingOverlapPct"
                         class="filter-popup-posnfreq-overlap-pct is-tracking-pct-btn" hidden aria-pressed="false"
                         title="T = hiện đủ kỳ có bụng. Nhấn: T → (I/O chỉ khi IN+OUT cùng bật) → I và/hoặc O theo cơ chế đang bật."
@@ -9586,7 +9598,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261001geoIpWho01"></script>
     <script src="chat.js?v=20260917chatFocusKeys02"></script>
-    <script src="right-pane-sheets.js?v=20261001stColTipPin05"></script>
+    <script src="right-pane-sheets.js?v=20261002circleClear"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -9715,7 +9727,7 @@
         // Basic app: load data.json, render table, allow quick copy to left textarea
         const MAX_NUM = 35; // support up to 35
         const RIGHT_ZOOM_KEY = 'rightPaneZoom_v2';
-        const RIGHT_ZOOM_DEFAULT = 0.7;
+        const RIGHT_ZOOM_DEFAULT = 0.65;
         const RIGHT_ZOOM_MIN = 0.5;
         const RIGHT_ZOOM_MAX = 1.5;
         const RIGHT_ZOOM_STEP = 0.05;
@@ -9831,6 +9843,7 @@
             quad1: '1 bộ 4',
             dateband: '',
             tail: 'tail',
+            tail3: '3-tail',
             conn3: '3-connection',
             nonexist: 'nonexist',
             connection: 'connection',
@@ -9875,6 +9888,7 @@
         const FILTER_SPECIAL_TREND_STREAK_MAX_FALLBACK = 20;
         const DATEBAND_FILTER_MODE = 'dateband';
         const TAIL_FILTER_MODE = 'tail';
+        const TAIL3_FILTER_MODE = 'tail3';
         const VALID_FILTER_MODES = Object.keys(FILTER_MODE_LABELS);
         /** Modes that show the follow-logic % button (determined / ?). */
         const FOLLOW_PCT_FILTER_MODES = new Set([
@@ -9882,6 +9896,7 @@
             'modeq',
             'dateband',
             'tail',
+            'tail3',
             'intersection',
             'connection',
             'conn3',
@@ -9973,6 +9988,7 @@
         let filterPopupPosnfreqGreenOnly = false;
         /** conn3: chỉ hiện kỳ cửa sổ 10 có 3-connection khi bật từ nút % */
         let filterPopupConn3WindowOnly = false;
+        let filterPopupTail3WindowOnly = false;
         /**
          * TRACKING nút %: 't' (mặc định, hiện đủ) | 'io' (I/O) | 'in' | 'out' | 'off' (ẩn nút).
          * T = mọi kỳ có bụng; I/O = chỉ viền xanh IN∪OUT; I hoặc O = chỉ từng cơ chế nếu đang bật.
@@ -12156,6 +12172,10 @@
             return mode === TAIL_FILTER_MODE;
         }
 
+        function isTail3FilterMode(mode) {
+            return mode === TAIL3_FILTER_MODE;
+        }
+
         function applyPeriodFilterModeVisual(targetEl, mode) {
             if (!targetEl) {
                 return;
@@ -12179,6 +12199,9 @@
             }
             if (isTailFilterMode(mode)) {
                 return 'Đáp án có phần tử thuộc tail (cửa sổ 10 chuỗi trước kỳ)';
+            }
+            if (isTail3FilterMode(mode)) {
+                return '3-tail: đáp án tạo được 3-tail với phase1 (ngoài 11–20 + cửa sổ 10) — có hàng ★ trong panel';
             }
             if (isPosnfreqFilterMode(mode)) {
                 return 'posnfreq (position + frequency)';
@@ -18138,6 +18161,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (periodFilterEnabled && isConn3FilterMode(periodFilterMode)) {
                 return getConn3WindowExistIndicesFromSheet();
             }
+            if (periodFilterEnabled && isTail3FilterMode(periodFilterMode)) {
+                return getTail3EvaluableIndicesFromSheet();
+            }
             if (filterPopupIndices.length > 0) {
                 return filterPopupIndices.slice();
             }
@@ -19749,6 +19775,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (isConn3FilterMode(prevMode) && !isConn3FilterMode(periodFilterMode)) {
                 setFilterPopupConn3WindowOnly(false, { skipReconcile: true, skipCounts: true });
             }
+            if (isTail3FilterMode(prevMode) && !isTail3FilterMode(periodFilterMode)) {
+                setFilterPopupTail3WindowOnly(false, { skipReconcile: true, skipCounts: true });
+            }
             if (isTrackingFilterMode(prevMode) && !isTrackingFilterMode(periodFilterMode)) {
                 setFilterPopupTrackingSubfilter('off', { skipReconcile: true, skipCounts: true });
             }
@@ -20314,6 +20343,13 @@ function getFilterNoteTRefMaxSelections(mode) {
             return sheetManager.ensureConn3WindowExistIndicesCache().slice();
         }
 
+        function getTail3EvaluableIndicesFromSheet() {
+            if (!sheetManager || typeof sheetManager.ensureTail3EvaluableIndicesCache !== 'function') {
+                return [];
+            }
+            return sheetManager.ensureTail3EvaluableIndicesCache().slice();
+        }
+
         function getFilterPopupAnswerConn3Indices() {
             const base = filterPopupIndices.length
                 ? filterPopupIndices.slice()
@@ -20327,12 +20363,16 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (periodFilterEnabled && isConn3FilterMode(periodFilterMode)) {
                 return applyFilterHeader2ToIndices(getConn3WindowExistIndicesFromSheet());
             }
+            if (periodFilterEnabled && isTail3FilterMode(periodFilterMode)) {
+                return applyFilterHeader2ToIndices(getTail3EvaluableIndicesFromSheet());
+            }
             return getFilterPopupAnswerConn3Indices();
         }
 
         function isFilterPopupSubfilterOnlyActive() {
             return (filterPopupPosnfreqGreenOnly && isPosnfreqFilterMode(periodFilterMode))
                 || (filterPopupConn3WindowOnly && isConn3FilterMode(periodFilterMode))
+                || (filterPopupTail3WindowOnly && isTail3FilterMode(periodFilterMode))
                 || isFilterPopupTrackingSubfilterActive()
                 || isFilterPopupPhase1SubfilterActive()
                 || isFilterPopupFollowSubfilterActive()
@@ -20392,6 +20432,11 @@ function getFilterNoteTRefMaxSelections(mode) {
                 conn3Hits = collectFilterPopupPosnfreqGreenHitIndicesOrdered(wrap)
                     .filter((idx) => tableSet.has(idx));
             }
+            let tail3Hits = null;
+            if (filterPopupTail3WindowOnly && periodFilterEnabled && isTail3FilterMode(periodFilterMode)) {
+                tail3Hits = collectFilterPopupPosnfreqGreenHitIndicesOrdered(wrap)
+                    .filter((idx) => tableSet.has(idx));
+            }
             let trackingHits = null;
             if (isFilterPopupTrackingSubfilterActive()) {
                 trackingHits = collectFilterPopupTrackingHitIndicesOrdered(wrap)
@@ -20433,6 +20478,14 @@ function getFilterNoteTRefMaxSelections(mode) {
                     list = conn3Hits;
                 } else {
                     const setB = new Set(conn3Hits);
+                    list = list.filter((idx) => setB.has(idx));
+                }
+            }
+            if (tail3Hits !== null) {
+                if (list === null) {
+                    list = tail3Hits;
+                } else {
+                    const setB = new Set(tail3Hits);
                     list = list.filter((idx) => setB.has(idx));
                 }
             }
@@ -20480,6 +20533,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (filterPopupConn3WindowOnly && isConn3FilterMode(periodFilterMode)) {
                 return getFilterPopupNavListLength();
             }
+            if (filterPopupTail3WindowOnly && isTail3FilterMode(periodFilterMode)) {
+                return getFilterPopupNavListLength();
+            }
             if (isFilterPopupTrackingSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
@@ -20504,6 +20560,9 @@ function getFilterNoteTRefMaxSelections(mode) {
         function getFilterPopupHeader1PoolIndices() {
             if (periodFilterEnabled && isConn3FilterMode(periodFilterMode)) {
                 return getConn3WindowExistIndicesFromSheet();
+            }
+            if (periodFilterEnabled && isTail3FilterMode(periodFilterMode)) {
+                return getTail3EvaluableIndicesFromSheet();
             }
             if (filterPopupIndices.length > 0) {
                 return filterPopupIndices.slice();
@@ -24233,6 +24292,80 @@ function getFilterNoteTRefMaxSelections(mode) {
             });
         }
 
+        function setFilterPopupTail3WindowOnly(on, opts = {}) {
+            const next = !!on;
+            filterPopupTail3WindowOnly = next;
+            const wrap = el('filterTableWrap');
+            const btn = el('filterPopupTail3OverlapPct');
+            if (btn && !btn.hidden) {
+                btn.setAttribute('aria-pressed', next ? 'true' : 'false');
+            }
+            const applyHeavy = () => {
+                const live = !!filterPopupTail3WindowOnly;
+                if (wrap) {
+                    wrap.classList.toggle('filter-popup-posnfreq-green-only', live);
+                }
+                if (btn && !btn.hidden) {
+                    btn.setAttribute('aria-pressed', live ? 'true' : 'false');
+                }
+                if (!opts.skipReconcile) {
+                    reconcileFilterPopupActiveAfterSubfilterToggle();
+                }
+                if (!opts.skipCounts) {
+                    updateFilterPopupMatchCount();
+                    syncPeriodFilterNavModeToIframe();
+                }
+                requestAnimationFrame(() => {
+                    if (filterPopupActiveIdx >= 0) {
+                        scrollFilterPopupRowIntoView();
+                    }
+                });
+            };
+            if (opts.skipReconcile && opts.skipCounts) {
+                if (wrap) {
+                    wrap.classList.toggle('filter-popup-posnfreq-green-only', next);
+                }
+                return;
+            }
+            showFilterPopupLoading();
+            yieldAfterFilterPopupPaint(() => {
+                try {
+                    applyHeavy();
+                } finally {
+                    clearFilterPopupLoadingState();
+                }
+            });
+        }
+
+        function initFilterPopupTail3OverlapPctToggle() {
+            const btn = el('filterPopupTail3OverlapPct');
+            if (!btn || btn.dataset.tail3WindowBound === '1') {
+                return;
+            }
+            btn.dataset.tail3WindowBound = '1';
+            const run = () => {
+                if (btn.hidden) {
+                    return;
+                }
+                setFilterPopupTail3WindowOnly(!filterPopupTail3WindowOnly);
+            };
+            btn.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                run();
+            });
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.detail === 0) {
+                    run();
+                }
+            });
+        }
+
         function setFilterPopupFollowSubfilter(mode, opts = {}) {
             const next = mode === 'determined' || mode === 'undetermined' ? mode : 'off';
             filterPopupFollowSubfilter = next;
@@ -24384,6 +24517,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (filterPopupConn3WindowOnly && periodFilterEnabled && isConn3FilterMode(periodFilterMode)) {
                 return getFilterPopupNavListLength();
             }
+            if (filterPopupTail3WindowOnly && periodFilterEnabled && isTail3FilterMode(periodFilterMode)) {
+                return getFilterPopupNavListLength();
+            }
             if (isFilterPopupTrackingSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
@@ -24510,6 +24646,10 @@ function getFilterNoteTRefMaxSelections(mode) {
             let parentTotal = periodFilterEnabled && isPeriodFilterContextSheet()
                 ? getFilterParentCountForMode(normalized)
                 : 0;
+            // 3-tail: mẫu = kỳ đánh giá được (~ total − lookback), không phải số kỳ khớp.
+            if (periodFilterEnabled && isTail3FilterMode(normalized)) {
+                parentTotal = getTail3EvaluableIndicesFromSheet().length;
+            }
             // PHASE1: luôn đếm live (tránh cache filterPopupIndices / HTML cũ lệch tổng lịch sử).
             if (periodFilterEnabled && isPhase1FilterMode(normalized)) {
                 parentTotal = getPhase1LiveParentCount();
@@ -26332,6 +26472,10 @@ function getFilterNoteTRefMaxSelections(mode) {
                 referenceConn3HeaderLines: detail.skipReferenceMeta ? [] : (detail.referenceConn3HeaderLines || []),
                 referenceConn3Triplets: detail.skipReferenceMeta ? [] : (detail.referenceConn3Triplets || []),
                 referenceConn3FooterLine: detail.skipReferenceMeta ? '' : (detail.referenceConn3FooterLine || ''),
+                referenceConn3GroupLines: detail.skipReferenceMeta ? [] : (detail.referenceConn3GroupLines || []),
+                referenceConn3PhaseMaxNum: detail.skipReferenceMeta
+                    ? null
+                    : (detail.referenceConn3PhaseMaxNum != null ? detail.referenceConn3PhaseMaxNum : null),
                 trackingFrameStep: !!detail.trackingFrameStep
             };
         }
@@ -27149,6 +27293,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             updateFilterPopupPrevRecallFoldTooltips();
             syncFilterPopupPosnfreqSubmitOverlap();
             syncFilterPopupConn3WindowOverlap();
+            syncFilterPopupTail3WindowOverlap();
             syncFilterPopupTrackingBellyOverlap();
             syncFilterPopupPhase1Overlap();
             syncFilterPopupFollowDeterminedOverlap();
@@ -27370,6 +27515,84 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (filterPopupConn3WindowOnly && green === 0) {
                 setFilterPopupConn3WindowOnly(false);
             } else if (filterPopupConn3WindowOnly) {
+                wrap.classList.add('filter-popup-posnfreq-green-only');
+                pctEl.setAttribute('aria-pressed', 'true');
+                reconcileFilterPopupActiveAfterSubfilterToggle();
+            } else {
+                pctEl.setAttribute('aria-pressed', 'false');
+            }
+            updateFilterPopupMatchCount();
+            syncPeriodFilterNavModeToIframe();
+            applyFilterPopupNonexist005000RowBorders(wrap);
+        }
+
+        function syncFilterPopupTail3WindowOverlap() {
+            const wrap = el('filterTableWrap');
+            const pctEl = el('filterPopupTail3OverlapPct');
+            const hidePct = () => {
+                const wasGreenOnly = filterPopupTail3WindowOnly;
+                filterPopupTail3WindowOnly = false;
+                const w = el('filterTableWrap');
+                if (w) {
+                    w.classList.remove('filter-popup-posnfreq-green-only');
+                }
+                if (pctEl) {
+                    pctEl.hidden = true;
+                    pctEl.textContent = '';
+                    pctEl.setAttribute('aria-pressed', 'false');
+                }
+                if (wasGreenOnly) {
+                    reconcileFilterPopupActiveAfterSubfilterToggle();
+                }
+                updateFilterPopupMatchCount();
+                syncPeriodFilterNavModeToIframe();
+            };
+            if (!wrap || !sheetManager) {
+                hidePct();
+                return;
+            }
+            if (!periodFilterEnabled || !isTail3FilterMode(periodFilterMode)) {
+                hidePct();
+                return;
+            }
+            wrap.querySelectorAll('tbody tr.filter-popup-posnfreq-submit-hit').forEach((tr) => {
+                tr.classList.remove('filter-popup-posnfreq-submit-hit');
+            });
+            const rows = sheetManager.getSourceSheetRows();
+            if (!Array.isArray(rows) || !rows.length) {
+                hidePct();
+                return;
+            }
+            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                const idx = Number(tr.dataset.idx);
+                if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
+                    return;
+                }
+                if (typeof sheetManager.rowMatchesTail3Filter === 'function'
+                    && sheetManager.rowMatchesTail3Filter(rows, idx)) {
+                    tr.classList.add('filter-popup-posnfreq-submit-hit');
+                }
+            });
+            const tableTotal = wrap.querySelectorAll('tbody tr[data-idx]').length;
+            const green = wrap.querySelectorAll('tbody tr.filter-popup-posnfreq-submit-hit').length;
+            if (!pctEl) {
+                return;
+            }
+            if (tableTotal === 0) {
+                hidePct();
+                return;
+            }
+            // % = kỳ đáp án tạo 3-tail / mẫu đánh giá được (cửa sổ đang hiện)
+            const pct = Math.round((green / tableTotal) * 1000) / 10;
+            const pctLabel = Number.isFinite(pct)
+                ? String(pct).replace(/\.0$/, '') + '%'
+                : '0%';
+            pctEl.hidden = false;
+            pctEl.textContent = pctLabel;
+            pctEl.title = `3-tail: ${green}/${tableTotal} kỳ đáp án tạo được 3-tail (mẫu = kỳ đánh giá được)`;
+            if (filterPopupTail3WindowOnly && green === 0) {
+                setFilterPopupTail3WindowOnly(false);
+            } else if (filterPopupTail3WindowOnly) {
                 wrap.classList.add('filter-popup-posnfreq-green-only');
                 pctEl.setAttribute('aria-pressed', 'true');
                 reconcileFilterPopupActiveAfterSubfilterToggle();
@@ -27890,6 +28113,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             applyFilterPopupNonexistIdGapBorders(wrap);
             syncFilterPopupPosnfreqSubmitOverlap();
             syncFilterPopupConn3WindowOverlap();
+            syncFilterPopupTail3WindowOverlap();
             syncFilterPopupTrackingBellyOverlap();
             syncFilterPopupPhase1Overlap();
             syncFilterPopupFollowDeterminedOverlap();
@@ -27927,6 +28151,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 filterPopupActiveIdx = -1;
                 filterPopupPosnfreqGreenOnly = false;
                 filterPopupConn3WindowOnly = false;
+                filterPopupTail3WindowOnly = false;
                 filterPopupFollowSubfilter = 'off';
                 filterPopupConnectionSubfilter = 'off';
                 const w = el('filterTableWrap');
@@ -27947,10 +28172,13 @@ function getFilterNoteTRefMaxSelections(mode) {
             reconcileFilterPopupFocusAfterListChange(displayIndices, options);
             syncFilterPopupHeaderUi();
 
-            if (filterPopupIndices.length === 0) {
+            const emptyFilterList = filterPopupIndices.length === 0
+                && !(isTail3FilterMode(periodFilterMode) && displayIndices.length > 0);
+            if (emptyFilterList) {
                 invalidateFilterPopupRenderCache();
                 filterPopupPosnfreqGreenOnly = false;
                 filterPopupConn3WindowOnly = false;
+                filterPopupTail3WindowOnly = false;
                 filterPopupTrackingSubfilter = 'off';
                 filterPopupPhase1Subfilter = 'off';
                 filterPopupFollowSubfilter = 'off';
@@ -29024,6 +29252,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             initFilterPopupPosnfreqControls();
             initFilterPopupPosnfreqOverlapPctToggle();
             initFilterPopupConn3OverlapPctToggle();
+            initFilterPopupTail3OverlapPctToggle();
             initFilterPopupTrackingBellyControls();
             initFilterPopupP1DistControls();
             initFilterPopupP1DistResultPctToggle();
@@ -29726,6 +29955,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                 let referenceConn3HeaderLines = [];
                 let referenceConn3Triplets = [];
                 let referenceConn3FooterLine = '';
+                let referenceConn3GroupLines = [];
+                let referenceConn3PhaseMaxNum = null;
                 if (
                     (detail.sheetName === 'sheet1' || sheetManager?.activeSheet === 'tracking')
                     && sheetManager
@@ -29742,12 +29973,20 @@ function getFilterNoteTRefMaxSelections(mode) {
                                     ? meta.conn3Triplets
                                     : [];
                                 referenceConn3FooterLine = meta.conn3FooterLine || '';
+                                referenceConn3GroupLines = Array.isArray(meta.conn3GroupLines)
+                                    ? meta.conn3GroupLines
+                                    : [];
+                                referenceConn3PhaseMaxNum = meta.conn3PhaseMaxNum != null
+                                    ? meta.conn3PhaseMaxNum
+                                    : null;
                             }
                         }
                     } catch (errRef) {
                         referenceConn3HeaderLines = [];
                         referenceConn3Triplets = [];
                         referenceConn3FooterLine = '';
+                        referenceConn3GroupLines = [];
+                        referenceConn3PhaseMaxNum = null;
                     }
                 }
                 if (frame && frame.contentWindow && selectedLines.length > 0) {
@@ -29792,6 +30031,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                         referenceConn3HeaderLines: referenceConn3HeaderLines,
                         referenceConn3Triplets: referenceConn3Triplets,
                         referenceConn3FooterLine: referenceConn3FooterLine,
+                        referenceConn3GroupLines: referenceConn3GroupLines,
+                        referenceConn3PhaseMaxNum: referenceConn3PhaseMaxNum,
                         trackingFrameStep: !!(detail.trackingFrameStep || detail.fromSheet1NavStep)
                     };
                     if (detail.fromSheet1NavStep || (fromTrackingSync && detail.trackingFrameStep)) {
@@ -30060,11 +30301,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                     if (sheetManager && typeof sheetManager.setLeftSubmitActive === 'function') {
                         sheetManager.setLeftSubmitActive(!!msg.submitActive);
                     }
-                    if (!msg.submitActive) {
-                        try {
-                            window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
-                        } catch (eTrk) { /* ignore */ }
-                    }
+                    // Không dispatch leftCircledNumsChanged khi Submit OFF — trùng paint với
+                    // leftSubmitStateChanged; khoanh khôi phục qua leftCircledNumsReady.
                     window.dispatchEvent(new CustomEvent('leftSubmitStateChanged', {
                         detail: { active: !!msg.submitActive }
                     }));

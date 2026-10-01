@@ -476,6 +476,13 @@ class RightPaneSheetManager {
         this._conn3FilterIndicesCacheRowLen = 0;
         this._conn3WindowExistIndicesCache = null;
         this._conn3WindowExistIndicesCacheRowLen = 0;
+        /** Cache tỷ lệ kỳ có ≥1 ứng viên 3-tail (phase1 + ngoài11–20+W10). */
+        this._tail3Phase1RateCache = null;
+        this._tail3Phase1RateCacheRowLen = 0;
+        this._tail3FilterIndicesCache = null;
+        this._tail3FilterIndicesCacheRowLen = 0;
+        this._tail3EvaluableIndicesCache = null;
+        this._tail3EvaluableIndicesCacheRowLen = 0;
         /** Cache filter mode TRACKING (bụng basic: size + streak). */
         this._basicTrackingBellyFilterCache = null;
         this._basicTrackingBellyFilterCacheRowLen = 0;
@@ -636,6 +643,12 @@ class RightPaneSheetManager {
         this._conn3FilterIndicesCacheRowLen = 0;
         this._conn3WindowExistIndicesCache = null;
         this._conn3WindowExistIndicesCacheRowLen = 0;
+        this._tail3Phase1RateCache = null;
+        this._tail3Phase1RateCacheRowLen = 0;
+        this._tail3FilterIndicesCache = null;
+        this._tail3FilterIndicesCacheRowLen = 0;
+        this._tail3EvaluableIndicesCache = null;
+        this._tail3EvaluableIndicesCacheRowLen = 0;
         this._basicTrackingBellyFilterCache = null;
         this._basicTrackingBellyFilterCacheRowLen = 0;
         this._phase1FilterCache = null;
@@ -2113,6 +2126,10 @@ class RightPaneSheetManager {
             return indices;
         }
 
+        if (mode === 'tail3') {
+            return this.ensureTail3FilterIndicesCache().slice();
+        }
+
         if (mode === 'conn3') {
             return this.ensureConn3FilterIndicesCache().slice();
         }
@@ -3497,62 +3514,445 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Textarea iframe trái: liệt kê toàn bộ 3-connection của kỳ đang focus.
+     * Ngoài cửa sổ (nhãn 11…20): OUTER_MAX = 9 → lookback = 20.
+     * @returns {number}
+     */
+    getFocusChainHitOuterMax() {
+        return 9; // nhãn 11..20 (10 kỳ) + cửa sổ 10 = lookback 20
+    }
+
+    /**
+     * Lookback kỳ trước focus = ngoài 11–20 + cửa sổ 10 (cùng vùng focus-chain hit).
+     * @returns {number}
+     */
+    getFocusChainHitLookbackPeriods() {
+        return this.getFocusChainHitOuterMax() + 1 + 10; // ngoài 11..20 + cửa sổ 10 = 20
+    }
+
+    /**
+     * Các cạnh kề hướng Y(trước)→X(sau) trong rows (oldest→newest).
+     * @param {object[]} rows
+     * @param {number} y
+     * @param {number} x
+     * @returns {number[]}
+     */
+    collectDirectedAdjEdgeIndices(rows, y, x) {
+        const yy = Math.floor(Number(y));
+        const xx = Math.floor(Number(x));
+        if (!Number.isFinite(yy) || !Number.isFinite(xx) || yy === xx) {
+            return [];
+        }
+        if (!rows || rows.length < 2) {
+            return [];
+        }
+        const sets = rows.map((row) => new Set(this.parseMainNums(row.result || row.Result || '')));
+        const idxs = [];
+        for (let e = 0; e < sets.length - 1; e++) {
+            if (sets[e].has(yy) && sets[e + 1].has(xx)) {
+                idxs.push(e);
+            }
+        }
+        return idxs;
+    }
+
+    /**
+     * Đếm non-overlap (ii > last+1) — cùng heuristic strip đuôi.
+     * @param {number[]} idxs
+     * @returns {number[]}
+     */
+    nonOverlapAdjCountStarts(idxs) {
+        const sorted = (Array.isArray(idxs) ? idxs.slice() : []).sort((a, b) => a - b);
+        let last = -3;
+        const counted = [];
+        for (let i = 0; i < sorted.length; i++) {
+            const ii = sorted[i];
+            if (ii > last + 1) {
+                counted.push(ii);
+                last = ii;
+            }
+        }
+        return counted;
+    }
+
+    /**
+     * Số X có thể tạo 3-tail với phase1 nếu được gọi ở kỳ focus:
+     * trong vùng ngoài11–20+cửa sổ10 (không gồm focus), cặp Y→X đã có ≥2 lần kề non-overlap
+     * (2→gọi X thành 3; đã ≥3 cũng giữ — vd 4 tail vẫn đủ);
+     * Y ∈ phase1 (kỳ ngay trên focus).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @returns {{ num: number, inAnswer: boolean, partners: { y: number, edges: string[] }[] }[]}
+     */
+    enumerateTail3CandidateNumsForRow(rows, rowIndex) {
+        const idx = Number(rowIndex);
+        if (!Number.isFinite(idx) || idx < 1 || !rows || idx >= rows.length) {
+            return [];
+        }
+        const phaseRow = rows[idx - 1];
+        if (!phaseRow || this.isEmptyResultRow(phaseRow)) {
+            return [];
+        }
+        const phase1 = this.parseMainNums(phaseRow.result || phaseRow.Result || '');
+        if (phase1.length !== 5) {
+            return [];
+        }
+        const lookback = this.getFocusChainHitLookbackPeriods();
+        const histStart = Math.max(0, idx - lookback);
+        const histRows = rows.slice(histStart, idx);
+        if (histRows.length < 3) {
+            return [];
+        }
+        const focusRow = rows[idx];
+        const answerSet = new Set(
+            focusRow && !this.isEmptyResultRow(focusRow)
+                ? this.parseMainNums(focusRow.result || focusRow.Result || '')
+                : []
+        );
+        /** @type {Map<number, { num: number, inAnswer: boolean, partners: { y: number, edges: string[] }[] }>} */
+        const byNum = new Map();
+        for (let yi = 0; yi < phase1.length; yi++) {
+            const y = phase1[yi];
+            for (let x = 1; x <= 35; x++) {
+                if (x === y) {
+                    continue;
+                }
+                const counted = this.nonOverlapAdjCountStarts(
+                    this.collectDirectedAdjEdgeIndices(histRows, y, x)
+                );
+                // ≥2 non-overlap: đủ để (hoặc đã) đạt ≥3-tail khi gọi X / đã có sẵn.
+                if (counted.length < 2) {
+                    continue;
+                }
+                const edges = counted.map((e) => {
+                    const a = rows[histStart + e];
+                    const b = rows[histStart + e + 1];
+                    const idA = String(a && (a.id || a.ID) || '').replace(/^0+/, '') || '?';
+                    const idB = String(b && (b.id || b.ID) || '').replace(/^0+/, '') || '?';
+                    return `${idA}-${idB}`;
+                });
+                let entry = byNum.get(x);
+                if (!entry) {
+                    entry = { num: x, inAnswer: answerSet.has(x), partners: [] };
+                    byNum.set(x, entry);
+                }
+                entry.partners.push({ y, edges });
+            }
+        }
+        return Array.from(byNum.values()).sort((a, b) => a.num - b.num);
+    }
+
+    /**
+     * Số phase1 (Chuỗi 1) có freq cao nhất duy nhất trong cửa sổ 10 trước focus → viền hồng.
+     * Trùng resolvePhaseMaxFreqHighlightNum / leftPhaseMaxFreqNum (chỉ chuỗi 1).
+     * @param {object[]} rows
+     * @param {number} focusRowIndex
+     * @returns {number|null}
+     */
+    resolvePhase1MaxFreqNumForFocus(rows, focusRowIndex) {
+        const idx = Number(focusRowIndex);
+        if (!Number.isFinite(idx) || idx < 1 || !rows || idx >= rows.length) {
+            return null;
+        }
+        const phaseRow = rows[idx - 1];
+        if (!phaseRow || this.isEmptyResultRow(phaseRow)) {
+            return null;
+        }
+        const marked = this.parseMainNums(phaseRow.result || phaseRow.Result || '')
+            .filter((n) => n >= 1 && n <= 35);
+        if (!marked.length) {
+            return null;
+        }
+        const winStart = Math.max(0, idx - 10);
+        const freq = new Map();
+        for (let r = winStart; r < idx; r++) {
+            const row = rows[r];
+            if (!row || this.isEmptyResultRow(row)) {
+                continue;
+            }
+            const nums = this.parseMainNums(row.result || row.Result || '');
+            for (let i = 0; i < nums.length; i++) {
+                const n = nums[i];
+                if (n >= 1 && n <= 35) {
+                    freq.set(n, (freq.get(n) || 0) + 1);
+                }
+            }
+        }
+        let best = -1;
+        for (let i = 0; i < marked.length; i++) {
+            const f = freq.get(marked[i]) || 0;
+            if (f > best) {
+                best = f;
+            }
+        }
+        if (best < 0) {
+            return null;
+        }
+        const tied = marked.filter((n) => (freq.get(n) || 0) === best);
+        return tied.length === 1 ? tied[0] : null;
+    }
+
+    /**
+     * Mẫu 3-tail = kỳ có đáp án và đủ lookback (20 chuỗi liền trên).
+     * id đầu chưa đủ lookback kỳ trên → không vào mẫu.
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @returns {boolean}
+     */
+    rowIsTail3Evaluable(rows, rowIndex) {
+        const i = Number(rowIndex);
+        if (!Number.isFinite(i) || i < 0 || !rows || i >= rows.length) {
+            return false;
+        }
+        const lookback = this.getFocusChainHitLookbackPeriods(); // ngoài11–20 + W10 = 20
+        if (i < lookback) {
+            return false;
+        }
+        const focusRow = rows[i];
+        return !!(focusRow && !this.isEmptyResultRow(focusRow));
+    }
+
+    /**
+     * Kỳ đáp án tạo được 3-tail với phase1 (có ≥1 ứng viên inAnswer / hàng ★).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @returns {boolean}
+     */
+    rowMatchesTail3Filter(rows, rowIndex) {
+        if (!this.rowIsTail3Evaluable(rows, rowIndex)) {
+            return false;
+        }
+        const cands = this.enumerateTail3CandidateNumsForRow(rows, rowIndex);
+        for (let ci = 0; ci < cands.length; ci++) {
+            if (cands[ci] && cands[ci].inAnswer) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * @returns {number[]}
+     */
+    ensureTail3EvaluableIndicesCache() {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        if (this._tail3EvaluableIndicesCache
+            && this._tail3EvaluableIndicesCacheRowLen === n
+            && this._tail3EvaluableIndicesCacheVer === 6) {
+            return this._tail3EvaluableIndicesCache;
+        }
+        const indices = [];
+        for (let i = 0; i < n; i++) {
+            if (this.rowIsTail3Evaluable(rows, i)) {
+                indices.push(i);
+            }
+        }
+        this._tail3EvaluableIndicesCache = indices;
+        this._tail3EvaluableIndicesCacheRowLen = n;
+        this._tail3EvaluableIndicesCacheVer = 6;
+        return this._tail3EvaluableIndicesCache;
+    }
+
+    /**
+     * @returns {number[]}
+     */
+    ensureTail3FilterIndicesCache() {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        if (this._tail3FilterIndicesCache
+            && this._tail3FilterIndicesCacheRowLen === n
+            && this._tail3FilterIndicesCacheVer === 6) {
+            return this._tail3FilterIndicesCache;
+        }
+        const indices = [];
+        for (let i = 0; i < n; i++) {
+            if (this.rowMatchesTail3Filter(rows, i)) {
+                indices.push(i);
+            }
+        }
+        this._tail3FilterIndicesCache = indices;
+        this._tail3FilterIndicesCacheRowLen = n;
+        this._tail3FilterIndicesCacheVer = 6;
+        return this._tail3FilterIndicesCache;
+    }
+
+    /**
+     * Tỷ lệ kỳ có đáp án tạo được 3-tail với phase1 (có ≥1 ứng viên inAnswer).
+     * Mẫu số = kỳ có đáp án và đủ lookback (20 chuỗi liền trên).
+     * @param {object[]} rows
+     * @returns {{ hit: number, total: number, pct: number, label: string, ver: number }}
+     */
+    getTail3Phase1CreateRateStats(rows) {
+        const list = rows || this.getSourceSheetRows();
+        const n = list.length;
+        if (this._tail3Phase1RateCache
+            && this._tail3Phase1RateCacheRowLen === n
+            && this._tail3Phase1RateCache.ver === 6) {
+            return this._tail3Phase1RateCache;
+        }
+        const evaluable = this.ensureTail3EvaluableIndicesCache();
+        const hits = this.ensureTail3FilterIndicesCache();
+        const total = evaluable.length;
+        const hit = hits.length;
+        const pct = total > 0 ? (100 * hit) / total : 0;
+        const pctStr = total > 0
+            ? (Math.round(pct * 10) / 10).toFixed(1).replace(/\.0$/, '')
+            : '0';
+        const label = total > 0 ? `${pctStr}%` : '—';
+        const stats = { hit, total, pct, label, ver: 6 };
+        this._tail3Phase1RateCache = stats;
+        this._tail3Phase1RateCacheRowLen = n;
+        return stats;
+    }
+
+    /**
+     * Panel iframe trái: liệt kê số có khả năng tạo 3-tail với phase1 (theo kỳ focus).
      * @param {object[]} rows
      * @param {number} rowIndex
      * @returns {{ lines: string[], headerLines: string[], triplets: object[], footerLine: string }}
      */
-    formatConn3ReferenceHint(rows, rowIndex) {
+    formatTail3ReferenceHint(rows, rowIndex) {
         const row = rows[rowIndex];
-        const chainLines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
-        const pickNums = row && !this.isEmptyResultRow(row)
-            ? this.parseMainNums(row.result || row.Result || '')
-            : [];
-        const triplets = this.enumerateConn3TripletsForRow(rows, rowIndex);
+        const lookback = this.getFocusChainHitLookbackPeriods();
+        const histStart = Math.max(0, rowIndex - lookback);
+        const histLen = Math.max(0, rowIndex - histStart);
+        const candidates = this.enumerateTail3CandidateNumsForRow(rows, rowIndex);
+        const phaseMaxNum = this.resolvePhase1MaxFreqNumForFocus(rows, rowIndex);
         const periodId = row ? String(row.id || row.ID || '').trim() : '';
+        const idLabel = periodId ? `kỳ ${periodId}` : `dòng ${rowIndex + 1}`;
+        const rateStats = this.getTail3Phase1CreateRateStats(rows);
         /** @type {string[]} */
         const lines = [];
         /** @type {string[]} */
         const headerLines = [];
-        const idLabel = periodId ? `kỳ ${periodId}` : `dòng ${rowIndex + 1}`;
-        const head1 = `3-connection — ${idLabel} (${chainLines.length} chuỗi trước kỳ)`;
+        const head1 = `3-tail — ${idLabel} (${histLen} kỳ trên)`
+            + (rateStats && rateStats.label && rateStats.label !== '—'
+                ? ` · ${rateStats.label}`
+                : '');
         lines.push(head1);
         headerLines.push(head1);
-        if (pickNums.length) {
-            const ansLine = `Đáp án: ${pickNums.join(', ')}`;
-            lines.push(ansLine);
-            headerLines.push(ansLine);
-        }
         lines.push('');
-        if (!triplets.length) {
-            const emptyMsg = 'Không có bộ 3-connection (freq mỗi số ≥2, 3 cặp trên 3 chuỗi khác nhau).';
+        if (!candidates.length) {
+            const emptyMsg = 'Không có số nào tạo được 3-tail với phase1 trong vùng focus-chain hit.';
             lines.push(emptyMsg);
             return { lines, headerLines, triplets: [], footerLine: emptyMsg };
         }
-        /** @type {{ sorted: number[], inAnswer: boolean, label: string, chains: object | null }[]} */
-        const tripletRows = [];
-        for (let ti = 0; ti < triplets.length; ti++) {
-            const t = triplets[ti];
-            const nums = t.sorted.join(', ');
-            let chainStr = '';
-            if (t.chains) {
-                chainStr = ` — AB:C${t.chains.ab} AC:C${t.chains.ac} BC:C${t.chains.bc}`;
+        // Freq Y trong cửa sổ 10 trước focus — cùng nguồn tô hồng/tím.
+        const winStart = Math.max(0, rowIndex - 10);
+        /** @type {Map<number, number>} */
+        const yFreqMap = new Map();
+        for (let r = winStart; r < rowIndex; r++) {
+            const wr = rows[r];
+            if (!wr || this.isEmptyResultRow(wr)) {
+                continue;
             }
-            const tag = t.inAnswer ? ' ★ đáp án' : '';
-            const label = `${ti + 1}. {${nums}}${chainStr}${tag}`;
-            lines.push(label);
-            tripletRows.push({
-                sorted: t.sorted.slice(),
-                inAnswer: t.inAnswer,
-                label,
-                chains: t.chains
-            });
+            const nums = this.parseMainNums(wr.result || wr.Result || '');
+            for (let ni = 0; ni < nums.length; ni++) {
+                const n = nums[ni];
+                if (n >= 1 && n <= 35) {
+                    yFreqMap.set(n, (yFreqMap.get(n) || 0) + 1);
+                }
+            }
         }
-        const answerCount = triplets.filter((t) => t.inAnswer).length;
-        const footerLine = `Tổng: ${triplets.length} bộ${answerCount ? ` (${answerCount} nằm trong đáp án)` : ''}.`;
-        lines.push('');
-        lines.push(footerLine);
-        return { lines, headerLines, triplets: tripletRows, footerLine };
+        /** @type {{ sorted: number[], inAnswer: boolean, label: string, y: number, x: number, edges: string[], yIsPhaseMax: boolean, yFreq: number, xIsFreqZero: boolean, chains: object | null }[]} */
+        const tripletRows = [];
+        for (let ci = 0; ci < candidates.length; ci++) {
+            const c = candidates[ci];
+            for (let pi = 0; pi < c.partners.length; pi++) {
+                const p = c.partners[pi];
+                const edgeStr = `[${p.edges.join(', ')}]`;
+                const arrowStr = `${p.y}→${c.num}`;
+                const tag = c.inAnswer ? ' ★ đáp án' : '';
+                const label = `${edgeStr}    ${arrowStr}${tag}`;
+                const yIsPhaseMax = phaseMaxNum != null && p.y === phaseMaxNum;
+                tripletRows.push({
+                    sorted: [c.num],
+                    inAnswer: c.inAnswer,
+                    label,
+                    y: p.y,
+                    x: c.num,
+                    edges: p.edges.slice(),
+                    yIsPhaseMax,
+                    yFreq: yFreqMap.get(p.y) || 0,
+                    xIsFreqZero: (yFreqMap.get(c.num) || 0) === 0,
+                    chains: null
+                });
+            }
+        }
+        // Freq giảm dần: hồng (max) trên cùng → tím freq thấp dần.
+        tripletRows.sort((a, b) => {
+            if (b.yFreq !== a.yFreq) {
+                return b.yFreq - a.yFreq;
+            }
+            if (a.yIsPhaseMax !== b.yIsPhaseMax) {
+                return a.yIsPhaseMax ? -1 : 1;
+            }
+            if (a.y !== b.y) {
+                return a.y - b.y;
+            }
+            return a.x - b.x;
+        });
+        for (let ti = 0; ti < tripletRows.length; ti++) {
+            lines.push(tripletRows[ti].label);
+        }
+        const inAns = candidates.filter((c) => c.inAnswer).length;
+        const footerLine = `Tổng: ${candidates.length} số có thể tạo 3-tail`
+            + (inAns ? ` (${inAns} nằm trong đáp án)` : '')
+            + '.';
+        // Gộp theo X: Y1,Y2→X — số Y giảm dần; cùng số Y thì max freq(Y) giảm dần.
+        /** @type {{ x: number, ys: number[], label: string, inAnswer: boolean, xIsFreqZero: boolean, yCount: number, maxYFreq: number }[]} */
+        const groupLines = candidates.map((c) => {
+            const ys = c.partners.map((p) => p.y).slice().sort((a, b) => {
+                const fa = yFreqMap.get(a) || 0;
+                const fb = yFreqMap.get(b) || 0;
+                if (fb !== fa) {
+                    return fb - fa;
+                }
+                return a - b;
+            });
+            let maxYFreq = 0;
+            for (let yi = 0; yi < ys.length; yi++) {
+                const f = yFreqMap.get(ys[yi]) || 0;
+                if (f > maxYFreq) {
+                    maxYFreq = f;
+                }
+            }
+            return {
+                x: c.num,
+                ys,
+                label: `${ys.join(',')}→${c.num}`,
+                inAnswer: !!c.inAnswer,
+                xIsFreqZero: (yFreqMap.get(c.num) || 0) === 0,
+                yCount: ys.length,
+                maxYFreq
+            };
+        }).sort((a, b) => {
+            if (b.yCount !== a.yCount) {
+                return b.yCount - a.yCount;
+            }
+            if (b.maxYFreq !== a.maxYFreq) {
+                return b.maxYFreq - a.maxYFreq;
+            }
+            return a.x - b.x;
+        });
+        // Tổng + gộp ngay dưới header (trước danh sách cạnh).
+        const groupText = groupLines.map((g) => g.label).join('  ');
+        lines.splice(2, 0, footerLine, groupText, '');
+        return {
+            lines,
+            headerLines,
+            triplets: tripletRows,
+            footerLine,
+            groupLines,
+            phaseMaxNum: phaseMaxNum
+        };
+    }
+
+    /**
+     * @deprecated Dùng formatTail3ReferenceHint — giữ tên cũ cho chỗ gọi còn lại.
+     */
+    formatConn3ReferenceHint(rows, rowIndex) {
+        return this.formatTail3ReferenceHint(rows, rowIndex);
     }
 
     /**
@@ -5029,6 +5429,8 @@ class RightPaneSheetManager {
         const specialKindCounts = this.countSheet1SpecialContiguousKinds(specialKinds, rowIndices);
         const specialStatsAttr = this.encodeSheet1SpecialStatsTooltipAttr(specialKindCounts);
         const specialTrends = this.getSheet1SpecialPickTrends(displayRows);
+        // Kỳ đáp án thỏa 3-tail → viền xanh lá ô follow (dùng cache filter indices).
+        const tail3HitIndexSet = new Set(this.ensureTail3FilterIndicesCache());
         const trendDetailed = this.countSheet1SpecialPickTrendsDetailed(specialTrends, rowIndices);
         const trendStatsAttr = this.encodeSheet1TrendStatsTooltipAttr(trendDetailed);
         const specialBellyIo = this.getSheet1SpecialPickBellyIo(displayRows);
@@ -5103,6 +5505,11 @@ class RightPaneSheetManager {
                     ? `<span class="cell-follow-in-result">${this.escapeHtml(followValue)}</span>`
                     : this.escapeHtml(followValue);
             }
+            const followTail3Hit = !isEmptyResultRow && tail3HitIndexSet.has(i);
+            const followTdClass = 'cell-follow' + (followTail3Hit ? ' cell-follow--tail3-hit' : '');
+            const followTdTitle = followTail3Hit
+                ? ' title="Kỳ có đáp án thỏa logic 3-tail"'
+                : '';
             const specialKind = specialKinds[i] || '';
             const specialHtml = specialKind
                 ? `<span class="cell-special-val cell-special-val--${specialKind}">${String(specialKind).toUpperCase()}</span>`
@@ -5125,7 +5532,7 @@ class RightPaneSheetManager {
                 <td class="cell-belly">${bellyHtml}</td>
                 <td class="cell-trend">${trendHtml}</td>
                 <td class="cell-pick-label">${pickLabelHtml}</td>
-                <td class="cell-follow">${followHtml}</td>
+                <td class="${followTdClass}"${followTdTitle}>${followHtml}</td>
                 <td class="${resultCellClass}">${prevRecallFoldHit}${resultHtml}</td>
                 <td class="cell-note"${noteStyle}>${noteHtml}</td>
                 <td class="cell-nonexist">${nonexistHtml}</td>
@@ -6314,18 +6721,34 @@ class RightPaneSheetManager {
 
     /**
      * Viền tròn đỏ theo số khoanh lúc Submit OFF — giữ nguyên khi Submit ON.
-     * Chỉ dùng leftCircleRememberNums (đã sync khi Submit OFF).
-     * Không fallback leftBasicPreviewPickNums: buffer đó nhận đáp án lúc Submit ON
-     * (getPickDisplayNums / leftCircledNumsReady) → sẽ khoanh nhầm hit/answer nums.
+     * Nguồn: leftCircleRememberNums; trên kỳ rỗng (Submit nhớ ON) fallback preview/stash
+     * nếu remember chưa kịp sync từ preSubmit.
      * @returns {Set<number>}
      */
     resolveFocusChainCircleNumSet() {
         if (this.isAnswerPopupOpenForFocusChainHit()) {
             return new Set();
         }
-        const picks = Array.isArray(this.leftCircleRememberNums)
+        let picks = Array.isArray(this.leftCircleRememberNums)
             ? this.leftCircleRememberNums
             : [];
+        if (!picks.length) {
+            const win = this.activeWindowRange;
+            const focusIdx = (win && typeof win.target === 'number' && win.target >= 0)
+                ? win.target
+                : (win && typeof win.end === 'number' ? win.end : -1);
+            const rows = this.getSourceSheetRows();
+            const emptyFocus = focusIdx >= 0 && focusIdx < rows.length
+                && this.isEmptyResultRow(rows[focusIdx]);
+            if (emptyFocus) {
+                picks = Array.isArray(this.leftBasicPreviewPickNums)
+                    && this.leftBasicPreviewPickNums.length
+                    ? this.leftBasicPreviewPickNums
+                    : (Array.isArray(this.leftBasicPreviewPickNumsStash)
+                        ? this.leftBasicPreviewPickNumsStash
+                        : []);
+            }
+        }
         const out = new Set();
         for (let i = 0; i < picks.length; i++) {
             const n = parseInt(picks[i], 10);
@@ -6363,7 +6786,7 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Gỡ highlight / sync / phase trên số result (ngoài 0–6 + trong cửa sổ 10).
+     * Gỡ highlight / sync / phase trên số result (ngoài 11–20 + trong cửa sổ 10).
      * @param {HTMLElement} tableWrapEl
      */
     clearFocusChainOverlapResultHighlights(tableWrapEl) {
@@ -6519,6 +6942,7 @@ class RightPaneSheetManager {
      *   focusNxSet?: Set<number>|null,
      *   focusCircleSet?: Set<number>|null,
      *   leftMap?: Map<number, object>|null,
+     *   submitNumSet?: Set<number>|null,
      *   rowNoteSet?: Set<number>|null,
      *   rowNonexistSet?: Set<number>|null,
      *   syncColors?: boolean,
@@ -6534,6 +6958,7 @@ class RightPaneSheetManager {
         const focusNxSet = opts.focusNxSet && opts.focusNxSet.size ? opts.focusNxSet : null;
         const focusCircleSet = opts.focusCircleSet && opts.focusCircleSet.size ? opts.focusCircleSet : null;
         const leftMap = opts.leftMap || null;
+        const submitNumSet = opts.submitNumSet && opts.submitNumSet.size ? opts.submitNumSet : null;
         const rowNoteSet = opts.rowNoteSet || null;
         const rowNonexistSet = opts.rowNonexistSet || null;
         const useRowSync = !!(rowNoteSet || rowNonexistSet);
@@ -6564,8 +6989,8 @@ class RightPaneSheetManager {
                 classes.push('result-focus-chain-hit--circle');
             }
             if (syncColors) {
-                // submit: vẫn theo left (answer overlay toàn bảng)
-                if (left && left.submit) {
+                // submit: ưu tiên submitNumSet local (không đợi/scrape iframe trái)
+                if ((submitNumSet && submitNumSet.has(n)) || (left && left.submit)) {
                     classes.push('result-num-sync-submit');
                 }
                 // note/nonexist: per-row như ok_left renderTable2 (không OR chuỗi khác)
@@ -6651,11 +7076,12 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Áp decoration số result: ngoài 0–6 + trong cửa sổ 10.
-     * - Focus-chain hit: ngoài + trong (trừ chuỗi 0 / hàng focus)
+     * Áp decoration số result: ngoài 11–20 + trong cửa sổ 10.
+     * - Focus-chain hit: ngoài + trong (trừ chuỗi 0 / hàng focus) — chỉ khi Submit ON
      * - Sync màu nửa trái: chỉ trong cửa sổ chuỗi 1–10 (không chuỗi 0);
      *   note/nonexist theo từng hàng (ok_left table 2), không OR toàn cửa sổ
      * - Viền phase1: ngoài + trong (không chuỗi 0)
+     * Không scrape iframe trái: submit sync = cùng tập đáp án focus (leftSubmitActive).
      * @param {HTMLElement} tableWrap
      * @param {number} startIdx
      * @param {number} focusRowIdx
@@ -6668,7 +7094,7 @@ class RightPaneSheetManager {
             return;
         }
 
-        const OUTER_MAX = 6;
+        const OUTER_MAX = this.getFocusChainHitOuterMax();
         const winEnd = (typeof endIdx === 'number' && endIdx >= startIdx)
             ? endIdx
             : (startIdx + 9);
@@ -6676,56 +7102,68 @@ class RightPaneSheetManager {
         try {
             this.recomputePhaseDecorFromActiveWindow();
         } catch (eRePh) { /* ignore */ }
-        const leftMap = this.readLeftNumDecorMap();
 
-        // Gỡ decor cũ (giữ win-label) rồi gắn lại.
-        const touched = new Set();
+        // Hoist — không gọi lại trong từng hàng.
+        const applyFocusHit = !!(focusNumSet && focusNumSet.size);
+        const circleSet = this.resolveFocusChainCircleNumSet();
+        const applyCircle = !!(circleSet && circleSet.size);
+        // Submit sync = đáp án focus khi Submit ON (cùng nguồn resolveFocusChainHitNumSet).
+        const submitNumSet = applyFocusHit ? focusNumSet : null;
+
+        const lo = Math.max(0, startIdx - 1 - OUTER_MAX);
+        const hi = winEnd;
+        // Stale decor ngoài dải lookback — chỉ hàng còn chip, không quét cả bảng.
+        const staleCleared = new Set();
         tableWrap.querySelectorAll('td.cell-result .result-num-decor').forEach((span) => {
             const tr = span.closest('tr[data-idx]');
-            if (tr) {
-                touched.add(Number(tr.dataset.idx));
+            if (!tr) {
+                return;
+            }
+            const idx = Number(tr.dataset.idx);
+            if (!Number.isFinite(idx) || (idx >= lo && idx <= hi) || staleCleared.has(idx)) {
+                return;
+            }
+            staleCleared.add(idx);
+            const staleCell = tr.querySelector('td.cell-result');
+            if (staleCell) {
+                this.rebuildResultCellMainWithFocusHits(staleCell, idx, null, null, {});
             }
         });
-        for (let outer = 0; outer <= OUTER_MAX; outer++) {
-            const rowIdx = startIdx - 1 - outer;
-            if (rowIdx >= 0) {
-                touched.add(rowIdx);
-            }
-        }
-        for (let idx = startIdx; idx <= winEnd; idx++) {
-            touched.add(idx);
-        }
-        touched.forEach((idx) => {
-            if (!Number.isFinite(idx) || idx < 0) {
-                return;
-            }
+
+        /** @type {Map<number, HTMLElement>} */
+        const trByIdx = new Map();
+        for (let idx = lo; idx <= hi; idx++) {
             const tr = tableWrap.querySelector(`tbody tr[data-idx="${idx}"]`);
+            if (tr) {
+                trByIdx.set(idx, tr);
+            }
+        }
+
+        // Chỉ rebuild trong dải lookback hiện tại (≈ 20 hàng + focus).
+        for (let idx = lo; idx <= hi; idx++) {
+            const tr = trByIdx.get(idx);
             if (!tr || tr.dataset.empty === '1') {
-                return;
+                continue;
             }
             const cell = tr.querySelector('td.cell-result');
             if (!cell) {
-                return;
+                continue;
             }
             // Chuỗi 0 (hàng focus): không focus-hit / sync màu / viền phase.
             if (idx === focusRowIdx) {
                 this.rebuildResultCellMainWithFocusHits(cell, idx, null, null, {});
-                return;
+                continue;
             }
             const inOuter = idx <= startIdx - 1
                 && idx >= startIdx - 1 - OUTER_MAX;
             const inWindow = idx >= startIdx && idx <= winEnd;
             if (!inOuter && !inWindow) {
                 this.rebuildResultCellMainWithFocusHits(cell, idx, null, null, {});
-                return;
+                continue;
             }
-            const applyFocusHit = !!(focusNumSet && focusNumSet.size);
-            const circleSet = this.resolveFocusChainCircleNumSet();
-            const applyCircle = !!(circleSet && circleSet.size);
             let rowNoteSet = null;
             let rowNonexistSet = null;
             if (inWindow) {
-                // Per-row note/nonexist — khớp ok_left Chuỗi N (không OR từ chuỗi khác / bảng tần suất).
                 const syncSets = this.getRowSyncNoteNonexistSets(idx);
                 rowNoteSet = syncSets.noteSet;
                 rowNonexistSet = syncSets.nonexistSet;
@@ -6734,13 +7172,13 @@ class RightPaneSheetManager {
                 focusHitSet: applyFocusHit ? focusNumSet : null,
                 focusNxSet: applyFocusHit ? focusNxSet : null,
                 focusCircleSet: applyCircle ? circleSet : null,
-                leftMap: leftMap,
+                submitNumSet: inWindow ? submitNumSet : null,
                 rowNoteSet: rowNoteSet,
                 rowNonexistSet: rowNonexistSet,
                 syncColors: inWindow,
                 applyPhase: inOuter || inWindow
             });
-        });
+        }
     }
 
     /**
@@ -6784,8 +7222,30 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Gộp refresh decoration (Submit + leftCircledNums thường tới sát nhau).
+     * Debounce ngắn — tránh 2 lần rebuild 20 hàng khi submitState + circledNums nối đuôi.
+     */
+    scheduleResultNumDecorationsRefresh() {
+        if (this._resultDecorRefreshTimer) {
+            return;
+        }
+        this._resultDecorRefreshTimer = setTimeout(() => {
+            this._resultDecorRefreshTimer = 0;
+            if (this._resultDecorRefreshRaf) {
+                return;
+            }
+            this._resultDecorRefreshRaf = requestAnimationFrame(() => {
+                this._resultDecorRefreshRaf = 0;
+                try {
+                    this.refreshResultNumDecorationsFromActiveWindow();
+                } catch (e) { /* ignore */ }
+            });
+        }, 24);
+    }
+
+    /**
      * Vẽ lại decoration số result theo activeWindowRange (submit/phase/focus đổi).
-     * Đồng bộ cả #tableWrap và #filterTableWrap (nếu đang có bảng).
+     * Đồng bộ cả #tableWrap và #filterTableWrap (nếu đang mở).
      */
     refreshResultNumDecorationsFromActiveWindow() {
         const r = this.activeWindowRange;
@@ -6800,8 +7260,13 @@ class RightPaneSheetManager {
         if (tableWrap && !tableWrap.classList.contains('table-wrap--tracking')) {
             this.refreshResultNumDecorationsForTableWrap(tableWrap, r, focusIdx);
         }
-        // Filter popup: cùng leftSubmitActive / remember / focus — tránh lệch vs sheet1.
+        // Filter popup: chỉ khi đang mở — tránh rebuild bảng ẩn lúc Submit.
         try {
+            const dock = document.getElementById('filterPopupDock');
+            const filterOpen = dock && !dock.classList.contains('hidden');
+            if (!filterOpen) {
+                return;
+            }
             const filterWrap = document.getElementById('filterTableWrap');
             if (filterWrap && filterWrap.querySelector('tbody tr[data-idx]')) {
                 this.refreshResultNumDecorationsForTableWrap(filterWrap, r, focusIdx, {
@@ -6809,21 +7274,6 @@ class RightPaneSheetManager {
                 });
             }
         } catch (eFilterDecor) { /* ignore */ }
-    }
-
-    /**
-     * Gộp refresh decoration (Submit + leftCircledNums thường tới sát nhau).
-     */
-    scheduleResultNumDecorationsRefresh() {
-        if (this._resultDecorRefreshRaf) {
-            return;
-        }
-        this._resultDecorRefreshRaf = requestAnimationFrame(() => {
-            this._resultDecorRefreshRaf = 0;
-            try {
-                this.refreshResultNumDecorationsFromActiveWindow();
-            } catch (e) { /* ignore */ }
-        });
     }
 
     /**
@@ -6853,10 +7303,10 @@ class RightPaneSheetManager {
                 extra = 'win-label-inline--focus';
             } else if (rowIdx >= startIdx && rowIdx <= endIdx) {
                 text = String(10 - (rowIdx - startIdx));
-            } else if (rowIdx < startIdx && rowIdx >= startIdx - 7) {
-                const outer = startIdx - 1 - rowIdx;
-                text = String(outer);
-                extra = outer === 0 ? 'win-label-inline--outer-0' : 'win-label-inline--outer';
+            } else if (rowIdx < startIdx && rowIdx >= startIdx - 1 - this.getFocusChainHitOuterMax()) {
+                const outer = startIdx - 1 - rowIdx; // 0 = liền trên nhãn 10 → nhãn 11
+                text = String(11 + outer);
+                extra = 'win-label-inline--outer';
             } else {
                 return;
             }
@@ -7333,10 +7783,10 @@ class RightPaneSheetManager {
 
     /**
      * Draw inline chain labels on result/note/nonexist:
-     * - ngoài trên cửa sổ: 0..6 (sát nhãn 10 → 0, xa hơn → 6)
+     * - ngoài trên cửa sổ: 11..20 (sát nhãn 10 → 11, xa hơn → 20)
      * - trong cửa sổ: 10..1
      * - hàng focus: 0
-     * Đồng thời highlight số result (ngoài 0–6 + trong cửa sổ 10) trùng pick chuỗi 0 focus.
+     * Đồng thời highlight số result (ngoài 11–20 + trong cửa sổ 10) trùng pick chuỗi 0 focus.
      */
     renderWindowLabels(startIdx, endIdx, tableWrapEl, focusIdx = null) {
         const tableWrap = tableWrapEl || document.getElementById('tableWrap');
@@ -7389,9 +7839,10 @@ class RightPaneSheetManager {
             );
         }
 
-        // Ngoài trên cửa sổ (liền trên nhãn 10 vàng): startIdx-1=0 … startIdx-7=6.
+        // Ngoài trên cửa sổ (liền trên nhãn 10 vàng): nhãn 11 … 20.
         if (typeof startIdx === 'number' && startIdx > 0) {
-            for (let outer = 0; outer <= 6; outer++) {
+            const OUTER_MAX = this.getFocusChainHitOuterMax();
+            for (let outer = 0; outer <= OUTER_MAX; outer++) {
                 const rowIdx = startIdx - 1 - outer;
                 if (rowIdx < 0) {
                     break;
@@ -7403,10 +7854,7 @@ class RightPaneSheetManager {
                 if (!row) {
                     continue;
                 }
-                const extra = outer === 0
-                    ? 'win-label-inline--outer-0'
-                    : 'win-label-inline--outer';
-                appendWinLabel(row, String(outer), extra);
+                appendWinLabel(row, String(11 + outer), 'win-label-inline--outer');
             }
         }
 
@@ -7587,8 +8035,8 @@ class RightPaneSheetManager {
 
 
     /**
-     * Gợi ý tham chiếu 3-connection (panel iframe trái).
-     * @returns {{ text: string, conn3HeaderLines: string[], conn3Triplets: object[], conn3FooterLine: string } | { error: string } | null}
+     * Gợi ý tham chiếu 3-tail (panel iframe trái).
+     * @returns {{ text: string, conn3HeaderLines: string[], conn3Triplets: object[], conn3FooterLine: string, conn3GroupLines: object[] } | { error: string } | null}
      */
     getNoteReferenceHintMeta(rowIndex) {
         const rows = this.getSourceSheetRows();
@@ -7596,12 +8044,14 @@ class RightPaneSheetManager {
         if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
             return null;
         }
-        const r = this.formatConn3ReferenceHint(rows, idx);
+        const r = this.formatTail3ReferenceHint(rows, idx);
         return {
             text: r.lines.join('\n'),
             conn3HeaderLines: r.headerLines || [],
             conn3Triplets: Array.isArray(r.triplets) ? r.triplets : [],
-            conn3FooterLine: r.footerLine || ''
+            conn3FooterLine: r.footerLine || '',
+            conn3GroupLines: Array.isArray(r.groupLines) ? r.groupLines : [],
+            conn3PhaseMaxNum: r.phaseMaxNum != null ? r.phaseMaxNum : null
         };
     }
 
@@ -9815,13 +10265,17 @@ class RightPaneSheetManager {
             const nextFocusId = String(focusRow.id || focusRow.ID || clickedRowId || '').trim();
             const prevFocusId = String(this.comboFocusRowId || '').trim();
             const hadG1 = this.comboG1Enabled;
+            const focusEmpty = this.isEmptyResultRow(focusRow);
             const comboStateChanged = this.comboFocusRowId !== nextFocusId
                 || this.comboFocusRowIndex !== idx
-                || (this.isEmptyResultRow(focusRow) && hadG1);
-            this.onComboFocusIdChanged(prevFocusId, nextFocusId);
+                || (focusEmpty && hadG1);
+            // Submit ON + kỳ rỗng: giữ khoanh đỏ nhớ (nút Submit disable, không chip hit).
+            this.onComboFocusIdChanged(prevFocusId, nextFocusId, {
+                preserveCircleRemember: !!(this.leftSubmitActive && focusEmpty)
+            });
             this.comboFocusRowId = nextFocusId;
             this.comboFocusRowIndex = idx;
-            if (this.isEmptyResultRow(focusRow)) {
+            if (focusEmpty) {
                 this.comboG1Enabled = false;
             }
             if (comboStateChanged) {
@@ -9898,13 +10352,16 @@ class RightPaneSheetManager {
         const nextFocusId = String(row.id || row.ID || '').trim();
         const prevFocusId = String(this.comboFocusRowId || '').trim();
         const hadG1 = this.comboG1Enabled;
+        const focusEmpty = this.isEmptyResultRow(row);
         const comboStateChanged = this.comboFocusRowId !== nextFocusId
             || this.comboFocusRowIndex !== idx
-            || (this.isEmptyResultRow(row) && hadG1);
-        this.onComboFocusIdChanged(prevFocusId, nextFocusId);
+            || (focusEmpty && hadG1);
+        this.onComboFocusIdChanged(prevFocusId, nextFocusId, {
+            preserveCircleRemember: !!(this.leftSubmitActive && focusEmpty)
+        });
         this.comboFocusRowId = nextFocusId;
         this.comboFocusRowIndex = idx;
-        if (this.isEmptyResultRow(row)) {
+        if (focusEmpty) {
             this.comboG1Enabled = false;
         }
         if (comboStateChanged) {
@@ -11031,13 +11488,16 @@ class RightPaneSheetManager {
             const nextFocusId = String(focusRow.id || focusRow.ID || data.clickedRowId || '').trim();
             const prevFocusId = String(this.comboFocusRowId || '').trim();
             const hadG1 = this.comboG1Enabled;
+            const focusEmpty = this.isEmptyResultRow(focusRow);
             const comboStateChanged = this.comboFocusRowId !== nextFocusId
                 || this.comboFocusRowIndex !== idx
-                || (this.isEmptyResultRow(focusRow) && hadG1);
-            this.onComboFocusIdChanged(prevFocusId, nextFocusId);
+                || (focusEmpty && hadG1);
+            this.onComboFocusIdChanged(prevFocusId, nextFocusId, {
+                preserveCircleRemember: !!(this.leftSubmitActive && focusEmpty)
+            });
             this.comboFocusRowId = nextFocusId;
             this.comboFocusRowIndex = idx;
-            if (this.isEmptyResultRow(focusRow)) {
+            if (focusEmpty) {
                 this.comboG1Enabled = false;
             }
             if (comboStateChanged) {
@@ -11060,7 +11520,9 @@ class RightPaneSheetManager {
             return {
                 referenceConn3HeaderLines: Array.isArray(meta.conn3HeaderLines) ? meta.conn3HeaderLines : [],
                 referenceConn3Triplets: Array.isArray(meta.conn3Triplets) ? meta.conn3Triplets : [],
-                referenceConn3FooterLine: meta.conn3FooterLine || ''
+                referenceConn3FooterLine: meta.conn3FooterLine || '',
+                referenceConn3GroupLines: Array.isArray(meta.conn3GroupLines) ? meta.conn3GroupLines : [],
+                referenceConn3PhaseMaxNum: meta.conn3PhaseMaxNum != null ? meta.conn3PhaseMaxNum : null
             };
         } catch (eRef) {
             return {};
@@ -13065,10 +13527,9 @@ class RightPaneSheetManager {
             if (Array.isArray(this.leftBasicPreviewPickNumsStash)
                 && this.leftBasicPreviewPickNumsStash.length) {
                 // Basic: iframe khôi phục preSubmit khi Submit OFF.
+                // Không dispatch leftCircledNumsChanged ở đây — tránh paint trùng với
+                // leftSubmitStateChanged; nums thật về qua leftCircledNumsReady.
                 this._basicPreviewStashRestoredAt = Date.now();
-                try {
-                    window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
-                } catch (eEv) { /* ignore */ }
             }
             this.leftBasicPreviewPickNumsStash = [];
             if (this.leftSpecialPreviewPickNumStash != null) {
@@ -13254,22 +13715,36 @@ class RightPaneSheetManager {
         }
         const prev = this.leftBasicPreviewPickNums || [];
         const same = prev.length === next.length && prev.every((v, i) => v === next[i]);
+        let rememberChanged = false;
+        // getLeftPaneCircledNums: khoanh đỏ thật (Submit ON = preSubmit). Có số → ghi remember;
+        // rỗng → xóa remember (kể cả Submit nhớ ON trên kỳ rỗng — bỏ khoanh hết phải theo).
+        // Echo rỗng giả (stash restore) đã chặn ở parent trước khi gọi.
+        if (next.length) {
+            const rem = Array.isArray(this.leftCircleRememberNums) ? this.leftCircleRememberNums : [];
+            const remSame = rem.length === next.length && rem.every((v, i) => v === next[i]);
+            if (!remSame) {
+                this.leftCircleRememberNums = next.slice();
+                rememberChanged = true;
+            }
+        } else if (!options.keepCircleRememberOnEmpty) {
+            if (Array.isArray(this.leftCircleRememberNums) && this.leftCircleRememberNums.length) {
+                this.leftCircleRememberNums = [];
+                rememberChanged = true;
+            }
+        }
         if (!same) {
             this.leftBasicPreviewPickNums = next;
             this._leftBasicPreviewPickGeneration += 1;
-            // Chỉ cập nhật khoanh đỏ khi Submit OFF (cả local lẫn tin từ iframe).
-            // Submit ON: getPickDisplayNums()/echo có thể là đáp án — không ghi đè remember.
-            if (!this.leftSubmitActive && !options.submitActive) {
-                this.leftCircleRememberNums = next.slice();
-            }
             if (!options.skipFocusUpdate) {
                 this.applyTrackingPreviewFocusAfterPickNumsChange(prev, next);
             }
+        }
+        if (!same || rememberChanged) {
             try {
                 this.scheduleResultNumDecorationsRefresh();
             } catch (eHit) { /* ignore */ }
         }
-        return !same;
+        return !same || rememberChanged;
     }
 
     /**
@@ -13312,25 +13787,39 @@ class RightPaneSheetManager {
         return (this.leftBasicPreviewPickNums || []).length > 0;
     }
 
-    /** Đổi id focus: xóa giả lập bar phải và đồng bộ sạch sang nửa trái (tránh viền đen còn mà khoanh trái đã mất). */
-    clearLeftBasicBarPreviewPicksOnFocusChange() {
+    /**
+     * Đổi id focus: xóa giả lập bar phải và đồng bộ sạch sang nửa trái
+     * (tránh viền đen còn mà khoanh trái đã mất).
+     * @param {{ preserveCircleRemember?: boolean }} [options]
+     *   preserveCircleRemember: giữ leftCircleRememberNums —
+     *   Submit ON → focus kỳ rỗng (nút Submit disable): vẫn vẽ khoanh đỏ focus-chain.
+     */
+    clearLeftBasicBarPreviewPicksOnFocusChange(options = {}) {
+        const preserveRemember = !!options.preserveCircleRemember;
         const had = Array.isArray(this.leftBasicPreviewPickNums) && this.leftBasicPreviewPickNums.length > 0;
         const hadRemember = Array.isArray(this.leftCircleRememberNums) && this.leftCircleRememberNums.length > 0;
         this.leftBasicPreviewPickNums = [];
-        this.leftCircleRememberNums = [];
+        if (!preserveRemember) {
+            this.leftCircleRememberNums = [];
+        }
         this.leftBasicPreviewPickNumsStash = [];
         this.lastTrackingPreviewBarNum = null;
         this._leftBasicPreviewPickGeneration += 1;
         if (this.shouldSyncBasicBarPickToLeftPane()) {
             this.syncLeftPickSelectionToIframe([]);
         }
-        if (had || hadRemember) {
+        if (had || (hadRemember && !preserveRemember)) {
             try {
                 window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
             } catch (ePaint) { /* ignore */ }
             try {
                 this.refreshFocusChainOverlapHighlightsFromActiveWindow();
             } catch (eHitClr) { /* ignore */ }
+        } else if (preserveRemember && hadRemember) {
+            // Refresh để vẽ lại khoanh đỏ trên cửa sổ kỳ rỗng (không còn chip Submit).
+            try {
+                this.scheduleResultNumDecorationsRefresh();
+            } catch (eHitKeep) { /* ignore */ }
         }
     }
 
@@ -13415,7 +13904,12 @@ class RightPaneSheetManager {
         }
     }
 
-    onComboFocusIdChanged(prevFocusId, nextFocusId) {
+    /**
+     * @param {string} prevFocusId
+     * @param {string} nextFocusId
+     * @param {{ preserveCircleRemember?: boolean }} [options]
+     */
+    onComboFocusIdChanged(prevFocusId, nextFocusId, options = {}) {
         const prev = String(prevFocusId || '').trim();
         const next = String(nextFocusId || '').trim();
         // next có thể '' (id rỗng cuối) — vẫn phải clear preview khi đổi kỳ.
@@ -13423,7 +13917,9 @@ class RightPaneSheetManager {
             return;
         }
         this.noteComboFocusUndoTransition(prev, next);
-        this.clearLeftBasicBarPreviewPicksOnFocusChange();
+        this.clearLeftBasicBarPreviewPicksOnFocusChange({
+            preserveCircleRemember: !!options.preserveCircleRemember
+        });
         if (this.clearLeftSpecialBarPreviewPickOnFocusChange()) {
             this.requestTrackingUiRepaintIfActive();
         }
