@@ -8,16 +8,34 @@
 (function () {
     'use strict';
 
-    /* Chặn MỌI shortcut app khi đang gõ trong ô chat / form chat. */
+    /* Chặn shortcut app khi gõ chat; Enter = gửi, Shift+Enter = xuống hàng. */
     window.addEventListener('keydown', function (e) {
         try {
             const inChatComposer = function (node) {
                 return !!(node && node.closest
                     && node.closest('[data-chat-input], textarea.chat-input, [data-chat-form]'));
             };
-            if (inChatComposer(e.target) || inChatComposer(document.activeElement)) {
-                e.stopImmediatePropagation();
+            if (!(inChatComposer(e.target) || inChatComposer(document.activeElement))) {
+                return;
             }
+            const isEnter = e.key === 'Enter' || e.keyCode === 13;
+            if (isEnter && !e.shiftKey && !e.altKey && !e.ctrlKey && !e.metaKey && !e.isComposing) {
+                e.preventDefault();
+                e.stopImmediatePropagation();
+                const node = (e.target && e.target.closest && e.target.closest('[data-chat-input]'))
+                    || (document.activeElement && document.activeElement.closest
+                        && document.activeElement.closest('[data-chat-input]'));
+                const form = node && node.closest ? node.closest('[data-chat-form]') : null;
+                if (form) {
+                    if (typeof form.requestSubmit === 'function') {
+                        form.requestSubmit();
+                    } else {
+                        form.dispatchEvent(new Event('submit', { cancelable: true, bubbles: true }));
+                    }
+                }
+                return;
+            }
+            e.stopImmediatePropagation();
         } catch (err) { /* ignore */ }
     }, true);
     window.addEventListener('keyup', function (e) {
@@ -443,7 +461,7 @@
         }
         peerSeenAt[id] = t;
         savePeerSeen();
-        refreshStatusLine(id);
+        refreshThreadUi(id);
     }
 
     function flashReceived(peerId) {
@@ -473,14 +491,11 @@
         if (!last || last.fromDeviceId !== myDeviceId) {
             return null;
         }
-        const seen = Number(peerSeenAt[id]) || 0;
-        if (seen >= (Number(last.at) || 0)) {
-            return { text: 'Đã xem', kind: 'seen' };
-        }
+        // Đã xem: chỉ hiện avatar nhỏ dưới tin — không ghi chữ Đã xem / Chưa xem.
         if ((now - (Number(last.at) || 0)) < SENT_FLASH_MS) {
             return { text: 'Đã gửi', kind: 'sent' };
         }
-        return { text: 'Chưa xem', kind: 'unseen' };
+        return null;
     }
 
     function renderStatusInto(line, peerId) {
@@ -1469,8 +1484,19 @@
         const shouldStick = !peerId || scrollPinned[peerId] !== false;
         const t = getThread(peerId);
         const pinnedSet = new Set(t.pinnedIds || []);
+        const peerSeen = Number(peerSeenAt[peerId]) || 0;
+        let lastSeenMineIdx = -1;
+        if (peerSeen > 0) {
+            for (let i = 0; i < rows.length; i++) {
+                const m = rows[i];
+                if (m && m.fromDeviceId === myDeviceId && !m.recalled
+                    && (Number(m.at) || 0) <= peerSeen) {
+                    lastSeenMineIdx = i;
+                }
+            }
+        }
         let html = '';
-        rows.forEach((m) => {
+        rows.forEach((m, idx) => {
             const mine = m.fromDeviceId === myDeviceId;
             const who = mine ? 'You' : (peerTag || 'Them');
             const recalled = !!m.recalled;
@@ -1509,15 +1535,24 @@
                         : '') +
                     '</div>')
                 : '';
+            let receiptHtml = '';
+            if (mine && !recalled && idx === lastSeenMineIdx) {
+                receiptHtml = '<div class="chat-msg-seen-avatar" title="Đã xem" aria-label="Đã xem">' +
+                    avatarHtml(peerId, peerTag, { className: 'device-avatar--seen-receipt' }) +
+                    '</div>';
+            }
             html += '<div class="chat-bubble-row' + (mine ? ' chat-bubble-row--mine' : '') +
                 (recalled ? ' chat-bubble-row--recalled' : '') +
                 '" data-msg-id="' + escapeHtml(m.id) + '" data-msg-peer="' + escapeHtml(peerId) + '">' +
                 tools +
+                '<div class="chat-bubble-stack">' +
                 '<div class="chat-bubble' + (mine ? ' chat-bubble--mine' : '') + '">' +
                 replyQuoteHtml(m, peerId, peerTag) +
                 inner +
                 '<div class="chat-bubble-time">' + escapeHtml(formatMsgTime(m.at)) +
                 ' · ' + escapeHtml(who) + '</div>' +
+                '</div>' +
+                receiptHtml +
                 '</div></div>';
         });
         html += '<div class="chat-status-line" data-chat-status="' + escapeHtml(peerId || '') +
@@ -2474,7 +2509,7 @@
                 '</button>' +
                 '<input class="chat-file-input" type="file" accept="*/*" multiple data-chat-file-input="' +
                 escapeHtml(sess.deviceId) + '" />' +
-                '<textarea class="chat-input" rows="1" maxlength="500" placeholder="Gõ tin nhắn hoặc dán ảnh…" ' +
+                '<textarea class="chat-input" rows="1" maxlength="500" placeholder="" ' +
                 'aria-label="Nội dung tin nhắn" data-chat-input="' + escapeHtml(sess.deviceId) + '"></textarea>' +
                 '<button type="submit" class="chat-send-btn">Gửi</button>' +
                 '</div></form></div>';

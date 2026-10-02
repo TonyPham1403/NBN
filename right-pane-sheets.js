@@ -483,6 +483,10 @@ class RightPaneSheetManager {
         this._tail3FilterIndicesCacheRowLen = 0;
         this._tail3EvaluableIndicesCache = null;
         this._tail3EvaluableIndicesCacheRowLen = 0;
+        /** Cache follow/derive/★ theo kỳ — tránh enumerate 5×35 trên mọi hàng lúc render. */
+        this._tail3StarCellCache = null;
+        this._tail3StarCellCacheRowLen = 0;
+        this._tail3StarCellCacheVer = 0;
         /** Cache filter mode TRACKING (bụng basic: size + streak). */
         this._basicTrackingBellyFilterCache = null;
         this._basicTrackingBellyFilterCacheRowLen = 0;
@@ -649,6 +653,9 @@ class RightPaneSheetManager {
         this._tail3FilterIndicesCacheRowLen = 0;
         this._tail3EvaluableIndicesCache = null;
         this._tail3EvaluableIndicesCacheRowLen = 0;
+        this._tail3StarCellCache = null;
+        this._tail3StarCellCacheRowLen = 0;
+        this._tail3StarCellCacheVer = 0;
         this._basicTrackingBellyFilterCache = null;
         this._basicTrackingBellyFilterCacheRowLen = 0;
         this._phase1FilterCache = null;
@@ -2258,8 +2265,15 @@ class RightPaneSheetManager {
         if (mode === 'p1_dist') {
             const o = filterOptions || {};
             const specs = RightPaneSheetManager.normalizeP1DistRows(o.p1DistRows);
+            const resultOn = !!o.p1DistResultEnabled;
+            const lastIdx = rows.length - 1;
             for (let i = 0; i < rows.length; i++) {
-                if (this.isEmptyResultRow(rows[i])) {
+                const empty = this.isEmptyResultRow(rows[i]);
+                if (empty) {
+                    /* Hàng rỗng cuối: chỉ vào khi result OFF (không có đáp án để khớp [a;b]). */
+                    if (!resultOn && i === lastIdx && this.rowMatchesP1DistFilter(rows, i, specs)) {
+                        indices.push(i);
+                    }
                     continue;
                 }
                 if (this.rowMatchesP1DistFilter(rows, i, specs)) {
@@ -2707,23 +2721,29 @@ class RightPaneSheetManager {
      * @param {object[]} rows
      * @param {number} rowIndex
      * @param {{ num: number|null, freq: number, posSlots: string[] }[]} specs
-     * @returns {{ ok: boolean, groupBind: Record<string, number>, groupNums: Record<string, number[]> }}
+     * @param {(snap: { groupBind: Record<string, number>, groupNums: Record<string, number[]>, assignedNums: number[] }) => boolean} [acceptAssignment]
+     *        Nếu truyền: duyệt mọi phép gán hợp lệ, chỉ nhận khi predicate true (vd R% cần gán x đúng hàng đáp án).
+     *        Không truyền: giữ phép gán đầu tiên (lọc khối).
+     * @returns {{ ok: boolean, groupBind: Record<string, number>, groupNums: Record<string, number[]>, assignedNums: number[] }}
      */
-    matchP1DistFilter(rows, rowIndex, specs) {
+    matchP1DistFilter(rows, rowIndex, specs, acceptAssignment) {
         /** @type {Record<string, number>} */
         const emptyBind = {};
         /** @type {Record<string, number[]>} */
         const emptyNums = {};
+        /** @type {number[]} */
+        const emptyAssigned = [];
+        const acceptFn = typeof acceptAssignment === 'function' ? acceptAssignment : null;
         if (!Array.isArray(specs) || !specs.length) {
-            return { ok: false, groupBind: emptyBind, groupNums: emptyNums };
+            return { ok: false, groupBind: emptyBind, groupNums: emptyNums, assignedNums: emptyAssigned };
         }
         const lines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
         if (lines.length < 10) {
-            return { ok: false, groupBind: emptyBind, groupNums: emptyNums };
+            return { ok: false, groupBind: emptyBind, groupNums: emptyNums, assignedNums: emptyAssigned };
         }
         const line1 = lines.find((l) => l.label === 1);
         if (!line1 || !line1.nums.length) {
-            return { ok: false, groupBind: emptyBind, groupNums: emptyNums };
+            return { ok: false, groupBind: emptyBind, groupNums: emptyNums, assignedNums: emptyAssigned };
         }
         /** @type {number[]} */
         const uniqOn1 = [];
@@ -2736,7 +2756,7 @@ class RightPaneSheetManager {
             }
         }
         if (uniqOn1.length < specs.length) {
-            return { ok: false, groupBind: emptyBind, groupNums: emptyNums };
+            return { ok: false, groupBind: emptyBind, groupNums: emptyNums, assignedNums: emptyAssigned };
         }
 
         const chainsForNum = (n) => {
@@ -2764,18 +2784,20 @@ class RightPaneSheetManager {
         };
 
         /**
+         * Duyệt mọi cách gán rem↔slots (mọi cách bind chữ). onHit()=true → dừng, giữ bind.
          * @param {number[]} rem
          * @param {string[]} slots
          * @param {Record<string, number>} groupBind
+         * @param {() => boolean} onHit
          */
-        const remMatchesSlots = (rem, slots, groupBind) => {
+        const forEachRemMatch = (rem, slots, groupBind, onHit) => {
             if (rem.length !== slots.length) {
                 return false;
             }
             const used = new Array(rem.length).fill(false);
             const trySlot = (si) => {
                 if (si >= slots.length) {
-                    return true;
+                    return !!onHit();
                 }
                 const raw = String(slots[si] == null ? '' : slots[si]).trim().toLowerCase();
                 for (let ri = 0; ri < rem.length; ri++) {
@@ -2821,7 +2843,13 @@ class RightPaneSheetManager {
             return trySlot(0);
         };
 
-        const numMatchesSpec = (n, spec, groupBind) => {
+        /**
+         * @param {number} n
+         * @param {{ num: number|null, freq: number, posSlots: string[] }} spec
+         * @param {Record<string, number>} groupBind
+         * @param {() => boolean} onHit
+         */
+        const forEachNumMatch = (n, spec, groupBind, onHit) => {
             if (spec.num != null && spec.num !== n) {
                 return false;
             }
@@ -2834,17 +2862,62 @@ class RightPaneSheetManager {
             }
             const rem = chains.filter((c) => c !== 1);
             const slots = Array.isArray(spec.posSlots) ? spec.posSlots.slice(1) : [];
-            return remMatchesSlots(rem, slots, groupBind);
+            return forEachRemMatch(rem, slots, groupBind, onHit);
         };
 
         /** @type {Record<string, number>} */
         const groupBind = {};
         /** @type {(number|null)[]} */
         const assigned = new Array(specs.length).fill(null);
+        const restoreBind = (bindSnap) => {
+            for (const k of Object.keys(groupBind)) {
+                if (!Object.prototype.hasOwnProperty.call(bindSnap, k)) {
+                    delete groupBind[k];
+                }
+            }
+            for (const k of Object.keys(bindSnap)) {
+                groupBind[k] = bindSnap[k];
+            }
+        };
+        const buildSnap = () => {
+            /** @type {Record<string, number>} */
+            const bindOut = {};
+            const keys = Object.keys(groupBind);
+            for (let i = 0; i < keys.length; i++) {
+                bindOut[keys[i]] = groupBind[keys[i]];
+            }
+            /** @type {Record<string, number[]>} */
+            const groupNums = {};
+            /** @type {number[]} */
+            const assignedNums = [];
+            for (let si = 0; si < specs.length; si++) {
+                const n = assigned[si];
+                if (n == null) {
+                    continue;
+                }
+                if (assignedNums.indexOf(n) === -1) {
+                    assignedNums.push(n);
+                }
+                const letters = lettersInSpec(specs[si]);
+                for (let li = 0; li < letters.length; li++) {
+                    const letter = letters[li];
+                    if (!groupNums[letter]) {
+                        groupNums[letter] = [];
+                    }
+                    if (groupNums[letter].indexOf(n) === -1) {
+                        groupNums[letter].push(n);
+                    }
+                }
+            }
+            return { groupBind: bindOut, groupNums, assignedNums };
+        };
         /** @param {number} specIndex @param {Set<number>} used */
         const tryAssign = (specIndex, used) => {
             if (specIndex >= specs.length) {
-                return true;
+                if (!acceptFn) {
+                    return true;
+                }
+                return !!acceptFn(buildSnap());
             }
             const spec = specs[specIndex];
             for (let ci = 0; ci < uniqOn1.length; ci++) {
@@ -2852,36 +2925,24 @@ class RightPaneSheetManager {
                 if (used.has(n)) {
                     continue;
                 }
-                const bindKeys = Object.keys(groupBind);
-                const bindSnap = {};
-                for (let bi = 0; bi < bindKeys.length; bi++) {
-                    bindSnap[bindKeys[bi]] = groupBind[bindKeys[bi]];
-                }
-                if (!numMatchesSpec(n, spec, groupBind)) {
-                    for (const k of Object.keys(groupBind)) {
-                        if (!Object.prototype.hasOwnProperty.call(bindSnap, k)) {
-                            delete groupBind[k];
-                        }
+                // Duyệt mọi cách bind chữ của số n (vd 1→x=8 rồi 1→x=4), không kẹt gán đầu.
+                if (forEachNumMatch(n, spec, groupBind, () => {
+                    const bindKeys = Object.keys(groupBind);
+                    const bindSnap = {};
+                    for (let bi = 0; bi < bindKeys.length; bi++) {
+                        bindSnap[bindKeys[bi]] = groupBind[bindKeys[bi]];
                     }
-                    for (const k of Object.keys(bindSnap)) {
-                        groupBind[k] = bindSnap[k];
+                    used.add(n);
+                    assigned[specIndex] = n;
+                    if (tryAssign(specIndex + 1, used)) {
+                        return true;
                     }
-                    continue;
-                }
-                used.add(n);
-                assigned[specIndex] = n;
-                if (tryAssign(specIndex + 1, used)) {
+                    assigned[specIndex] = null;
+                    used.delete(n);
+                    restoreBind(bindSnap);
+                    return false;
+                })) {
                     return true;
-                }
-                assigned[specIndex] = null;
-                used.delete(n);
-                for (const k of Object.keys(groupBind)) {
-                    if (!Object.prototype.hasOwnProperty.call(bindSnap, k)) {
-                        delete groupBind[k];
-                    }
-                }
-                for (const k of Object.keys(bindSnap)) {
-                    groupBind[k] = bindSnap[k];
                 }
             }
             return false;
@@ -2889,50 +2950,29 @@ class RightPaneSheetManager {
 
         const ok = tryAssign(0, new Set());
         if (!ok) {
-            return { ok: false, groupBind: emptyBind, groupNums: emptyNums };
+            return { ok: false, groupBind: emptyBind, groupNums: emptyNums, assignedNums: emptyAssigned };
         }
-        /** @type {Record<string, number>} */
-        const bindOut = {};
-        const keys = Object.keys(groupBind);
-        for (let i = 0; i < keys.length; i++) {
-            bindOut[keys[i]] = groupBind[keys[i]];
-        }
-        /** @type {Record<string, number[]>} */
-        const groupNums = {};
-        for (let si = 0; si < specs.length; si++) {
-            const n = assigned[si];
-            if (n == null) {
-                continue;
-            }
-            const letters = lettersInSpec(specs[si]);
-            for (let li = 0; li < letters.length; li++) {
-                const letter = letters[li];
-                if (!groupNums[letter]) {
-                    groupNums[letter] = [];
-                }
-                if (groupNums[letter].indexOf(n) === -1) {
-                    groupNums[letter].push(n);
-                }
-            }
-        }
-        return { ok: true, groupBind: bindOut, groupNums };
+        const snap = buildSnap();
+        return { ok: true, groupBind: snap.groupBind, groupNums: snap.groupNums, assignedNums: snap.assignedNums };
     }
 
     /**
      * P1_dist result [a;b]: ≥1 số đáp án trên chuỗi trong [lo,hi].
      * Endpoint số 1–10 = nhãn chuỗi tuyệt đối.
      * Endpoint chữ (x/y/a…) = nhóm chữ đã gán từ pos (groupBind → chuỗi; groupNums → số specimen).
-     * Chữ chưa gán trong khối → không khớp.
+     * Chữ chưa gán (pos toàn wildcard [1,,,]): fallback số đã khớp khối (assignedNums).
      * @param {object[]} rows
      * @param {number} rowIndex
      * @param {unknown} rawLo
      * @param {unknown} rawHi
      * @param {Record<string, number>} [groupBind]
      * @param {Record<string, number[]>} [groupNums]
+     * @param {number[]} [assignedNums]
      */
-    rowMatchesP1DistResultRange(rows, rowIndex, rawLo, rawHi, groupBind, groupNums) {
+    rowMatchesP1DistResultRange(rows, rowIndex, rawLo, rawHi, groupBind, groupNums, assignedNums) {
         const binds = groupBind && typeof groupBind === 'object' ? groupBind : {};
         const numsByLetter = groupNums && typeof groupNums === 'object' ? groupNums : {};
+        const blockNums = Array.isArray(assignedNums) ? assignedNums : [];
         const asLetter = (raw) => {
             if (raw == null || raw === '') {
                 return null;
@@ -2970,35 +3010,54 @@ class RightPaneSheetManager {
             return false;
         }
         const answerSet = new Set(answer);
+        const answerHasAny = (list) => {
+            if (!Array.isArray(list) || !list.length) {
+                return false;
+            }
+            for (let i = 0; i < list.length; i++) {
+                if (answerSet.has(list[i])) {
+                    return true;
+                }
+            }
+            return false;
+        };
 
-        // Cùng chữ hai đầu [x;x]: khớp nếu đáp án chứa specimen nhóm x HOẶC có mặt trên chuỗi x gắn.
+        // Cùng chữ hai đầu [x;x]: specimen nhóm x; pos không gắn chữ đó → fallback số khớp khối.
         const letterLo = asLetter(rawLo);
         const letterHi = asLetter(rawHi);
+        const letterHasGroup = (letter) => {
+            const list = letter ? numsByLetter[letter] : null;
+            return Array.isArray(list) && list.length > 0;
+        };
         if (letterLo && letterHi && letterLo === letterHi) {
-            const specsNums = numsByLetter[letterLo];
-            if (Array.isArray(specsNums)) {
-                for (let i = 0; i < specsNums.length; i++) {
-                    if (answerSet.has(specsNums[i])) {
-                        return true;
-                    }
+            if (letterHasGroup(letterLo)) {
+                if (answerHasAny(numsByLetter[letterLo])) {
+                    return true;
                 }
+            } else if (answerHasAny(blockNums)) {
+                return true;
             }
         }
 
         const lo = resolveEnd(rawLo);
         const hi = resolveEnd(rawHi);
         if (lo == null || hi == null) {
-            // Chữ chưa bind chuỗi nhưng đã có specimen trong đáp án (nhánh trên) → đã return.
-            // Nếu chỉ một đầu chữ / chữ khác nhau mà thiếu bind → fail.
+            // Chữ chưa bind chuỗi: specimen nhóm chữ nếu có; không thì số khớp khối (pos wildcard).
             if (letterLo && letterHi && letterLo !== letterHi) {
-                const leftNums = numsByLetter[letterLo];
-                const rightNums = numsByLetter[letterHi];
-                if (Array.isArray(leftNums) && leftNums.some((n) => answerSet.has(n))) {
+                if (letterHasGroup(letterLo) && answerHasAny(numsByLetter[letterLo])) {
                     return true;
                 }
-                if (Array.isArray(rightNums) && rightNums.some((n) => answerSet.has(n))) {
+                if (letterHasGroup(letterHi) && answerHasAny(numsByLetter[letterHi])) {
                     return true;
                 }
+                if (!letterHasGroup(letterLo) && !letterHasGroup(letterHi) && answerHasAny(blockNums)) {
+                    return true;
+                }
+            } else if ((letterLo || letterHi)
+                && !letterHasGroup(letterLo)
+                && !letterHasGroup(letterHi)
+                && answerHasAny(blockNums)) {
+                return true;
             }
             return false;
         }
@@ -3024,8 +3083,10 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Cột follow: số duy nhất freq cao nhất trong 5 số chuỗi 1 (cửa sổ 10 trước kỳ);
-     * nếu ≥2 số cùng freq max → ký hiệu `?`. Tính được cả khi dòng hiện tại chưa có result.
+     * Follow = số phase1 (Y) bên trái mũi tên của các cặp 3-tail ★ (X nằm trong đáp án).
+     * - Có ★: "a,b,c" tăng dần (chỉ Y, không gồm X)
+     * - Có đáp án nhưng không ★: "?"
+     * - Kỳ rỗng: "" (chưa xác định)
      * @param {object[]} rows
      * @param {number} rowIndex
      * @returns {string}
@@ -3034,60 +3095,79 @@ class RightPaneSheetManager {
         if (!Array.isArray(rows) || typeof rowIndex !== 'number' || rowIndex < 0) {
             return '';
         }
-        const row = rows[rowIndex];
-        if (!row) {
+        if (rowIndex >= rows.length) {
             return '';
         }
-        const chainLines = this.buildPickChainLinesBeforeRow(rows, rowIndex);
-        let chain1 = null;
-        for (let i = 0; i < chainLines.length; i++) {
-            if (chainLines[i].label === 1) {
-                chain1 = chainLines[i];
-                break;
-            }
+        // Cùng nguồn với sheet chính → cache; filter popup có thể truyền rows khác.
+        if (rows === this.getSourceSheetRows()) {
+            return this.getTail3StarCellCached(rowIndex).follow;
         }
-        if (!chain1 || !Array.isArray(chain1.nums) || !chain1.nums.length) {
-            return '';
-        }
-        const chain1Nums = chain1.nums.filter((n) => n >= 1 && n <= 35);
-        if (!chain1Nums.length) {
-            return '';
-        }
-        const freq = this.computeMainNumsWindow10Freq(rows, rowIndex);
-        let maxFreq = -1;
-        for (let j = 0; j < chain1Nums.length; j++) {
-            const f = freq[chain1Nums[j]] || 0;
-            if (f > maxFreq) {
-                maxFreq = f;
-            }
-        }
-        const tied = chain1Nums.filter((n) => (freq[n] || 0) === maxFreq);
-        if (tied.length === 1) {
-            return String(tied[0]);
-        }
-        if (tied.length >= 2) {
-            return '?';
-        }
-        return '';
+        return this.computeTail3StarCellForRow(rows, rowIndex).follow;
     }
 
     /**
-     * Follow xác định: cột follow có số duy nhất (khác `?` và rỗng).
+     * Follow xác định: có ≥1 số phase1 (Y) trên cặp 3-tail ★.
      * @param {object[]} rows
      * @param {number} rowIndex
      * @returns {boolean}
      */
     rowHasDeterminedFollow(rows, rowIndex) {
         const value = this.computeFollowCellValue(rows, rowIndex);
-        if (!value || value === '?') {
-            return false;
-        }
-        const num = parseInt(value, 10);
-        return Number.isFinite(num) && num >= 1 && num <= 35;
+        return !!(value && value !== '?' && value !== '_');
     }
 
+    /** Follow "?" — có đáp án nhưng không có cặp 3-tail ★. */
     rowHasUndeterminedFollow(rows, rowIndex) {
         return this.computeFollowCellValue(rows, rowIndex) === '?';
+    }
+
+    /**
+     * Parse follow/derive "a,b,c" → số 1–35.
+     * @param {string} value
+     * @returns {number[]}
+     */
+    parseFollowCellNums(value) {
+        const raw = String(value || '').trim();
+        if (!raw || raw === '?' || raw === '_') {
+            return [];
+        }
+        const out = [];
+        const seen = new Set();
+        const parts = raw.split(/[,;\s]+/);
+        for (let i = 0; i < parts.length; i++) {
+            const n = parseInt(parts[i], 10);
+            if (Number.isFinite(n) && n >= 1 && n <= 35 && !seen.has(n)) {
+                seen.add(n);
+                out.push(n);
+            }
+        }
+        return out;
+    }
+
+    /**
+     * Derive = số X bên phải mũi tên của các cặp 3-tail ★ (X ∈ đáp án).
+     * - Có ★: "a,b,c" tăng dần
+     * - Có đáp án nhưng không ★: "?"
+     * - Kỳ rỗng: ""
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @returns {string}
+     */
+    computeDeriveCellValue(rows, rowIndex) {
+        if (!Array.isArray(rows) || typeof rowIndex !== 'number' || rowIndex < 0) {
+            return '';
+        }
+        if (rowIndex >= rows.length) {
+            return '';
+        }
+        if (rows === this.getSourceSheetRows()) {
+            return this.getTail3StarCellCached(rowIndex).derive;
+        }
+        return this.computeTail3StarCellForRow(rows, rowIndex).derive;
+    }
+
+    parseDeriveCellNums(value) {
+        return this.parseFollowCellNums(value);
     }
 
     /**
@@ -3534,9 +3614,10 @@ class RightPaneSheetManager {
      * @param {object[]} rows
      * @param {number} y
      * @param {number} x
+     * @param {Set<number>[]} [precomputedSets] — tránh parse lại mỗi cặp Y×X
      * @returns {number[]}
      */
-    collectDirectedAdjEdgeIndices(rows, y, x) {
+    collectDirectedAdjEdgeIndices(rows, y, x, precomputedSets) {
         const yy = Math.floor(Number(y));
         const xx = Math.floor(Number(x));
         if (!Number.isFinite(yy) || !Number.isFinite(xx) || yy === xx) {
@@ -3545,7 +3626,9 @@ class RightPaneSheetManager {
         if (!rows || rows.length < 2) {
             return [];
         }
-        const sets = rows.map((row) => new Set(this.parseMainNums(row.result || row.Result || '')));
+        const sets = Array.isArray(precomputedSets) && precomputedSets.length === rows.length
+            ? precomputedSets
+            : rows.map((row) => new Set(this.parseMainNums(row.result || row.Result || '')));
         const idxs = [];
         for (let e = 0; e < sets.length - 1; e++) {
             if (sets[e].has(yy) && sets[e + 1].has(xx)) {
@@ -3581,9 +3664,11 @@ class RightPaneSheetManager {
      * Y ∈ phase1 (kỳ ngay trên focus).
      * @param {object[]} rows
      * @param {number} rowIndex
+     * @param {{ xNums?: number[], includeEdges?: boolean }} [opts]
+     *        xNums: chỉ quét các X này (follow/derive ★ chỉ cần đáp án — ~25 thay vì 175 cặp).
      * @returns {{ num: number, inAnswer: boolean, partners: { y: number, edges: string[] }[] }[]}
      */
-    enumerateTail3CandidateNumsForRow(rows, rowIndex) {
+    enumerateTail3CandidateNumsForRow(rows, rowIndex, opts) {
         const idx = Number(rowIndex);
         if (!Number.isFinite(idx) || idx < 1 || !rows || idx >= rows.length) {
             return [];
@@ -3603,33 +3688,62 @@ class RightPaneSheetManager {
             return [];
         }
         const focusRow = rows[idx];
-        const answerSet = new Set(
-            focusRow && !this.isEmptyResultRow(focusRow)
-                ? this.parseMainNums(focusRow.result || focusRow.Result || '')
-                : []
+        const answerNums = focusRow && !this.isEmptyResultRow(focusRow)
+            ? this.parseMainNums(focusRow.result || focusRow.Result || '')
+            : [];
+        const answerSet = new Set(answerNums);
+        /** @type {number[]} */
+        let xList;
+        if (opts && Array.isArray(opts.xNums)) {
+            xList = [];
+            const seenX = new Set();
+            for (let xi = 0; xi < opts.xNums.length; xi++) {
+                const x = opts.xNums[xi];
+                if (Number.isFinite(x) && x >= 1 && x <= 35 && !seenX.has(x)) {
+                    seenX.add(x);
+                    xList.push(x);
+                }
+            }
+        } else {
+            xList = [];
+            for (let x = 1; x <= 35; x++) {
+                xList.push(x);
+            }
+        }
+        if (!xList.length) {
+            return [];
+        }
+        const includeEdges = !opts || opts.includeEdges !== false;
+        // Parse hist 1 lần — trước đây mỗi cặp Y×X parse lại ~20 hàng → load chậm.
+        /** @type {Set<number>[]} */
+        const histSets = histRows.map(
+            (row) => new Set(this.parseMainNums(row.result || row.Result || ''))
         );
         /** @type {Map<number, { num: number, inAnswer: boolean, partners: { y: number, edges: string[] }[] }>} */
         const byNum = new Map();
         for (let yi = 0; yi < phase1.length; yi++) {
             const y = phase1[yi];
-            for (let x = 1; x <= 35; x++) {
+            for (let xi = 0; xi < xList.length; xi++) {
+                const x = xList[xi];
                 if (x === y) {
                     continue;
                 }
                 const counted = this.nonOverlapAdjCountStarts(
-                    this.collectDirectedAdjEdgeIndices(histRows, y, x)
+                    this.collectDirectedAdjEdgeIndices(histRows, y, x, histSets)
                 );
                 // ≥2 non-overlap: đủ để (hoặc đã) đạt ≥3-tail khi gọi X / đã có sẵn.
                 if (counted.length < 2) {
                     continue;
                 }
-                const edges = counted.map((e) => {
-                    const a = rows[histStart + e];
-                    const b = rows[histStart + e + 1];
-                    const idA = String(a && (a.id || a.ID) || '').replace(/^0+/, '') || '?';
-                    const idB = String(b && (b.id || b.ID) || '').replace(/^0+/, '') || '?';
-                    return `${idA}-${idB}`;
-                });
+                const edges = includeEdges
+                    ? counted.map((e) => {
+                        const a = rows[histStart + e];
+                        const b = rows[histStart + e + 1];
+                        const idA = String(a && (a.id || a.ID) || '').replace(/^0+/, '') || '?';
+                        const idB = String(b && (b.id || b.ID) || '').replace(/^0+/, '') || '?';
+                        return `${idA}-${idB}`;
+                    })
+                    : [];
                 let entry = byNum.get(x);
                 if (!entry) {
                     entry = { num: x, inAnswer: answerSet.has(x), partners: [] };
@@ -3639,6 +3753,98 @@ class RightPaneSheetManager {
             }
         }
         return Array.from(byNum.values()).sort((a, b) => a.num - b.num);
+    }
+
+    /**
+     * follow/derive/? cho một kỳ — chỉ quét X ∈ đáp án (★).
+     * @returns {{ follow: string, derive: string, hit: boolean }}
+     */
+    computeTail3StarCellForRow(rows, rowIndex) {
+        const empty = { follow: '', derive: '', hit: false };
+        const undet = { follow: '?', derive: '?', hit: false };
+        if (!Array.isArray(rows) || typeof rowIndex !== 'number' || rowIndex < 0 || rowIndex >= rows.length) {
+            return empty;
+        }
+        const row = rows[rowIndex];
+        if (!row) {
+            return empty;
+        }
+        if (this.isEmptyResultRow(row)) {
+            return empty;
+        }
+        const answer = this.parseMainNums(row.result || row.Result || '');
+        if (answer.length !== 5) {
+            return undet;
+        }
+        const cands = this.enumerateTail3CandidateNumsForRow(rows, rowIndex, {
+            xNums: answer,
+            includeEdges: false
+        });
+        /** @type {Set<number>} */
+        const ys = new Set();
+        /** @type {Set<number>} */
+        const xs = new Set();
+        for (let ci = 0; ci < cands.length; ci++) {
+            const c = cands[ci];
+            if (!c || !c.inAnswer) {
+                continue;
+            }
+            xs.add(c.num);
+            const partners = c.partners;
+            if (!partners) {
+                continue;
+            }
+            for (let pi = 0; pi < partners.length; pi++) {
+                const y = partners[pi] && partners[pi].y;
+                if (Number.isFinite(y) && y >= 1 && y <= 35) {
+                    ys.add(y);
+                }
+            }
+        }
+        if (!xs.size) {
+            return undet;
+        }
+        return {
+            follow: Array.from(ys).sort((a, b) => a - b).join(','),
+            derive: Array.from(xs).sort((a, b) => a - b).join(','),
+            hit: true
+        };
+    }
+
+    /**
+     * Cache follow/derive/hit cho mọi kỳ nguồn (1 pass lúc load).
+     * @returns {{ follow: string, derive: string, hit: boolean }[]}
+     */
+    ensureTail3StarCellCache() {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        if (this._tail3StarCellCache
+            && this._tail3StarCellCacheRowLen === n
+            && this._tail3StarCellCacheVer === 7) {
+            return this._tail3StarCellCache;
+        }
+        /** @type {{ follow: string, derive: string, hit: boolean }[]} */
+        const cache = new Array(n);
+        for (let i = 0; i < n; i++) {
+            cache[i] = this.computeTail3StarCellForRow(rows, i);
+        }
+        this._tail3StarCellCache = cache;
+        this._tail3StarCellCacheRowLen = n;
+        this._tail3StarCellCacheVer = 7;
+        return this._tail3StarCellCache;
+    }
+
+    /**
+     * @param {number} rowIndex
+     * @returns {{ follow: string, derive: string, hit: boolean }}
+     */
+    getTail3StarCellCached(rowIndex) {
+        const cache = this.ensureTail3StarCellCache();
+        const i = Number(rowIndex);
+        if (!Number.isFinite(i) || i < 0 || i >= cache.length) {
+            return { follow: '', derive: '', hit: false };
+        }
+        return cache[i] || { follow: '', derive: '', hit: false };
     }
 
     /**
@@ -3721,13 +3927,10 @@ class RightPaneSheetManager {
         if (!this.rowIsTail3Evaluable(rows, rowIndex)) {
             return false;
         }
-        const cands = this.enumerateTail3CandidateNumsForRow(rows, rowIndex);
-        for (let ci = 0; ci < cands.length; ci++) {
-            if (cands[ci] && cands[ci].inAnswer) {
-                return true;
-            }
+        if (rows === this.getSourceSheetRows()) {
+            return !!this.getTail3StarCellCached(rowIndex).hit;
         }
-        return false;
+        return !!this.computeTail3StarCellForRow(rows, rowIndex).hit;
     }
 
     /**
@@ -3761,18 +3964,20 @@ class RightPaneSheetManager {
         const n = rows.length;
         if (this._tail3FilterIndicesCache
             && this._tail3FilterIndicesCacheRowLen === n
-            && this._tail3FilterIndicesCacheVer === 6) {
+            && this._tail3FilterIndicesCacheVer === 7) {
             return this._tail3FilterIndicesCache;
         }
+        // Dùng star-cell cache (1 pass) thay vì enumerate full 1..35 từng kỳ.
+        const starCache = this.ensureTail3StarCellCache();
         const indices = [];
         for (let i = 0; i < n; i++) {
-            if (this.rowMatchesTail3Filter(rows, i)) {
+            if (starCache[i] && starCache[i].hit && this.rowIsTail3Evaluable(rows, i)) {
                 indices.push(i);
             }
         }
         this._tail3FilterIndicesCache = indices;
         this._tail3FilterIndicesCacheRowLen = n;
-        this._tail3FilterIndicesCacheVer = 6;
+        this._tail3FilterIndicesCacheVer = 7;
         return this._tail3FilterIndicesCache;
     }
 
@@ -3818,6 +4023,16 @@ class RightPaneSheetManager {
         const histLen = Math.max(0, rowIndex - histStart);
         const candidates = this.enumerateTail3CandidateNumsForRow(rows, rowIndex);
         const phaseMaxNum = this.resolvePhase1MaxFreqNumForFocus(rows, rowIndex);
+        /** @type {Set<number>} */
+        const phase1Set = new Set();
+        if (rowIndex >= 1 && rows[rowIndex - 1] && !this.isEmptyResultRow(rows[rowIndex - 1])) {
+            const p1 = this.parseMainNums(rows[rowIndex - 1].result || rows[rowIndex - 1].Result || '');
+            for (let pi = 0; pi < p1.length; pi++) {
+                if (p1[pi] >= 1 && p1[pi] <= 35) {
+                    phase1Set.add(p1[pi]);
+                }
+            }
+        }
         const periodId = row ? String(row.id || row.ID || '').trim() : '';
         const idLabel = periodId ? `kỳ ${periodId}` : `dòng ${rowIndex + 1}`;
         const rateStats = this.getTail3Phase1CreateRateStats(rows);
@@ -3854,7 +4069,7 @@ class RightPaneSheetManager {
                 }
             }
         }
-        /** @type {{ sorted: number[], inAnswer: boolean, label: string, y: number, x: number, edges: string[], yIsPhaseMax: boolean, yFreq: number, xIsFreqZero: boolean, chains: object | null }[]} */
+        /** @type {{ sorted: number[], inAnswer: boolean, label: string, y: number, x: number, edges: string[], yIsPhaseMax: boolean, yFreq: number, xIsFreqZero: boolean, xIsPhase1: boolean, xIsPhaseMax: boolean, chains: object | null }[]} */
         const tripletRows = [];
         for (let ci = 0; ci < candidates.length; ci++) {
             const c = candidates[ci];
@@ -3875,6 +4090,8 @@ class RightPaneSheetManager {
                     yIsPhaseMax,
                     yFreq: yFreqMap.get(p.y) || 0,
                     xIsFreqZero: (yFreqMap.get(c.num) || 0) === 0,
+                    xIsPhase1: phase1Set.has(c.num),
+                    xIsPhaseMax: phaseMaxNum != null && c.num === phaseMaxNum,
                     chains: null
                 });
             }
@@ -3900,7 +4117,7 @@ class RightPaneSheetManager {
             + (inAns ? ` (${inAns} nằm trong đáp án)` : '')
             + '.';
         // Gộp theo X: Y1,Y2→X — số Y giảm dần; cùng số Y thì max freq(Y) giảm dần.
-        /** @type {{ x: number, ys: number[], label: string, inAnswer: boolean, xIsFreqZero: boolean, yCount: number, maxYFreq: number }[]} */
+        /** @type {{ x: number, ys: number[], label: string, inAnswer: boolean, xIsFreqZero: boolean, xIsPhase1: boolean, xIsPhaseMax: boolean, yCount: number, maxYFreq: number }[]} */
         const groupLines = candidates.map((c) => {
             const ys = c.partners.map((p) => p.y).slice().sort((a, b) => {
                 const fa = yFreqMap.get(a) || 0;
@@ -3923,6 +4140,8 @@ class RightPaneSheetManager {
                 label: `${ys.join(',')}→${c.num}`,
                 inAnswer: !!c.inAnswer,
                 xIsFreqZero: (yFreqMap.get(c.num) || 0) === 0,
+                xIsPhase1: phase1Set.has(c.num),
+                xIsPhaseMax: phaseMaxNum != null && c.num === phaseMaxNum,
                 yCount: ys.length,
                 maxYFreq
             };
@@ -5431,6 +5650,10 @@ class RightPaneSheetManager {
         const specialTrends = this.getSheet1SpecialPickTrends(displayRows);
         // Kỳ đáp án thỏa 3-tail → viền xanh lá ô follow (dùng cache filter indices).
         const tail3HitIndexSet = new Set(this.ensureTail3FilterIndicesCache());
+        // follow/derive: 1 pass cache — tránh enumerate 2 lần × mọi hàng lúc render.
+        const sourceRowsRef = this.getSourceSheetRows();
+        const tail3StarCellCache = this.ensureTail3StarCellCache();
+        const useStarCache = displayRows === sourceRowsRef;
         const trendDetailed = this.countSheet1SpecialPickTrendsDetailed(specialTrends, rowIndices);
         const trendStatsAttr = this.encodeSheet1TrendStatsTooltipAttr(trendDetailed);
         const specialBellyIo = this.getSheet1SpecialPickBellyIo(displayRows);
@@ -5456,6 +5679,7 @@ class RightPaneSheetManager {
             + `<th class="cell-belly-h" data-belly-stats="${bellyStatsAttr}">belly</th>`
             + `<th class="cell-trend-h" data-trend-stats="${trendStatsAttr}">trend</th>`
             + '<th class="cell-pick-label-h">label</th><th class="cell-follow-h">follow</th>'
+            + '<th class="cell-derive-h">derive</th>'
             + '<th>result</th><th>note</th><th>nonexist</th></tr></thead><tbody>';
 
         for (const i of rowIndices) {
@@ -5490,25 +5714,53 @@ class RightPaneSheetManager {
                 ? `<span class="prev-period-recall-fold" data-pct="${prevRecallFoldPctAttr}"></span>`
                 : '';
             const pickLabelHtml = isEmptyResultRow ? '' : this.getRowPickPropertyLabelHtml(displayRows, i, row);
-            const followValue = this.computeFollowCellValue(displayRows, i);
+            const starCell = (useStarCache && tail3StarCellCache[i])
+                ? tail3StarCellCache[i]
+                : this.computeTail3StarCellForRow(displayRows, i);
+            const followValue = starCell.follow;
             let followHtml = '';
             if (followValue === '?') {
-                followHtml = '<span class="cell-follow-undetermined" title="≥2 số cùng freq cao nhất ở chuỗi 1">?</span>';
+                followHtml = '<span class="cell-follow-undetermined" title="Không có cặp 3-tail ★ (Y→X với X ∈ đáp án)">?</span>';
             } else if (followValue) {
-                const followNum = parseInt(followValue, 10);
-                const followInResult = !isEmptyResultRow
-                    && Number.isFinite(followNum)
-                    && followNum >= 1
-                    && followNum <= 35
-                    && pickNums.includes(followNum);
-                followHtml = followInResult
-                    ? `<span class="cell-follow-in-result">${this.escapeHtml(followValue)}</span>`
-                    : this.escapeHtml(followValue);
+                const followNums = this.parseFollowCellNums(followValue);
+                const phaseMaxNum = this.resolvePhase1MaxFreqNumForFocus(displayRows, i);
+                const parts = [];
+                for (let fi = 0; fi < followNums.length; fi++) {
+                    const yn = followNums[fi];
+                    const isPhaseMax = phaseMaxNum != null && yn === phaseMaxNum;
+                    const yClass = 'cell-follow-y'
+                        + (isPhaseMax ? ' cell-follow-y--phase-max' : '');
+                    parts.push(`<span class="${yClass}">${yn}</span>`);
+                }
+                followHtml = parts.join(',');
             }
             const followTail3Hit = !isEmptyResultRow && tail3HitIndexSet.has(i);
             const followTdClass = 'cell-follow' + (followTail3Hit ? ' cell-follow--tail3-hit' : '');
-            const followTdTitle = followTail3Hit
-                ? ' title="Kỳ có đáp án thỏa logic 3-tail"'
+            let followTdTitle = '';
+            if (followValue && followValue !== '?') {
+                followTdTitle = ` title="Phase1 (trái mũi tên ★): ${this.escapeHtml(followValue)}${followTail3Hit ? ' · đáp án thỏa 3-tail' : ''}"`;
+            } else if (followTail3Hit) {
+                followTdTitle = ' title="Kỳ có đáp án thỏa logic 3-tail"';
+            }
+            const deriveValue = starCell.derive;
+            let deriveHtml = '';
+            if (deriveValue === '?') {
+                deriveHtml = '<span class="cell-derive-undetermined" title="Không có cặp 3-tail ★">?</span>';
+            } else if (deriveValue) {
+                const deriveNums = this.parseDeriveCellNums(deriveValue);
+                const freqZero = isEmptyResultRow
+                    ? new Set()
+                    : this.getFreqZeroNumSetForFocusRow(i);
+                const parts = [];
+                for (let di = 0; di < deriveNums.length; di++) {
+                    const xn = deriveNums[di];
+                    const xClass = freqZero.has(xn) ? 'cell-derive-x cell-derive-x--freq-zero' : 'cell-derive-x';
+                    parts.push(`<span class="${xClass}">${xn}</span>`);
+                }
+                deriveHtml = parts.join(',');
+            }
+            const deriveTdTitle = (deriveValue && deriveValue !== '?')
+                ? ` title="Đáp án X (phải mũi tên ★): ${this.escapeHtml(deriveValue)}"`
                 : '';
             const specialKind = specialKinds[i] || '';
             const specialHtml = specialKind
@@ -5533,6 +5785,7 @@ class RightPaneSheetManager {
                 <td class="cell-trend">${trendHtml}</td>
                 <td class="cell-pick-label">${pickLabelHtml}</td>
                 <td class="${followTdClass}"${followTdTitle}>${followHtml}</td>
+                <td class="cell-derive"${deriveTdTitle}>${deriveHtml}</td>
                 <td class="${resultCellClass}">${prevRecallFoldHit}${resultHtml}</td>
                 <td class="cell-note"${noteStyle}>${noteHtml}</td>
                 <td class="cell-nonexist">${nonexistHtml}</td>

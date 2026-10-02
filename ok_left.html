@@ -558,7 +558,9 @@
             bottom: 0;
             display: flex;
             flex-direction: column;
-            justify-content: center;
+            /* flex-start: controls (spacer textarea) neo đỉnh — không bị pair list
+               đội justify-content:center làm rút chiều cao panel khi id rỗng. */
+            justify-content: flex-start;
             align-self: stretch;
             /* fill height set by right column */
             height: auto;
@@ -721,6 +723,29 @@
             font-weight: 600;
         }
 
+        /* Submit ON: đáp án nền xanh lá nhạt (cùng kiểu viền/inset như Apply xanh dương) */
+        body.submit-preview-active .reference-hint-group-item.is-answer,
+        body.submit-preview-active .reference-hint-row.is-answer {
+            color: #0d5c0d;
+            font-weight: 600;
+            border-color: #15803d;
+            background: #dcfce7;
+            box-shadow: inset 0 0 0 1px rgba(21, 128, 61, 0.35);
+        }
+
+        body.submit-preview-active .reference-hint-group-item.is-answer:hover,
+        body.submit-preview-active .reference-hint-group-item.is-answer.is-applied,
+        body.submit-preview-active .reference-hint-row.is-answer.is-applied,
+        body.submit-preview-active .reference-hint-row.is-answer:hover {
+            border-color: #15803d;
+            background: #bbf7d0;
+            box-shadow: inset 0 0 0 1px rgba(21, 128, 61, 0.35);
+        }
+
+        body.submit-preview-active .reference-hint-line.answer-triplet {
+            color: #0d5c0d;
+        }
+
         /* Số phase1 (Y): viền vuông tím/hồng — gọn, không đội chiều cao hàng */
         .reference-hint-tail-y {
             position: relative;
@@ -752,8 +777,27 @@
             font-weight: 600;
         }
 
+        /* X thuộc phase1: cùng viền tím/hồng như Y */
+        .reference-hint-tail-x.is-phase1,
+        .reference-hint-group-x.is-phase1 {
+            display: inline;
+            padding: 0 1px;
+            margin: 0 1px;
+            font-weight: 800;
+            line-height: inherit;
+            box-sizing: border-box;
+            border-radius: 2px;
+            box-shadow: inset 0 0 0 1.5px #9333ea;
+        }
+
+        .reference-hint-tail-x.is-phase-max,
+        .reference-hint-group-x.is-phase-max {
+            box-shadow: inset 0 0 0 1.5px #ff3fb7;
+        }
+
         /* X thuộc freq=0: nền vàng chữ đen như focus-chain hit nonexist */
-        .reference-hint-tail-x.is-freq-zero {
+        .reference-hint-tail-x.is-freq-zero,
+        .reference-hint-group-x.is-freq-zero {
             display: inline;
             padding: 0 2px;
             margin: 0 1px;
@@ -762,6 +806,17 @@
             color: #000;
             background: #ff0;
             box-shadow: inset 0 0 0 1px #a16207;
+        }
+
+        /* Freq0 + phase1: giữ nền vàng, viền phase đè lên */
+        .reference-hint-tail-x.is-freq-zero.is-phase1,
+        .reference-hint-group-x.is-freq-zero.is-phase1 {
+            box-shadow: inset 0 0 0 1.5px #9333ea;
+        }
+
+        .reference-hint-tail-x.is-freq-zero.is-phase-max,
+        .reference-hint-group-x.is-freq-zero.is-phase-max {
+            box-shadow: inset 0 0 0 1.5px #ff3fb7;
         }
 
         .reference-hint-apply-btn {
@@ -821,17 +876,6 @@
 
         .reference-hint-group-item.is-answer {
             color: #0d5c0d;
-        }
-
-        .reference-hint-group-x.is-freq-zero {
-            display: inline;
-            padding: 0 2px;
-            margin: 0 1px;
-            border-radius: 2px;
-            font-weight: 800;
-            color: #000;
-            background: #ff0;
-            box-shadow: inset 0 0 0 1px #a16207;
         }
 
         .reference-hint-empty-note {
@@ -2361,11 +2405,25 @@
                     return selected.has(n);
                 });
             } else {
-                selected.clear();
-                transientSelected.clear();
-                simulatedSelected.clear();
-                pickOrder = unique.slice();
-                unique.forEach(function (n) { selected.add(n); });
+                // Giữ khoanh cũ; thêm số mới tới tối đa MAX_PICK_NUMBERS (5).
+                if (!pickOrder) {
+                    pickOrder = [];
+                }
+                unique.forEach(function (n) {
+                    if (selected.has(n)) {
+                        return;
+                    }
+                    if (selected.size >= MAX_PICK_NUMBERS) {
+                        return;
+                    }
+                    selected.add(n);
+                    if (pickOrder.indexOf(n) === -1) {
+                        pickOrder.push(n);
+                    }
+                });
+                pickOrder = pickOrder.filter(function (n) {
+                    return selected.has(n);
+                });
             }
 
             try { recomputePairsFromSelected(); } catch (eR) { /* ignore */ }
@@ -2392,7 +2450,7 @@
         let referenceConn3PanelActive = false;
         /** Key hàng đang có viền (khớp số đang khoanh đỏ). */
         let referenceHintAppliedKeys = new Set();
-        /** Index nhóm mũi tên đang focus bàn phím A/D (−1 = chưa). */
+        /** Index nhóm mũi tên đang nav A/D (−1 = chưa) — “focus gần nhất”. */
         let arrowGroupNavIndex = -1;
 
         function getReferenceHintArrowGroupItems() {
@@ -2403,6 +2461,35 @@
             return Array.prototype.slice.call(
                 panel.querySelectorAll('.reference-hint-group-item[data-hint-nums]')
             );
+        }
+
+        function parseArrowGroupItemNums(el) {
+            if (!el) {
+                return [];
+            }
+            let nums = [];
+            try {
+                nums = JSON.parse(el.getAttribute('data-hint-nums') || '[]');
+            } catch (eJ) {
+                nums = [];
+            }
+            return (nums || [])
+                .map(function (x) { return parseInt(x, 10); })
+                .filter(function (n) {
+                    return Number.isFinite(n) && n >= 1 && n <= 35;
+                });
+        }
+
+        function arrowGroupItemIsCircled(el) {
+            const nums = parseArrowGroupItemNums(el);
+            return nums.length > 0 && nums.every(function (n) {
+                return selected.has(n);
+            });
+        }
+
+        function clearArrowGroupNavFocus() {
+            arrowGroupNavIndex = -1;
+            syncArrowGroupNavFocusClass();
         }
 
         function syncArrowGroupNavFocusClass() {
@@ -2424,54 +2511,120 @@
         }
 
         /**
-         * A/D trên nhóm mũi tên: bước ±1, wrap vòng; Apply phần tử đích.
-         * @returns {boolean} true nếu đã xử lý
+         * A/D: dịch khoanh của nhóm focus gần nhất sang nhóm kế;
+         * giữ các khoanh cũ; không đáp vào nhóm đã khoanh.
+         * @returns {boolean}
          */
         function navigateArrowGroupByDir(dir) {
             const items = getReferenceHintArrowGroupItems();
             if (!items.length) {
                 return false;
             }
-            let idx = arrowGroupNavIndex;
-            if (idx < 0 || idx >= items.length) {
-                idx = -1;
-                for (let i = 0; i < items.length; i++) {
-                    if (items[i].classList.contains('is-applied')
-                        || items[i].classList.contains('is-nav-focus')) {
-                        idx = i;
+            const step = dir < 0 ? -1 : 1;
+            const n = items.length;
+
+            let primary = arrowGroupNavIndex;
+            if (primary < 0 || primary >= n) {
+                let seed = -1;
+                for (let i = 0; i < n; i++) {
+                    if (arrowGroupItemIsCircled(items[i])
+                        || items[i].classList.contains('is-applied')) {
+                        seed = i;
                         break;
                     }
                 }
-                if (idx < 0) {
-                    idx = 0;
-                } else {
-                    idx = (idx + dir + items.length) % items.length;
+                // Ưu tiên nhóm khớp số khoanh gần nhất (pickOrder tip).
+                if (pickOrder && pickOrder.length) {
+                    const tip = pickOrder[pickOrder.length - 1];
+                    for (let i = 0; i < n; i++) {
+                        const nums = parseArrowGroupItemNums(items[i]);
+                        if (nums.indexOf(tip) !== -1) {
+                            seed = i;
+                            break;
+                        }
+                    }
                 }
-            } else {
-                idx = (idx + dir + items.length) % items.length;
+                if (seed < 0) {
+                    seed = 0;
+                }
+                primary = seed;
+                setArrowGroupNavIndex(primary);
             }
-            setArrowGroupNavIndex(idx);
-            lastClickedRegion = 'arrowGroup';
-            syncLeftKeyboardRegion('arrowGroup');
-            if (items.length === 1) {
+
+            const primaryNums = parseArrowGroupItemNums(items[primary]);
+            const primaryWasCircled = primaryNums.length > 0
+                && primaryNums.every(function (n) { return selected.has(n); });
+
+            // Dịch khoanh primary: gỡ số của nhóm cũ trước khi tìm đích.
+            if (primaryWasCircled) {
+                primaryNums.forEach(function (n) {
+                    selected.delete(n);
+                    transientSelected.delete(n);
+                    simulatedSelected.delete(n);
+                });
+                pickOrder = (pickOrder || []).filter(function (n) {
+                    return selected.has(n);
+                });
+            }
+
+            let dest = -1;
+            for (let k = 1; k <= n; k++) {
+                const cand = (primary + step * k + n * 32) % n;
+                if (cand === primary) {
+                    break;
+                }
+                // Đã khoanh (focus) trước đó → bỏ qua.
+                if (arrowGroupItemIsCircled(items[cand])) {
+                    continue;
+                }
+                dest = cand;
+                break;
+            }
+
+            if (dest < 0) {
+                // Không chỗ trống — khôi phục khoanh primary nếu vừa gỡ.
+                if (primaryWasCircled) {
+                    primaryNums.forEach(function (n) {
+                        if (selected.size < MAX_PICK_NUMBERS && !selected.has(n)) {
+                            selected.add(n);
+                            if (!pickOrder) {
+                                pickOrder = [];
+                            }
+                            if (pickOrder.indexOf(n) === -1) {
+                                pickOrder.push(n);
+                            }
+                        }
+                    });
+                    try { recomputePairsFromSelected(); } catch (eR0) { /* ignore */ }
+                    try { updateBlocked(); } catch (eB0) { /* ignore */ }
+                    try {
+                        applySelectionAndBlockedInDOM();
+                        updateFocusIndicator();
+                    } catch (eD0) { /* ignore */ }
+                    try { refreshLeftPickSelectionUi(); } catch (eU0) { /* ignore */ }
+                }
+                lastClickedRegion = 'arrowGroup';
+                syncLeftKeyboardRegion('arrowGroup');
+                syncArrowGroupNavFocusClass();
                 return true;
             }
-            let nums = [];
-            try {
-                nums = JSON.parse(items[idx].getAttribute('data-hint-nums') || '[]');
-            } catch (eJ) {
-                nums = [];
-            }
-            const xNum = nums.length ? parseInt(nums[0], 10) : NaN;
+
+            setArrowGroupNavIndex(dest);
+            lastClickedRegion = 'arrowGroup';
+            syncLeftKeyboardRegion('arrowGroup');
+
+            const destNums = parseArrowGroupItemNums(items[dest]);
+            const xNum = destNums.length ? destNums[0] : NaN;
             if (Number.isFinite(xNum)) {
                 lastClickedNumber = xNum;
                 currentPhaseNumber = xNum;
                 currentPhaseRow = null;
             }
-            applyConn3TripletToSelection(nums);
+            // Thêm khoanh đích (merge, không xóa khoanh còn lại).
+            applyConn3TripletToSelection(destNums);
             lastClickedRegion = 'arrowGroup';
             syncLeftKeyboardRegion('arrowGroup');
-            setArrowGroupNavIndex(idx);
+            setArrowGroupNavIndex(dest);
             return true;
         }
 
@@ -2631,16 +2784,9 @@
             return Array.from(hints).sort(function (a, b) { return a - b; });
         }
 
-        /** ★ đáp án trên hàng 3-tail: chỉ hiện khi Submit ON. */
+        /** Submit ON: đáp án dùng nền xanh lá (CSS); không còn ngôi sao. */
         function syncReferenceHintAnswerStars() {
-            const panel = document.getElementById('referenceHint');
-            if (!panel) {
-                return;
-            }
-            const stars = panel.querySelectorAll('.reference-hint-answer-star');
-            for (let i = 0; i < stars.length; i++) {
-                stars[i].hidden = !submitActive;
-            }
+            /* no-op — giữ tên để không gãy chỗ gọi cũ */
         }
 
         function syncReferenceConn3PickHintRow() {
@@ -2758,16 +2904,20 @@
                     item.appendChild(document.createTextNode('\u2192'));
                     const xEl = document.createElement('span');
                     xEl.className = 'reference-hint-group-x'
-                        + (g.xIsFreqZero ? ' is-freq-zero' : '');
+                        + (g.xIsFreqZero ? ' is-freq-zero' : '')
+                        + (g.xIsPhaseMax ? ' is-phase1 is-phase-max'
+                            : (g.xIsPhase1 ? ' is-phase1' : ''));
                     xEl.textContent = String(g.x);
-                    item.appendChild(xEl);
-                    if (g.inAnswer) {
-                        const star = document.createElement('span');
-                        star.className = 'reference-hint-answer-star';
-                        star.textContent = ' \u2605';
-                        star.hidden = !submitActive;
-                        item.appendChild(star);
+                    if (g.xIsPhaseMax) {
+                        xEl.title = 'Phase1 max-freq (hồng): ' + g.x
+                            + (g.xIsFreqZero ? ' · freq 0' : '');
+                    } else if (g.xIsPhase1) {
+                        xEl.title = 'Phase1 (tím): ' + g.x
+                            + (g.xIsFreqZero ? ' · freq 0' : '');
+                    } else if (g.xIsFreqZero) {
+                        xEl.title = 'Freq 0 (vàng): ' + g.x;
                     }
+                    item.appendChild(xEl);
                     item.title = 'Click để bật/tắt Apply: '
                         + String(g.label || (ys.join(',') + '\u2192' + g.x));
                     (function (itemEl, nums, groupIndex, xNum) {
@@ -2804,7 +2954,7 @@
             for (let ti = 0; ti < triplets.length; ti++) {
                 const t = triplets[ti];
                 const row = document.createElement('div');
-                row.className = 'reference-hint-row';
+                row.className = 'reference-hint-row' + (t.inAnswer ? ' is-answer' : '');
                 const rowKey = referenceHintRowKey(t);
                 const sorted = Array.isArray(t.sorted) ? t.sorted.slice() : [];
                 const sortedNums = sorted
@@ -2842,19 +2992,20 @@
                     arrowEl.appendChild(document.createTextNode('\u2192'));
                     const xEl = document.createElement('span');
                     xEl.className = 'reference-hint-tail-x'
-                        + (t.xIsFreqZero ? ' is-freq-zero' : '');
+                        + (t.xIsFreqZero ? ' is-freq-zero' : '')
+                        + (t.xIsPhaseMax ? ' is-phase1 is-phase-max'
+                            : (t.xIsPhase1 ? ' is-phase1' : ''));
                     xEl.textContent = String(xNum);
-                    if (t.xIsFreqZero) {
+                    if (t.xIsPhaseMax) {
+                        xEl.title = 'Phase1 max-freq (hồng): ' + xNum
+                            + (t.xIsFreqZero ? ' · freq 0' : '');
+                    } else if (t.xIsPhase1) {
+                        xEl.title = 'Phase1 (tím): ' + xNum
+                            + (t.xIsFreqZero ? ' · freq 0' : '');
+                    } else if (t.xIsFreqZero) {
                         xEl.title = 'Freq 0 (vàng): ' + xNum;
                     }
                     arrowEl.appendChild(xEl);
-                    if (t.inAnswer) {
-                        const star = document.createElement('span');
-                        star.className = 'reference-hint-answer-star';
-                        star.textContent = ' \u2605';
-                        star.hidden = !submitActive;
-                        arrowEl.appendChild(star);
-                    }
                     line.appendChild(edgesEl);
                     line.appendChild(arrowEl);
                     line.title = '[' + edgesArr.join(', ') + ']  ' + yNum + '\u2192' + xNum;
@@ -2870,8 +3021,7 @@
                     if (leftKeyboardRegion === 'arrowGroup' || lastClickedRegion === 'arrowGroup') {
                         lastClickedRegion = 'left';
                         syncLeftKeyboardRegion('left');
-                        arrowGroupNavIndex = -1;
-                        syncArrowGroupNavFocusClass();
+                        clearArrowGroupNavFocus();
                     }
                     applyConn3TripletToSelection(sorted);
                 });
@@ -2933,34 +3083,29 @@
             const rightTable = document.querySelector('#right table');
             const midwrap = document.querySelector('.midwrap');
 
-            // Về chỗ cũ trong .controls để đo (tránh nhân đôi chỗ với spacer)
-            // Khóa bề ngang theo spacer TRƯỚC khi panel vào flow — tránh nhóm Y→X phình cột.
-            const scaleEarly = getLeftContainerScaleFactor();
+            const scale = getLeftContainerScaleFactor();
             let colVisualW = 0;
             try {
                 colVisualW = spacer.getBoundingClientRect().width;
             } catch (eColW) { /* ignore */ }
-            restoreReferenceHintPanelHome(panel, spacer);
-            panel.classList.remove('is-anchored-up');
-            panel.style.top = '';
-            panel.style.left = '';
-            panel.style.right = '';
-            panel.style.height = '';
-            panel.style.maxHeight = '';
+
+            // Không nhét panel lại vào flow khi đo — tránh đội chiều cao controls /
+            // lệch justify và làm rút mép dưới (đặc biệt id rỗng + pair restore).
+            if (midwrap && panel.parentElement !== midwrap) {
+                midwrap.appendChild(panel);
+            }
+            panel.classList.add('is-anchored-up');
+            panel.style.right = 'auto';
             panel.style.marginTop = '';
-            panel.style.transform = '';
-            panel.style.transformOrigin = '';
             panel.style.boxSizing = 'border-box';
             if (colVisualW > 1) {
-                const localColW = colVisualW / scaleEarly;
+                const localColW = colVisualW / scale;
                 panel.style.width = localColW + 'px';
                 panel.style.maxWidth = localColW + 'px';
             } else {
                 panel.style.width = '100%';
                 panel.style.maxWidth = '100%';
             }
-            spacer.style.height = '0px';
-            void panel.offsetHeight;
 
             const cs = window.getComputedStyle(panel);
             const fontSize = parseFloat(cs.fontSize) || 12;
@@ -2971,7 +3116,6 @@
             const minOuter = Math.round(lineH) + padY + borderY;
             // Chỗ trong flow cố định (~3 dòng) — nội dung dài cuộn trong panel
             const footprint = Math.round(lineH * 3) + padY + borderY;
-            const scale = scaleEarly;
 
             spacer.style.height = footprint + 'px';
             void spacer.offsetHeight;
@@ -2983,30 +3127,30 @@
             let rightTop;
             let spacerRect;
             let midRect;
+            let modeTop;
             try {
                 rightTop = rightTable.getBoundingClientRect().top;
                 spacerRect = spacer.getBoundingClientRect();
                 midRect = midwrap.getBoundingClientRect();
+                modeTop = modeRow.getBoundingClientRect().top;
             } catch (eM) {
                 return;
             }
 
-            // Trần = top bảng 2; mép dưới = đáy spacer (giữ pair/bảng)
+            // Trần = top bảng 2; mép dưới = đáy spacer (hoặc mép trên mode-row nếu spacer lệch)
             let topLimit = rightTop;
             if (Number.isFinite(midRect.top) && topLimit < midRect.top + 1) {
                 topLimit = midRect.top + 1;
             }
-            const bottomLimit = spacerRect.bottom;
+            let bottomLimit = spacerRect.bottom;
+            if (Number.isFinite(modeTop) && modeTop > topLimit + 2) {
+                // mode-row ổn định hơn khi pair list đổi chiều cao
+                bottomLimit = Math.max(bottomLimit, modeTop);
+            }
             const spanVisual = Math.floor(bottomLimit - topLimit);
             if (!(spanVisual > 2) || !Number.isFinite(spanVisual)) {
                 return;
             }
-
-            // Portal ra .midwrap — ngoài transform scale của .left-container (hết bị cắt mép trên)
-            if (panel.parentElement !== midwrap) {
-                midwrap.appendChild(panel);
-            }
-            panel.classList.add('is-anchored-up');
 
             // Tọa độ theo midwrap; scale(top-left) khớp cột trái — khóa maxWidth để không phình ngang
             const visualW = spacerRect.width;

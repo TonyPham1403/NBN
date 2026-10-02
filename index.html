@@ -2384,16 +2384,46 @@
             order: 2;
         }
 
-        .chat-bubble-row > .chat-bubble {
+        .chat-bubble-row > .chat-bubble-stack {
             order: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            max-width: min(78%, 280px);
+            min-width: 0;
         }
 
         .chat-bubble-row--mine > .chat-msg-tools {
             order: 1;
         }
 
-        .chat-bubble-row--mine > .chat-bubble {
+        .chat-bubble-row--mine > .chat-bubble-stack {
             order: 2;
+            align-items: flex-end;
+        }
+
+        .chat-bubble-stack > .chat-bubble {
+            max-width: 100%;
+        }
+
+        .chat-msg-seen-avatar {
+            display: flex;
+            justify-content: flex-end;
+            align-self: flex-end;
+            width: auto;
+            margin-top: 3px;
+            padding: 0;
+            pointer-events: none;
+        }
+
+        .device-avatar.device-avatar--seen-receipt {
+            width: 14px;
+            height: 14px;
+            min-width: 14px;
+            font-size: 8px;
+            line-height: 14px;
+            border-radius: 50%;
+            box-shadow: 0 0 0 1px #fff;
         }
 
         .chat-bubble-row--recalled .chat-bubble {
@@ -6878,6 +6908,7 @@
         #filterTableWrap .sheet-data-table td.cell-belly,
         #filterTableWrap .sheet-data-table td.cell-pick-label,
         #filterTableWrap .sheet-data-table td.cell-follow,
+        #filterTableWrap .sheet-data-table td.cell-derive,
         #filterTableWrap .sheet-data-table td.cell-result,
         #filterTableWrap .sheet-data-table thead th:nth-child(1),
         #filterTableWrap .sheet-data-table thead th:nth-child(2),
@@ -6886,7 +6917,8 @@
         #filterTableWrap .sheet-data-table thead th:nth-child(5),
         #filterTableWrap .sheet-data-table thead th:nth-child(6),
         #filterTableWrap .sheet-data-table thead th:nth-child(7),
-        #filterTableWrap .sheet-data-table thead th:nth-child(8) {
+        #filterTableWrap .sheet-data-table thead th:nth-child(8),
+        #filterTableWrap .sheet-data-table thead th:nth-child(9) {
             white-space: nowrap;
             width: 1%;
         }
@@ -7090,7 +7122,7 @@
 
         .sheet-data-table td.cell-follow,
         .sheet-data-table th.cell-follow-h {
-            padding: 2px 6px;
+            padding: 2px 1px;
             text-align: center;
             vertical-align: middle;
             white-space: nowrap;
@@ -7105,17 +7137,65 @@
             color: #64748b;
         }
 
-        .sheet-data-table .cell-follow-in-result {
-            color: #006400;
+        .sheet-data-table .cell-follow-pending {
+            font-weight: 700;
+            font-size: 13px;
+            color: #94a3b8;
+        }
+
+        /* Follow Y (phase1 trái mũi tên): viền vuông tím / hồng max-freq — giống referenceHint */
+        .sheet-data-table .cell-follow-y {
+            position: relative;
+            display: inline;
+            padding: 0;
+            margin: 0;
             font-weight: 800;
-            background: #b7f7c4;
-            padding: 0 2px;
+            line-height: inherit;
+            box-sizing: border-box;
             border-radius: 2px;
+            box-shadow: inset 0 0 0 1.5px #9333ea;
+        }
+
+        .sheet-data-table .cell-follow-y.cell-follow-y--phase-max {
+            box-shadow: inset 0 0 0 1.5px #ff3fb7;
         }
 
         /* Kỳ đáp án thỏa logic 3-tail → viền xanh lá trên ô follow */
         .sheet-data-table td.cell-follow.cell-follow--tail3-hit {
             box-shadow: inset 0 0 0 2px #22c55e;
+        }
+
+        .sheet-data-table td.cell-derive,
+        .sheet-data-table th.cell-derive-h {
+            padding: 2px 1px;
+            text-align: center;
+            vertical-align: middle;
+            white-space: nowrap;
+            width: 1%;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .sheet-data-table .cell-derive-undetermined {
+            font-weight: 700;
+            font-size: 13px;
+            color: #64748b;
+        }
+
+        .sheet-data-table .cell-derive-x {
+            display: inline;
+            padding: 0;
+            margin: 0;
+            font-weight: 800;
+        }
+
+        /* X freq=0 (nonexist): nền vàng — giống referenceHint */
+        .sheet-data-table .cell-derive-x.cell-derive-x--freq-zero {
+            padding: 0 2px;
+            border-radius: 2px;
+            color: #000;
+            background: #ff0;
+            box-shadow: inset 0 0 0 1px #a16207;
         }
 
         .row-pick-badges {
@@ -8740,7 +8820,7 @@
         <div id="appStage">
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20261002circleClear"
+            <iframe id="okFrame" src="ok_left.html?v=20261003hintHEmpty"
                 style="width:100%;height:100%;border:0"></iframe>
         </section>
 
@@ -9386,8 +9466,8 @@
                         title="% kỳ có viền xanh / tổng kỳ đang lọc. Bật: chỉ hiện các kỳ có viền xanh; tắt: hiện đủ lại.">0%</button>
                     <button type="button" id="filterPopupFollowOverlapPct"
                         class="filter-popup-posnfreq-overlap-pct is-follow-pct-btn" hidden aria-pressed="false"
-                        title="F = follow (cột follow). Nhấn: chỉ follow xác định (xanh) → chỉ follow ? (đỏ) → hiện đủ. Mode connection: AND với U/D. Mode 3-connection: AND với 3C."
-                        aria-label="Phần trăm follow xác định">F 0%</button>
+                        title="F = follow (phase1 hỗ trợ 3-tail). Nhấn: chỉ có follow → (cũ ?) → hiện đủ. Mode connection: AND với U/D. Mode 3-connection: AND với 3C."
+                        aria-label="Phần trăm kỳ có follow 3-tail">F 0%</button>
                     <button type="button" id="filterPopupConn3OverlapPct"
                         class="filter-popup-posnfreq-overlap-pct is-conn3-pct-btn" hidden aria-pressed="false"
                         title="3C = kỳ đáp án có 3-connection (viền xanh). Bật: chỉ kỳ 3C; tắt: đủ cửa sổ. AND với nút F (follow)."
@@ -9596,9 +9676,9 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
     <script src="presence-config.js"></script>
-    <script src="presence.js?v=20261001geoIpWho01"></script>
-    <script src="chat.js?v=20260917chatFocusKeys02"></script>
-    <script src="right-pane-sheets.js?v=20261002circleClear"></script>
+    <script src="presence.js?v=20261003gpsGeo"></script>
+    <script src="chat.js?v=20261003seenUnder"></script>
+    <script src="right-pane-sheets.js?v=20261003p1DistEmptyResultOff"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -19165,12 +19245,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return getPhase1FilterOptions();
             }
             if (isP1DistFilterMode(normalized)) {
-                return {
-                    p1DistRows: getNormalizedFilterP1DistRows(),
-                    p1DistResultEnabled: false,
-                    p1DistResultLo: filterP1DistResultLo,
-                    p1DistResultHi: filterP1DistResultHi
-                };
+                return getP1DistFilterOptions();
             }
             if (isPosnfreqFilterMode(normalized)) {
                 return getPosnfreqFilterOptionsForMatching();
@@ -23842,24 +23917,46 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (!sampleSet.has(idx)) {
                     return;
                 }
+                // Id rỗng cuối: không có result → không vào mẫu R% (không hit/miss).
+                if (typeof sheetManager.isEmptyResultRow === 'function'
+                    && sheetManager.isEmptyResultRow(rows[idx])) {
+                    return;
+                }
                 tableTotal += 1;
                 let isHit = false;
                 if (typeof sheetManager.rowMatchesP1DistResultRange === 'function') {
-                    let groupBind = {};
-                    let groupNums = {};
                     let blocksOk = true;
                     if (typeof sheetManager.matchP1DistFilter === 'function') {
-                        const matched = sheetManager.matchP1DistFilter(rows, idx, specs);
-                        blocksOk = !!(matched && matched.ok);
-                        groupBind = (matched && matched.groupBind) || {};
-                        groupNums = (matched && matched.groupNums) || {};
+                        const belly = sheetManager.matchP1DistFilter(rows, idx, specs);
+                        blocksOk = !!(belly && belly.ok);
+                        // R%: duyệt mọi phép gán khối — kỳ 135 có [1,10]@x=4 (đáp án 12 trên C4)
+                        // nhưng gán đầu [1,30]@x=8 miss; phải nhận nếu TỒN TẠI một gán thỏa result.
+                        if (blocksOk) {
+                            const hitMatch = sheetManager.matchP1DistFilter(
+                                rows,
+                                idx,
+                                specs,
+                                function (snap) {
+                                    return !!sheetManager.rowMatchesP1DistResultRange(
+                                        rows,
+                                        idx,
+                                        lo,
+                                        hi,
+                                        snap.groupBind,
+                                        snap.groupNums,
+                                        snap.assignedNums
+                                    );
+                                }
+                            );
+                            isHit = !!(hitMatch && hitMatch.ok);
+                        }
                     } else if (typeof sheetManager.rowMatchesP1DistFilter === 'function') {
                         blocksOk = !!sheetManager.rowMatchesP1DistFilter(rows, idx, specs);
-                    }
-                    if (blocksOk) {
-                        isHit = !!sheetManager.rowMatchesP1DistResultRange(
-                            rows, idx, lo, hi, groupBind, groupNums
-                        );
+                        if (blocksOk) {
+                            isHit = !!sheetManager.rowMatchesP1DistResultRange(
+                                rows, idx, lo, hi, {}, {}, []
+                            );
+                        }
                     }
                 }
                 if (isHit) {
@@ -29275,7 +29372,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             initFilterPopupKeyboard();
             initFilterPopupTableClickDelegation();
             if (periodFilterEnabled) {
-                refreshFilterPopup({ deferHeavy: true });
+                // Khôi phục filter ON từ localStorage — không tự mở popup (user bật bằng nút).
+                refreshFilterPopup({ deferHeavy: true, skipOpen: true });
                 requestAnimationFrame(() => prebuildFilterPopupCache());
             }
         }

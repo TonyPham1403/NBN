@@ -4,7 +4,9 @@
  *
  * Offline ~5 phút ghi trên Firebase (online:false + offlineAt). Tab còn mở có thể
  * tái tạo tombstone nếu peer bị xóa (code cũ / cancel onDisconnect) để người vào sau vẫn thấy.
- * GeoIP (ipwho.is → geojs): quốc gia/tỉnh theo IP công khai; khoảng cách Haversine tới (You).
+ * GeoIP (ipwho.is → geojs): quốc gia/tỉnh theo IP công khai (fallback).
+ * Ưu tiên tọa độ trình duyệt (GPS/Wi‑Fi) khi user cho phép — chi tiết hơn tâm thành phố.
+ * Khoảng cách Haversine tới (You).
  * Device ID bền (localStorage). Mã máy 3 chữ (AYU); tab cùng máy AYU1, AYU2…
  * Đếm online = số device unique. Máy khác chỉ hiện tên đại diện AYU (không liệt kê từng tab).
  * Mã máy đổi sau ~10 phút không còn tab (cùng cơ chế idle với chat local).
@@ -100,7 +102,7 @@
     let localFocusRowId = '';
     let focusPublishTimer = 0;
     let lastPublishedFocusRowId = '';
-    /** @type {{ country: string, countryCode: string, region: string, city: string, lat: number, lon: number }|null} */
+    /** @type {{ country: string, countryCode: string, region: string, city: string, lat: number, lon: number, precise?: boolean, geoSource?: string, accuracyM?: number }|null} */
     let selfGeo = null;
     let lastSnapVal = {};
     let db = null;
@@ -956,12 +958,13 @@
         return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     }
 
-    function formatCoord(n) {
+    function formatCoord(n, digits) {
         const v = Number(n);
         if (!Number.isFinite(v)) {
             return '—';
         }
-        return v.toFixed(4);
+        const d = Number.isFinite(digits) ? digits : 4;
+        return v.toFixed(d);
     }
 
     function formatDistanceKm(km) {
@@ -989,26 +992,38 @@
         return String(row.ip || '').trim() || extractIpFromLabel(row.label);
     }
 
-    /** Geo từ IP (ưu tiên) hoặc lat/lon peer ghi trên Firebase. */
+    /** Ưu tiên lat/lon peer đã publish (GPS); GeoIP cache chỉ bổ sung nhãn / fallback. */
     function geoFromRow(row) {
         if (!row || typeof row !== 'object') {
             return null;
         }
         const ip = rowIp(row);
-        if (ip && geoCache.has(ip)) {
-            return geoCache.get(ip);
-        }
+        const cached = (ip && geoCache.has(ip)) ? geoCache.get(ip) : null;
         const lat = Number(row.lat);
         const lon = Number(row.lon);
+        const precise = !!(row.geoPrecise || row.geoSource === 'gps'
+            || (row.precise === true));
         if (Number.isFinite(lat) && Number.isFinite(lon)) {
             return {
-                country: String(row.country || '').trim(),
-                countryCode: String(row.countryCode || '').trim(),
-                region: normalizeVnPlace(row.region),
-                city: normalizeVnPlace(row.city),
+                country: String(row.country || '').trim() || (cached && cached.country) || '',
+                countryCode: String(row.countryCode || '').trim()
+                    || (cached && cached.countryCode) || '',
+                region: normalizeVnPlace(row.region)
+                    || (cached && cached.region) || '',
+                city: normalizeVnPlace(row.city)
+                    || (cached && cached.city) || '',
                 lat: lat,
-                lon: lon
+                lon: lon,
+                precise: precise,
+                geoSource: precise ? 'gps' : String(row.geoSource || 'ip'),
+                accuracyM: Number(row.geoAccuracyM) || undefined
             };
+        }
+        if (cached) {
+            return Object.assign({}, cached, {
+                precise: false,
+                geoSource: 'ip'
+            });
         }
         return null;
     }
@@ -1079,6 +1094,16 @@
             out.city = selfGeo.city || '';
             out.lat = selfGeo.lat;
             out.lon = selfGeo.lon;
+            if (selfGeo.precise) {
+                out.geoPrecise = true;
+                out.geoSource = 'gps';
+                if (Number.isFinite(Number(selfGeo.accuracyM))) {
+                    out.geoAccuracyM = Math.round(Number(selfGeo.accuracyM));
+                }
+            } else {
+                out.geoPrecise = false;
+                out.geoSource = 'ip';
+            }
         }
         Object.assign(out, clientDevicePayloadFields(selfClientDevice));
         return out;
@@ -1178,7 +1203,7 @@
         return line;
     }
 
-    /** Khoảng cách tới You — ước lượng theo IP công khai (không GPS). */
+    /** Khoảng cách tới You — GPS nếu có; không thì ước lượng GeoIP. */
     function distanceFromYouLine(row, skip) {
         if (skip) {
             return '';
@@ -1196,14 +1221,80 @@
         if (publicIp && ip && publicIp === ip) {
             return '~cùng IP công khai';
         }
-        if (km < 3) {
+        const bothPrecise = !!(selfGeo.precise && geo.precise);
+        if (!bothPrecise && km < 3) {
             return '~cùng khu vực (ước lượng IP)';
         }
-        return '~' + formatDistanceKm(km) + ' từ You';
+        return '~' + formatDistanceKm(km) + ' từ You'
+            + (bothPrecise ? '' : ' (ước lượng IP)');
     }
 
     function buildLabel() {
         return formatUserLabel(publicIp, displayCode || (deviceTag + String(tabIndex || 1)));
+    }
+
+    /** Tọa độ trình duyệt (GPS/Wi‑Fi) — chi tiết hơn tâm thành phố GeoIP. */
+    function fetchBrowserPreciseGeo() {
+        return new Promise((resolve) => {
+            if (typeof navigator === 'undefined' || !navigator.geolocation) {
+                resolve(null);
+                return;
+            }
+            let settled = false;
+            const done = (v) => {
+                if (settled) {
+                    return;
+                }
+                settled = true;
+                resolve(v);
+            };
+            try {
+                navigator.geolocation.getCurrentPosition(
+                    (pos) => {
+                        const lat = Number(pos && pos.coords && pos.coords.latitude);
+                        const lon = Number(pos && pos.coords && pos.coords.longitude);
+                        if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+                            done(null);
+                            return;
+                        }
+                        done({
+                            lat: lat,
+                            lon: lon,
+                            accuracyM: Number(pos.coords.accuracy),
+                            precise: true,
+                            geoSource: 'gps'
+                        });
+                    },
+                    () => done(null),
+                    {
+                        enableHighAccuracy: true,
+                        timeout: 14000,
+                        maximumAge: 120000
+                    }
+                );
+            } catch (e) {
+                done(null);
+            }
+        });
+    }
+
+    function applyPreciseOverride(baseGeo, precise) {
+        if (!precise || !Number.isFinite(precise.lat) || !Number.isFinite(precise.lon)) {
+            return baseGeo || null;
+        }
+        const base = baseGeo && typeof baseGeo === 'object' ? baseGeo : {};
+        return {
+            country: base.country || '',
+            countryCode: base.countryCode || '',
+            region: base.region || '',
+            city: base.city || '',
+            lat: precise.lat,
+            lon: precise.lon,
+            precise: true,
+            geoSource: 'gps',
+            accuracyM: Number.isFinite(precise.accuracyM) ? precise.accuracyM : undefined,
+            ip: base.ip
+        };
     }
 
     function fetchSelfGeo() {
@@ -1216,15 +1307,23 @@
                 return fetchJson(GEO_PROVIDERS.geojsSelf).then((j2) => parseGeoFromPayload(j2));
             })
             .then((g) => {
-                if (!g) {
-                    return;
+                if (g) {
+                    if (g.ip) {
+                        publicIp = String(g.ip);
+                    }
+                    selfGeo = Object.assign({}, g, {
+                        precise: false,
+                        geoSource: 'ip'
+                    });
+                    if (publicIp) {
+                        geoCache.set(publicIp, Object.assign({}, selfGeo));
+                    }
                 }
-                if (g.ip) {
-                    publicIp = String(g.ip);
-                }
-                selfGeo = g;
-                if (publicIp) {
-                    geoCache.set(publicIp, g);
+                return fetchBrowserPreciseGeo();
+            })
+            .then((precise) => {
+                if (precise) {
+                    selfGeo = applyPreciseOverride(selfGeo, precise);
                 }
             })
             .catch(() => { /* offline / blocked */ });
@@ -1351,8 +1450,10 @@
             return '';
         }
         const place = formatGeoPlace(geo);
-        const coords = '(' + formatCoord(geo.lat) + ', ' + formatCoord(geo.lon) + ')';
-        return place + ' · ' + coords;
+        const digs = geo.precise ? 5 : 4;
+        const coords = '(' + formatCoord(geo.lat, digs) + ', ' + formatCoord(geo.lon, digs) + ')';
+        const src = geo.precise ? 'GPS' : 'ước lượng IP';
+        return place + ' · ' + coords + ' · ' + src;
     }
 
     function rowGeoFields(row) {
