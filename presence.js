@@ -102,6 +102,8 @@
     let localFocusRowId = '';
     let focusPublishTimer = 0;
     let lastPublishedFocusRowId = '';
+    /** Timestamp lần focus id đổi trên tab này — dùng khi gom nhiều tab cùng máy. */
+    let lastFocusUpdatedAt = 0;
     /** @type {{ country: string, countryCode: string, region: string, city: string, lat: number, lon: number, precise?: boolean, geoSource?: string, accuracyM?: number }|null} */
     let selfGeo = null;
     let lastSnapVal = {};
@@ -451,6 +453,10 @@
         if (!wasIdleTooLong()) {
             touchAlive();
         }
+        // Safari/macOS: tab vừa hiện lại — đẩy focus hiện tại (tránh kẹt id cũ).
+        if (sessionRef) {
+            publishFocusRowIdSoon();
+        }
     }
 
     function getOrCreateDeviceId() {
@@ -721,6 +727,30 @@
             return score(b) - score(a);
         });
         return scored[0];
+    }
+
+    /**
+     * Tab nền vẫn heartbeat → updatedAt mới nhưng focus cũ.
+     * Khi gom máy peer: lấy focus từ tab đổi focus gần nhất (focusUpdatedAt).
+     */
+    function pickNewestFocusRow(rows) {
+        if (!rows || !rows.length) {
+            return null;
+        }
+        return rows.slice().sort((a, b) => {
+            const fa = Number(a.focusUpdatedAt) || 0;
+            const fb = Number(b.focusUpdatedAt) || 0;
+            if (fa !== fb) {
+                return fb - fa;
+            }
+            const ha = normalizeFocusRowId(a.focusRowId) ? 1 : 0;
+            const hb = normalizeFocusRowId(b.focusRowId) ? 1 : 0;
+            if (ha !== hb) {
+                return hb - ha;
+            }
+            return (Number(b.updatedAt) || Number(b.at) || 0)
+                - (Number(a.updatedAt) || Number(a.at) || 0);
+        })[0];
     }
 
     function resolvePeerDeviceCode(row) {
@@ -1083,6 +1113,10 @@
         const focusId = getLocalFocusRowId();
         if (focusId) {
             out.focusRowId = focusId;
+            if (!lastFocusUpdatedAt) {
+                lastFocusUpdatedAt = Date.now();
+            }
+            out.focusUpdatedAt = lastFocusUpdatedAt;
         }
         if (publicIp) {
             out.ip = publicIp;
@@ -1137,6 +1171,9 @@
         if (next === lastPublishedFocusRowId && sessionRef) {
             return;
         }
+        if (next && next !== lastPublishedFocusRowId) {
+            lastFocusUpdatedAt = Date.now();
+        }
         localFocusRowId = next;
         if (!sessionRef) {
             return;
@@ -1146,7 +1183,11 @@
         }
         focusPublishTimer = setTimeout(() => {
             focusPublishTimer = 0;
-            lastPublishedFocusRowId = getLocalFocusRowId();
+            const id = getLocalFocusRowId();
+            if (id && id !== lastPublishedFocusRowId) {
+                lastFocusUpdatedAt = Date.now();
+            }
+            lastPublishedFocusRowId = id;
             writePresence(true).catch(() => { /* ignore */ });
         }, 280);
     }
@@ -1351,7 +1392,11 @@
         if (!online) {
             return sessionRef.set(offlinePayload(now));
         }
-        lastPublishedFocusRowId = getLocalFocusRowId();
+        const liveFocus = getLocalFocusRowId();
+        if (liveFocus && liveFocus !== lastPublishedFocusRowId) {
+            lastFocusUpdatedAt = Date.now();
+        }
+        lastPublishedFocusRowId = liveFocus;
         return sessionRef.set(attachGeoFields({
             online: true,
             label: buildLabel(),
@@ -1423,6 +1468,10 @@
         const focusId = normalizeFocusRowId(m.focusRowId);
         if (focusId) {
             payload.focusRowId = focusId;
+            const focusAt = Number(m.focusUpdatedAt) || 0;
+            if (focusAt > 0) {
+                payload.focusUpdatedAt = focusAt;
+            }
         }
         Object.assign(payload, clientDevicePayloadFields(m));
         db.ref(PATH + '/' + id).set(payload)
@@ -1528,6 +1577,9 @@
             const rep = isOfflineList
                 ? rows.slice().sort((a, b) => (Number(b.at) || 0) - (Number(a.at) || 0))[0]
                 : pickBestGeoRow(rows);
+            const focusRep = isOfflineList ? rep : pickNewestFocusRow(rows);
+            const focusId = normalizeFocusRowId(focusRep && focusRep.focusRowId)
+                || normalizeFocusRowId(rep && rep.focusRowId);
             const tag = resolvePeerDeviceCode(rep);
             const ip = extractIpFromRow(rep);
             out.push(Object.assign({}, rep, {
@@ -1537,6 +1589,8 @@
                 deviceId: String(rep.deviceId || did.replace(/^session:/, '')),
                 aggregate: true,
                 tabCount: rows.length,
+                focusRowId: focusId,
+                focusUpdatedAt: Number(focusRep && focusRep.focusUpdatedAt) || 0,
                 startedAt: Number(rows[0].startedAt) || Number(rows[0].updatedAt) || 0,
                 at: isOfflineList
                     ? Math.max.apply(null, rows.map((x) => Number(x.at) || 0))
@@ -1618,6 +1672,7 @@
             }));
             const rowTabIndex = Number(row.tabIndex) || 0;
             const rowFocusRowId = normalizeFocusRowId(row.focusRowId);
+            const rowFocusUpdatedAt = Number(row.focusUpdatedAt) || 0;
             const clientFields = pickClientDevice(row);
             nextMeta[id] = Object.assign({
                 label: label,
@@ -1634,7 +1689,8 @@
                 deviceTag: rowDeviceTag,
                 deviceCode: rowDeviceTag,
                 tabIndex: rowTabIndex,
-                focusRowId: rowFocusRowId
+                focusRowId: rowFocusRowId,
+                focusUpdatedAt: rowFocusUpdatedAt
             }, clientFields);
 
             const alive = !!row.online && updatedAt > 0 && (now - updatedAt) <= STALE_ONLINE_MS;
@@ -1650,7 +1706,8 @@
                     deviceTag: rowDeviceTag,
                     deviceCode: rowDeviceTag,
                     tabIndex: rowTabIndex,
-                    focusRowId: rowFocusRowId
+                    focusRowId: rowFocusRowId,
+                    focusUpdatedAt: rowFocusUpdatedAt
                 }, geoFields, clientFields));
                 return;
             }
@@ -1681,7 +1738,8 @@
                 deviceTag: rowDeviceTag,
                 deviceCode: rowDeviceTag,
                 tabIndex: rowTabIndex,
-                focusRowId: rowFocusRowId
+                focusRowId: rowFocusRowId,
+                focusUpdatedAt: rowFocusUpdatedAt
             }, geoFields, clientFields));
             pendingGone.delete(id);
         });
@@ -1728,7 +1786,8 @@
                     deviceTag: meta.deviceTag,
                     deviceCode: meta.deviceCode || meta.deviceTag,
                     tabIndex: meta.tabIndex,
-                    focusRowId: meta.focusRowId
+                    focusRowId: meta.focusRowId,
+                    focusUpdatedAt: meta.focusUpdatedAt
                 }, pickClientDevice(meta)));
             }
             requestTombstone(id, meta, at);
@@ -1765,7 +1824,8 @@
                 deviceTag: entry.deviceTag,
                 deviceCode: entry.deviceCode || entry.deviceTag,
                 tabIndex: entry.tabIndex,
-                focusRowId: entry.focusRowId
+                focusRowId: entry.focusRowId,
+                focusUpdatedAt: entry.focusUpdatedAt
             }, pickClientDevice(entry)));
         });
 
