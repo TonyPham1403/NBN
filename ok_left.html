@@ -6670,6 +6670,8 @@
             try { if (window.updatePickButtonUI) window.updatePickButtonUI(); } catch (eP) { /* ignore */ }
             try { syncPickPropertyBadges(); } catch (eBadges) { /* ignore */ }
             try { syncReferenceConn3PickHintRow(); } catch (eHint) { /* ignore */ }
+            // Khoanh viền nhóm derive (ys→x) trong #referenceHint khớp số vừa pick từ tracking.
+            try { syncReferenceHintAppliedRowsFromSelection(); } catch (eRow) { /* ignore */ }
             try {
                 notifyParentLeftCircledNums({
                     forceSync: true,
