@@ -1261,6 +1261,10 @@
             color: #ff0000;
         }
 
+        .special-tracking-rank-belly--q {
+            color: #ffdd00;
+        }
+
         .special-tracking-rank-trend--up {
             color: #006400;
         }
@@ -5773,6 +5777,23 @@
             color: #ffffff;
         }
 
+        .filter-popup-special-belly-picker .period-filter-mode-btn[data-belly="?"]:not(:disabled) {
+            border-color: #e6c200;
+            background: #ffdd00;
+            color: #1a1400;
+        }
+
+        .filter-popup-tracking-io-btn[data-tracking-io="q"][aria-pressed="true"] {
+            border-color: #e6c200;
+            background: #ffdd00;
+            color: #1a1400;
+        }
+
+        .filter-popup-special-belly-menu .period-filter-mode-item[data-belly="?"].selected {
+            background: #ffdd00;
+            color: #1a1400;
+        }
+
         .filter-popup-special-trends-picker .period-filter-mode-btn[data-dir="flat"]:not(:disabled) {
             border-color: #000000;
             background: #111111;
@@ -6650,7 +6671,7 @@
         }
 
         /* TRACKING %: I/O = hợp IN∪OUT; I / O = chỉ từng cơ chế */
-        #filterTableWrap.filter-popup-tracking-io-only tbody tr[data-idx]:not(.filter-popup-tracking-in-hit):not(.filter-popup-tracking-out-hit) {
+        #filterTableWrap.filter-popup-tracking-io-only tbody tr[data-idx]:not(.filter-popup-tracking-in-hit):not(.filter-popup-tracking-out-hit):not(.filter-popup-tracking-q-hit) {
             display: none !important;
         }
 
@@ -6659,6 +6680,10 @@
         }
 
         #filterTableWrap.filter-popup-tracking-out-only tbody tr[data-idx]:not(.filter-popup-tracking-out-hit) {
+            display: none !important;
+        }
+
+        #filterTableWrap.filter-popup-tracking-q-only tbody tr[data-idx]:not(.filter-popup-tracking-q-hit) {
             display: none !important;
         }
 
@@ -7121,6 +7146,12 @@
             color: #ff0000;
         }
 
+        .sheet-data-table .cell-belly-val--q,
+        #tableWrap .sheet-data-table .cell-belly-val--q,
+        #filterTableWrap .sheet-data-table .cell-belly-val--q {
+            color: #ffdd00 !important;
+        }
+
         .sheet-data-table td.cell-follow,
         .sheet-data-table th.cell-follow-h {
             padding: 2px 1px;
@@ -7554,6 +7585,11 @@
         .prev-recall-fold-tooltip .special-tip-out,
         .prev-recall-fold-tooltip--special .special-tip-out {
             color: #ff0000 !important;
+        }
+
+        .prev-recall-fold-tooltip .special-tip-q,
+        .prev-recall-fold-tooltip--special .special-tip-q {
+            color: #ffdd00 !important;
         }
 
         .prev-recall-fold-tooltip .special-tip-line--hl {
@@ -9119,19 +9155,19 @@
                         </div>
                     </div>
                     <div id="filterPopupSpecialBellyPicker" class="filter-popup-special-belly-picker hidden"
-                        role="group" aria-label="Lọc belly: All / IN / OUT"
+                        role="group" aria-label="Lọc belly: All / IN / OUT / ?"
                         aria-hidden="true">
                         <div id="filterPopupSpecialBellyDirPicker"
                             class="period-filter-mode-picker filter-popup-special-belly-dir-picker">
                             <button type="button" id="filterPopupSpecialBellyBtn" class="period-filter-mode-btn"
                                 aria-haspopup="listbox" aria-expanded="false" data-belly="all"
-                                title="Belly: All / IN / OUT (chọn nhiều)">
+                                title="Belly: All / IN / OUT / ? — trong bụng / dưới brace / phần bù (đồng bộ basic)">
                                 <span id="filterPopupSpecialBellyBtnLabel">All</span>
                                 <span class="period-filter-mode-caret" aria-hidden="true">▾</span>
                             </button>
                             <ul id="filterPopupSpecialBellyMenu"
                                 class="period-filter-mode-menu filter-popup-special-belly-menu hidden" role="listbox"
-                                aria-multiselectable="true" aria-label="Belly IN/OUT"></ul>
+                                aria-multiselectable="true" aria-label="Belly IN/OUT/?"></ul>
                         </div>
                     </div>
                     <div id="filterPopupSpecialTrendsPicker" class="filter-popup-special-trends-picker hidden"
@@ -9241,15 +9277,18 @@
                     </div>
                     <div id="filterPopupTrackingBellyPicker" class="filter-popup-tracking-belly hidden"
                         role="group" aria-label="Bụng TRACKING: nhiều tên bụng (AND)" aria-hidden="true"
-                        title="Lọc TRACKING basic: kỳ phải có đủ mọi bụng (vd 2三 AND 3四). IN = pick trong bụng; OUT = pick số ngay dưới bụng. + thêm, − bỏ.">
+                        title="Lọc TRACKING: kỳ có bụng (vd 3[1]). IN = trong bụng; OUT = dưới brace; ? = phần bù (có bụng + số gọi nhưng không IN/OUT). Special cùng định nghĩa. +/− bụng.">
                         <div id="filterPopupTrackingIoToggle" class="filter-popup-tracking-io" role="group"
-                            aria-label="Viền xanh: pick trong bụng (IN) / ngay dưới bụng (OUT)">
+                            aria-label="IN trong bụng / OUT dưới brace / ? phần bù — đồng bộ special">
                             <button type="button" id="filterPopupTrackingInBtn"
                                 class="filter-popup-tracking-io-btn" aria-pressed="true"
-                                title="IN: viền xanh khi số gọi nằm trong bụng khớp">IN</button>
+                                title="IN: số gọi nằm trong đúng bụng đang lọc (thành viên 3[1], …)">IN</button>
                             <button type="button" id="filterPopupTrackingOutBtn"
                                 class="filter-popup-tracking-io-btn" aria-pressed="false"
-                                title="OUT: viền xanh khi số gọi là số ngay dưới brace bụng khớp">OUT</button>
+                                title="OUT: số gọi là số ngay dưới brace của đúng bụng đang lọc">OUT</button>
+                            <button type="button" id="filterPopupTrackingQBtn"
+                                class="filter-popup-tracking-io-btn" aria-pressed="false" data-tracking-io="q"
+                                title="?: có đúng bụng đang lọc + số gọi, nhưng không IN và không OUT">?</button>
                         </div>
                         <div id="filterPopupTrackingBellyList" class="filter-popup-tracking-belly-list"></div>
                         <button type="button" id="filterPopupTrackingBellyAdd"
@@ -9479,8 +9518,8 @@
                         aria-label="Phần trăm kỳ 3-tail">0%</button>
                     <button type="button" id="filterPopupTrackingOverlapPct"
                         class="filter-popup-posnfreq-overlap-pct is-tracking-pct-btn" hidden aria-pressed="false"
-                        title="T = hiện đủ kỳ có bụng. Nhấn: T → (I/O chỉ khi IN+OUT cùng bật) → I và/hoặc O theo cơ chế đang bật."
-                        aria-label="Lọc mẫu TRACKING T / I/O / I / O">T 0%</button>
+                        title="T = hiện đủ kỳ có bụng. Nhấn: T → (hợp khi ≥2 cơ chế IN/OUT/? bật) → từng cơ chế đang bật."
+                        aria-label="Lọc mẫu TRACKING T / hợp / I / O / ?">T 0%</button>
                     <button type="button" id="filterPopupPhase1OverlapPct"
                         class="filter-popup-posnfreq-overlap-pct is-phase1-pct-btn" hidden aria-pressed="false"
                         title="T = hiện đủ. Nhấn: T → (hợp xanh→vàng) → A→YA → S→YS → B→YB (relative). Xanh = trong đáp án; vàng = thỏa quan hệ nhưng không trong đáp án."
@@ -9679,7 +9718,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
-    <script src="right-pane-sheets.js?v=20261003p1DistEmptyResultOff"></script>
+    <script src="right-pane-sheets.js?v=20261004bellyQBright"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -9965,7 +10004,7 @@
         const FILTER_SPECIAL_ALL = 'all';
         const FILTER_SPECIAL_KIND_VALUES = ['plain', 'merge', 'split', 'trans'];
         const FILTER_SPECIAL_TREND_DIRS = ['up', 'down', 'flat'];
-        const FILTER_SPECIAL_BELLY_VALUES = ['in', 'out'];
+        const FILTER_SPECIAL_BELLY_VALUES = ['in', 'out', '?'];
         const FILTER_SPECIAL_TREND_STREAK_MAX_FALLBACK = 20;
         const DATEBAND_FILTER_MODE = 'dateband';
         const TAIL_FILTER_MODE = 'tail';
@@ -10071,8 +10110,8 @@
         let filterPopupConn3WindowOnly = false;
         let filterPopupTail3WindowOnly = false;
         /**
-         * TRACKING nút %: 't' (mặc định, hiện đủ) | 'io' (I/O) | 'in' | 'out' | 'off' (ẩn nút).
-         * T = mọi kỳ có bụng; I/O = chỉ viền xanh IN∪OUT; I hoặc O = chỉ từng cơ chế nếu đang bật.
+         * TRACKING nút %: 't' | 'io' (hợp ≥2) | 'in' | 'out' | 'q' | 'off'.
+         * T = mọi kỳ có bụng; io = viền xanh hợp cơ chế đang bật; còn lại = từng cơ chế.
          */
         let filterPopupTrackingSubfilter = 't';
         /**
@@ -10094,10 +10133,12 @@
         /** off | hit | miss — subfilter nút R% (con của khối) */
         let filterPopupP1DistResultSubfilter = 'off';
         let filterPopupP1DistResultHitPct = 0;
-        /** TRACKING: viền xanh khi pick trong bụng (mặc định bật — hành vi cũ) */
+        /** TRACKING: IN = số gọi ∈ nums bụng đang lọc */
         let filterTrackingPickIn = true;
-        /** TRACKING: viền xanh khi pick số ngay dưới brace bụng */
+        /** TRACKING: OUT = số gọi = belowNum bụng đang lọc */
         let filterTrackingPickOut = false;
+        /** TRACKING: ? = phần bù (có bụng + số gọi, không IN/OUT) */
+        let filterTrackingPickQ = false;
         /** PHASE1: 4 cơ chế viền xanh (mặc định ABOVE bật) */
         let filterPhase1Above = true;
         let filterPhase1Same = false;
@@ -10114,7 +10155,7 @@
         /** Mode special trend: ['all'] hoặc ≥1 up/down/flat; streaks [] = mọi streak */
         let filterSpecialTrendDirs = [FILTER_SPECIAL_ALL];
         let filterSpecialTrendStreaks = [];
-        /** Mode special belly: ['all'] hoặc ≥1 in/out */
+        /** Mode special belly: ['all'] hoặc ≥1 in/out/? */
         let filterSpecialBelly = [FILTER_SPECIAL_ALL];
         let filterModeCounts = {};
         let filterPopupLayoutSaveTimer = null;
@@ -12300,7 +12341,7 @@
                 return 'special: lọc theo plain / merge / split / trans (cột special)';
             }
             if (isTrackingFilterMode(mode)) {
-                return 'TRACKING (basic): lọc kỳ có đủ mọi bụng (AND); IN = pick trong bụng; OUT = pick số ngay dưới bụng';
+                return 'TRACKING (basic): lọc kỳ có đủ mọi bụng (AND); IN = trong bụng; OUT = dưới brace; ? = phần bù';
             }
             if (isPhase1FilterMode(mode)) {
                 return 'PHASE1: mẫu = tổng lịch sử. ABOVE/SAME/BELOW = ≥2 số tham khảo ở Chuỗi L+1 / L / L−1 so với một số tím phase1 xuất hiện trên Chuỗi L; NONE = phần bù';
@@ -17260,9 +17301,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return 'All';
             }
             if (active.length === 1) {
-                return active[0].toUpperCase();
+                return active[0] === '?' ? '?' : active[0].toUpperCase();
             }
-            return active.map((b) => b.toUpperCase()).join('+');
+            return active.map((b) => (b === '?' ? '?' : b.toUpperCase())).join('+');
         }
 
         function highlightFilterPopupSpecialBellyMenu() {
@@ -17300,7 +17341,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             const items = [
                 { belly: FILTER_SPECIAL_ALL, label: 'All' },
                 { belly: 'in', label: 'IN' },
-                { belly: 'out', label: 'OUT' }
+                { belly: 'out', label: 'OUT' },
+                { belly: '?', label: '?' }
             ];
             for (let i = 0; i < items.length; i++) {
                 const item = document.createElement('li');
@@ -17382,7 +17424,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 btn.dataset.belly = allOn
                     ? FILTER_SPECIAL_ALL
                     : (active.length === 1 ? active[0] : 'multi');
-                btn.title = 'Belly: All / IN / OUT (chọn nhiều; click ngoài để đóng)';
+                btn.title = 'Belly: All / IN / OUT / ? — trong bụng / dưới brace / phần bù (đồng bộ basic; click ngoài để đóng)';
             }
             if (label) {
                 label.textContent = getFilterSpecialBellyButtonLabel();
@@ -19996,13 +20038,16 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
                 const inHit = tr.classList.contains('filter-popup-tracking-in-hit');
                 const outHit = tr.classList.contains('filter-popup-tracking-out-hit');
+                const qHit = tr.classList.contains('filter-popup-tracking-q-hit');
                 let ok = false;
                 if (mode === 'in') {
                     ok = inHit;
                 } else if (mode === 'out') {
                     ok = outHit;
+                } else if (mode === 'q') {
+                    ok = qHit;
                 } else {
-                    ok = inHit || outHit;
+                    ok = inHit || outHit || qHit;
                 }
                 if (ok) {
                     seen.add(idx);
@@ -20012,10 +20057,30 @@ function getFilterNoteTRefMaxSelections(mode) {
             return out;
         }
 
+        function countFilterTrackingPickMechsOn() {
+            return (filterTrackingPickIn ? 1 : 0)
+                + (filterTrackingPickOut ? 1 : 0)
+                + (filterTrackingPickQ ? 1 : 0);
+        }
+
+        function getFilterTrackingPickUnionLabel() {
+            const parts = [];
+            if (filterTrackingPickIn) {
+                parts.push('I');
+            }
+            if (filterTrackingPickOut) {
+                parts.push('O');
+            }
+            if (filterTrackingPickQ) {
+                parts.push('?');
+            }
+            return parts.length ? parts.join('/') : 'I/O';
+        }
+
         function getAvailableFilterPopupTrackingSubfilters() {
-            // I/O (hợp) chỉ khi IN và OUT cùng bật — giống PHASE1 chỉ có U khi ≥2 cơ chế.
+            // Hợp chỉ khi ≥2 cơ chế — giống PHASE1 U.
             const modes = ['t'];
-            if (filterTrackingPickIn && filterTrackingPickOut) {
+            if (countFilterTrackingPickMechsOn() >= 2) {
                 modes.push('io');
             }
             if (filterTrackingPickIn) {
@@ -20023,6 +20088,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             if (filterTrackingPickOut) {
                 modes.push('out');
+            }
+            if (filterTrackingPickQ) {
+                modes.push('q');
             }
             return modes;
         }
@@ -20036,13 +20104,16 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (available.includes(m)) {
                 return m;
             }
-            // Đang ở I/O rồi tắt còn 1 cơ chế → chuyển sang đúng I hoặc O (không nhảy về T).
+            // Đang ở hợp rồi tắt còn 1 cơ chế → chuyển sang đúng cơ chế đó.
             if (m === 'io') {
-                if (available.includes('in') && !available.includes('out')) {
+                if (available.includes('in') && !available.includes('out') && !available.includes('q')) {
                     return 'in';
                 }
-                if (available.includes('out') && !available.includes('in')) {
+                if (available.includes('out') && !available.includes('in') && !available.includes('q')) {
                     return 'out';
+                }
+                if (available.includes('q') && !available.includes('in') && !available.includes('out')) {
+                    return 'q';
                 }
             }
             return 't';
@@ -20063,8 +20134,11 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (m === 'out') {
                 return 'O';
             }
+            if (m === 'q') {
+                return '?';
+            }
             if (m === 'io') {
-                return 'I/O';
+                return getFilterTrackingPickUnionLabel();
             }
             return 'T';
         }
@@ -20077,6 +20151,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             wrap.classList.toggle('filter-popup-tracking-io-only', m === 'io');
             wrap.classList.toggle('filter-popup-tracking-in-only', m === 'in');
             wrap.classList.toggle('filter-popup-tracking-out-only', m === 'out');
+            wrap.classList.toggle('filter-popup-tracking-q-only', m === 'q');
         }
 
         /** Đang lọc hẹp (không phải T hiện đủ / off). */
@@ -20085,7 +20160,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return false;
             }
             const m = normalizeFilterPopupTrackingSubfilter(filterPopupTrackingSubfilter);
-            return m === 'io' || m === 'in' || m === 'out';
+            return m === 'io' || m === 'in' || m === 'out' || m === 'q';
         }
 
         function isFilterPhase1RelativePosMode() {
@@ -20865,6 +20940,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                     filterTrackingBellies = [createDefaultFilterTrackingBelly()];
                     filterTrackingPickIn = true;
                     filterTrackingPickOut = false;
+                    filterTrackingPickQ = false;
                     return;
                 }
                 const parsed = JSON.parse(raw);
@@ -20876,13 +20952,15 @@ function getFilterNoteTRefMaxSelections(mode) {
                 } else {
                     filterTrackingBellies = [createDefaultFilterTrackingBelly()];
                 }
-                // Legacy không có key → giữ hành vi cũ: IN on, OUT off
+                // Legacy không có key → giữ hành vi cũ: IN on, OUT/Q off
                 filterTrackingPickIn = parsed && parsed.pickIn === false ? false : true;
                 filterTrackingPickOut = !!(parsed && parsed.pickOut);
+                filterTrackingPickQ = !!(parsed && parsed.pickQ);
             } catch (e) {
                 filterTrackingBellies = [createDefaultFilterTrackingBelly()];
                 filterTrackingPickIn = true;
                 filterTrackingPickOut = false;
+                filterTrackingPickQ = false;
             }
             getNormalizedFilterTrackingBellies();
         }
@@ -20892,7 +20970,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                 localStorage.setItem(FILTER_TRACKING_BELLY_KEY, JSON.stringify({
                     bellies: getNormalizedFilterTrackingBellies(),
                     pickIn: !!filterTrackingPickIn,
-                    pickOut: !!filterTrackingPickOut
+                    pickOut: !!filterTrackingPickOut,
+                    pickQ: !!filterTrackingPickQ
                 }));
             } catch (e) { /* ignore */ }
         }
@@ -20901,6 +20980,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             const show = periodFilterEnabled && isTrackingFilterMode(periodFilterMode);
             const inBtn = el('filterPopupTrackingInBtn');
             const outBtn = el('filterPopupTrackingOutBtn');
+            const qBtn = el('filterPopupTrackingQBtn');
             if (inBtn) {
                 inBtn.disabled = !show;
                 inBtn.setAttribute('aria-pressed', filterTrackingPickIn ? 'true' : 'false');
@@ -20908,6 +20988,10 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (outBtn) {
                 outBtn.disabled = !show;
                 outBtn.setAttribute('aria-pressed', filterTrackingPickOut ? 'true' : 'false');
+            }
+            if (qBtn) {
+                qBtn.disabled = !show;
+                qBtn.setAttribute('aria-pressed', filterTrackingPickQ ? 'true' : 'false');
             }
         }
 
@@ -20921,6 +21005,11 @@ function getFilterNoteTRefMaxSelections(mode) {
                     return false;
                 }
                 filterTrackingPickOut = next;
+            } else if (which === 'q') {
+                if (filterTrackingPickQ === next) {
+                    return false;
+                }
+                filterTrackingPickQ = next;
             } else {
                 if (filterTrackingPickIn === next) {
                     return false;
@@ -20929,14 +21018,24 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             saveFilterTrackingBellySettings();
             syncFilterPopupTrackingIoButtons();
-            // Nếu tắt cơ chế đang lọc (vd OUT khi đang O) → về I/O.
+            // Bật cơ chế = lọc list quanh bụng (không kẹt T hiện đủ kỳ có bụng).
+            if (countFilterTrackingPickMechsOn() >= 2) {
+                filterPopupTrackingSubfilter = 'io';
+            } else if (filterTrackingPickIn) {
+                filterPopupTrackingSubfilter = 'in';
+            } else if (filterTrackingPickOut) {
+                filterPopupTrackingSubfilter = 'out';
+            } else if (filterTrackingPickQ) {
+                filterPopupTrackingSubfilter = 'q';
+            } else {
+                filterPopupTrackingSubfilter = 't';
+            }
             filterPopupTrackingSubfilter = normalizeFilterPopupTrackingSubfilter(filterPopupTrackingSubfilter);
-            // Gợi ý streak ▴▾ phụ thuộc % theo IN/OUT đang bật.
+            // Gợi ý streak ▴▾ phụ thuộc % theo cơ chế đang bật.
             if (!isFilterPopupTrackingBellyInputFocused()) {
                 rebuildFilterPopupTrackingBellyList();
             }
             deferFilterPopupHeavyWork(() => {
-                // IN/OUT chỉ đổi viền / trạng thái % — danh sách kỳ (có bụng) giữ nguyên.
                 try {
                     syncFilterPopupTrackingBellyOverlap();
                 } finally {
@@ -21340,7 +21439,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             });
         }
 
-        /** Viền xanh TRACKING theo IN/OUT đang bật. */
+        /** Viền xanh TRACKING theo IN/OUT/? đang bật. */
         function rowMatchesFilterTrackingBellyPickIo(rowIndex, specs) {
             if (!sheetManager) {
                 return false;
@@ -21353,6 +21452,11 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (filterTrackingPickOut
                 && typeof sheetManager.rowMatchesAnyBasicTrackingBellyPickBelow === 'function'
                 && sheetManager.rowMatchesAnyBasicTrackingBellyPickBelow(rowIndex, specs)) {
+                return true;
+            }
+            if (filterTrackingPickQ
+                && typeof sheetManager.rowMatchesAnyBasicTrackingBellyPickUnk === 'function'
+                && sheetManager.rowMatchesAnyBasicTrackingBellyPickUnk(rowIndex, specs)) {
                 return true;
             }
             return false;
@@ -21393,6 +21497,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             const rowKeys = new Array(cache.length);
             const rowPickKeys = new Array(cache.length);
             const rowPickBelowKeys = new Array(cache.length);
+            const rowPickUnkKeys = new Array(cache.length);
             const sizes = new Set();
             const streaks = new Set();
             for (let i = 0; i < cache.length; i++) {
@@ -21401,11 +21506,13 @@ function getFilterNoteTRefMaxSelections(mode) {
                     rowKeys[i] = null;
                     rowPickKeys[i] = null;
                     rowPickBelowKeys[i] = null;
+                    rowPickUnkKeys[i] = null;
                     continue;
                 }
                 const keys = new Set();
                 const pickKeys = new Set();
                 const pickBelowKeys = new Set();
+                const pickUnkKeys = new Set();
                 const picks = sheetManager.parseMainNums(row.result || row.Result || '');
                 const pickSet = picks.length ? new Set(picks) : null;
                 const bellies = cache[i] || [];
@@ -21431,30 +21538,36 @@ function getFilterNoteTRefMaxSelections(mode) {
                             }
                         }
                     }
-                    // OUT: pick = số ngay dưới brace
                     if (belly.belowNum >= 1 && pickSet.has(belly.belowNum)) {
                         pickBelowKeys.add(key);
                     }
                 }
+                if (pickSet) {
+                    keys.forEach((key) => {
+                        if (!pickKeys.has(key) && !pickBelowKeys.has(key)) {
+                            pickUnkKeys.add(key);
+                        }
+                    });
+                }
                 rowKeys[i] = keys;
-                // null = không có số gọi; Set = bụng bị pick IN / OUT
                 rowPickKeys[i] = pickSet ? pickKeys : null;
                 rowPickBelowKeys[i] = pickSet ? pickBelowKeys : null;
+                rowPickUnkKeys[i] = pickSet ? pickUnkKeys : null;
             }
-            return { rowKeys, rowPickKeys, rowPickBelowKeys, sizes, streaks };
+            return { rowKeys, rowPickKeys, rowPickBelowKeys, rowPickUnkKeys, sizes, streaks };
         }
 
         function computeTrackingBellyPickStatsFromIndex(hintIndex, specs) {
             if (!hintIndex || !Array.isArray(specs) || !specs.length) {
                 return { total: 0, green: 0, pct: -1 };
             }
-            if (!filterTrackingPickIn && !filterTrackingPickOut) {
+            if (!filterTrackingPickIn && !filterTrackingPickOut && !filterTrackingPickQ) {
                 return { total: 0, green: 0, pct: -1 };
             }
             const keys = specs.map((s) => `${s.size}:${s.streak}`);
             let total = 0;
             let green = 0;
-            const { rowKeys, rowPickKeys, rowPickBelowKeys } = hintIndex;
+            const { rowKeys, rowPickKeys, rowPickBelowKeys, rowPickUnkKeys } = hintIndex;
             for (let i = 0; i < rowKeys.length; i++) {
                 const rk = rowKeys[i];
                 if (!rk) {
@@ -21473,8 +21586,10 @@ function getFilterNoteTRefMaxSelections(mode) {
                 total++;
                 const pk = rowPickKeys[i];
                 const pb = rowPickBelowKeys && rowPickBelowKeys[i];
+                const pu = rowPickUnkKeys && rowPickUnkKeys[i];
                 let inHit = false;
                 let outHit = false;
+                let qHit = false;
                 if (pk) {
                     for (let k = 0; k < keys.length; k++) {
                         if (pk.has(keys[k])) {
@@ -21491,7 +21606,17 @@ function getFilterNoteTRefMaxSelections(mode) {
                         }
                     }
                 }
-                if ((filterTrackingPickIn && inHit) || (filterTrackingPickOut && outHit)) {
+                if (pu) {
+                    for (let k = 0; k < keys.length; k++) {
+                        if (pu.has(keys[k])) {
+                            qHit = true;
+                            break;
+                        }
+                    }
+                }
+                if ((filterTrackingPickIn && inHit)
+                    || (filterTrackingPickOut && outHit)
+                    || (filterTrackingPickQ && qHit)) {
                     green++;
                 }
             }
@@ -24181,11 +24306,15 @@ function getFilterNoteTRefMaxSelections(mode) {
             bindFilterPopupTrackingSpinButton(addBtn, () => addFilterPopupTrackingBelly());
             const inBtn = el('filterPopupTrackingInBtn');
             const outBtn = el('filterPopupTrackingOutBtn');
+            const qBtn = el('filterPopupTrackingQBtn');
             bindFilterPopupTrackingSpinButton(inBtn, () => {
                 setFilterTrackingPickIo('in', !filterTrackingPickIn);
             });
             bindFilterPopupTrackingSpinButton(outBtn, () => {
                 setFilterTrackingPickIo('out', !filterTrackingPickOut);
+            });
+            bindFilterPopupTrackingSpinButton(qBtn, () => {
+                setFilterTrackingPickIo('q', !filterTrackingPickQ);
             });
         }
 
@@ -27729,12 +27858,13 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return;
             }
             wrap.querySelectorAll(
-                'tbody tr.filter-popup-posnfreq-submit-hit, tbody tr.filter-popup-tracking-in-hit, tbody tr.filter-popup-tracking-out-hit'
+                'tbody tr.filter-popup-posnfreq-submit-hit, tbody tr.filter-popup-tracking-in-hit, tbody tr.filter-popup-tracking-out-hit, tbody tr.filter-popup-tracking-q-hit'
             ).forEach((tr) => {
                 tr.classList.remove(
                     'filter-popup-posnfreq-submit-hit',
                     'filter-popup-tracking-in-hit',
-                    'filter-popup-tracking-out-hit'
+                    'filter-popup-tracking-out-hit',
+                    'filter-popup-tracking-q-hit'
                 );
             });
             const rows = sheetManager.getSourceSheetRows();
@@ -27743,9 +27873,10 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return;
             }
             const specs = getNormalizedFilterTrackingBellies();
-            const ioActive = !!(filterTrackingPickIn || filterTrackingPickOut);
+            const ioActive = !!(filterTrackingPickIn || filterTrackingPickOut || filterTrackingPickQ);
             let inCount = 0;
             let outCount = 0;
+            let qCount = 0;
             let unionCount = 0;
             wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
                 const idx = Number(tr.dataset.idx);
@@ -27754,6 +27885,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
                 let inHit = false;
                 let outHit = false;
+                let qHit = false;
                 if (filterTrackingPickIn
                     && typeof sheetManager.rowMatchesAnyBasicTrackingBellyPick === 'function') {
                     inHit = !!sheetManager.rowMatchesAnyBasicTrackingBellyPick(idx, specs);
@@ -27761,6 +27893,10 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (filterTrackingPickOut
                     && typeof sheetManager.rowMatchesAnyBasicTrackingBellyPickBelow === 'function') {
                     outHit = !!sheetManager.rowMatchesAnyBasicTrackingBellyPickBelow(idx, specs);
+                }
+                if (filterTrackingPickQ
+                    && typeof sheetManager.rowMatchesAnyBasicTrackingBellyPickUnk === 'function') {
+                    qHit = !!sheetManager.rowMatchesAnyBasicTrackingBellyPickUnk(idx, specs);
                 }
                 if (inHit) {
                     tr.classList.add('filter-popup-tracking-in-hit', 'filter-popup-posnfreq-submit-hit');
@@ -27770,7 +27906,11 @@ function getFilterNoteTRefMaxSelections(mode) {
                     tr.classList.add('filter-popup-tracking-out-hit', 'filter-popup-posnfreq-submit-hit');
                     outCount++;
                 }
-                if (inHit || outHit) {
+                if (qHit) {
+                    tr.classList.add('filter-popup-tracking-q-hit', 'filter-popup-posnfreq-submit-hit');
+                    qCount++;
+                }
+                if (inHit || outHit || qHit) {
                     unionCount++;
                 }
             });
@@ -27788,12 +27928,14 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             filterPopupTrackingSubfilter = normalizeFilterPopupTrackingSubfilter(filterPopupTrackingSubfilter);
             let mode = filterPopupTrackingSubfilter;
-            // % luôn theo mẫu cơ chế đang bật: I, O, hoặc I∪O (I/O và T cùng mẫu %).
+            // % theo mẫu cơ chế đang bật: I / O / ? / hợp (T cùng mẫu % với hợp).
             let sampleCount = unionCount;
             if (mode === 'in') {
                 sampleCount = inCount;
             } else if (mode === 'out') {
                 sampleCount = outCount;
+            } else if (mode === 'q') {
+                sampleCount = qCount;
             }
             // Không có mẫu ở trạng thái hẹp → về T (hiện đủ).
             if (mode !== 't' && sampleCount === 0) {
@@ -27802,7 +27944,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 sampleCount = unionCount;
             }
             const pct = tableTotal > 0 ? Math.round((sampleCount / tableTotal) * 100) : 0;
-            const live = mode === 'io' || mode === 'in' || mode === 'out';
+            const live = mode === 'io' || mode === 'in' || mode === 'out' || mode === 'q';
             pctEl.hidden = false;
             pctEl.textContent = `${getFilterPopupTrackingSubfilterLabel(mode)} ${pct}%`;
             pctEl.setAttribute('aria-pressed', live ? 'true' : 'false');

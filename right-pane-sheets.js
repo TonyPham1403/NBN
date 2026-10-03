@@ -504,7 +504,7 @@ class RightPaneSheetManager {
         /** Cache cột sheet1 `trend` (up/down/flat + streak). */
         this._sheet1SpecialPickTrendsCache = null;
         this._sheet1SpecialPickTrendsCacheKey = '';
-        /** Cache cột sheet1 `belly` (in/out — tạo bụng freq-tie sau pick special). */
+        /** Cache cột sheet1 `belly` (IN trong bụng / OUT dưới brace — đồng bộ basic). */
         this._sheet1SpecialPickBellyIoCache = null;
         this._sheet1SpecialPickBellyIoCacheKey = '';
         this.frequencyMap = {};
@@ -5773,8 +5773,12 @@ class RightPaneSheetManager {
                 ? `<span class="cell-trend-val cell-trend-val--${trendKind}">${String(trendKind).toUpperCase()} ${trendStreak}</span>`
                 : '';
             const bellyIo = specialBellyIo[i] || '';
-            const bellyHtml = bellyIo
-                ? `<span class="cell-belly-val cell-belly-val--${bellyIo}">${String(bellyIo).toUpperCase()}</span>`
+            const bellyIoCls = bellyIo === '?' ? 'q' : String(bellyIo || '');
+            const bellyIoTxt = bellyIo === '?'
+                ? '?'
+                : (bellyIo ? String(bellyIo).toUpperCase() : '');
+            const bellyHtml = bellyIoTxt
+                ? `<span class="cell-belly-val cell-belly-val--${bellyIoCls}"${bellyIo === '?' ? ' style="color:#ffdd00"' : ''}>${bellyIoTxt}</span>`
                 : '';
 
             html += `<tr data-idx="${i}" class="data-row${activeClass}" data-has-result="${!!result}" data-empty="${isEmptyResultRow ? '1' : '0'}">
@@ -12803,8 +12807,8 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Cache bụng basic (size + streak + nums) theo từng kỳ nguồn.
-     * Một lượt O(frames): cùng semantics filter (Submit OFF, không preview).
+     * Cache bụng basic (size + streak + nums + belowNum) theo kỳ.
+     * IN/OUT filter: số gọi ∈ nums / === belowNum (Submit OFF, không preview).
      */
     ensureBasicTrackingBellyFilterCache() {
         const rows = this.getSourceSheetRows();
@@ -12876,12 +12880,11 @@ class RightPaneSheetManager {
                     nextStreakByKey.set(streakKey, streak);
                 }
                 nextBellyByFreq.set(freq, bellyKey);
-                // Số ngay dưới brace bụng (slot = maxSlot + 1) — cơ chế OUT.
                 const belowSlot = (group.maxSlot | 0) + 1;
                 let belowNum = null;
-                for (let n = 1; n <= numMax; n++) {
-                    if ((slotByNum[n] | 0) === belowSlot) {
-                        belowNum = n;
+                for (let nn = 1; nn <= numMax; nn++) {
+                    if ((slotByNum[nn] | 0) === belowSlot) {
+                        belowNum = nn;
                         break;
                     }
                 }
@@ -12933,7 +12936,7 @@ class RightPaneSheetManager {
         return true;
     }
 
-    /** Kỳ có số gọi (result) nằm trong bụng khớp size+streak. */
+    /** IN: ≥1 số gọi ∈ nums của đúng bụng size+streak. */
     rowMatchesBasicTrackingBellyPick(rowIndex, memberCount, streak) {
         const rows = this.getSourceSheetRows();
         const row = rows[rowIndex];
@@ -12961,7 +12964,6 @@ class RightPaneSheetManager {
         return false;
     }
 
-    /** Số gọi nằm trong ít nhất một bụng khớp danh sách spec (OR). */
     rowMatchesAnyBasicTrackingBellyPick(rowIndex, specs) {
         const list = Array.isArray(specs) ? specs : [];
         for (let i = 0; i < list.length; i++) {
@@ -12974,9 +12976,43 @@ class RightPaneSheetManager {
     }
 
     /**
-     * OUT: số gọi = số nằm ngay dưới brace bụng khớp size+streak (slot maxSlot+1).
-     * Vẫn làm đổi bụng chỉ định (số dưới thường join vào freq của bụng).
+     * ?: kỳ có bụng size+streak + có số gọi, nhưng không IN và không OUT
+     * (phần bù IN∪OUT quanh đúng bụng đó).
      */
+    rowMatchesBasicTrackingBellyPickUnk(rowIndex, memberCount, streak) {
+        const rows = this.getSourceSheetRows();
+        const row = rows[rowIndex];
+        if (!row || this.isEmptyResultRow(row)) {
+            return false;
+        }
+        const picks = this.parseMainNums(row.result || row.Result || '');
+        if (!picks.length) {
+            return false;
+        }
+        if (!this.rowHasBasicTrackingBelly(rowIndex, memberCount, streak)) {
+            return false;
+        }
+        if (this.rowMatchesBasicTrackingBellyPick(rowIndex, memberCount, streak)) {
+            return false;
+        }
+        if (this.rowMatchesBasicTrackingBellyPickBelow(rowIndex, memberCount, streak)) {
+            return false;
+        }
+        return true;
+    }
+
+    rowMatchesAnyBasicTrackingBellyPickUnk(rowIndex, specs) {
+        const list = Array.isArray(specs) ? specs : [];
+        for (let i = 0; i < list.length; i++) {
+            const spec = list[i];
+            if (this.rowMatchesBasicTrackingBellyPickUnk(rowIndex, spec && spec.size, spec && spec.streak)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** OUT: ≥1 số gọi = số ngay dưới brace của đúng bụng size+streak. */
     rowMatchesBasicTrackingBellyPickBelow(rowIndex, memberCount, streak) {
         const rows = this.getSourceSheetRows();
         const row = rows[rowIndex];
@@ -13008,7 +13044,6 @@ class RightPaneSheetManager {
         return false;
     }
 
-    /** OUT: pick ngay dưới ít nhất một bụng khớp danh sách spec (OR). */
     rowMatchesAnyBasicTrackingBellyPickBelow(rowIndex, specs) {
         const list = Array.isArray(specs) ? specs : [];
         for (let i = 0; i < list.length; i++) {
@@ -13020,7 +13055,7 @@ class RightPaneSheetManager {
         return false;
     }
 
-    /** @deprecated Dùng rowMatchesAnyBasicTrackingBellyPickBelow — OUT ≠ pick ngoài bụng. */
+    /** @deprecated Alias OUT dưới brace. */
     rowHasTrackingBellyPickOutside(rowIndex, specs) {
         return this.rowMatchesAnyBasicTrackingBellyPickBelow(rowIndex, specs);
     }
@@ -15034,9 +15069,9 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Special: nếu pick từng số 1..numMax tại frame hiện tại → in|out (tạo bụng freq-tie hay không).
-     * Cùng kiểu “rào trước” như plain|merge|split|trans — layout post = giả lập click bar đó.
-     * @returns {Record<number, 'in'|'out'|''>}
+     * Special bar IN/OUT/? — cùng basic: layout pre-pick.
+     * IN = trong bụng freq-tie; OUT = số ngay dưới brace; còn lại '?'.
+     * @returns {Record<number, 'in'|'out'|'?'>}
      */
     static computeSpecialTrackingBarPickBellyIo(series, fr, numMax) {
         const ios = Object.create(null);
@@ -15044,19 +15079,19 @@ class RightPaneSheetManager {
         if (!fr) {
             return ios;
         }
+        const preLayout = RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
+            series,
+            fr,
+            false,
+            null
+        );
         for (let n = 1; n <= max; n++) {
-            const postLayout = RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
-                series,
-                fr,
-                false,
-                n
-            );
-            ios[n] = RightPaneSheetManager.classifySpecialPickBellyIo(
-                postLayout.counts,
-                postLayout.slotByNum,
+            ios[n] = RightPaneSheetManager.classifyTrackingPickBellyIo(
+                preLayout.counts,
+                preLayout.slotByNum,
                 n,
                 max
-            ) || 'out';
+            );
         }
         return ios;
     }
@@ -15234,34 +15269,54 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Pick special có tạo bụng freq-tie (≥2 số cùng freq) sau khi cộng đáp án → IN, ngược lại OUT.
+     * IN/OUT/? đồng bộ basic + special (layout = pre-pick):
+     * IN = pick ∈ bụng freq-tie (≥2 cùng freq);
+     * OUT = pick là số ngay dưới brace bụng (slot maxSlot+1);
+     * phần bù → '?'.
      * @param {*} counts
      * @param {*} slotByNum
      * @param {number} pick
      * @param {number} [numMax=12]
-     * @returns {'in'|'out'|''}
+     * @returns {'in'|'out'|'?'}
      */
-    static classifySpecialPickBellyIo(counts, slotByNum, pick, numMax = 12) {
+    static classifyTrackingPickBellyIo(counts, slotByNum, pick, numMax = 12) {
         const n = pick | 0;
         if (!(n >= 1 && n <= numMax)) {
-            return '';
+            return '?';
         }
+        const slots = Array.isArray(slotByNum) ? slotByNum : [];
         const groups = RightPaneSheetManager.buildBasicTrackingFreqTieGroups(
             counts,
-            slotByNum,
+            slots,
             numMax
         );
+        let isOut = false;
         for (let i = 0; i < groups.length; i++) {
-            const nums = groups[i].nums || [];
+            const group = groups[i];
+            const nums = group.nums || [];
+            if (nums.length < 2) {
+                continue;
+            }
             if (nums.indexOf(n) >= 0) {
                 return 'in';
             }
+            const belowSlot = (group.maxSlot | 0) + 1;
+            if ((slots[n] | 0) === belowSlot) {
+                isOut = true;
+            }
         }
-        return 'out';
+        return isOut ? 'out' : '?';
+    }
+
+    /** @deprecated Alias classifyTrackingPickBellyIo */
+    static classifySpecialPickBellyIo(counts, slotByNum, pick, numMax = 12) {
+        return RightPaneSheetManager.classifyTrackingPickBellyIo(
+            counts, slotByNum, pick, numMax
+        );
     }
 
     /**
-     * IN/OUT của bar vừa pick (sau cộng đáp án / giả lập) — cùng bar với UP/DOWN/FLAT.
+     * IN/OUT số pick / giả lập — layout pre-pick (đồng bộ basic).
      * @returns {{ num: number, io: 'in'|'out' }|null}
      */
     static computeSpecialTrackingPickBellyIo(
@@ -15282,12 +15337,8 @@ class RightPaneSheetManager {
             && previewPickNum >= 1
             && previewPickNum <= 12;
         let pick = null;
-        let applyPick = !!applyCurrentPick;
-        let preview = null;
         if (hasPreview) {
             pick = previewPickNum | 0;
-            applyPick = true;
-            preview = pick;
         } else if (applyCurrentPick && !fr.holdFrame && fr.justDrawn != null) {
             pick = fr.justDrawn | 0;
         }
@@ -15297,23 +15348,23 @@ class RightPaneSheetManager {
         const layout = RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
             Array.isArray(series) ? series : [],
             fr,
-            applyPick,
-            preview
+            false,
+            null
         );
-        const io = RightPaneSheetManager.classifySpecialPickBellyIo(
+        const io = RightPaneSheetManager.classifyTrackingPickBellyIo(
             layout.counts,
             layout.slotByNum,
             pick,
             12
         );
-        if (io !== 'in' && io !== 'out') {
+        if (io !== 'in' && io !== 'out' && io !== '?') {
             return null;
         }
         return { num: pick, io };
     }
 
     /**
-     * Cột sheet1 `belly`: in/out theo từng hàng nguồn có pick special.
+     * Cột sheet1 `belly`: IN / OUT / ? (pre-pick, đồng bộ basic).
      * @returns {string[]}
      */
     getSheet1SpecialPickBellyIo(rows) {
@@ -15337,15 +15388,15 @@ class RightPaneSheetManager {
             if (!fr || fr.holdFrame) {
                 continue;
             }
-            const postLayout = RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
+            const preLayout = RightPaneSheetManager.computeSpecialTrackingDisplayLayout(
                 series,
                 fr,
-                true,
+                false,
                 null
             );
-            ios[ri] = RightPaneSheetManager.classifySpecialPickBellyIo(
-                postLayout.counts,
-                postLayout.slotByNum,
+            ios[ri] = RightPaneSheetManager.classifyTrackingPickBellyIo(
+                preLayout.counts,
+                preLayout.slotByNum,
                 pick,
                 12
             );
@@ -15357,7 +15408,7 @@ class RightPaneSheetManager {
     }
 
     countSheet1SpecialPickBellyIo(ios, rowIndices) {
-        const counts = { in: 0, out: 0 };
+        const counts = { in: 0, out: 0, '?': 0 };
         const list = Array.isArray(ios) ? ios : [];
         const idxs = Array.isArray(rowIndices)
             ? rowIndices
@@ -15374,7 +15425,7 @@ class RightPaneSheetManager {
     encodeSheet1BellyStatsTooltipAttr(countsOrText) {
         if (countsOrText && typeof countsOrText === 'object' && !Array.isArray(countsOrText)) {
             const c = countsOrText;
-            return `IN:${c.in || 0}|OUT:${c.out || 0}`;
+            return `IN:${c.in || 0}|OUT:${c.out || 0}|?:${c['?'] || 0}`;
         }
         return String(countsOrText || '')
             .replace(/\r?\n/g, '|')
@@ -17273,7 +17324,7 @@ class RightPaneSheetManager {
                     specialPreviewActive ? specialPreviewPick : null
                 )
                 : null;
-            /** Mỗi bar: IN/OUT nếu click giả lập bar đó (rào trước, giống PLAIN/MERGE). */
+            /** Mỗi bar: IN/OUT sau giả lập pick (trong bụng freq-tie / không). */
             const bellyIoByNum = showActionLabels
                 ? RightPaneSheetManager.computeSpecialTrackingBarPickBellyIo(
                     sheet.specialSeries || sheet.series || [],
@@ -17421,18 +17472,21 @@ class RightPaneSheetManager {
                     }
                 }
                 if (bellyEl) {
-                    const io = bellyIoByNum ? (bellyIoByNum[n] || 'out') : '';
-                    const showBelly = showActionLabels && (io === 'in' || io === 'out');
+                    const io = bellyIoByNum ? (bellyIoByNum[n] || '?') : '';
+                    const showBelly = showActionLabels
+                        && (io === 'in' || io === 'out' || io === '?');
                     bellyEl.hidden = !showBelly;
                     bellyEl.setAttribute('aria-hidden', showBelly ? 'false' : 'true');
                     bellyEl.classList.remove(
                         'special-tracking-rank-belly--in',
-                        'special-tracking-rank-belly--out'
+                        'special-tracking-rank-belly--out',
+                        'special-tracking-rank-belly--q'
                     );
                     if (showBelly) {
-                        const hlLabel = String(io).toUpperCase();
+                        const ioCls = io === '?' ? 'q' : io;
+                        const hlLabel = io === '?' ? '?' : String(io).toUpperCase();
                         bellyEl.textContent = hlLabel;
-                        bellyEl.classList.add(`special-tracking-rank-belly--${io}`);
+                        bellyEl.classList.add(`special-tracking-rank-belly--${ioCls}`);
                         if (bellyStatsAttr) {
                             bellyEl.setAttribute('data-belly-stats', bellyStatsAttr);
                             bellyEl.setAttribute('data-belly-hl', hlLabel);
@@ -19007,17 +19061,18 @@ function formatSheet1SpecialStatsTooltipHtml(text, highlightLabel) {
         if (!raw) {
             continue;
         }
-        const m = /^(PLAIN|MERGE|SPLIT|TRANS|UP|DOWN|FLAT|IN|OUT)(?:\s+(\d+))?\s*:\s*(.*)$/i.exec(raw);
+        const m = /^(PLAIN|MERGE|SPLIT|TRANS|UP|DOWN|FLAT|IN|OUT|\?)(?:\s+(\d+))?\s*:\s*(.*)$/i.exec(raw);
         if (!m) {
             out.push('<div class="special-tip-line">' + raw.replace(/</g, '&lt;') + '</div>');
             continue;
         }
-        const kind = String(m[1] || '').toLowerCase();
+        const rawKind = String(m[1] || '');
+        const kind = rawKind === '?' ? 'q' : rawKind.toLowerCase();
         const streak = m[2] ? String(m[2]) : '';
         const rest = String(m[3] || '').replace(/</g, '&lt;').trim();
         const label = streak
-            ? (String(m[1]).toUpperCase() + ' ' + streak)
-            : String(m[1]).toUpperCase();
+            ? ((rawKind === '?' ? '?' : rawKind.toUpperCase()) + ' ' + streak)
+            : (rawKind === '?' ? '?' : rawKind.toUpperCase());
         const indentClass = streak ? ' special-tip-line--streak' : '';
         const isHl = !!(hlNorm && label === hlNorm);
         out.push(
