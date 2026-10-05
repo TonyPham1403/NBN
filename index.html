@@ -9013,7 +9013,7 @@
         <div id="appStage">
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20261005yxFreqSub"
+            <iframe id="okFrame" src="ok_left.html?v=20261006tail3Autoring"
                 style="width:100%;height:100%;border:0"></iframe>
         </section>
 
@@ -9025,21 +9025,22 @@
                             title="Bật/tắt khoanh tự động (Shift — không kèm click bar tracking)"
                             aria-label="Toggle auto circle submit numbers (Shift, not with tracking bar click)"></button>
                         <div id="submitRingControls" class="submit-ring-controls">
-                            <div id="submitRingModeWrap" class="sheet-tools-mode-wrap"
-                                title="Chọn kiểu khoanh: freq, x, 3-connection, tail">
+                                <div id="submitRingModeWrap" class="sheet-tools-mode-wrap"
+                                    title="Chọn kiểu khoanh: freq, x, 3-connection, 3-tail, tail">
                                 <span id="submitRingModeValue" class="sheet-tools-mode-value">FREQ</span>
                                 <button type="button" id="submitRingModeBtn" class="submit-ring-mode-btn"
                                     aria-haspopup="listbox" aria-expanded="false"
-                                    title="Chọn kiểu khoanh: freq, x, 3-connection, tail"></button>
+                                    title="Chọn kiểu khoanh: freq, x, 3-connection, 3-tail, tail"></button>
                                 <select id="submitRingModeSelect"
-                                    title="freq / x (1–35) / CUflip / 3-connection / tail"
+                                    title="freq / x (1–35) / CUflip / 3-connection / 3-tail / tail"
                                     aria-label="Submit auto circle mode">
                                     <option value="freq">freq</option>
                                     <option value="relative">relative</option>
                                     <option value="custom">x</option>
                                     <option value="cuflip">CUflip</option>
-                                    <option value="conn3">3-connection</option>
                                     <option value="tail">tail</option>
+                                    <option value="tail3">3-tail</option>
+                                    <option value="conn3">3-connection</option>
                                     <option value="nonexist">nonexist</option>
                                     <option value="dateband"> </option>
                                     <option value="chain">Chuỗi []</option>
@@ -9888,7 +9889,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
-    <script src="right-pane-sheets.js?v=20261006tail3AtLeast"></script>
+    <script src="right-pane-sheets.js?v=20261006tail3Autoring"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -10026,8 +10027,8 @@
         const SUBMIT_RING_CUSTOM_X_KEY = 'submitRingCustomX';
         const SUBMIT_RING_FREQ_THRESH_KEY = 'submitRingFreqThresh';
         const SUBMIT_RING_RELATIVE_KEY = 'submitRingRelativeASB';
-        const SUBMIT_RING_VALID_MODES = ['freq', 'relative', 'max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'conn3', 'tail', 'nonexist', 'dateband', 'cuflip', 'cn', 'chain', 'sameRow'];
-        const SUBMIT_RING_FREQ_MODES = ['freq', 'relative', 'custom', 'cuflip', 'conn3', 'tail', 'nonexist', 'dateband', 'chain', 'sameRow'];
+        const SUBMIT_RING_VALID_MODES = ['freq', 'relative', 'max', 'min', 'custom', 'conn', 'ix', 'conn_ix', 'tail', 'tail3', 'conn3', 'nonexist', 'dateband', 'cuflip', 'cn', 'chain', 'sameRow'];
+        const SUBMIT_RING_FREQ_MODES = ['freq', 'relative', 'custom', 'cuflip', 'tail', 'tail3', 'conn3', 'nonexist', 'dateband', 'chain', 'sameRow'];
         const SUBMIT_RING_CHAIN_MODE = 'chain';
         const SUBMIT_RING_CHAIN_LABEL = 'Chuỗi []';
         const PHASE_ENABLED_KEY = 'phaseToolbarEnabled';
@@ -10933,6 +10934,12 @@
                 submitRingFreqMode = 'conn3';
                 return;
             }
+            if (m === 'tail3') {
+                submitRingLabelConn = false;
+                submitRingLabelIx = false;
+                submitRingFreqMode = 'tail3';
+                return;
+            }
             if (m === 'tail') {
                 submitRingLabelConn = false;
                 submitRingLabelIx = false;
@@ -11026,6 +11033,9 @@
             }
             if (m === 'conn3') {
                 return '3-connection';
+            }
+            if (m === 'tail3') {
+                return '3-tail';
             }
             if (m === SUBMIT_RING_CUFLIP_MODE || m === 'cn') {
                 return SUBMIT_RING_CUFLIP_LABEL;
@@ -11403,6 +11413,39 @@
             return Array.from(out).sort((a, b) => a - b);
         }
 
+        /** Autoring 3-tail: khoanh các X (derive) ★ của kỳ focus. */
+        function getSubmitRingTail3CircleNumsForFocusRow(rowIndex) {
+            if (!sheetManager || typeof rowIndex !== 'number' || rowIndex < 0) {
+                return [];
+            }
+            let star = null;
+            if (typeof sheetManager.getTail3StarCellCached === 'function') {
+                star = sheetManager.getTail3StarCellCached(rowIndex);
+            } else if (typeof sheetManager.computeTail3StarCellForRow === 'function') {
+                const rows = sheetManager.getSourceSheetRows();
+                star = sheetManager.computeTail3StarCellForRow(rows, rowIndex);
+            }
+            if (!star || !star.hit) {
+                return [];
+            }
+            const parse = typeof sheetManager.parseFollowCellNums === 'function'
+                ? (v) => sheetManager.parseFollowCellNums(v)
+                : (v) => String(v || '').split(/[,;\s]+/).map((x) => parseInt(x, 10)).filter((n) => Number.isFinite(n) && n >= 1 && n <= 35);
+            const xs = parse(star.derive);
+            return xs.slice().sort((a, b) => a - b);
+        }
+
+        function getSubmitRingProvidedCircleNumsForFocusRow(rowIndex) {
+            const mode = getEffectiveSubmitRingMode();
+            if (isSubmitRingLabelMode(mode)) {
+                return getSubmitRingLabelCircleNumsForFocusRow(rowIndex);
+            }
+            if (mode === 'tail3') {
+                return getSubmitRingTail3CircleNumsForFocusRow(rowIndex);
+            }
+            return null;
+        }
+
         function notifyLeftAutoringStateToTracking() {
             if (sheetManager && typeof sheetManager.setLeftAutoringEnabled === 'function') {
                 sheetManager.setLeftAutoringEnabled(!!submitRingEnabled);
@@ -11444,9 +11487,7 @@
             syncSubmitRingModeFromUi();
             const contextSync = !!options.contextSync;
             const mode = normalizeSubmitRingMode(submitRingMode);
-            const labelCircleNums = isSubmitRingLabelMode(mode)
-                ? getSubmitRingLabelCircleNumsForFocusRow(resolveSubmitRingLabelFocusRowIndex())
-                : null;
+            const labelCircleNums = getSubmitRingProvidedCircleNumsForFocusRow(resolveSubmitRingLabelFocusRowIndex());
             frame.contentWindow.postMessage({
                 type: 'submitAutoCircleChanged',
                 enabled: !!submitRingEnabled,
@@ -11920,7 +11961,7 @@
             }
             if (modeValue) {
                 applySubmitRingModeMenuVisual(modeValue, modeValueMode);
-                modeValue.style.textTransform = (modeValueMode === 'freq' || modeValueMode === 'relative' || modeValueMode === 'custom' || modeValueMode === 'conn3' || modeValueMode === 'tail' || modeValueMode === 'dateband' || modeValueMode === SUBMIT_RING_CHAIN_MODE || modeValueMode === SUBMIT_RING_CUFLIP_MODE || modeValueMode === 'sameRow') ? 'none' : 'uppercase';
+                modeValue.style.textTransform = (modeValueMode === 'freq' || modeValueMode === 'relative' || modeValueMode === 'custom' || modeValueMode === 'conn3' || modeValueMode === 'tail3' || modeValueMode === 'tail' || modeValueMode === 'dateband' || modeValueMode === SUBMIT_RING_CHAIN_MODE || modeValueMode === SUBMIT_RING_CUFLIP_MODE || modeValueMode === 'sameRow') ? 'none' : 'uppercase';
                 if (modeValueMode === 'relative') {
                     modeValue.textContent = getSubmitRingModeDisplayLabel('relative');
                     modeValue.setAttribute('aria-label', modeValue.textContent);
@@ -27666,7 +27707,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 submitAutoCircleRelBelow: !!submitRingRelBelow,
                 ...getSubmitRingDatebandPayload(),
                 labelCircleNums: (() => {
-                    const nums = getSubmitRingLabelCircleNumsForFocusRow(detail.focusRowIndex);
+                    const nums = getSubmitRingProvidedCircleNumsForFocusRow(detail.focusRowIndex);
                     return Array.isArray(nums) ? nums : undefined;
                 })(),
                 referenceConn3HeaderLines: detail.skipReferenceMeta ? [] : (detail.referenceConn3HeaderLines || []),
@@ -31335,7 +31376,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                         submitAutoCircleRelBelow: !!submitRingRelBelow,
                         ...getSubmitRingDatebandPayload(),
                         labelCircleNums: (() => {
-                            const nums = getSubmitRingLabelCircleNumsForFocusRow(detail.focusRowIndex);
+                            const nums = getSubmitRingProvidedCircleNumsForFocusRow(detail.focusRowIndex);
                             return Array.isArray(nums) ? nums : undefined;
                         })(),
                         referenceConn3HeaderLines: referenceConn3HeaderLines,

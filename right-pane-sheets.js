@@ -11491,6 +11491,9 @@ class RightPaneSheetManager {
             || this.rowHasCyanDateBand(rows, rowIndex)) {
             return 'dateband';
         }
+        if (this.rowMatchesTail3Filter(rows, rowIndex)) {
+            return 'tail3';
+        }
         let tailTh = parseInt(opts.tailMinCount, 10);
         if (!Number.isFinite(tailTh)) {
             tailTh = 2;

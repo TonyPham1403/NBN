@@ -3856,7 +3856,7 @@
 
         function normalizeSubmitAutoCircleMode(mode) {
             var m = String(mode || '').trim();
-            if (m === 'freq' || m === 'relative' || m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail' || m === 'nonexist' || m === 'dateband' || m === 'chain' || m === 'sameRow') {
+            if (m === 'freq' || m === 'relative' || m === 'min' || m === 'max' || m === 'custom' || m === 'conn' || m === 'ix' || m === 'conn_ix' || m === 'conn3' || m === 'tail3' || m === 'tail' || m === 'nonexist' || m === 'dateband' || m === 'chain' || m === 'sameRow') {
                 if (m === 'min' || m === 'max') {
                     return 'freq';
                 }
@@ -4288,6 +4288,12 @@
         function isLabelSubmitAutoCircleMode(mode) {
             var m = normalizeSubmitAutoCircleMode(mode);
             return m === 'conn' || m === 'ix' || m === 'conn_ix';
+        }
+
+        /** Mode nhận danh sách khoanh từ parent (C/∩ hoặc 3-tail ★). */
+        function usesParentProvidedAutoCircleNums(mode) {
+            var m = normalizeSubmitAutoCircleMode(mode);
+            return isLabelSubmitAutoCircleMode(m) || m === 'tail3';
         }
 
         function getPickChainLinesForAutoring() {
@@ -4895,6 +4901,14 @@
                 getConn3CircleNumsFromAnswer(getAnswerNumsForAutoring()).forEach(function (n) {
                     out.add(n);
                 });
+                return out;
+            }
+            if (mode === 'tail3') {
+                if (lastSubmitAutoCircleLabelNums && lastSubmitAutoCircleLabelNums.length) {
+                    lastSubmitAutoCircleLabelNums.forEach(function (n) {
+                        out.add(n);
+                    });
+                }
                 return out;
             }
             if (mode === 'tail') {
@@ -5952,10 +5966,10 @@
         }
 
         function getSubmitAutoCircleNumsForApply(msg) {
-            if (msg && Array.isArray(msg.labelCircleNums) && isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
+            if (msg && Array.isArray(msg.labelCircleNums) && usesParentProvidedAutoCircleNums(submitAutoCircleMode)) {
                 return normalizeSubmitAutoCircleNumList(msg.labelCircleNums);
             }
-            if (lastSubmitAutoCircleLabelNums && isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
+            if (lastSubmitAutoCircleLabelNums && usesParentProvidedAutoCircleNums(submitAutoCircleMode)) {
                 return lastSubmitAutoCircleLabelNums.slice();
             }
             return Array.from(getSubmitAutoCircleSet()).filter(function (n) { return !isNaN(n); });
@@ -13409,9 +13423,9 @@
                             submitAutoCircleEnabled = msg.submitAutoCircleEnabled;
                         }
                         submitAutoCircleMode = normalizeSubmitAutoCircleMode(msg.submitAutoCircleMode);
-                        if (Array.isArray(msg.labelCircleNums) && isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
+                        if (Array.isArray(msg.labelCircleNums) && usesParentProvidedAutoCircleNums(submitAutoCircleMode)) {
                             lastSubmitAutoCircleLabelNums = normalizeSubmitAutoCircleNumList(msg.labelCircleNums);
-                        } else {
+                        } else if (!usesParentProvidedAutoCircleNums(submitAutoCircleMode)) {
                             lastSubmitAutoCircleLabelNums = null;
                         }
                         if (msg.submitAutoCircleCustomX !== undefined && msg.submitAutoCircleCustomX !== null && msg.submitAutoCircleCustomX !== '') {
@@ -13826,9 +13840,9 @@
                     }
                     applySubmitAutoCircleDatebandFromMsg(msg);
                     applySubmitAutoCircleChainFromMsg(msg);
-                    if (Array.isArray(msg.labelCircleNums) && isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
+                    if (Array.isArray(msg.labelCircleNums) && usesParentProvidedAutoCircleNums(submitAutoCircleMode)) {
                         lastSubmitAutoCircleLabelNums = normalizeSubmitAutoCircleNumList(msg.labelCircleNums);
-                    } else if (!isLabelSubmitAutoCircleMode(submitAutoCircleMode)) {
+                    } else if (!usesParentProvidedAutoCircleNums(submitAutoCircleMode)) {
                         lastSubmitAutoCircleLabelNums = null;
                     }
 
