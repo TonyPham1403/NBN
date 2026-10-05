@@ -819,6 +819,12 @@
             box-shadow: inset 0 0 0 1.5px #ff3fb7;
         }
 
+        /* Freq dưới chân X trong Y→X (₇→₁₅₁) */
+        .reference-hint-tail-x,
+        .reference-hint-group-x {
+            font-variant-numeric: tabular-nums;
+        }
+
         .reference-hint-apply-btn {
             display: none;
         }
@@ -2628,6 +2634,30 @@
             return true;
         }
 
+        function toUnicodeSubscriptDigits(n) {
+            const digits = '₀₁₂₃₄₅₆₇₈₉';
+            const s = String(Math.max(0, n | 0));
+            let out = '';
+            for (let i = 0; i < s.length; i++) {
+                const d = s.charCodeAt(i) - 48;
+                out += (d >= 0 && d <= 9) ? digits[d] : s.charAt(i);
+            }
+            return out;
+        }
+
+        function formatReferenceHintXLabel(xNum, xFreq) {
+            const n = parseInt(xNum, 10);
+            const base = Number.isFinite(n) ? String(n) : String(xNum == null ? '' : xNum);
+            if (!Number.isFinite(xFreq) && xFreq !== 0) {
+                return base;
+            }
+            return base + toUnicodeSubscriptDigits(xFreq);
+        }
+
+        function formatReferenceHintYLabel(yNum, yFreq) {
+            return formatReferenceHintXLabel(yNum, yFreq);
+        }
+
         function referenceHintRowKey(t) {
             if (!t) {
                 return '';
@@ -2886,19 +2916,24 @@
                         }
                     }
                     const ys = Array.isArray(g.ys) ? g.ys : [];
+                    const yFreqs = Array.isArray(g.yFreqs) ? g.yFreqs : [];
                     for (let yi = 0; yi < ys.length; yi++) {
                         if (yi > 0) {
                             item.appendChild(document.createTextNode(','));
                         }
                         const yNum = parseInt(ys[yi], 10);
+                        const yFreq = Number.isFinite(yFreqs[yi])
+                            ? (yFreqs[yi] | 0)
+                            : null;
                         const yEl = document.createElement('span');
                         const yIsMax = Number.isFinite(phaseMax) && yNum === phaseMax;
                         yEl.className = 'reference-hint-tail-y'
                             + (yIsMax ? ' is-phase-max' : '');
-                        yEl.textContent = String(yNum);
+                        yEl.textContent = formatReferenceHintYLabel(yNum, yFreq);
+                        const yFreqTitle = (yFreq != null) ? (' · freq ' + yFreq) : '';
                         yEl.title = yIsMax
-                            ? ('Phase1 max-freq (hồng): ' + yNum)
-                            : ('Phase1 (tím): ' + yNum);
+                            ? ('Phase1 max-freq (hồng): ' + yNum + yFreqTitle)
+                            : ('Phase1 (tím): ' + yNum + yFreqTitle);
                         item.appendChild(yEl);
                     }
                     item.appendChild(document.createTextNode('\u2192'));
@@ -2907,19 +2942,23 @@
                         + (g.xIsFreqZero ? ' is-freq-zero' : '')
                         + (g.xIsPhaseMax ? ' is-phase1 is-phase-max'
                             : (g.xIsPhase1 ? ' is-phase1' : ''));
-                    xEl.textContent = String(g.x);
+                    const xFreq = Number.isFinite(g.xFreq) ? (g.xFreq | 0)
+                        : (g.xIsFreqZero ? 0 : null);
+                    xEl.textContent = formatReferenceHintXLabel(g.x, xFreq);
+                    const freqTitle = (xFreq != null) ? (' · freq ' + xFreq) : '';
                     if (g.xIsPhaseMax) {
-                        xEl.title = 'Phase1 max-freq (hồng): ' + g.x
-                            + (g.xIsFreqZero ? ' · freq 0' : '');
+                        xEl.title = 'Phase1 max-freq (hồng): ' + g.x + freqTitle;
                     } else if (g.xIsPhase1) {
-                        xEl.title = 'Phase1 (tím): ' + g.x
-                            + (g.xIsFreqZero ? ' · freq 0' : '');
+                        xEl.title = 'Phase1 (tím): ' + g.x + freqTitle;
                     } else if (g.xIsFreqZero) {
                         xEl.title = 'Freq 0 (vàng): ' + g.x;
+                    } else if (xFreq != null) {
+                        xEl.title = 'Freq ' + xFreq + ': ' + g.x;
                     }
                     item.appendChild(xEl);
                     item.title = 'Click để bật/tắt Apply: '
-                        + String(g.label || (ys.join(',') + '\u2192' + g.x));
+                        + String(g.label || (ys.join(',') + '\u2192'
+                            + formatReferenceHintXLabel(g.x, xFreq)));
                     (function (itemEl, nums, groupIndex, xNum) {
                         itemEl.addEventListener('click', function (ev) {
                             ev.preventDefault();
@@ -2984,10 +3023,12 @@
                     const yEl = document.createElement('span');
                     yEl.className = 'reference-hint-tail-y'
                         + (t.yIsPhaseMax ? ' is-phase-max' : '');
-                    yEl.textContent = String(yNum);
+                    const yFreq = Number.isFinite(t.yFreq) ? (t.yFreq | 0) : null;
+                    yEl.textContent = formatReferenceHintYLabel(yNum, yFreq);
+                    const yFreqTitle = (yFreq != null) ? (' · freq ' + yFreq) : '';
                     yEl.title = t.yIsPhaseMax
-                        ? ('Phase1 max-freq (hồng): ' + yNum)
-                        : ('Phase1 (tím): ' + yNum);
+                        ? ('Phase1 max-freq (hồng): ' + yNum + yFreqTitle)
+                        : ('Phase1 (tím): ' + yNum + yFreqTitle);
                     arrowEl.appendChild(yEl);
                     arrowEl.appendChild(document.createTextNode('\u2192'));
                     const xEl = document.createElement('span');
@@ -2995,20 +3036,25 @@
                         + (t.xIsFreqZero ? ' is-freq-zero' : '')
                         + (t.xIsPhaseMax ? ' is-phase1 is-phase-max'
                             : (t.xIsPhase1 ? ' is-phase1' : ''));
-                    xEl.textContent = String(xNum);
+                    const xFreq = Number.isFinite(t.xFreq) ? (t.xFreq | 0)
+                        : (t.xIsFreqZero ? 0 : null);
+                    xEl.textContent = formatReferenceHintXLabel(xNum, xFreq);
+                    const freqTitle = (xFreq != null) ? (' · freq ' + xFreq) : '';
                     if (t.xIsPhaseMax) {
-                        xEl.title = 'Phase1 max-freq (hồng): ' + xNum
-                            + (t.xIsFreqZero ? ' · freq 0' : '');
+                        xEl.title = 'Phase1 max-freq (hồng): ' + xNum + freqTitle;
                     } else if (t.xIsPhase1) {
-                        xEl.title = 'Phase1 (tím): ' + xNum
-                            + (t.xIsFreqZero ? ' · freq 0' : '');
+                        xEl.title = 'Phase1 (tím): ' + xNum + freqTitle;
                     } else if (t.xIsFreqZero) {
                         xEl.title = 'Freq 0 (vàng): ' + xNum;
+                    } else if (xFreq != null) {
+                        xEl.title = 'Freq ' + xFreq + ': ' + xNum;
                     }
                     arrowEl.appendChild(xEl);
                     line.appendChild(edgesEl);
                     line.appendChild(arrowEl);
-                    line.title = '[' + edgesArr.join(', ') + ']  ' + yNum + '\u2192' + xNum;
+                    line.title = '[' + edgesArr.join(', ') + ']  '
+                        + formatReferenceHintYLabel(yNum, yFreq) + '\u2192'
+                        + formatReferenceHintXLabel(xNum, xFreq);
                 } else {
                     line.textContent = t.label || '';
                     line.title = t.label || '';

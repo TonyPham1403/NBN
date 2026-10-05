@@ -4069,14 +4069,18 @@ class RightPaneSheetManager {
                 }
             }
         }
-        /** @type {{ sorted: number[], inAnswer: boolean, label: string, y: number, x: number, edges: string[], yIsPhaseMax: boolean, yFreq: number, xIsFreqZero: boolean, xIsPhase1: boolean, xIsPhaseMax: boolean, chains: object | null }[]} */
+        /** @type {{ sorted: number[], inAnswer: boolean, label: string, y: number, x: number, edges: string[], yIsPhaseMax: boolean, yFreq: number, xFreq: number, xIsFreqZero: boolean, xIsPhase1: boolean, xIsPhaseMax: boolean, chains: object | null }[]} */
         const tripletRows = [];
         for (let ci = 0; ci < candidates.length; ci++) {
             const c = candidates[ci];
             for (let pi = 0; pi < c.partners.length; pi++) {
                 const p = c.partners[pi];
                 const edgeStr = `[${p.edges.join(', ')}]`;
-                const arrowStr = `${p.y}→${c.num}`;
+                const xFreq = yFreqMap.get(c.num) || 0;
+                const yFreq = yFreqMap.get(p.y) || 0;
+                const xFreqSub = RightPaneSheetManager.toUnicodeSubscriptDigits(xFreq);
+                const yFreqSub = RightPaneSheetManager.toUnicodeSubscriptDigits(yFreq);
+                const arrowStr = `${p.y}${yFreqSub}→${c.num}${xFreqSub}`;
                 const tag = c.inAnswer ? ' ★ đáp án' : '';
                 const label = `${edgeStr}    ${arrowStr}${tag}`;
                 const yIsPhaseMax = phaseMaxNum != null && p.y === phaseMaxNum;
@@ -4088,15 +4092,16 @@ class RightPaneSheetManager {
                     x: c.num,
                     edges: p.edges.slice(),
                     yIsPhaseMax,
-                    yFreq: yFreqMap.get(p.y) || 0,
-                    xIsFreqZero: (yFreqMap.get(c.num) || 0) === 0,
+                    yFreq,
+                    xFreq,
+                    xIsFreqZero: xFreq === 0,
                     xIsPhase1: phase1Set.has(c.num),
                     xIsPhaseMax: phaseMaxNum != null && c.num === phaseMaxNum,
                     chains: null
                 });
             }
         }
-        // Freq giảm dần: hồng (max) trên cùng → tím freq thấp dần.
+        // Freq giảm dần; cùng freq → Y lớn trước (vd 33 trước 7); rồi X tăng.
         tripletRows.sort((a, b) => {
             if (b.yFreq !== a.yFreq) {
                 return b.yFreq - a.yFreq;
@@ -4105,7 +4110,7 @@ class RightPaneSheetManager {
                 return a.yIsPhaseMax ? -1 : 1;
             }
             if (a.y !== b.y) {
-                return a.y - b.y;
+                return b.y - a.y;
             }
             return a.x - b.x;
         });
@@ -4116,8 +4121,8 @@ class RightPaneSheetManager {
         const footerLine = `Tổng: ${candidates.length} số có thể tạo 3-tail`
             + (inAns ? ` (${inAns} nằm trong đáp án)` : '')
             + '.';
-        // Gộp theo X: Y1,Y2→X — số Y giảm dần; cùng số Y thì max freq(Y) giảm dần.
-        /** @type {{ x: number, ys: number[], label: string, inAnswer: boolean, xIsFreqZero: boolean, xIsPhase1: boolean, xIsPhaseMax: boolean, yCount: number, maxYFreq: number }[]} */
+        // Gộp theo X: Y₁,Y₂→Xₙ — Y freq cao trước; cùng freq thì Y lớn trước (33 trước 7).
+        /** @type {{ x: number, ys: number[], yFreqs: number[], label: string, inAnswer: boolean, xFreq: number, xIsFreqZero: boolean, xIsPhase1: boolean, xIsPhaseMax: boolean, yCount: number, maxYFreq: number, maxY: number }[]} */
         const groupLines = candidates.map((c) => {
             const ys = c.partners.map((p) => p.y).slice().sort((a, b) => {
                 const fa = yFreqMap.get(a) || 0;
@@ -4125,32 +4130,55 @@ class RightPaneSheetManager {
                 if (fb !== fa) {
                     return fb - fa;
                 }
-                return a - b;
+                return b - a;
             });
             let maxYFreq = 0;
+            let maxY = 0;
             for (let yi = 0; yi < ys.length; yi++) {
-                const f = yFreqMap.get(ys[yi]) || 0;
+                const y = ys[yi];
+                const f = yFreqMap.get(y) || 0;
                 if (f > maxYFreq) {
                     maxYFreq = f;
                 }
+                if (y > maxY) {
+                    maxY = y;
+                }
             }
+            const xFreq = yFreqMap.get(c.num) || 0;
+            const xFreqSub = RightPaneSheetManager.toUnicodeSubscriptDigits(xFreq);
+            const ysLabeled = ys.map((y) => {
+                const yf = yFreqMap.get(y) || 0;
+                return `${y}${RightPaneSheetManager.toUnicodeSubscriptDigits(yf)}`;
+            });
             return {
                 x: c.num,
                 ys,
-                label: `${ys.join(',')}→${c.num}`,
+                yFreqs: ys.map((y) => yFreqMap.get(y) || 0),
+                label: `${ysLabeled.join(',')}→${c.num}${xFreqSub}`,
                 inAnswer: !!c.inAnswer,
-                xIsFreqZero: (yFreqMap.get(c.num) || 0) === 0,
+                xFreq,
+                xIsFreqZero: xFreq === 0,
                 xIsPhase1: phase1Set.has(c.num),
                 xIsPhaseMax: phaseMaxNum != null && c.num === phaseMaxNum,
                 yCount: ys.length,
-                maxYFreq
+                maxYFreq,
+                maxY
             };
         }).sort((a, b) => {
+            // Ưu tiên số Y bên trái nhiều hơn (7,30→… trước 33→…).
             if (b.yCount !== a.yCount) {
                 return b.yCount - a.yCount;
             }
+            // Cùng số Y: Y lớn trước (33… rồi 7…).
+            if (b.maxY !== a.maxY) {
+                return b.maxY - a.maxY;
+            }
             if (b.maxYFreq !== a.maxYFreq) {
                 return b.maxYFreq - a.maxYFreq;
+            }
+            // Cùng tập Y (cùng maxY/maxYFreq): freq X bên phải lớn trước (34₃ trước 11₂).
+            if (b.xFreq !== a.xFreq) {
+                return b.xFreq - a.xFreq;
             }
             return a.x - b.x;
         });
@@ -4809,6 +4837,22 @@ class RightPaneSheetManager {
             if (Number.isFinite(n) && n >= 1 && n <= 10 && out.indexOf(n) < 0) {
                 out.push(n);
             }
+        }
+        return out;
+    }
+
+    /**
+     * Số → chữ số Unicode subscript (vd 15 → ₁₅). Dùng gắn freq dưới chân X trong Y→X.
+     * @param {number} n
+     * @returns {string}
+     */
+    static toUnicodeSubscriptDigits(n) {
+        const digits = '₀₁₂₃₄₅₆₇₈₉';
+        const s = String(Math.max(0, n | 0));
+        let out = '';
+        for (let i = 0; i < s.length; i++) {
+            const d = s.charCodeAt(i) - 48;
+            out += (d >= 0 && d <= 9) ? digits[d] : s.charAt(i);
         }
         return out;
     }
