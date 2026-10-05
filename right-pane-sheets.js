@@ -2707,7 +2707,7 @@ class RightPaneSheetManager {
     /**
      * P1_dist: mỗi hàng tham số gán một số distinct trên Chuỗi 1.
      * freq = số chuỗi trong cửa sổ 10 có số đó.
-     * posSlots length === freq; posSlots[0] luôn '1'; các ô còn lại: trống=any, 2–9=chuỗi (unique), chữ=nhóm cùng hàng.
+     * posSlots length === freq; posSlots[0] luôn '1'; các ô còn lại: trống=any, 2–9=chuỗi (unique), chữ/x±n=nhóm cùng hàng (±offset).
      * @param {object[]} rows
      * @param {number} rowIndex
      * @param {{ num: number|null, freq: number, posSlots: string[] }[]} specs
@@ -2775,16 +2775,48 @@ class RightPaneSheetManager {
             const out = [];
             const slots = Array.isArray(spec.posSlots) ? spec.posSlots : [];
             for (let i = 1; i < slots.length; i++) {
-                const raw = String(slots[i] == null ? '' : slots[i]).trim().toLowerCase();
-                if (/^[a-z]$/.test(raw) && out.indexOf(raw) === -1) {
-                    out.push(raw);
+                const raw = String(slots[i] == null ? '' : slots[i]).trim().toLowerCase().replace(/\s+/g, '');
+                const m = /^([a-z])(?:[+-]\d{1,2})?$/.exec(raw);
+                if (m && out.indexOf(m[1]) === -1) {
+                    out.push(m[1]);
                 }
             }
             return out;
         };
 
         /**
-         * Duyệt mọi cách gán rem↔slots (mọi cách bind chữ). onHit()=true → dừng, giữ bind.
+         * @param {string} raw
+         * @returns {{ kind: 'any'|'chain'|'letter'|'bad', chain?: number, letter?: string, offset?: number }}
+         */
+        const parsePosTok = (raw) => {
+            const s = String(raw == null ? '' : raw).trim().toLowerCase().replace(/\s+/g, '');
+            if (!s) {
+                return { kind: 'any' };
+            }
+            if (/^\d+$/.test(s)) {
+                const asNum = parseInt(s, 10);
+                if (Number.isFinite(asNum) && String(asNum) === s && asNum >= 2 && asNum <= 9) {
+                    return { kind: 'chain', chain: asNum };
+                }
+                return { kind: 'bad' };
+            }
+            const m = /^([a-z])(?:([+-])(\d{1,2}))?$/.exec(s);
+            if (!m) {
+                return { kind: 'bad' };
+            }
+            let offset = 0;
+            if (m[2]) {
+                const off = parseInt(m[3], 10);
+                if (!Number.isFinite(off) || off < 1 || off > 9) {
+                    return { kind: 'bad' };
+                }
+                offset = m[2] === '-' ? -off : off;
+            }
+            return { kind: 'letter', letter: m[1], offset };
+        };
+
+        /**
+         * Duyệt mọi cách gán rem↔slots (mọi cách bind chữ / chữ±n). onHit()=true → dừng, giữ bind.
          * @param {number[]} rem
          * @param {string[]} slots
          * @param {Record<string, number>} groupBind
@@ -2799,7 +2831,7 @@ class RightPaneSheetManager {
                 if (si >= slots.length) {
                     return !!onHit();
                 }
-                const raw = String(slots[si] == null ? '' : slots[si]).trim().toLowerCase();
+                const tok = parsePosTok(slots[si]);
                 for (let ri = 0; ri < rem.length; ri++) {
                     if (used[ri]) {
                         continue;
@@ -2808,23 +2840,26 @@ class RightPaneSheetManager {
                     let ok = true;
                     let boundKey = null;
                     let prevBind = null;
-                    if (!raw) {
+                    if (tok.kind === 'any') {
                         ok = true;
-                    } else {
-                        const asNum = parseInt(raw, 10);
-                        if (Number.isFinite(asNum) && String(asNum) === raw && asNum >= 2 && asNum <= 9) {
-                            ok = chain === asNum;
-                        } else if (/^[a-z]$/.test(raw)) {
-                            boundKey = raw;
-                            if (Object.prototype.hasOwnProperty.call(groupBind, raw)) {
-                                ok = groupBind[raw] === chain;
+                    } else if (tok.kind === 'chain') {
+                        ok = chain === tok.chain;
+                    } else if (tok.kind === 'letter') {
+                        boundKey = tok.letter;
+                        const offset = tok.offset || 0;
+                        if (Object.prototype.hasOwnProperty.call(groupBind, tok.letter)) {
+                            ok = chain === groupBind[tok.letter] + offset;
+                        } else {
+                            const bindVal = chain - offset;
+                            if (!(bindVal >= 1 && bindVal <= 10)) {
+                                ok = false;
                             } else {
                                 prevBind = undefined;
-                                groupBind[raw] = chain;
+                                groupBind[tok.letter] = bindVal;
                             }
-                        } else {
-                            ok = false;
                         }
+                    } else {
+                        ok = false;
                     }
                     if (!ok) {
                         continue;
@@ -2834,7 +2869,7 @@ class RightPaneSheetManager {
                         return true;
                     }
                     used[ri] = false;
-                    if (boundKey != null && prevBind === undefined && groupBind[boundKey] === chain) {
+                    if (boundKey != null && prevBind === undefined && groupBind[boundKey] === (chain - (tok.offset || 0))) {
                         delete groupBind[boundKey];
                     }
                 }
@@ -2959,7 +2994,7 @@ class RightPaneSheetManager {
     /**
      * P1_dist result [a;b]: ≥1 số đáp án trên chuỗi trong [lo,hi].
      * Endpoint số 1–10 = nhãn chuỗi tuyệt đối.
-     * Endpoint chữ (x/y/a…) = nhóm chữ đã gán từ pos (groupBind → chuỗi; groupNums → số specimen).
+     * Endpoint chữ (x/y/a… hoặc x±n) = nhóm chữ đã gán từ pos (groupBind → chuỗi ± offset; groupNums → số specimen).
      * Chữ chưa gán (pos toàn wildcard [1,,,]): fallback số đã khớp khối (assignedNums).
      * @param {object[]} rows
      * @param {number} rowIndex
@@ -2977,22 +3012,33 @@ class RightPaneSheetManager {
             if (raw == null || raw === '') {
                 return null;
             }
-            const s = String(raw).trim().toLowerCase();
+            const s = String(raw).trim().toLowerCase().replace(/\s+/g, '');
+            // Chỉ chữ thuần (không offset) dùng nhánh specimen [x;x]
             return /^[a-z]$/.test(s) ? s : null;
         };
         const resolveEnd = (raw) => {
             if (raw == null || raw === '') {
                 return null;
             }
-            const s = String(raw).trim().toLowerCase();
+            const s = String(raw).trim().toLowerCase().replace(/\s+/g, '');
             if (!s) {
                 return null;
             }
-            if (/^[a-z]$/.test(s)) {
-                if (!Object.prototype.hasOwnProperty.call(binds, s)) {
+            const m = /^([a-z])(?:([+-])(\d{1,2}))?$/.exec(s);
+            if (m) {
+                const letter = m[1];
+                if (!Object.prototype.hasOwnProperty.call(binds, letter)) {
                     return null;
                 }
-                const chain = Number(binds[s]);
+                let offset = 0;
+                if (m[2]) {
+                    const off = parseInt(m[3], 10);
+                    if (!Number.isFinite(off) || off < 1 || off > 9) {
+                        return null;
+                    }
+                    offset = m[2] === '-' ? -off : off;
+                }
+                const chain = Number(binds[letter]) + offset;
                 return Number.isFinite(chain) && chain >= 1 && chain <= 10 ? chain : null;
             }
             const n = parseInt(s, 10);
@@ -12704,18 +12750,26 @@ class RightPaneSheetManager {
         /** @type {{ num: number|null, freq: number, posSlots: string[] }[]} */
         const out = [];
         const normalizeSlot = (raw) => {
-            const s = String(raw == null ? '' : raw).trim().toLowerCase();
+            const s = String(raw == null ? '' : raw).trim().toLowerCase().replace(/\s+/g, '');
             if (!s) {
                 return '';
             }
             const chain = parseInt(s, 10);
-            if (Number.isFinite(chain) && chain >= 2 && chain <= 9) {
+            if (Number.isFinite(chain) && chain >= 2 && chain <= 9 && String(chain) === s) {
                 return String(chain);
             }
-            if (/^[a-z]$/.test(s)) {
-                return s;
+            const m = /^([a-z])(?:([+-])(\d{1,2}))?$/.exec(s);
+            if (!m) {
+                return '';
             }
-            return '';
+            if (!m[2]) {
+                return m[1];
+            }
+            const off = parseInt(m[3], 10);
+            if (!Number.isFinite(off) || off < 1 || off > 9) {
+                return '';
+            }
+            return `${m[1]}${m[2]}${off}`;
         };
         const buildSlots = (freq, row) => {
             /** @type {string[]} */

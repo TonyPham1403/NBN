@@ -5582,7 +5582,7 @@
             justify-content: center;
             width: auto;
             min-width: 1ch;
-            max-width: 2.2ch;
+            max-width: 4.5ch;
             height: 14px;
             min-height: 14px;
             max-height: 14px;
@@ -5645,8 +5645,9 @@
         }
 
         .filter-popup-p1-dist .filter-popup-p1-dist-pos {
-            width: 2ch;
+            width: 3.6ch;
             min-width: 2ch;
+            max-width: 4.5ch;
         }
 
         .filter-popup-p1-dist .filter-popup-p1-dist-pos.is-p1-dist-pos-dup {
@@ -9320,13 +9321,13 @@
                                 <span id="filterPopupP1DistResultLo"
                                     class="filter-popup-position-input filter-popup-p1-dist-result-end"
                                     data-p1-dist-result-end="lo" tabindex="0" role="textbox"
-                                    title="Đầu khoảng: 1–10 hoặc chữ nhóm pos (x/y/a…)"
+                                    title="Đầu khoảng: 1–10, chữ nhóm (x/y), hoặc x±n (vd x-1, x+2)"
                                     aria-label="Result khoảng chuỗi: đầu">x</span>
                                 <span class="filter-popup-p1-dist-result-sep" aria-hidden="true">;</span>
                                 <span id="filterPopupP1DistResultHi"
                                     class="filter-popup-position-input filter-popup-p1-dist-result-end"
                                     data-p1-dist-result-end="hi" tabindex="0" role="textbox"
-                                    title="Cuối khoảng: 1–10 hoặc chữ nhóm pos; blur = sort số tăng dần"
+                                    title="Cuối khoảng: 1–10, chữ nhóm, hoặc x±n; blur = sort số tăng dần"
                                     aria-label="Result khoảng chuỗi: cuối">x</span>
                                 <span class="filter-popup-bracket-char" aria-hidden="true">]</span>
                             </div>
@@ -9724,7 +9725,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
-    <script src="right-pane-sheets.js?v=20261005fDimTail3"></script>
+    <script src="right-pane-sheets.js?v=20261006p1distRel"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -22820,6 +22821,48 @@ function getFilterNoteTRefMaxSelections(mode) {
 
         const FILTER_P1_DIST_POS_CYCLE = Object.freeze(['', '2', '3', '4', '5', '6', '7', '8', '9', 'x', 'y', 'z']);
 
+        /**
+         * Token pos/result: '' | '2'..'9'/'1'..'10' | 'x' | 'x+1' | 'x-2' …
+         * @returns {{ kind: 'empty'|'chain'|'letter'|'invalid', chain?: number, letter?: string, offset?: number, text?: string }}
+         */
+        function parseFilterP1DistRelToken(raw, opts = {}) {
+            const chainMin = opts.chainMin == null ? 2 : opts.chainMin;
+            const chainMax = opts.chainMax == null ? 9 : opts.chainMax;
+            const allowOffset = opts.allowOffset !== false;
+            const s = String(raw == null ? '' : raw).trim().toLowerCase().replace(/\s+/g, '');
+            if (!s) {
+                return { kind: 'empty', text: '' };
+            }
+            if (/^\d{1,2}$/.test(s)) {
+                const n = parseInt(s, 10);
+                if (Number.isFinite(n) && n >= chainMin && n <= chainMax && String(n) === s) {
+                    return { kind: 'chain', chain: n, text: String(n) };
+                }
+                return { kind: 'invalid' };
+            }
+            const m = /^([a-z])(?:([+-])(\d{1,2}))?$/.exec(s);
+            if (!m) {
+                return { kind: 'invalid' };
+            }
+            const letter = m[1];
+            if (!m[2]) {
+                return { kind: 'letter', letter, offset: 0, text: letter };
+            }
+            if (!allowOffset) {
+                return { kind: 'invalid' };
+            }
+            const off = parseInt(m[3], 10);
+            if (!Number.isFinite(off) || off < 1 || off > 9) {
+                return { kind: 'invalid' };
+            }
+            return {
+                kind: 'letter',
+                letter,
+                offset: m[2] === '-' ? -off : off,
+                text: `${letter}${m[2]}${off}`
+            };
+        }
+
         function createDefaultFilterP1DistRow() {
             return { num: null, freq: 2, posSlots: ['1', 'x'] };
         }
@@ -22844,21 +22887,17 @@ function getFilterNoteTRefMaxSelections(mode) {
         }
 
         function normalizeFilterP1DistPosSlot(raw) {
-            const s = String(raw == null ? '' : raw).trim().toLowerCase();
-            if (!s) {
+            const tok = parseFilterP1DistRelToken(raw, { chainMin: 2, chainMax: 9, allowOffset: true });
+            if (tok.kind === 'empty') {
                 return '';
             }
-            const chain = parseInt(s, 10);
-            if (Number.isFinite(chain) && chain >= 2 && chain <= 9) {
-                return String(chain);
-            }
-            if (/^[a-z]$/.test(s)) {
-                return s;
+            if (tok.kind === 'chain' || tok.kind === 'letter') {
+                return tok.text;
             }
             return '';
         }
 
-        /** Sort ô phần vơi (sau 1 cố định): số 2–9 tăng dần, rồi chữ, rồi trống. */
+        /** Sort ô phần vơi (sau 1 cố định): số 2–9 tăng dần, rồi chữ (±offset), rồi trống. */
         function sortFilterP1DistPosSlots(slots) {
             const src = Array.isArray(slots) ? slots.slice() : ['1'];
             const head = '1';
@@ -22867,11 +22906,14 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (!v) {
                     return 1000;
                 }
-                const n = parseInt(v, 10);
-                if (Number.isFinite(n) && String(n) === v) {
-                    return n;
+                const tok = parseFilterP1DistRelToken(v, { chainMin: 2, chainMax: 9, allowOffset: true });
+                if (tok.kind === 'chain') {
+                    return tok.chain;
                 }
-                return 100 + String(v).charCodeAt(0);
+                if (tok.kind === 'letter') {
+                    return 100 + tok.letter.charCodeAt(0) + (tok.offset || 0) * 0.01;
+                }
+                return 900;
             };
             rest.sort((a, b) => rank(a) - rank(b) || String(a).localeCompare(String(b)));
             return [head, ...rest];
@@ -22988,19 +23030,19 @@ function getFilterNoteTRefMaxSelections(mode) {
         }
 
         function normalizeFilterP1DistResultEndpoint(raw) {
-            const t = String(raw == null ? '' : raw).trim().toLowerCase();
+            const t = String(raw == null ? '' : raw).trim().toLowerCase().replace(/\s+/g, '');
             if (!t) {
                 return 'x';
             }
-            // Chữ nhóm pos (x/y/a…) — giữ nguyên, không còn nghĩa “any mở”
-            if (/^[a-z]$/.test(t)) {
-                return t;
+            const tok = parseFilterP1DistRelToken(t, { chainMin: 1, chainMax: 10, allowOffset: true });
+            if (tok.kind === 'letter' || tok.kind === 'chain') {
+                return tok.text;
             }
-            const n = parseInt(t, 10);
-            if (Number.isFinite(n) && n >= 1 && n <= 10 && String(n) === t) {
-                return String(n);
+            // Gõ dở "x-" / "x+" → giữ chữ; "1".."10" partial số
+            const partialLetter = /^([a-z])[+-]?\d*$/.exec(t);
+            if (partialLetter) {
+                return partialLetter[1];
             }
-            // Gõ dở "1" khi chưa blur: giữ partial số 1–10
             if (/^\d{1,2}$/.test(t)) {
                 const p = parseInt(t, 10);
                 if (p >= 1 && p <= 10) {
@@ -23010,12 +23052,12 @@ function getFilterNoteTRefMaxSelections(mode) {
             return 'x';
         }
 
-        /** Sort tăng dần: [7;3]→[3;7]; chữ giữ nguyên; [n;x] giữ thứ tự sau normalize. */
+        /** Sort tăng dần: [7;3]→[3;7]; chữ/x±n giữ nguyên; [n;x] giữ thứ tự sau normalize. */
         function sortFilterP1DistResultRange(loRaw, hiRaw) {
             const lo = normalizeFilterP1DistResultEndpoint(loRaw);
             const hi = normalizeFilterP1DistResultEndpoint(hiRaw);
-            const loLetter = /^[a-z]$/.test(lo);
-            const hiLetter = /^[a-z]$/.test(hi);
+            const loLetter = /^[a-z]/.test(lo);
+            const hiLetter = /^[a-z]/.test(hi);
             if (loLetter || hiLetter) {
                 return [lo, hi];
             }
@@ -23265,8 +23307,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                     const next = normalizeFilterP1DistPosSlot(raw);
                     if (next && /^\d+$/.test(next) && isFilterP1DistPosSlotDuplicate(slots, si, next)) {
                         flashFilterP1DistPosDupWarn(inputEl, `Số ${next} đã có trong []`);
-                    } else if (!next || !/^\d+$/.test(next)) {
-                        // letter / trống từ ô focus
+                    } else {
+                        // letter / letter±n / trống từ ô focus
                         slots[si] = next;
                     }
                 }
@@ -23301,8 +23343,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             const stream = [];
             for (let i = 1; i < slots.length; i++) {
                 const v = normalizeFilterP1DistPosSlot(slots[i]);
-                // Số 2–9 hoặc chữ nhóm (x/y…) đều giữ trong stream tuyến tính
-                if (v && (/^\d+$/.test(v) || /^[a-z]$/.test(v))) {
+                // Số 2–9 hoặc chữ nhóm (x/y… / x±n) đều giữ trong stream tuyến tính
+                if (v && (/^\d+$/.test(v) || /^[a-z]([+-]\d{1,2})?$/.test(v))) {
                     stream.push(v);
                 }
             }
@@ -23349,14 +23391,14 @@ function getFilterNoteTRefMaxSelections(mode) {
 
         /**
          * Spam tuyến tính vào pos []: cửa sổ trượt dài = freq−1.
-         * Token = số 2–9 (unique trong cửa sổ) hoặc chữ nhóm a–z (x/y…; được lặp).
+         * Token = số 2–9 (unique trong cửa sổ) hoặc chữ nhóm a–z / x±n (được lặp).
          */
         function pushFilterP1DistPosToken(rowIndex, rawToken, focusEl) {
             const t = normalizeFilterP1DistPosSlot(rawToken);
             const isDigit = !!(t && /^\d+$/.test(t));
-            const isLetter = !!(t && /^[a-z]$/.test(t));
+            const isLetter = !!(t && /^[a-z]([+-]\d{1,2})?$/.test(t));
             if (!isDigit && !isLetter) {
-                flashFilterP1DistPosDupWarn(focusEl, 'pos chỉ nhận 2–9, trống hoặc x/y');
+                flashFilterP1DistPosDupWarn(focusEl, 'pos: 2–9, trống, x/y hoặc x±n');
                 return false;
             }
             const rows = getNormalizedFilterP1DistRows();
@@ -23531,9 +23573,63 @@ function getFilterNoteTRefMaxSelections(mode) {
                     return;
                 }
                 const key = String(event.key || '');
+                if (field === 'pos' && (key === '+' || key === '-' || key === '=')) {
+                    // Cho phép gõ x+1 / x-2 trên ô đang focus (không spam stream)
+                    const sign = key === '=' ? '+' : key;
+                    let draft = inputEl.dataset.draft != null
+                        ? String(inputEl.dataset.draft)
+                        : getFilterPopupPositionText(inputEl);
+                    if (inputEl.dataset.replaceOnType === '1') {
+                        // Giữ chữ đang hiện để gắn ±; chỉ xóa nếu không phải letter
+                        if (!/^[a-z]$/.test(draft)) {
+                            draft = '';
+                        }
+                        delete inputEl.dataset.replaceOnType;
+                    }
+                    if (/^[a-z]$/.test(draft)) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        draft = draft + sign;
+                        inputEl.dataset.draft = draft;
+                        inputEl.dataset.dirty = '1';
+                        inputEl.dataset.p1DistPosTyping = 'rel';
+                        setFilterPopupPositionText(inputEl, draft);
+                        // Ghi tạm vào slot focus (chưa normalize đủ)
+                        const rows = getNormalizedFilterP1DistRows();
+                        const row = rows[index];
+                        const si = Number(posSlotIdx);
+                        if (row && si >= 1 && Array.isArray(row.posSlots) && si < row.posSlots.length) {
+                            row.posSlots[si] = draft;
+                            filterP1DistRows = rows;
+                        }
+                    }
+                    return;
+                }
                 if (key >= '0' && key <= '9') {
                     event.preventDefault();
                     event.stopPropagation();
+                    if (field === 'pos' && inputEl.dataset.p1DistPosTyping === 'rel') {
+                        let draft = inputEl.dataset.draft != null
+                            ? String(inputEl.dataset.draft)
+                            : getFilterPopupPositionText(inputEl);
+                        const next = (draft + key).slice(0, 4);
+                        const tok = parseFilterP1DistRelToken(next, { chainMin: 2, chainMax: 9, allowOffset: true });
+                        inputEl.dataset.draft = next;
+                        inputEl.dataset.dirty = '1';
+                        setFilterPopupPositionText(inputEl, next);
+                        if (tok.kind === 'letter') {
+                            const rows = getNormalizedFilterP1DistRows();
+                            const row = rows[index];
+                            const si = Number(posSlotIdx);
+                            if (row && si >= 1 && Array.isArray(row.posSlots) && si < row.posSlots.length) {
+                                row.posSlots[si] = tok.text;
+                                filterP1DistRows = rows;
+                                inputEl.dataset.draft = tok.text;
+                                setFilterPopupPositionText(inputEl, tok.text);
+                            }
+                        }
+                        return;
+                    }
                     const maxLen = field === 'pos' ? 1 : 2;
                     appendFilterPopupP1DistDraftChar(inputEl, key, maxLen, field, index, posSlotIdx);
                     return;
@@ -23550,6 +23646,26 @@ function getFilterNoteTRefMaxSelections(mode) {
                     event.preventDefault();
                     event.stopPropagation();
                     delete inputEl.dataset.replaceOnType;
+                    if (field === 'pos' && inputEl.dataset.p1DistPosTyping === 'rel') {
+                        let draft = inputEl.dataset.draft != null
+                            ? String(inputEl.dataset.draft)
+                            : getFilterPopupPositionText(inputEl);
+                        draft = draft.slice(0, -1);
+                        inputEl.dataset.draft = draft;
+                        inputEl.dataset.dirty = '1';
+                        setFilterPopupPositionText(inputEl, draft);
+                        if (!draft || /^[a-z]$/.test(draft)) {
+                            delete inputEl.dataset.p1DistPosTyping;
+                        }
+                        const rows = getNormalizedFilterP1DistRows();
+                        const row = rows[index];
+                        const si = Number(posSlotIdx);
+                        if (row && si >= 1 && Array.isArray(row.posSlots) && si < row.posSlots.length) {
+                            row.posSlots[si] = normalizeFilterP1DistPosSlot(draft) || draft;
+                            filterP1DistRows = rows;
+                        }
+                        return;
+                    }
                     backspaceFilterPopupP1DistDraft(inputEl, field, index);
                     return;
                 }
@@ -23585,6 +23701,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                     if (/^[a-z]$/.test(letter) && letter !== 'w' && letter !== 's') {
                         event.preventDefault();
                         event.stopPropagation();
+                        delete inputEl.dataset.p1DistPosTyping;
                         pushFilterP1DistPosToken(index, letter, inputEl);
                     }
                 }
@@ -23628,7 +23745,7 @@ function getFilterNoteTRefMaxSelections(mode) {
         function createFilterPopupP1DistPosCell(index, posSlots, show) {
             const wrap = document.createElement('div');
             wrap.className = 'filter-popup-intersection-freq-item filter-popup-p1-dist-pos-wrap';
-            wrap.title = 'pos: [1 cố định,…]; số ô = freq. Spam số 2–9: cửa sổ trượt (freq=2 → ký số cuối; freq=3 → 2 ô trượt). Blur = sort tăng dần. x/y = cùng hàng.';
+            wrap.title = 'pos: [1 cố định,…]; số ô = freq. Spam số 2–9: cửa sổ trượt. x/y hoặc x±n (vd x-1, x+2). Blur = sort.';
             const brOpen = document.createElement('span');
             brOpen.className = 'filter-popup-bracket-char';
             brOpen.setAttribute('aria-hidden', 'true');
@@ -23657,7 +23774,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 inputEl.tabIndex = show ? 0 : -1;
                 inputEl.setAttribute('role', 'textbox');
                 inputEl.setAttribute('aria-label', `P1_dist pos ô #${si + 1} hàng #${index + 1}`);
-                inputEl.title = 'Spam số 2–9 (cửa sổ trượt); trống; x/y. Blur → sort tăng dần';
+                inputEl.title = 'Spam số 2–9; trống; x/y hoặc x±n (gõ x rồi -/+ rồi số)';
                 setFilterPopupPositionText(inputEl, normalizeFilterP1DistPosSlot(slots[si]));
                 wrap.appendChild(inputEl);
                 bindFilterPopupP1DistInput(inputEl, index, 'pos', si);
@@ -23845,6 +23962,27 @@ function getFilterNoteTRefMaxSelections(mode) {
                     return;
                 }
                 const key = String(event.key || '');
+                if (key === '+' || key === '-' || key === '=') {
+                    const sign = key === '=' ? '+' : key;
+                    let draft = inputEl.dataset.draft != null
+                        ? String(inputEl.dataset.draft)
+                        : getFilterPopupPositionText(inputEl);
+                    if (inputEl.dataset.replaceOnType === '1') {
+                        if (!/^[a-z]$/.test(draft)) {
+                            draft = '';
+                        }
+                        delete inputEl.dataset.replaceOnType;
+                    }
+                    if (/^[a-z]$/.test(draft)) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        draft = draft + sign;
+                        inputEl.dataset.draft = draft;
+                        inputEl.dataset.dirty = '1';
+                        setFilterPopupPositionText(inputEl, draft);
+                    }
+                    return;
+                }
                 if (key >= '0' && key <= '9') {
                     event.preventDefault();
                     event.stopPropagation();
@@ -23854,6 +23992,15 @@ function getFilterNoteTRefMaxSelections(mode) {
                             ? String(inputEl.dataset.draft)
                             : getFilterPopupPositionText(inputEl));
                     delete inputEl.dataset.replaceOnType;
+                    // Đang gõ x±… → thêm số offset
+                    if (/^[a-z][+-]\d{0,1}$/.test(draft)) {
+                        const next = (draft + key).slice(0, 4);
+                        const tok = parseFilterP1DistRelToken(next, { chainMin: 1, chainMax: 10, allowOffset: true });
+                        inputEl.dataset.draft = tok.kind === 'letter' ? tok.text : next;
+                        inputEl.dataset.dirty = '1';
+                        setFilterPopupPositionText(inputEl, inputEl.dataset.draft);
+                        return;
+                    }
                     draft = (draft + key).slice(-2);
                     const n = parseInt(draft, 10);
                     if (!Number.isFinite(n) || n < 1 || n > 10) {
@@ -23882,7 +24029,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (step) {
                     event.preventDefault();
                     event.stopPropagation();
-                    const cycle = ['x', 'y', 'z', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
+                    const cycle = ['x', 'y', 'z', 'x-1', 'x+1', 'y-1', 'y+1', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
                     const cur = normalizeFilterP1DistResultEndpoint(
                         inputEl.dataset.draft != null
                             ? inputEl.dataset.draft
