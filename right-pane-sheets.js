@@ -487,6 +487,11 @@ class RightPaneSheetManager {
         this._tail3StarCellCache = null;
         this._tail3StarCellCacheRowLen = 0;
         this._tail3StarCellCacheVer = 0;
+        /** @type {Array<Array<{num:number,inAnswer:boolean}>>|null} */
+        this._tail3AllDeriveCandsCache = null;
+        this._tail3AllDeriveCandsCacheRowLen = 0;
+        /** @type {{ key: string, hold: number[], violate: number[], applicable: number }|null} */
+        this._deriveChainSplitCache = null;
         /** Cache filter mode TRACKING (bụng basic: size + streak). */
         this._basicTrackingBellyFilterCache = null;
         this._basicTrackingBellyFilterCacheRowLen = 0;
@@ -656,6 +661,11 @@ class RightPaneSheetManager {
         this._tail3StarCellCache = null;
         this._tail3StarCellCacheRowLen = 0;
         this._tail3StarCellCacheVer = 0;
+        /** @type {Array<Array<{num:number,inAnswer:boolean}>>|null} */
+        this._tail3AllDeriveCandsCache = null;
+        this._tail3AllDeriveCandsCacheRowLen = 0;
+        /** @type {{ key: string, hold: number[], violate: number[], applicable: number }|null} */
+        this._deriveChainSplitCache = null;
         this._basicTrackingBellyFilterCache = null;
         this._basicTrackingBellyFilterCacheRowLen = 0;
         this._phase1FilterCache = null;
@@ -2129,6 +2139,39 @@ class RightPaneSheetManager {
                     && this.shouldHighlightDateByTailWindow(rows, i, { tailMinCount: th, tailCountOp: op })) {
                     indices.push(i);
                 }
+            }
+            return indices;
+        }
+
+        if (mode === 'derive_chain') {
+            const o = filterOptions || {};
+            const deriveFreq = RightPaneSheetManager.normalizeDeriveChainFreq(o.deriveFreq);
+            const peerFreq = RightPaneSheetManager.normalizeDeriveChainFreq(o.peerFreq);
+            const polarity = o.polarity === 'violate'
+                ? 'violate'
+                : (o.polarity === 'hold' ? 'hold' : 'normal');
+            const split = this.ensureDeriveChainSplitCache(deriveFreq, peerFreq);
+            let base;
+            if (polarity === 'violate') {
+                base = split.violate;
+            } else if (polarity === 'hold') {
+                base = split.hold;
+            } else {
+                // normal: đủ mẫu evaluable (~908), tô viền/blur ở UI
+                base = this.ensureTail3EvaluableIndicesCache();
+            }
+            if (!noteTags.length && !noteTRefs.length) {
+                return base.slice();
+            }
+            for (let b = 0; b < base.length; b++) {
+                const i = base[b];
+                if (noteTags.length > 0 && !this.rowMatchesNoteTagFilter(i, noteTags)) {
+                    continue;
+                }
+                if (noteTRefs.length > 0 && !this.rowMatchesNoteTRefFilter(i, noteTRefs)) {
+                    continue;
+                }
+                indices.push(i);
             }
             return indices;
         }
@@ -4049,6 +4092,213 @@ class RightPaneSheetManager {
             }
         }
         return false;
+    }
+
+    /**
+     * Freq tham số derive_chain: null = any / (peer) cùng freq với derive đang xét; else 0–9.
+     * @param {*} raw
+     * @returns {number|null}
+     */
+    static normalizeDeriveChainFreq(raw) {
+        if (raw === null || raw === undefined || raw === '') {
+            return null;
+        }
+        const n = parseInt(raw, 10);
+        if (!Number.isFinite(n)) {
+            return null;
+        }
+        if (n < 0 || n > 9) {
+            return null;
+        }
+        return n | 0;
+    }
+
+    /**
+     * Cache mọi derive candidate (không edges) theo từng kỳ — dùng chung khi đổi [D]/[P]/T/F.
+     * @returns {Array<Array<{num:number,inAnswer:boolean}>>}
+     */
+    ensureTail3AllDeriveCandsCache() {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        if (this._tail3AllDeriveCandsCache
+            && this._tail3AllDeriveCandsCacheRowLen === n) {
+            return this._tail3AllDeriveCandsCache;
+        }
+        /** @type {Array<Array<{num:number,inAnswer:boolean}>>} */
+        const cache = new Array(n);
+        for (let i = 0; i < n; i++) {
+            const raw = this.enumerateTail3CandidateNumsForRow(rows, i, { includeEdges: false });
+            cache[i] = raw.map((c) => ({ num: c.num, inAnswer: !!c.inAnswer }));
+        }
+        this._tail3AllDeriveCandsCache = cache;
+        this._tail3AllDeriveCandsCacheRowLen = n;
+        return cache;
+    }
+
+    /**
+     * Tách kỳ thỏa / phá theo [D],[P] — sliding freq window + cands cache.
+     * @param {number|null} deriveFreq
+     * @param {number|null} peerFreq
+     * @returns {{ key: string, hold: number[], violate: number[], applicable: number }}
+     */
+    ensureDeriveChainSplitCache(deriveFreq, peerFreq) {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        const dKey = deriveFreq == null ? '' : String(deriveFreq);
+        const pKey = peerFreq == null ? '' : String(peerFreq);
+        const key = `${n}|${dKey}|${pKey}`;
+        if (this._deriveChainSplitCache && this._deriveChainSplitCache.key === key) {
+            return this._deriveChainSplitCache;
+        }
+        const candsCache = this.ensureTail3AllDeriveCandsCache();
+        /** @type {number[]} */
+        const hold = [];
+        /** @type {number[]} */
+        const violate = [];
+        const counts = new Int16Array(36);
+        // Pre-parse window row nums for chain checks
+        /** @type {number[][]} */
+        const rowNums = new Array(n);
+        for (let i = 0; i < n; i++) {
+            rowNums[i] = this.isEmptyResultRow(rows[i])
+                ? []
+                : this.parseMainNums(rows[i].result || rows[i].Result || '');
+        }
+        const addRow = (ri, sign) => {
+            if (ri < 0 || ri >= n) {
+                return;
+            }
+            const nums = rowNums[ri];
+            for (let ni = 0; ni < nums.length; ni++) {
+                const v = nums[ni];
+                if (v >= 1 && v <= 35) {
+                    counts[v] += sign;
+                }
+            }
+        };
+
+        for (let i = 0; i < n; i++) {
+            // Cần đủ 10 chuỗi trước kỳ (giống buildPickChainLinesBeforeRow).
+            if (i >= 10 && candsCache[i] && candsCache[i].length && rowNums[i].length) {
+                const cands = candsCache[i];
+                /** @type {Set<number>} */
+                const deriveSet = new Set();
+                for (let ci = 0; ci < cands.length; ci++) {
+                    deriveSet.add(cands[ci].num);
+                }
+                /** @type {Set<number>} */
+                const answerSet = new Set(rowNums[i]);
+                let applicable = false;
+                let isViol = false;
+                const winStart = i - 10;
+                for (let ci = 0; ci < cands.length; ci++) {
+                    const c = cands[ci];
+                    if (!c || c.inAnswer) {
+                        continue;
+                    }
+                    const x = c.num;
+                    const xFreq = counts[x] | 0;
+                    if (deriveFreq != null && xFreq !== deriveFreq) {
+                        continue;
+                    }
+                    const wantPeer = peerFreq != null ? peerFreq : xFreq;
+                    for (let r = winStart; r < i; r++) {
+                        const nums = rowNums[r];
+                        let xOn = false;
+                        for (let ni = 0; ni < nums.length; ni++) {
+                            if (nums[ni] === x) {
+                                xOn = true;
+                                break;
+                            }
+                        }
+                        if (!xOn) {
+                            continue;
+                        }
+                        /** @type {Set<number>} */
+                        const seen = new Set();
+                        for (let ni = 0; ni < nums.length; ni++) {
+                            const v = nums[ni];
+                            if (!(v >= 1 && v <= 35) || v === x || seen.has(v)) {
+                                continue;
+                            }
+                            seen.add(v);
+                            if ((counts[v] | 0) !== wantPeer) {
+                                continue;
+                            }
+                            if (deriveSet.has(v)) {
+                                continue;
+                            }
+                            // Chỉ applicable khi có peer freq=[P] thật trên chuỗi chứa derive.
+                            applicable = true;
+                            if (answerSet.has(v)) {
+                                isViol = true;
+                            }
+                        }
+                    }
+                }
+                if (applicable) {
+                    if (isViol) {
+                        violate.push(i);
+                    } else {
+                        hold.push(i);
+                    }
+                }
+            }
+            // slide window forward for i+1: add row i, drop row i-10
+            addRow(i, 1);
+            if (i >= 10) {
+                addRow(i - 10, -1);
+            }
+        }
+        const out = {
+            key,
+            hold,
+            violate,
+            applicable: hold.length + violate.length
+        };
+        this._deriveChainSplitCache = out;
+        return out;
+    }
+
+    /**
+     * Mệnh đề derive_chain trên một kỳ:
+     * Với mỗi derive X (freq khớp [D], X ∉ đáp án): trên mỗi chuỗi chứa X,
+     * nếu có số freq khớp [P] (trừ X; trừ derive khác) thì các số đó cũng ∉ đáp án.
+     * Kỳ applicable chỉ khi tồn tại ít nhất một peer [P] thật trên chuỗi chứa derive [D].
+     * @returns {{ applicable: boolean, holds: boolean, violates: boolean }}
+     */
+    evaluateDeriveChainProposition(rows, rowIndex, opts) {
+        const empty = { applicable: false, holds: true, violates: false };
+        const idx = Number(rowIndex);
+        if (!Array.isArray(rows) || !Number.isFinite(idx) || idx < 1 || idx >= rows.length) {
+            return empty;
+        }
+        const o = opts || {};
+        const deriveFreq = RightPaneSheetManager.normalizeDeriveChainFreq(o.deriveFreq);
+        const peerFreq = RightPaneSheetManager.normalizeDeriveChainFreq(o.peerFreq);
+        const split = this.ensureDeriveChainSplitCache(deriveFreq, peerFreq);
+        if (split.hold.indexOf(idx) !== -1) {
+            return { applicable: true, holds: true, violates: false };
+        }
+        if (split.violate.indexOf(idx) !== -1) {
+            return { applicable: true, holds: false, violates: true };
+        }
+        return empty;
+    }
+
+    /**
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {{ deriveFreq?: number|null, peerFreq?: number|null, skipOtherDerives?: boolean, polarity?: string }} opts
+     * @returns {boolean}
+     */
+    rowMatchesDeriveChainFilter(rows, rowIndex, opts) {
+        const ev = this.evaluateDeriveChainProposition(rows, rowIndex, opts);
+        if (!ev.applicable) {
+            return false;
+        }
+        const polarity = opts && opts.polarity === 'violate' ? 'violate' : 'hold';
+        return polarity === 'violate' ? ev.violates : ev.holds;
     }
 
     /**

@@ -2612,10 +2612,11 @@
         let arrowGroupNavIndex = -1;
         /**
          * Sort nhóm Y→X trên panel 3-tail.
-         * Mỗi lần mở web = default + asc (không persist).
+         * Persist lần chọn gần nhất (mode + asc/desc) qua localStorage.
          * Click lại cùng mode → đảo asc/desc.
          * @type {'default'|'follow'|'derive'}
          */
+        const REFERENCE_HINT_SORT_KEY = 'referenceHintSortPrefs';
         let referenceHintSortBy = 'default';
         /** @type {'asc'|'desc'} */
         let referenceHintSortDir = 'asc';
@@ -3022,6 +3023,32 @@
             return String(v || '').trim().toLowerCase() === 'desc' ? 'desc' : 'asc';
         }
 
+        function loadReferenceHintSortPrefs() {
+            try {
+                const raw = localStorage.getItem(REFERENCE_HINT_SORT_KEY);
+                if (!raw) {
+                    return;
+                }
+                const p = JSON.parse(raw);
+                if (!p || typeof p !== 'object') {
+                    return;
+                }
+                referenceHintSortBy = normalizeReferenceHintSortBy(p.by);
+                referenceHintSortDir = normalizeReferenceHintSortDir(p.dir);
+            } catch (eSortLoad) { /* ignore */ }
+        }
+
+        function saveReferenceHintSortPrefs() {
+            try {
+                localStorage.setItem(REFERENCE_HINT_SORT_KEY, JSON.stringify({
+                    by: normalizeReferenceHintSortBy(referenceHintSortBy),
+                    dir: normalizeReferenceHintSortDir(referenceHintSortDir)
+                }));
+            } catch (eSortSave) { /* ignore */ }
+        }
+
+        loadReferenceHintSortPrefs();
+
         function referenceHintSortModeLabel(mode) {
             const m = normalizeReferenceHintSortBy(mode);
             if (m === 'follow') {
@@ -3088,6 +3115,7 @@
                 referenceHintSortBy = next;
                 referenceHintSortDir = 'asc';
             }
+            saveReferenceHintSortPrefs();
             // Giữ dropdown mở để toggle liên tiếp; chỉ đóng khi click ra ngoài / nút.
             referenceHintSortMenuKeepOpen = true;
             if (referenceHintLastPayload) {
