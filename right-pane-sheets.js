@@ -17027,8 +17027,60 @@ class RightPaneSheetManager {
             let tipEl = null;
             let anchorEl = null;
 
-            if (kind === 'trend') {
-                // Trend chỉ có 1 nhãn — pin cột = bám bar đang hiện trend (pick/giả lập).
+            // Ưu tiên: bar Submit (justDrawn) > giả lập > bar lúc click pin (origin).
+            const originNum = Number.isFinite(prevRecallFoldTooltipPinnedOriginBarNum)
+                ? (prevRecallFoldTooltipPinnedOriginBarNum | 0)
+                : 0;
+            const previewN = this.leftSpecialPreviewPickNum;
+            const simulating = Number.isFinite(previewN)
+                && previewN >= 1
+                && previewN <= 12;
+            let submitBarNum = 0;
+            if (this.leftSubmitActive && !isBasic) {
+                const frNow = frames[frameIndex];
+                const jd = frNow && frNow.justDrawn != null
+                    ? (frNow.justDrawn | 0)
+                    : 0;
+                if (jd >= 1 && jd <= 12) {
+                    submitBarNum = jd;
+                } else {
+                    const ansEl = root.querySelector(
+                        '.special-tracking-rank-bar--actual-answer[data-st-bar],'
+                        + '.special-tracking-rank-bar--actual-answer[data-special-num]'
+                    );
+                    if (ansEl) {
+                        submitBarNum = parseInt(
+                            ansEl.getAttribute('data-st-bar')
+                            || ansEl.getAttribute('data-special-num'),
+                            10
+                        ) || 0;
+                    }
+                }
+            }
+            let followNum = 0;
+            if (submitBarNum >= 1 && submitBarNum <= 12) {
+                followNum = submitBarNum;
+            } else if (simulating) {
+                followNum = previewN | 0;
+            } else if (originNum >= 1 && originNum <= 12) {
+                followNum = originNum;
+            }
+
+            if (followNum >= 1 && followNum <= 12) {
+                prevRecallFoldTooltipPinnedBarNum = followNum;
+                const barRow = root.querySelector(
+                    `[data-st-bar="${followNum}"], [data-special-num="${followNum}"]`
+                );
+                if (barRow) {
+                    tipEl = barRow.querySelector(`${visibleSel}[${statsAttr}]`);
+                    anchorEl = tipEl
+                        || barRow.querySelector(labelSel)
+                        || barRow.querySelector('.special-tracking-rank-labels')
+                        || barRow.querySelector('.special-tracking-rank-bar-main')
+                        || barRow;
+                }
+            } else if (kind === 'trend') {
+                // Chưa có origin: bám nhãn trend đang hiện (pick thật).
                 tipEl = root.querySelector(`${visibleSel}[${statsAttr}]`);
                 if (tipEl) {
                     const barRow = tipEl.closest('[data-st-bar], [data-special-num]');
@@ -17041,6 +17093,9 @@ class RightPaneSheetManager {
                         : NaN;
                     if (Number.isFinite(n) && n >= 1 && n <= 12) {
                         prevRecallFoldTooltipPinnedBarNum = n;
+                        if (!(originNum >= 1 && originNum <= 12)) {
+                            prevRecallFoldTooltipPinnedOriginBarNum = n;
+                        }
                     }
                     anchorEl = tipEl;
                 }
@@ -17055,12 +17110,10 @@ class RightPaneSheetManager {
                     if (barRow) {
                         tipEl = barRow.querySelector(`${visibleSel}[${statsAttr}]`);
                         anchorEl = tipEl
+                            || barRow.querySelector(labelSel)
                             || barRow.querySelector('.special-tracking-rank-labels')
                             || barRow.querySelector('.special-tracking-rank-bar-main')
                             || barRow;
-                        if (!tipEl) {
-                            tipEl = barRow.querySelector(labelSel);
-                        }
                     }
                 }
             }
@@ -17101,6 +17154,9 @@ class RightPaneSheetManager {
                 return;
             }
             prevRecallFoldTooltipPinnedStats = stats;
+            if (hl) {
+                prevRecallFoldTooltipPinnedHl = hl;
+            }
 
             const markEl = tipEl && !tipEl.hidden ? tipEl : anchorEl;
             if (prevRecallFoldTooltipPinnedHit
@@ -18925,8 +18981,10 @@ let prevRecallFoldTooltipPinned = false;
 let prevRecallFoldTooltipPinnedHit = null;
 /** @type {'trend'|'belly'|'special'|null} */
 let prevRecallFoldTooltipPinnedKind = null;
-/** @type {number|null} Bar 1–12 vừa pin (không nhảy về bar đầu DOM sau paint). */
+/** @type {number|null} Bar 1–12 đang hiện tip (có thể = bar giả lập). */
 let prevRecallFoldTooltipPinnedBarNum = null;
+/** @type {number|null} Bar lúc click pin — về đây khi tắt giả lập. */
+let prevRecallFoldTooltipPinnedOriginBarNum = null;
 /** Stats/hl lúc pin — giữ khi nhãn trend chỉ còn hiện trên bar giả lập khác. */
 let prevRecallFoldTooltipPinnedStats = '';
 let prevRecallFoldTooltipPinnedHl = '';
@@ -18983,6 +19041,7 @@ function clearPrevRecallFoldTooltipPin() {
     prevRecallFoldTooltipPinnedHit = null;
     prevRecallFoldTooltipPinnedKind = null;
     prevRecallFoldTooltipPinnedBarNum = null;
+    prevRecallFoldTooltipPinnedOriginBarNum = null;
     prevRecallFoldTooltipPinnedStats = '';
     prevRecallFoldTooltipPinnedHl = '';
 }
@@ -19151,20 +19210,18 @@ function bindPrevPeriodRecallFoldTooltipGlobal() {
             ? (parseInt(barRow.getAttribute('data-st-bar')
                 || barRow.getAttribute('data-special-num'), 10) || null)
             : null;
-        // Trend: pin theo cột — click lại nhãn trend (bar nào cũng được) để gỡ.
-        // Belly/special: cùng cột + cùng bar → gỡ; bar khác → chuyển neo.
+        // Trend/belly/special: pin theo cột — click lại cùng loại nhãn (bar nào) để gỡ;
+        // vị trí tip bám số giả lập / click-focus khi paint (như trend).
         if (prevRecallFoldTooltipPinned && prevRecallFoldTooltipPinnedKind === kind) {
-            if (kind === 'trend'
-                || prevRecallFoldTooltipPinnedBarNum === barNum) {
-                hidePrevRecallFoldTooltip({ force: true });
-                return;
-            }
+            hidePrevRecallFoldTooltip({ force: true });
+            return;
         }
         clearPrevRecallFoldTooltipPin();
         prevRecallFoldTooltipPinned = true;
         prevRecallFoldTooltipPinnedHit = hit;
         prevRecallFoldTooltipPinnedKind = kind;
         prevRecallFoldTooltipPinnedBarNum = Number.isFinite(barNum) ? barNum : null;
+        prevRecallFoldTooltipPinnedOriginBarNum = Number.isFinite(barNum) ? barNum : null;
         prevRecallFoldTooltipPinnedStats = hit.getAttribute('data-trend-stats')
             || hit.getAttribute('data-belly-stats')
             || hit.getAttribute('data-special-stats')

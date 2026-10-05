@@ -7592,6 +7592,12 @@
             color: #ffdd00 !important;
         }
 
+        /* Highlight vàng + chữ ? vàng → đè mất; khi hl dùng chữ tối */
+        .prev-recall-fold-tooltip .special-tip-q.special-tip-line--hl,
+        .prev-recall-fold-tooltip--special .special-tip-q.special-tip-line--hl {
+            color: #1a1400 !important;
+        }
+
         .prev-recall-fold-tooltip .special-tip-line--hl {
             background: rgba(255, 220, 40, 0.72);
             outline: 1px solid #b8860b;
@@ -9718,7 +9724,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
-    <script src="right-pane-sheets.js?v=20261005xFreqSort"></script>
+    <script src="right-pane-sheets.js?v=20261005tipSubmitFirst"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
