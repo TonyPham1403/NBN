@@ -12898,8 +12898,24 @@ class RightPaneSheetManager {
         return out;
     }
 
-    /** @param {unknown} raw @returns {number|null} null = any */
+    /** @param {unknown} raw @returns {number|null} null = any; derive cho phép 0–9 */
     static normalizeTail3DeriveFreq(raw) {
+        if (raw == null || raw === '') {
+            return null;
+        }
+        const n = parseInt(raw, 10);
+        if (!Number.isFinite(n) || n < 0 || n > 9) {
+            return null;
+        }
+        return n;
+    }
+
+    /**
+     * Follow slot: 1–9 hoặc null (= any). Không nhận 0.
+     * @param {unknown} raw
+     * @returns {number|null}
+     */
+    static normalizeTail3FollowFreqVal(raw) {
         if (raw == null || raw === '') {
             return null;
         }
@@ -12911,7 +12927,7 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Giữ slot kể cả null (any). Độ dài = số khối follow (số Y partners).
+     * Giữ slot kể cả null (any).
      * @param {unknown} raw
      * @returns {Array<number|null>}
      */
@@ -12925,15 +12941,14 @@ class RightPaneSheetManager {
                 out.push(null);
                 continue;
             }
-            const n = RightPaneSheetManager.normalizeTail3DeriveFreq(v);
-            out.push(n);
+            out.push(RightPaneSheetManager.normalizeTail3FollowFreqVal(v));
         }
         return out;
     }
 
     /**
-     * Chỉ active khi có ít nhất một freq cụ thể (1–9).
-     * Cả follow + derive đều trống (= any) → không siết freq, mẫu = mọi kỳ có follow.
+     * Chỉ active khi có ít nhất một freq cụ thể (follow 1–9 hoặc derive 0–9).
+     * Cả follow + derive đều trống (= any) → không siết freq.
      * @param {Array<number|null>} followFreqs
      * @param {number|null} deriveFreq
      * @returns {boolean}

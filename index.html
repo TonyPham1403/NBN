@@ -9013,7 +9013,7 @@
         <div id="appStage">
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20261006tail3Autoring"
+            <iframe id="okFrame" src="ok_left.html?v=20261006tail3Sort3"
                 style="width:100%;height:100%;border:0"></iframe>
         </section>
 
@@ -9889,7 +9889,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
-    <script src="right-pane-sheets.js?v=20261006tail3Full"></script>
+    <script src="right-pane-sheets.js?v=20261006tail3Der0"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -10162,6 +10162,9 @@
         const FILTER_TAIL3_FOLLOW_FREQ_MAX = 5;
         const FILTER_TAIL3_FREQ_VAL_MIN = 1;
         const FILTER_TAIL3_FREQ_VAL_MAX = 9;
+        /** Derive (phải): cho phép freq 0. */
+        const FILTER_TAIL3_DERIVE_FREQ_MIN = 0;
+        const FILTER_TAIL3_DERIVE_FREQ_MAX = 9;
         const FILTER_TAIL3_FREQ_DEFAULT = Object.freeze({
             followFreqs: Object.freeze([null]),
             deriveFreq: null
@@ -24788,16 +24791,28 @@ function getFilterNoteTRefMaxSelections(mode) {
             return value == null ? '' : String(value);
         }
 
-        /** @param {unknown} raw @returns {number|null} null = any */
+        /** @param {unknown} raw @returns {number|null} null = any; follow 1–9 */
+        function normalizeFilterTail3FollowFreqVal(raw) {
+            if (raw == null || raw === '') {
+                return null;
+            }
+            const n = parseInt(raw, 10);
+            if (!Number.isFinite(n) || n < FILTER_TAIL3_FREQ_VAL_MIN || n > FILTER_TAIL3_FREQ_VAL_MAX) {
+                return null;
+            }
+            return n;
+        }
+
+        /** @param {unknown} raw @returns {number|null} null = any; derive 0–9 */
         function normalizeFilterTail3DeriveFreq(raw) {
             if (raw == null || raw === '') {
                 return null;
             }
             const n = parseInt(raw, 10);
-            if (!Number.isFinite(n)) {
+            if (!Number.isFinite(n) || n < FILTER_TAIL3_DERIVE_FREQ_MIN || n > FILTER_TAIL3_DERIVE_FREQ_MAX) {
                 return null;
             }
-            return Math.min(FILTER_TAIL3_FREQ_VAL_MAX, Math.max(FILTER_TAIL3_FREQ_VAL_MIN, n));
+            return n;
         }
 
         /** @param {unknown} raw @returns {Array<number|null>} */
@@ -24811,7 +24826,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                     out.push(null);
                     continue;
                 }
-                out.push(normalizeFilterTail3DeriveFreq(v));
+                out.push(normalizeFilterTail3FollowFreqVal(v));
             }
             if (!out.length) {
                 out.push(null);
@@ -24888,7 +24903,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 const raw = node.dataset.draft != null
                     ? String(node.dataset.draft)
                     : getFilterPopupPositionText(node);
-                const next = normalizeFilterTail3DeriveFreq(raw);
+                const next = normalizeFilterTail3FollowFreqVal(raw);
                 if (freqs[idx] !== next) {
                     freqs[idx] = next;
                     changed = true;
@@ -24935,7 +24950,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             const isFollow = side === 'follow';
             wrap.title = isFollow
                 ? `Follow #${index + 1}: ít nhất freq này (1–9) hoặc trống (= any)`
-                : 'Derive freq: đúng 1 giá trị 1–9 hoặc trống (= any)';
+                : 'Derive freq: 0–9 hoặc trống (= any)';
             const inputEl = document.createElement('span');
             inputEl.className = 'filter-popup-position-input filter-popup-tail3-freq-num'
                 + (isFollow ? ' filter-popup-tail3-follow-freq' : ' filter-popup-tail3-derive-freq');
@@ -24943,7 +24958,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             inputEl.setAttribute('role', 'textbox');
             inputEl.setAttribute('aria-label', isFollow
                 ? `Follow freq #${index + 1} (≥, 1–9 hoặc trống=any)`
-                : 'Derive freq (1–9 hoặc trống=any)');
+                : 'Derive freq (0–9 hoặc trống=any)');
             if (isFollow) {
                 inputEl.dataset.tail3FollowIdx = String(index);
             } else {
@@ -25068,14 +25083,16 @@ function getFilterNoteTRefMaxSelections(mode) {
             ensureFilterPopupTail3DeriveBlock(show);
         }
 
-        /** Cycle: empty ↔ 1..9 (empty = any). */
-        function bumpFilterTail3FreqValue(cur, delta) {
+        /** Cycle: empty ↔ min..max (empty = any). */
+        function bumpFilterTail3FreqValue(cur, delta, minVal, maxVal) {
+            const lo = minVal != null ? minVal : FILTER_TAIL3_FREQ_VAL_MIN;
+            const hi = maxVal != null ? maxVal : FILTER_TAIL3_FREQ_VAL_MAX;
             const d = Number(delta) || 0;
             if (cur == null) {
-                return d >= 0 ? FILTER_TAIL3_FREQ_VAL_MIN : FILTER_TAIL3_FREQ_VAL_MAX;
+                return d >= 0 ? lo : hi;
             }
             const n = cur + d;
-            if (n > FILTER_TAIL3_FREQ_VAL_MAX || n < FILTER_TAIL3_FREQ_VAL_MIN) {
+            if (n > hi || n < lo) {
                 return null;
             }
             return n;
@@ -25089,7 +25106,12 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!(index >= 0 && index < freqs.length)) {
                 return false;
             }
-            freqs[index] = bumpFilterTail3FreqValue(freqs[index], delta);
+            freqs[index] = bumpFilterTail3FreqValue(
+                freqs[index],
+                delta,
+                FILTER_TAIL3_FREQ_VAL_MIN,
+                FILTER_TAIL3_FREQ_VAL_MAX
+            );
             filterTail3FollowFreqs = freqs;
             saveFilterTail3FreqSettings();
             syncFilterPopupTail3FreqUi();
@@ -25103,7 +25125,12 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!periodFilterEnabled || !isTail3FilterMode(periodFilterMode)) {
                 return false;
             }
-            filterTail3DeriveFreq = bumpFilterTail3FreqValue(getNormalizedFilterTail3DeriveFreq(), delta);
+            filterTail3DeriveFreq = bumpFilterTail3FreqValue(
+                getNormalizedFilterTail3DeriveFreq(),
+                delta,
+                FILTER_TAIL3_DERIVE_FREQ_MIN,
+                FILTER_TAIL3_DERIVE_FREQ_MAX
+            );
             saveFilterTail3FreqSettings();
             syncFilterPopupTail3FreqUi();
             deferFilterPopupHeavyWork(() => {
@@ -25178,7 +25205,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                     : getFilterPopupPositionText(inputEl);
                 const freqs = getNormalizedFilterTail3FollowFreqs();
                 if (index >= 0 && index < freqs.length) {
-                    freqs[index] = normalizeFilterTail3DeriveFreq(raw);
+                    freqs[index] = normalizeFilterTail3FollowFreqVal(raw);
                     filterTail3FollowFreqs = freqs;
                     saveFilterTail3FreqSettings();
                     setFilterPopupPositionText(inputEl, formatFilterTail3FreqDisplay(freqs[index]));
@@ -25205,7 +25232,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                     inputEl.classList.remove('is-empty');
                     const freqs = getNormalizedFilterTail3FollowFreqs();
                     if (index >= 0 && index < freqs.length) {
-                        const next = normalizeFilterTail3DeriveFreq(key);
+                        const next = normalizeFilterTail3FollowFreqVal(key);
                         if (freqs[index] !== next) {
                             freqs[index] = next;
                             filterTail3FollowFreqs = freqs;
@@ -25306,7 +25333,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                     return;
                 }
                 const key = String(event.key || '');
-                if (key >= '1' && key <= '9') {
+                if (key >= '0' && key <= '9') {
                     event.preventDefault();
                     event.stopPropagation();
                     inputEl.dataset.draft = key;

@@ -669,12 +669,164 @@
             /* host = .midwrap (ngoài transform scale) — không bị clip */
         }
 
+        .reference-hint-head-row {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            box-sizing: border-box;
+        }
+
         .reference-hint-head {
             font-weight: 600;
+            flex: 1 1 auto;
+            min-width: 0;
             max-width: 100%;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
+        }
+
+        .reference-hint-sort-wrap {
+            flex: 0 0 auto;
+            position: relative;
+            display: inline-flex;
+            align-items: center;
+            margin-left: auto;
+            white-space: nowrap;
+            z-index: 6;
+        }
+
+        .reference-hint-sort-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin: 0;
+            padding: 2px 8px 2px 9px;
+            font: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1.25;
+            color: #1a3d1a;
+            background: linear-gradient(180deg, #ffffff 0%, #eef7ee 100%);
+            border: 1px solid #7aaa7a;
+            border-radius: 999px;
+            box-shadow: 0 1px 0 rgba(255, 255, 255, 0.85) inset,
+                0 1px 2px rgba(40, 80, 40, 0.12);
+            cursor: pointer;
+            user-select: none;
+            max-width: 13.5em;
+        }
+
+        .reference-hint-sort-btn:hover {
+            border-color: #5f955f;
+            background: linear-gradient(180deg, #ffffff 0%, #e4f3e4 100%);
+        }
+
+        .reference-hint-sort-btn:focus-visible {
+            outline: 2px solid #4a8a4a;
+            outline-offset: 1px;
+        }
+
+        .reference-hint-sort-btn.is-open {
+            border-color: #4f8f4f;
+            background: #e5f4e5;
+            box-shadow: 0 0 0 1px rgba(79, 143, 79, 0.25);
+        }
+
+        .reference-hint-sort-btn-label {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .reference-hint-sort-dir {
+            flex: 0 0 auto;
+            font-size: 11px;
+            font-weight: 700;
+            line-height: 1;
+            width: 0.85em;
+            text-align: center;
+        }
+
+        .reference-hint-sort-dir.is-asc {
+            color: #15803d;
+        }
+
+        .reference-hint-sort-dir.is-desc {
+            color: #dc2626;
+        }
+
+        .reference-hint-sort-caret {
+            flex: 0 0 auto;
+            width: 0;
+            height: 0;
+            margin-left: 1px;
+            border-left: 3.5px solid transparent;
+            border-right: 3.5px solid transparent;
+            border-top: 4.5px solid #4a6f4a;
+            opacity: 0.85;
+        }
+
+        .reference-hint-sort-menu {
+            position: absolute;
+            top: calc(100% + 4px);
+            right: 0;
+            min-width: 100%;
+            padding: 4px;
+            margin: 0;
+            list-style: none;
+            background: #fff;
+            border: 1px solid #8bb88b;
+            border-radius: 8px;
+            box-shadow: 0 8px 20px rgba(30, 60, 30, 0.16);
+            display: none;
+            z-index: 8;
+        }
+
+        .reference-hint-sort-menu.is-open {
+            display: block;
+        }
+
+        .reference-hint-sort-option {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            width: 100%;
+            margin: 0;
+            padding: 5px 8px;
+            border: 0;
+            border-radius: 6px;
+            background: transparent;
+            color: #153015;
+            font: inherit;
+            font-size: 11px;
+            font-weight: 600;
+            line-height: 1.25;
+            text-align: left;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .reference-hint-sort-option:hover {
+            background: #eef7ee;
+        }
+
+        .reference-hint-sort-option.is-active {
+            background: #dff0df;
+            color: #0f3d0f;
+        }
+
+        .reference-hint-sort-option .reference-hint-sort-dir {
+            opacity: 0;
+        }
+
+        .reference-hint-sort-option.is-active .reference-hint-sort-dir {
+            opacity: 1;
         }
 
         .reference-hint-head-muted {
@@ -2458,6 +2610,20 @@
         let referenceHintAppliedKeys = new Set();
         /** Index nhóm mũi tên đang nav A/D (−1 = chưa) — “focus gần nhất”. */
         let arrowGroupNavIndex = -1;
+        /**
+         * Sort nhóm Y→X trên panel 3-tail.
+         * Mỗi lần mở web = default + asc (không persist).
+         * Click lại cùng mode → đảo asc/desc.
+         * @type {'default'|'follow'|'derive'}
+         */
+        let referenceHintSortBy = 'default';
+        /** @type {'asc'|'desc'} */
+        let referenceHintSortDir = 'asc';
+        /** Payload hint gần nhất — dùng khi đổi sort mà không chờ parent gửi lại. */
+        let referenceHintLastPayload = null;
+        let referenceHintSortMenuCloser = null;
+        /** Giữ menu mở sau khi click option (toggle asc/desc liên tiếp). */
+        let referenceHintSortMenuKeepOpen = false;
 
         function getReferenceHintArrowGroupItems() {
             const panel = document.getElementById('referenceHint');
@@ -2841,18 +3007,358 @@
             row.hidden = false;
         }
 
+        function normalizeReferenceHintSortBy(v) {
+            const s = String(v || '').trim().toLowerCase();
+            if (s === 'follow' || s === 'follow freq') {
+                return 'follow';
+            }
+            if (s === 'derive' || s === 'derive freq') {
+                return 'derive';
+            }
+            return 'default';
+        }
+
+        function normalizeReferenceHintSortDir(v) {
+            return String(v || '').trim().toLowerCase() === 'desc' ? 'desc' : 'asc';
+        }
+
+        function referenceHintSortModeLabel(mode) {
+            const m = normalizeReferenceHintSortBy(mode);
+            if (m === 'follow') {
+                return 'follow freq';
+            }
+            if (m === 'derive') {
+                return 'derive freq';
+            }
+            return 'default';
+        }
+
+        function referenceHintSortDirIcon(dir) {
+            return normalizeReferenceHintSortDir(dir) === 'desc' ? '▼' : '▲';
+        }
+
+        function closeReferenceHintSortMenu() {
+            const menu = document.getElementById('referenceHintSortMenu');
+            const btn = document.getElementById('referenceHintSortBtn');
+            if (menu) {
+                menu.classList.remove('is-open');
+            }
+            if (btn) {
+                btn.classList.remove('is-open');
+                btn.setAttribute('aria-expanded', 'false');
+            }
+            if (referenceHintSortMenuCloser) {
+                document.removeEventListener('mousedown', referenceHintSortMenuCloser, true);
+                referenceHintSortMenuCloser = null;
+            }
+            referenceHintSortMenuKeepOpen = false;
+        }
+
+        function detachReferenceHintSortMenuCloser() {
+            if (referenceHintSortMenuCloser) {
+                document.removeEventListener('mousedown', referenceHintSortMenuCloser, true);
+                referenceHintSortMenuCloser = null;
+            }
+        }
+
+        function openReferenceHintSortMenu(wrap, btn, menu) {
+            if (!wrap || !btn || !menu) {
+                return;
+            }
+            menu.classList.add('is-open');
+            btn.classList.add('is-open');
+            btn.setAttribute('aria-expanded', 'true');
+            detachReferenceHintSortMenuCloser();
+            referenceHintSortMenuCloser = function (ev2) {
+                const t = ev2.target;
+                if (wrap.contains(t)) {
+                    return;
+                }
+                closeReferenceHintSortMenu();
+            };
+            document.addEventListener('mousedown', referenceHintSortMenuCloser, true);
+            referenceHintSortMenuKeepOpen = true;
+        }
+
+        function applyReferenceHintSortChoice(mode) {
+            const next = normalizeReferenceHintSortBy(mode);
+            if (next === referenceHintSortBy) {
+                referenceHintSortDir = referenceHintSortDir === 'asc' ? 'desc' : 'asc';
+            } else {
+                referenceHintSortBy = next;
+                referenceHintSortDir = 'asc';
+            }
+            // Giữ dropdown mở để toggle liên tiếp; chỉ đóng khi click ra ngoài / nút.
+            referenceHintSortMenuKeepOpen = true;
+            if (referenceHintLastPayload) {
+                renderReferenceHintPanel(referenceHintLastPayload);
+            }
+        }
+
+        /** Clone nhóm + sắp xếp ys trong nhóm theo mode/dir (không mutate payload gốc). */
+        function prepareReferenceHintGroupForSort(g, mode, dir) {
+            const ys = Array.isArray(g.ys) ? g.ys.slice() : [];
+            const yFreqs = Array.isArray(g.yFreqs) ? g.yFreqs.slice() : [];
+            const pairs = ys.map(function (y, i) {
+                const f = Number.isFinite(yFreqs[i]) ? (yFreqs[i] | 0) : 0;
+                return { y: parseInt(y, 10), f: f };
+            }).filter(function (p) {
+                return Number.isFinite(p.y);
+            });
+            const d = normalizeReferenceHintSortDir(dir);
+            if (mode === 'follow') {
+                // asc = freq thấp→cao; desc = cao→thấp
+                pairs.sort(function (a, b) {
+                    if (a.f !== b.f) {
+                        return d === 'asc' ? (a.f - b.f) : (b.f - a.f);
+                    }
+                    return d === 'asc' ? (a.y - b.y) : (b.y - a.y);
+                });
+            }
+            // default / derive: giữ thứ tự Y từ parent trừ khi follow đã sort
+            const outYs = pairs.map(function (p) { return p.y; });
+            const outYFreqs = pairs.map(function (p) { return p.f; });
+            let maxYFreq = 0;
+            let maxY = 0;
+            for (let i = 0; i < pairs.length; i++) {
+                if (pairs[i].f > maxYFreq) {
+                    maxYFreq = pairs[i].f;
+                }
+                if (pairs[i].y > maxY) {
+                    maxY = pairs[i].y;
+                }
+            }
+            const xFreq = Number.isFinite(g.xFreq) ? (g.xFreq | 0)
+                : (g.xIsFreqZero ? 0 : 0);
+            return {
+                x: g.x,
+                ys: outYs,
+                yFreqs: outYFreqs,
+                label: g.label,
+                inAnswer: !!g.inAnswer,
+                xFreq: xFreq,
+                xIsFreqZero: !!g.xIsFreqZero || xFreq === 0,
+                xIsPhase1: !!g.xIsPhase1,
+                xIsPhaseMax: !!g.xIsPhaseMax,
+                yCount: outYs.length,
+                maxYFreq: Number.isFinite(g.maxYFreq) ? (g.maxYFreq | 0) : maxYFreq,
+                maxY: Number.isFinite(g.maxY) ? (g.maxY | 0) : maxY
+            };
+        }
+
+        function sortReferenceHintGroupLines(groups, mode, dir) {
+            const m = normalizeReferenceHintSortBy(mode);
+            const d = normalizeReferenceHintSortDir(dir);
+            const list = (groups || []).map(function (g) {
+                return prepareReferenceHintGroupForSort(g, m, d);
+            });
+            if (m === 'default') {
+                if (d === 'desc') {
+                    list.reverse();
+                }
+                return list;
+            }
+            list.sort(function (a, b) {
+                const asc = d === 'asc';
+                if (m === 'follow') {
+                    if (b.maxYFreq !== a.maxYFreq) {
+                        return asc ? (a.maxYFreq - b.maxYFreq) : (b.maxYFreq - a.maxYFreq);
+                    }
+                    if (b.maxY !== a.maxY) {
+                        return asc ? (a.maxY - b.maxY) : (b.maxY - a.maxY);
+                    }
+                    if (b.yCount !== a.yCount) {
+                        return asc ? (a.yCount - b.yCount) : (b.yCount - a.yCount);
+                    }
+                    if (b.xFreq !== a.xFreq) {
+                        return asc ? (a.xFreq - b.xFreq) : (b.xFreq - a.xFreq);
+                    }
+                    return asc
+                        ? ((parseInt(a.x, 10) || 0) - (parseInt(b.x, 10) || 0))
+                        : ((parseInt(b.x, 10) || 0) - (parseInt(a.x, 10) || 0));
+                }
+                // derive
+                if (b.xFreq !== a.xFreq) {
+                    return asc ? (a.xFreq - b.xFreq) : (b.xFreq - a.xFreq);
+                }
+                if ((parseInt(a.x, 10) || 0) !== (parseInt(b.x, 10) || 0)) {
+                    return asc
+                        ? ((parseInt(a.x, 10) || 0) - (parseInt(b.x, 10) || 0))
+                        : ((parseInt(b.x, 10) || 0) - (parseInt(a.x, 10) || 0));
+                }
+                if (b.yCount !== a.yCount) {
+                    return asc ? (a.yCount - b.yCount) : (b.yCount - a.yCount);
+                }
+                return asc ? (a.maxY - b.maxY) : (b.maxY - a.maxY);
+            });
+            return list;
+        }
+
+        function sortReferenceHintTriplets(triplets, mode, dir) {
+            const m = normalizeReferenceHintSortBy(mode);
+            const d = normalizeReferenceHintSortDir(dir);
+            const list = (triplets || []).slice();
+            if (m === 'default') {
+                if (d === 'desc') {
+                    list.reverse();
+                }
+                return list;
+            }
+            list.sort(function (a, b) {
+                const ayf = Number.isFinite(a.yFreq) ? (a.yFreq | 0) : 0;
+                const byf = Number.isFinite(b.yFreq) ? (b.yFreq | 0) : 0;
+                const axf = Number.isFinite(a.xFreq) ? (a.xFreq | 0)
+                    : (a.xIsFreqZero ? 0 : 0);
+                const bxf = Number.isFinite(b.xFreq) ? (b.xFreq | 0)
+                    : (b.xIsFreqZero ? 0 : 0);
+                const ay = parseInt(a.y, 10) || 0;
+                const by = parseInt(b.y, 10) || 0;
+                const ax = parseInt(a.x, 10) || 0;
+                const bx = parseInt(b.x, 10) || 0;
+                const asc = d === 'asc';
+                if (m === 'follow') {
+                    if (byf !== ayf) {
+                        return asc ? (ayf - byf) : (byf - ayf);
+                    }
+                    if (by !== ay) {
+                        return asc ? (ay - by) : (by - ay);
+                    }
+                    return asc ? (ax - bx) : (bx - ax);
+                }
+                if (bxf !== axf) {
+                    return asc ? (axf - bxf) : (bxf - axf);
+                }
+                if (ax !== bx) {
+                    return asc ? (ax - bx) : (bx - ax);
+                }
+                return asc ? (ay - by) : (by - ay);
+            });
+            return list;
+        }
+
+        function buildReferenceHintSortControls(keepOpen) {
+            const wrap = document.createElement('div');
+            wrap.className = 'reference-hint-sort-wrap';
+            wrap.title = 'Click cùng mục để đảo tăng/giảm. Mỗi lần mở web = default ▲.';
+
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.id = 'referenceHintSortBtn';
+            btn.className = 'reference-hint-sort-btn';
+            btn.setAttribute('aria-haspopup', 'listbox');
+            btn.setAttribute('aria-expanded', 'false');
+            btn.setAttribute('aria-label', 'Sort by');
+
+            const labelEl = document.createElement('span');
+            labelEl.className = 'reference-hint-sort-btn-label';
+            labelEl.textContent = referenceHintSortModeLabel(referenceHintSortBy);
+
+            const dirEl = document.createElement('span');
+            dirEl.className = 'reference-hint-sort-dir '
+                + (referenceHintSortDir === 'desc' ? 'is-desc' : 'is-asc');
+            dirEl.textContent = referenceHintSortDirIcon(referenceHintSortDir);
+            dirEl.setAttribute('aria-hidden', 'true');
+
+            const caret = document.createElement('span');
+            caret.className = 'reference-hint-sort-caret';
+            caret.setAttribute('aria-hidden', 'true');
+
+            btn.appendChild(labelEl);
+            btn.appendChild(dirEl);
+            btn.appendChild(caret);
+
+            const menu = document.createElement('div');
+            menu.id = 'referenceHintSortMenu';
+            menu.className = 'reference-hint-sort-menu';
+            menu.setAttribute('role', 'listbox');
+            menu.setAttribute('aria-label', 'Sort by');
+
+            const opts = [
+                { v: 'default', t: 'default' },
+                { v: 'follow', t: 'follow freq' },
+                { v: 'derive', t: 'derive freq' }
+            ];
+            for (let oi = 0; oi < opts.length; oi++) {
+                const opt = document.createElement('button');
+                opt.type = 'button';
+                opt.className = 'reference-hint-sort-option'
+                    + (opts[oi].v === referenceHintSortBy ? ' is-active' : '');
+                opt.setAttribute('role', 'option');
+                opt.setAttribute('aria-selected', opts[oi].v === referenceHintSortBy ? 'true' : 'false');
+                opt.dataset.sortMode = opts[oi].v;
+
+                const optLabel = document.createElement('span');
+                optLabel.textContent = opts[oi].t;
+                const optDir = document.createElement('span');
+                optDir.className = 'reference-hint-sort-dir '
+                    + (referenceHintSortDir === 'desc' ? 'is-desc' : 'is-asc');
+                optDir.textContent = referenceHintSortDirIcon(referenceHintSortDir);
+                optDir.setAttribute('aria-hidden', 'true');
+                opt.appendChild(optLabel);
+                opt.appendChild(optDir);
+
+                opt.addEventListener('click', function (ev) {
+                    ev.preventDefault();
+                    ev.stopPropagation();
+                    applyReferenceHintSortChoice(opts[oi].v);
+                });
+                menu.appendChild(opt);
+            }
+
+            btn.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                const willOpen = !menu.classList.contains('is-open');
+                if (!willOpen) {
+                    closeReferenceHintSortMenu();
+                    return;
+                }
+                openReferenceHintSortMenu(wrap, btn, menu);
+            });
+            btn.addEventListener('mousedown', function (ev) {
+                ev.stopPropagation();
+            });
+            menu.addEventListener('mousedown', function (ev) {
+                ev.stopPropagation();
+            });
+
+            wrap.appendChild(btn);
+            wrap.appendChild(menu);
+            if (keepOpen) {
+                openReferenceHintSortMenu(wrap, btn, menu);
+            }
+            return wrap;
+        }
+
         function renderReferenceHintPanel(hint) {
             const panel = document.getElementById('referenceHint');
             if (!panel) {
                 return;
             }
+            const keepSortMenu = !!referenceHintSortMenuKeepOpen;
+            detachReferenceHintSortMenuCloser();
             panel.innerHTML = '';
             const headerLines = hint && Array.isArray(hint.headerLines) ? hint.headerLines : [];
-            const triplets = hint && Array.isArray(hint.triplets) ? hint.triplets : [];
+            const tripletsRaw = hint && Array.isArray(hint.triplets) ? hint.triplets : [];
             const footerLine = hint && hint.footerLine ? String(hint.footerLine) : '';
-            const groupLines = hint && Array.isArray(hint.groupLines) ? hint.groupLines : [];
+            const groupLinesRaw = hint && Array.isArray(hint.groupLines) ? hint.groupLines : [];
+            if (hint && (headerLines.length || tripletsRaw.length || footerLine || groupLinesRaw.length)) {
+                referenceHintLastPayload = {
+                    headerLines: headerLines.slice(),
+                    triplets: tripletsRaw.slice(),
+                    footerLine: footerLine,
+                    groupLines: groupLinesRaw.slice(),
+                    phaseMaxNum: hint.phaseMaxNum != null ? hint.phaseMaxNum : null
+                };
+            } else {
+                referenceHintLastPayload = null;
+            }
+            const sortMode = normalizeReferenceHintSortBy(referenceHintSortBy);
+            const sortDir = normalizeReferenceHintSortDir(referenceHintSortDir);
+            const triplets = sortReferenceHintTriplets(tripletsRaw, sortMode, sortDir);
+            const groupLines = sortReferenceHintGroupLines(groupLinesRaw, sortMode, sortDir);
             referenceConn3TripletsCache = triplets.slice();
-            if (!headerLines.length && !triplets.length && !footerLine && !groupLines.length) {
+            if (!headerLines.length && !tripletsRaw.length && !footerLine && !groupLinesRaw.length) {
                 referenceConn3PanelActive = false;
                 referenceHintAppliedKeys.clear();
                 const empty = document.createElement('div');
@@ -2871,15 +3377,31 @@
             pickHintRow.setAttribute('aria-live', 'polite');
             pickHintRow.hidden = true;
             panel.appendChild(pickHintRow);
+            let headRowBuilt = false;
             for (let hi = 0; hi < headerLines.length; hi++) {
                 const hText = String(headerLines[hi] || '');
                 if (hText.indexOf('Đáp án:') === 0) {
                     continue;
                 }
-                const lineEl = document.createElement('div');
-                lineEl.className = 'reference-hint-head';
-                lineEl.textContent = hText;
-                panel.appendChild(lineEl);
+                if (!headRowBuilt) {
+                    const headRow = document.createElement('div');
+                    headRow.className = 'reference-hint-head-row';
+                    const lineEl = document.createElement('div');
+                    lineEl.className = 'reference-hint-head';
+                    lineEl.textContent = hText;
+                    lineEl.title = hText;
+                    headRow.appendChild(lineEl);
+                    if (groupLinesRaw.length || tripletsRaw.length) {
+                        headRow.appendChild(buildReferenceHintSortControls(keepSortMenu));
+                    }
+                    panel.appendChild(headRow);
+                    headRowBuilt = true;
+                } else {
+                    const lineEl = document.createElement('div');
+                    lineEl.className = 'reference-hint-head';
+                    lineEl.textContent = hText;
+                    panel.appendChild(lineEl);
+                }
             }
             if (footerLine) {
                 const foot = document.createElement('div');
