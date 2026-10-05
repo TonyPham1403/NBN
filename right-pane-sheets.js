@@ -2134,7 +2134,30 @@ class RightPaneSheetManager {
         }
 
         if (mode === 'tail3') {
-            return this.ensureTail3FilterIndicesCache().slice();
+            const o = filterOptions || {};
+            const followFreqs = RightPaneSheetManager.normalizeTail3FollowFreqs(o.tail3FollowFreqs);
+            const deriveFreq = RightPaneSheetManager.normalizeTail3DeriveFreq(o.tail3DeriveFreq);
+            // Cả hai bên trống (= any): mẫu = mọi kỳ evaluable có follow (determined) — cùng mẫu F%.
+            if (!RightPaneSheetManager.isTail3FollowDeriveFreqActive(followFreqs, deriveFreq)) {
+                const evaluable = this.ensureTail3EvaluableIndicesCache();
+                const outFollow = [];
+                for (let e = 0; e < evaluable.length; e++) {
+                    const i = evaluable[e];
+                    if (this.rowHasDeterminedFollow(rows, i)) {
+                        outFollow.push(i);
+                    }
+                }
+                return outFollow;
+            }
+            const base = this.ensureTail3FilterIndicesCache();
+            const out = [];
+            for (let b = 0; b < base.length; b++) {
+                const i = base[b];
+                if (this.rowMatchesTail3FollowDeriveFreq(rows, i, followFreqs, deriveFreq)) {
+                    out.push(i);
+                }
+            }
+            return out;
         }
 
         if (mode === 'conn3') {
@@ -3977,6 +4000,77 @@ class RightPaneSheetManager {
             return !!this.getTail3StarCellCached(rowIndex).hit;
         }
         return !!this.computeTail3StarCellForRow(rows, rowIndex).hit;
+    }
+
+    /**
+     * Freq mỗi số trong cửa sổ 10 kỳ trước focus (cùng nguồn subscript Y→X).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @returns {Map<number, number>}
+     */
+    buildTail3WindowFreqMap(rows, rowIndex) {
+        /** @type {Map<number, number>} */
+        const freqMap = new Map();
+        const i = Number(rowIndex);
+        if (!Array.isArray(rows) || !Number.isFinite(i) || i < 0) {
+            return freqMap;
+        }
+        const winStart = Math.max(0, i - 10);
+        for (let r = winStart; r < i; r++) {
+            const wr = rows[r];
+            if (!wr || this.isEmptyResultRow(wr)) {
+                continue;
+            }
+            const nums = this.parseMainNums(wr.result || wr.Result || '');
+            for (let ni = 0; ni < nums.length; ni++) {
+                const n = nums[ni];
+                if (n >= 1 && n <= 35) {
+                    freqMap.set(n, (freqMap.get(n) || 0) + 1);
+                }
+            }
+        }
+        return freqMap;
+    }
+
+    /**
+     * ★ + follow freqs (Y) → derive freq (X):
+     * - Trái: partners phải **ít nhất** phủ các freq đã chỉ định (null bỏ qua; được dư partner).
+     * - Phải: xFreq = deriveFreq (null = any).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {Array<number|null>} followFreqs
+     * @param {number|null} deriveFreq
+     * @returns {boolean}
+     */
+    rowMatchesTail3FollowDeriveFreq(rows, rowIndex, followFreqs, deriveFreq) {
+        if (!this.rowMatchesTail3Filter(rows, rowIndex)) {
+            return false;
+        }
+        const follow = RightPaneSheetManager.normalizeTail3FollowFreqs(followFreqs);
+        const derive = RightPaneSheetManager.normalizeTail3DeriveFreq(deriveFreq);
+        if (!RightPaneSheetManager.isTail3FollowDeriveFreqActive(follow, derive)) {
+            return true;
+        }
+        const wantY = follow.slice();
+        const freqMap = this.buildTail3WindowFreqMap(rows, rowIndex);
+        const candidates = this.enumerateTail3CandidateNumsForRow(rows, rowIndex, {
+            includeEdges: false
+        });
+        for (let ci = 0; ci < candidates.length; ci++) {
+            const c = candidates[ci];
+            if (!c || !c.inAnswer || !Array.isArray(c.partners) || !c.partners.length) {
+                continue;
+            }
+            const xFreq = freqMap.get(c.num) || 0;
+            if (derive != null && xFreq !== derive) {
+                continue;
+            }
+            const gotY = c.partners.map((p) => freqMap.get(p.y) || 0);
+            if (RightPaneSheetManager.tail3FreqMultisetCoversAtLeast(wantY, gotY)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -12821,6 +12915,94 @@ class RightPaneSheetManager {
             out.push({ num: null, freq: 2, posSlots: ['1', 'x'] });
         }
         return out;
+    }
+
+    /** @param {unknown} raw @returns {number|null} null = any */
+    static normalizeTail3DeriveFreq(raw) {
+        if (raw == null || raw === '') {
+            return null;
+        }
+        const n = parseInt(raw, 10);
+        if (!Number.isFinite(n) || n < 1 || n > 9) {
+            return null;
+        }
+        return n;
+    }
+
+    /**
+     * Giữ slot kể cả null (any). Độ dài = số khối follow (số Y partners).
+     * @param {unknown} raw
+     * @returns {Array<number|null>}
+     */
+    static normalizeTail3FollowFreqs(raw) {
+        const src = Array.isArray(raw) ? raw : [];
+        /** @type {Array<number|null>} */
+        const out = [];
+        for (let i = 0; i < src.length && out.length < 5; i++) {
+            const v = src[i];
+            if (v == null || v === '') {
+                out.push(null);
+                continue;
+            }
+            const n = RightPaneSheetManager.normalizeTail3DeriveFreq(v);
+            out.push(n);
+        }
+        return out;
+    }
+
+    /**
+     * Chỉ active khi có ít nhất một freq cụ thể (1–9).
+     * Cả follow + derive đều trống (= any) → không siết freq, mẫu = mọi kỳ có follow.
+     * @param {Array<number|null>} followFreqs
+     * @param {number|null} deriveFreq
+     * @returns {boolean}
+     */
+    static isTail3FollowDeriveFreqActive(followFreqs, deriveFreq) {
+        const derive = RightPaneSheetManager.normalizeTail3DeriveFreq(deriveFreq);
+        if (derive != null) {
+            return true;
+        }
+        const follow = RightPaneSheetManager.normalizeTail3FollowFreqs(followFreqs);
+        for (let i = 0; i < follow.length; i++) {
+            if (follow[i] != null) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Trái = ít nhất: mọi freq cụ thể trong want phải xuất hiện trong got (multiset).
+     * Slot null (= any) bỏ qua; got được dài hơn want.
+     * @param {Array<number|null>} want
+     * @param {number[]} got
+     * @returns {boolean}
+     */
+    static tail3FreqMultisetCoversAtLeast(want, got) {
+        if (!Array.isArray(want) || !Array.isArray(got)) {
+            return false;
+        }
+        const remaining = got.slice();
+        let concrete = 0;
+        for (let i = 0; i < want.length; i++) {
+            const w = want[i];
+            if (w == null) {
+                continue;
+            }
+            concrete += 1;
+            const idx = remaining.indexOf(w);
+            if (idx < 0) {
+                return false;
+            }
+            remaining.splice(idx, 1);
+        }
+        // Không có freq cụ thể bên trái → chỉ cần có partner (derive đã check riêng).
+        return concrete === 0 ? got.length > 0 : true;
+    }
+
+    /** @deprecated dùng tail3FreqMultisetCoversAtLeast */
+    static tail3FreqMultisetMatchesAny(want, got) {
+        return RightPaneSheetManager.tail3FreqMultisetCoversAtLeast(want, got);
     }
 
     /** Parse chữ Hán streak (一…九十九) → số; số Ả Rập cũng nhận. */

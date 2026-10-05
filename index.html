@@ -5499,6 +5499,151 @@
             display: none !important;
         }
 
+        .filter-popup-tail3-freq.hidden {
+            display: none !important;
+        }
+
+        .filter-popup-tail3-freq {
+            display: inline-flex;
+            align-items: center;
+            align-self: center;
+            height: 100%;
+            min-height: 24px;
+            max-height: 24px;
+            flex: 1 1 auto;
+            min-width: 0;
+            flex-wrap: nowrap;
+            gap: 4px;
+            padding: 0 2px;
+            margin: 0;
+            border-left: 1px solid #cbd5e1;
+            background: #f8fafc;
+            box-sizing: border-box;
+            overflow-x: auto;
+            overflow-y: hidden;
+            max-width: min(520px, 100%);
+            scrollbar-width: none;
+            -ms-overflow-style: none;
+        }
+
+        .filter-popup-tail3-freq::-webkit-scrollbar {
+            display: none;
+        }
+
+        .filter-popup-tail3-follow-side,
+        .filter-popup-tail3-derive-side,
+        .filter-popup-tail3-follow-list,
+        .filter-popup-tail3-derive-mount {
+            display: inline-flex;
+            align-items: center;
+            flex: 0 0 auto;
+        }
+
+        .filter-popup-tail3-follow-side {
+            gap: 4px;
+        }
+
+        .filter-popup-tail3-follow-list {
+            gap: 4px;
+        }
+
+        .filter-popup-tail3-freq .filter-popup-tail3-freq-num {
+            width: 2.5ch;
+            min-width: 2.5ch;
+            text-align: center;
+        }
+
+        .filter-popup-tail3-freq .filter-popup-tail3-freq-num.is-empty {
+            color: #94a3b8;
+        }
+
+        .filter-popup-tail3-freq .filter-popup-tail3-freq-num.is-empty::before {
+            content: "·";
+            color: #94a3b8;
+        }
+
+        .filter-popup-tail3-freq .filter-popup-p1-dist-spin {
+            margin: 0;
+        }
+
+        .filter-popup-tail3-freq .filter-popup-param-row {
+            align-self: center;
+            margin: 0;
+            vertical-align: middle;
+        }
+
+        .filter-popup-param-row .filter-popup-tail3-follow-remove {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            align-self: stretch;
+            width: 14px;
+            min-width: 14px;
+            height: auto !important;
+            min-height: 0;
+            margin: 0;
+            padding: 0;
+            border: 0;
+            border-left: 1px solid #cc0000;
+            border-radius: 0;
+            background: #ff0000;
+            color: #ffffff;
+            font: 700 11px/1 Inter, Segoe UI, Arial, sans-serif;
+            box-sizing: border-box;
+            flex: 0 0 14px;
+        }
+
+        .filter-popup-param-row .filter-popup-tail3-follow-remove:hover:not(:disabled) {
+            background: #ff3333;
+            color: #ffffff;
+        }
+
+        .filter-popup-tail3-freq-arrow-wrap {
+            display: inline-flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1px;
+            flex: 0 0 auto;
+            align-self: center;
+            height: 20px;
+            min-width: 3.6em;
+            padding: 0 6px;
+            line-height: 1;
+            user-select: none;
+            box-sizing: border-box;
+        }
+
+        .filter-popup-tail3-freq-arrow-label {
+            display: block;
+            font: 700 8px/8px Inter, Segoe UI, Arial, sans-serif;
+            letter-spacing: 0.06em;
+            color: #64748b;
+            text-transform: lowercase;
+            height: 8px;
+        }
+
+        .filter-popup-tail3-freq-arrow {
+            display: block;
+            position: relative;
+            width: 2.8em;
+            height: 0;
+            border-top: 2px solid #334155;
+            box-sizing: border-box;
+        }
+
+        .filter-popup-tail3-freq-arrow::after {
+            content: "";
+            position: absolute;
+            right: -1px;
+            top: -5px;
+            width: 0;
+            height: 0;
+            border-style: solid;
+            border-width: 4px 0 4px 6px;
+            border-color: transparent transparent transparent #334155;
+        }
+
         /* Cùng shell layout với TRACKING belly (hàng 24px, không wrap) */
         .filter-popup-p1-dist {
             display: inline-flex;
@@ -9403,6 +9548,24 @@
                             </label>
                         </div>
                     </div>
+                    <div id="filterPopupTail3FreqPicker" class="filter-popup-tail3-freq hidden" role="group"
+                        aria-label="3-tail: follow freq → derive freq"
+                        aria-hidden="true"
+                        title="Trái: ít nhất các follow freq đã chỉ định (trống=any). Phải: derive freq (trống=any). Cả hai trống = mọi kỳ có follow.">
+                        <div class="filter-popup-tail3-follow-side">
+                            <div id="filterPopupTail3FollowList" class="filter-popup-tail3-follow-list"></div>
+                            <button type="button" id="filterPopupTail3FollowAdd"
+                                class="filter-popup-tracking-belly-add" title="Thêm khối follow (Y)"
+                                aria-label="Thêm khối follow">+</button>
+                        </div>
+                        <div class="filter-popup-tail3-freq-arrow-wrap" aria-hidden="true">
+                            <span class="filter-popup-tail3-freq-arrow-label">freq</span>
+                            <span class="filter-popup-tail3-freq-arrow"></span>
+                        </div>
+                        <div class="filter-popup-tail3-derive-side">
+                            <div id="filterPopupTail3DeriveMount" class="filter-popup-tail3-derive-mount"></div>
+                        </div>
+                    </div>
                     <div id="filterPopupTailCountPicker" class="filter-popup-tail-count hidden" aria-hidden="true">
                         <div class="filter-popup-intersection-freq" role="group"
                             title="Tail cửa sổ 10: số lần xuất hiện rời (count) khớp ngưỡng [tail] (2–5)."
@@ -9725,7 +9888,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
-    <script src="right-pane-sheets.js?v=20261006p1distRel"></script>
+    <script src="right-pane-sheets.js?v=20261006tail3AtLeast"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -9993,6 +10156,15 @@
             { num: null, freq: 2, posSlots: Object.freeze(['1', 'x']) }
         ]);
         const FILTER_P1_DIST_RESULT_DEFAULT = Object.freeze({ enabled: false, lo: 'x', hi: 'x' });
+        const FILTER_TAIL3_FREQ_KEY = 'filterTail3FollowDeriveFreq';
+        const FILTER_TAIL3_FOLLOW_FREQ_MIN = 1;
+        const FILTER_TAIL3_FOLLOW_FREQ_MAX = 5;
+        const FILTER_TAIL3_FREQ_VAL_MIN = 1;
+        const FILTER_TAIL3_FREQ_VAL_MAX = 9;
+        const FILTER_TAIL3_FREQ_DEFAULT = Object.freeze({
+            followFreqs: Object.freeze([null]),
+            deriveFreq: null
+        });
         const FILTER_PHASE1_MECH_KEY = 'filterPhase1Mech';
         const FILTER_PHASE1_POS_MODE_KEY = 'filterPhase1PosMode';
         const FILTER_PHASE1_POS_GE2 = 'ge2';
@@ -10116,6 +10288,9 @@
         /** conn3: chỉ hiện kỳ cửa sổ 10 có 3-connection khi bật từ nút % */
         let filterPopupConn3WindowOnly = false;
         let filterPopupTail3WindowOnly = false;
+        /** 3-tail: follow freqs (Y, đa giá trị) → derive freq (X, 1 giá trị); mỗi giá trị 1–9. */
+        let filterTail3FollowFreqs = [null];
+        let filterTail3DeriveFreq = null;
         /**
          * TRACKING nút %: 't' | 'io' (hợp ≥2) | 'in' | 'out' | 'q' | 'off'.
          * T = mọi kỳ có bụng; io = viền xanh hợp cơ chế đang bật; còn lại = từng cơ chế.
@@ -12348,7 +12523,7 @@
                 return 'Đáp án có phần tử thuộc tail (cửa sổ 10 chuỗi trước kỳ)';
             }
             if (isTail3FilterMode(mode)) {
-                return '3-tail: đáp án tạo được 3-tail với phase1 (ngoài 11–20 + cửa sổ 10) — có hàng ★ trong panel';
+                return '3-tail: ★ + follow freq trái (≥ các khối chỉ định) → derive freq phải; trống = any; vd 1,3 → 1';
             }
             if (isPosnfreqFilterMode(mode)) {
                 return 'posnfreq (position + frequency)';
@@ -12693,6 +12868,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             if (isTailFilterMode(mode)) {
                 return getTailFilterOptions();
+            }
+            if (isTail3FilterMode(mode)) {
+                return getTail3FilterOptions();
             }
             if (isConnectionFilterMode(mode)) {
                 return getConnectionFilterOptions();
@@ -18313,9 +18491,6 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (periodFilterEnabled && isConn3FilterMode(periodFilterMode)) {
                 return getConn3WindowExistIndicesFromSheet();
             }
-            if (periodFilterEnabled && isTail3FilterMode(periodFilterMode)) {
-                return getTail3EvaluableIndicesFromSheet();
-            }
             if (filterPopupIndices.length > 0) {
                 return filterPopupIndices.slice();
             }
@@ -19923,6 +20098,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 setFilterPopupConn3WindowOnly(false, { skipReconcile: true, skipCounts: true });
             }
             if (isTail3FilterMode(prevMode) && !isTail3FilterMode(periodFilterMode)) {
+                commitFilterPopupTail3FreqDraftsFromDom();
                 setFilterPopupTail3WindowOnly(false, { skipReconcile: true, skipCounts: true });
             }
             if (isTrackingFilterMode(prevMode) && !isTrackingFilterMode(periodFilterMode)) {
@@ -20574,9 +20750,6 @@ function getFilterNoteTRefMaxSelections(mode) {
         function getFilterPopupTableIndices() {
             if (periodFilterEnabled && isConn3FilterMode(periodFilterMode)) {
                 return applyFilterHeader2ToIndices(getConn3WindowExistIndicesFromSheet());
-            }
-            if (periodFilterEnabled && isTail3FilterMode(periodFilterMode)) {
-                return applyFilterHeader2ToIndices(getTail3EvaluableIndicesFromSheet());
             }
             return getFilterPopupAnswerConn3Indices();
         }
@@ -24443,6 +24616,638 @@ function getFilterNoteTRefMaxSelections(mode) {
             };
         }
 
+        function formatFilterTail3FreqDisplay(value) {
+            return value == null ? '' : String(value);
+        }
+
+        /** @param {unknown} raw @returns {number|null} null = any */
+        function normalizeFilterTail3DeriveFreq(raw) {
+            if (raw == null || raw === '') {
+                return null;
+            }
+            const n = parseInt(raw, 10);
+            if (!Number.isFinite(n)) {
+                return null;
+            }
+            return Math.min(FILTER_TAIL3_FREQ_VAL_MAX, Math.max(FILTER_TAIL3_FREQ_VAL_MIN, n));
+        }
+
+        /** @param {unknown} raw @returns {Array<number|null>} */
+        function normalizeFilterTail3FollowFreqs(raw) {
+            const src = Array.isArray(raw) ? raw : [];
+            /** @type {Array<number|null>} */
+            const out = [];
+            for (let i = 0; i < src.length && out.length < FILTER_TAIL3_FOLLOW_FREQ_MAX; i++) {
+                const v = src[i];
+                if (v == null || v === '') {
+                    out.push(null);
+                    continue;
+                }
+                out.push(normalizeFilterTail3DeriveFreq(v));
+            }
+            if (!out.length) {
+                out.push(null);
+            }
+            return out;
+        }
+
+        function getNormalizedFilterTail3FollowFreqs() {
+            filterTail3FollowFreqs = normalizeFilterTail3FollowFreqs(filterTail3FollowFreqs);
+            return filterTail3FollowFreqs;
+        }
+
+        function getNormalizedFilterTail3DeriveFreq() {
+            filterTail3DeriveFreq = normalizeFilterTail3DeriveFreq(filterTail3DeriveFreq);
+            return filterTail3DeriveFreq;
+        }
+
+        function getTail3FilterOptions() {
+            return {
+                tail3FollowFreqs: getNormalizedFilterTail3FollowFreqs().slice(),
+                tail3DeriveFreq: getNormalizedFilterTail3DeriveFreq()
+            };
+        }
+
+        function loadFilterTail3FreqSettings() {
+            try {
+                const raw = localStorage.getItem(FILTER_TAIL3_FREQ_KEY);
+                if (!raw) {
+                    filterTail3FollowFreqs = FILTER_TAIL3_FREQ_DEFAULT.followFreqs.slice();
+                    filterTail3DeriveFreq = FILTER_TAIL3_FREQ_DEFAULT.deriveFreq;
+                    return;
+                }
+                const parsed = JSON.parse(raw);
+                const followRaw = (parsed && (parsed.followFreqs != null ? parsed.followFreqs : parsed.tail3FollowFreqs));
+                const deriveRaw = (parsed && Object.prototype.hasOwnProperty.call(parsed, 'deriveFreq'))
+                    ? parsed.deriveFreq
+                    : (parsed && parsed.tail3DeriveFreq);
+                filterTail3FollowFreqs = normalizeFilterTail3FollowFreqs(followRaw);
+                filterTail3DeriveFreq = normalizeFilterTail3DeriveFreq(deriveRaw);
+            } catch (eLoadT3) {
+                filterTail3FollowFreqs = FILTER_TAIL3_FREQ_DEFAULT.followFreqs.slice();
+                filterTail3DeriveFreq = FILTER_TAIL3_FREQ_DEFAULT.deriveFreq;
+            }
+        }
+
+        function saveFilterTail3FreqSettings() {
+            try {
+                localStorage.setItem(FILTER_TAIL3_FREQ_KEY, JSON.stringify({
+                    followFreqs: getNormalizedFilterTail3FollowFreqs().slice(),
+                    deriveFreq: getNormalizedFilterTail3DeriveFreq()
+                }));
+            } catch (eSaveT3) { /* ignore */ }
+        }
+
+        /** Chốt draft đang gõ trên 3-tail (trước đổi mode / rebuild) rồi ghi localStorage. */
+        function commitFilterPopupTail3FreqDraftsFromDom() {
+            const root = el('filterPopupTail3FreqPicker');
+            if (!root) {
+                return;
+            }
+            const freqs = getNormalizedFilterTail3FollowFreqs().slice();
+            let changed = false;
+            root.querySelectorAll('.filter-popup-tail3-follow-freq').forEach((node) => {
+                if (!(node instanceof HTMLElement)) {
+                    return;
+                }
+                if (node.dataset.skipCommit === '1') {
+                    return;
+                }
+                const idx = parseInt(node.dataset.tail3FollowIdx, 10);
+                if (!(idx >= 0 && idx < freqs.length)) {
+                    return;
+                }
+                const raw = node.dataset.draft != null
+                    ? String(node.dataset.draft)
+                    : getFilterPopupPositionText(node);
+                const next = normalizeFilterTail3DeriveFreq(raw);
+                if (freqs[idx] !== next) {
+                    freqs[idx] = next;
+                    changed = true;
+                }
+                delete node.dataset.draft;
+                delete node.dataset.dirty;
+                delete node.dataset.replaceOnType;
+                setFilterPopupPositionText(node, formatFilterTail3FreqDisplay(next));
+                node.classList.toggle('is-empty', next == null);
+            });
+            const deriveEl = el('filterPopupTail3DeriveFreq');
+            if (deriveEl instanceof HTMLElement && deriveEl.dataset.skipCommit !== '1') {
+                const raw = deriveEl.dataset.draft != null
+                    ? String(deriveEl.dataset.draft)
+                    : getFilterPopupPositionText(deriveEl);
+                const next = normalizeFilterTail3DeriveFreq(raw);
+                if (filterTail3DeriveFreq !== next) {
+                    filterTail3DeriveFreq = next;
+                    changed = true;
+                }
+                delete deriveEl.dataset.draft;
+                delete deriveEl.dataset.dirty;
+                delete deriveEl.dataset.replaceOnType;
+                setFilterPopupPositionText(deriveEl, formatFilterTail3FreqDisplay(next));
+                deriveEl.classList.toggle('is-empty', next == null);
+            }
+            if (changed) {
+                filterTail3FollowFreqs = freqs;
+            }
+            saveFilterTail3FreqSettings();
+        }
+
+        function isFilterPopupTail3FreqInputFocused() {
+            const active = document.activeElement;
+            if (!(active instanceof HTMLElement)) {
+                return false;
+            }
+            return !!(active.closest && active.closest('#filterPopupTail3FreqPicker'));
+        }
+
+        function createFilterPopupTail3FreqFieldCell(index, side, value, show) {
+            const wrap = document.createElement('div');
+            wrap.className = 'filter-popup-intersection-freq-item';
+            const isFollow = side === 'follow';
+            wrap.title = isFollow
+                ? `Follow #${index + 1}: ít nhất freq này (1–9) hoặc trống (= any)`
+                : 'Derive freq: đúng 1 giá trị 1–9 hoặc trống (= any)';
+            const inputEl = document.createElement('span');
+            inputEl.className = 'filter-popup-position-input filter-popup-tail3-freq-num'
+                + (isFollow ? ' filter-popup-tail3-follow-freq' : ' filter-popup-tail3-derive-freq');
+            inputEl.tabIndex = show ? 0 : -1;
+            inputEl.setAttribute('role', 'textbox');
+            inputEl.setAttribute('aria-label', isFollow
+                ? `Follow freq #${index + 1} (≥, 1–9 hoặc trống=any)`
+                : 'Derive freq (1–9 hoặc trống=any)');
+            if (isFollow) {
+                inputEl.dataset.tail3FollowIdx = String(index);
+            } else {
+                inputEl.id = 'filterPopupTail3DeriveFreq';
+            }
+            const display = formatFilterTail3FreqDisplay(value);
+            setFilterPopupPositionText(inputEl, display);
+            inputEl.classList.toggle('is-empty', value == null);
+            const spin = document.createElement('div');
+            spin.className = 'filter-popup-tracking-belly-spin filter-popup-p1-dist-spin';
+            spin.setAttribute('role', 'group');
+            const inc = document.createElement('button');
+            inc.type = 'button';
+            inc.className = 'filter-popup-nonexist-num-spin-btn';
+            inc.textContent = '▴';
+            inc.disabled = !show;
+            const dec = document.createElement('button');
+            dec.type = 'button';
+            dec.className = 'filter-popup-nonexist-num-spin-btn';
+            dec.textContent = '▾';
+            dec.disabled = !show;
+            spin.appendChild(inc);
+            spin.appendChild(dec);
+            wrap.appendChild(inputEl);
+            wrap.appendChild(spin);
+            if (isFollow) {
+                bindFilterPopupTrackingSpinButton(inc, () => bumpFilterPopupTail3FollowFreq(index, 1));
+                bindFilterPopupTrackingSpinButton(dec, () => bumpFilterPopupTail3FollowFreq(index, -1));
+                bindFilterPopupTail3FollowInput(inputEl, index);
+            } else {
+                inc.id = 'filterPopupTail3DeriveInc';
+                dec.id = 'filterPopupTail3DeriveDec';
+                bindFilterPopupTrackingSpinButton(inc, () => bumpFilterPopupTail3DeriveFreq(1));
+                bindFilterPopupTrackingSpinButton(dec, () => bumpFilterPopupTail3DeriveFreq(-1));
+                bindFilterPopupTail3DeriveInput(inputEl);
+            }
+            return wrap;
+        }
+
+        function disarmFilterPopupTail3InputsForRebuild() {
+            const root = el('filterPopupTail3FreqPicker');
+            if (!root) {
+                return;
+            }
+            root.querySelectorAll('.filter-popup-tail3-follow-freq, .filter-popup-tail3-derive-freq').forEach((node) => {
+                node.dataset.skipCommit = '1';
+                delete node.dataset.draft;
+                delete node.dataset.dirty;
+                delete node.dataset.replaceOnType;
+                delete node.dataset.tail3Bound;
+            });
+        }
+
+        function ensureFilterPopupTail3DeriveBlock(show) {
+            const mount = el('filterPopupTail3DeriveMount');
+            if (!mount || mount.dataset.built === '1') {
+                const deriveEl = el('filterPopupTail3DeriveFreq');
+                if (deriveEl && document.activeElement !== deriveEl) {
+                    const v = getNormalizedFilterTail3DeriveFreq();
+                    setFilterPopupPositionText(deriveEl, formatFilterTail3FreqDisplay(v));
+                    deriveEl.classList.toggle('is-empty', v == null);
+                    deriveEl.tabIndex = show ? 0 : -1;
+                }
+                const inc = el('filterPopupTail3DeriveInc');
+                const dec = el('filterPopupTail3DeriveDec');
+                if (inc) {
+                    inc.disabled = !show;
+                }
+                if (dec) {
+                    dec.disabled = !show;
+                }
+                return;
+            }
+            mount.dataset.built = '1';
+            const row = document.createElement('div');
+            row.className = 'filter-popup-tail3-derive-row filter-popup-param-row';
+            const cluster = document.createElement('div');
+            cluster.className = 'filter-popup-param-cluster';
+            cluster.appendChild(createFilterPopupTail3FreqFieldCell(
+                0,
+                'derive',
+                getNormalizedFilterTail3DeriveFreq(),
+                show
+            ));
+            row.appendChild(cluster);
+            mount.appendChild(row);
+        }
+
+        function rebuildFilterPopupTail3FollowList() {
+            const list = el('filterPopupTail3FollowList');
+            if (!list) {
+                return;
+            }
+            disarmFilterPopupTail3InputsForRebuild();
+            const show = periodFilterEnabled && isTail3FilterMode(periodFilterMode);
+            const freqs = getNormalizedFilterTail3FollowFreqs();
+            list.replaceChildren();
+            for (let i = 0; i < freqs.length; i++) {
+                const row = document.createElement('div');
+                row.className = 'filter-popup-tail3-follow-row filter-popup-param-row';
+                row.dataset.idx = String(i);
+                const cluster = document.createElement('div');
+                cluster.className = 'filter-popup-param-cluster';
+                cluster.appendChild(createFilterPopupTail3FreqFieldCell(i, 'follow', freqs[i], show));
+                row.appendChild(cluster);
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'filter-popup-tail3-follow-remove';
+                const isOnly = freqs.length <= FILTER_TAIL3_FOLLOW_FREQ_MIN;
+                removeBtn.title = isOnly ? 'Cần ít nhất một khối follow' : `Bỏ khối follow #${i + 1}`;
+                removeBtn.setAttribute('aria-label', isOnly ? 'Không thể bỏ khối follow cuối' : `Bỏ khối follow #${i + 1}`);
+                removeBtn.textContent = '−';
+                removeBtn.disabled = !show || isOnly;
+                bindFilterPopupTrackingSpinButton(removeBtn, () => removeFilterPopupTail3FollowFreqAt(i));
+                row.appendChild(removeBtn);
+                list.appendChild(row);
+            }
+            const addBtn = el('filterPopupTail3FollowAdd');
+            if (addBtn) {
+                addBtn.disabled = !show || freqs.length >= FILTER_TAIL3_FOLLOW_FREQ_MAX;
+            }
+            ensureFilterPopupTail3DeriveBlock(show);
+        }
+
+        /** Cycle: empty ↔ 1..9 (empty = any). */
+        function bumpFilterTail3FreqValue(cur, delta) {
+            const d = Number(delta) || 0;
+            if (cur == null) {
+                return d >= 0 ? FILTER_TAIL3_FREQ_VAL_MIN : FILTER_TAIL3_FREQ_VAL_MAX;
+            }
+            const n = cur + d;
+            if (n > FILTER_TAIL3_FREQ_VAL_MAX || n < FILTER_TAIL3_FREQ_VAL_MIN) {
+                return null;
+            }
+            return n;
+        }
+
+        function bumpFilterPopupTail3FollowFreq(index, delta) {
+            if (!periodFilterEnabled || !isTail3FilterMode(periodFilterMode)) {
+                return false;
+            }
+            const freqs = getNormalizedFilterTail3FollowFreqs();
+            if (!(index >= 0 && index < freqs.length)) {
+                return false;
+            }
+            freqs[index] = bumpFilterTail3FreqValue(freqs[index], delta);
+            filterTail3FollowFreqs = freqs;
+            saveFilterTail3FreqSettings();
+            syncFilterPopupTail3FreqUi();
+            deferFilterPopupHeavyWork(() => {
+                rebuildFilterPopupAfterParamChange();
+            });
+            return true;
+        }
+
+        function bumpFilterPopupTail3DeriveFreq(delta) {
+            if (!periodFilterEnabled || !isTail3FilterMode(periodFilterMode)) {
+                return false;
+            }
+            filterTail3DeriveFreq = bumpFilterTail3FreqValue(getNormalizedFilterTail3DeriveFreq(), delta);
+            saveFilterTail3FreqSettings();
+            syncFilterPopupTail3FreqUi();
+            deferFilterPopupHeavyWork(() => {
+                rebuildFilterPopupAfterParamChange();
+            });
+            return true;
+        }
+
+        function addFilterPopupTail3FollowFreq() {
+            const freqs = getNormalizedFilterTail3FollowFreqs();
+            if (freqs.length >= FILTER_TAIL3_FOLLOW_FREQ_MAX) {
+                return;
+            }
+            freqs.push(null);
+            filterTail3FollowFreqs = freqs;
+            saveFilterTail3FreqSettings();
+            syncFilterPopupTail3FreqUi();
+            deferFilterPopupHeavyWork(() => {
+                rebuildFilterPopupAfterParamChange();
+            });
+        }
+
+        function removeFilterPopupTail3FollowFreqAt(index) {
+            const freqs = getNormalizedFilterTail3FollowFreqs();
+            if (freqs.length <= FILTER_TAIL3_FOLLOW_FREQ_MIN) {
+                return;
+            }
+            if (!(index >= 0 && index < freqs.length)) {
+                return;
+            }
+            freqs.splice(index, 1);
+            filterTail3FollowFreqs = freqs;
+            saveFilterTail3FreqSettings();
+            syncFilterPopupTail3FreqUi();
+            deferFilterPopupHeavyWork(() => {
+                rebuildFilterPopupAfterParamChange();
+            });
+        }
+
+        function bindFilterPopupTail3FollowInput(inputEl, index) {
+            if (!inputEl) {
+                return;
+            }
+            if (inputEl.dataset.tail3Bound === '1') {
+                return;
+            }
+            inputEl.dataset.tail3Bound = '1';
+            inputEl.addEventListener('mousedown', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                inputEl.focus({ preventScroll: true });
+            });
+            inputEl.addEventListener('click', (event) => event.stopPropagation());
+            inputEl.addEventListener('focus', () => {
+                const freqs = getNormalizedFilterTail3FollowFreqs();
+                const text = formatFilterTail3FreqDisplay(freqs[index]);
+                inputEl.dataset.draft = text;
+                inputEl.dataset.replaceOnType = '1';
+                setFilterPopupPositionText(inputEl, text);
+                inputEl.classList.toggle('is-empty', text === '');
+            });
+            inputEl.addEventListener('blur', () => {
+                if (inputEl.dataset.skipCommit === '1') {
+                    delete inputEl.dataset.skipCommit;
+                    delete inputEl.dataset.draft;
+                    delete inputEl.dataset.dirty;
+                    delete inputEl.dataset.replaceOnType;
+                    return;
+                }
+                const raw = inputEl.dataset.draft != null
+                    ? String(inputEl.dataset.draft)
+                    : getFilterPopupPositionText(inputEl);
+                const freqs = getNormalizedFilterTail3FollowFreqs();
+                if (index >= 0 && index < freqs.length) {
+                    freqs[index] = normalizeFilterTail3DeriveFreq(raw);
+                    filterTail3FollowFreqs = freqs;
+                    saveFilterTail3FreqSettings();
+                    setFilterPopupPositionText(inputEl, formatFilterTail3FreqDisplay(freqs[index]));
+                    inputEl.classList.toggle('is-empty', freqs[index] == null);
+                    deferFilterPopupHeavyWork(() => {
+                        rebuildFilterPopupAfterParamChange();
+                    });
+                }
+                delete inputEl.dataset.draft;
+                delete inputEl.dataset.replaceOnType;
+            });
+            inputEl.addEventListener('keydown', (event) => {
+                if (!periodFilterEnabled || !isTail3FilterMode(periodFilterMode)) {
+                    return;
+                }
+                const key = String(event.key || '');
+                if (key >= '1' && key <= '9') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    inputEl.dataset.draft = key;
+                    delete inputEl.dataset.replaceOnType;
+                    inputEl.dataset.dirty = '1';
+                    setFilterPopupPositionText(inputEl, key);
+                    inputEl.classList.remove('is-empty');
+                    const freqs = getNormalizedFilterTail3FollowFreqs();
+                    if (index >= 0 && index < freqs.length) {
+                        const next = normalizeFilterTail3DeriveFreq(key);
+                        if (freqs[index] !== next) {
+                            freqs[index] = next;
+                            filterTail3FollowFreqs = freqs;
+                            saveFilterTail3FreqSettings();
+                            deferFilterPopupHeavyWork(() => {
+                                rebuildFilterPopupAfterParamChange();
+                            });
+                        } else {
+                            saveFilterTail3FreqSettings();
+                        }
+                    }
+                    return;
+                }
+                if (key === 'Backspace' || key === 'Delete') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    inputEl.dataset.draft = '';
+                    delete inputEl.dataset.replaceOnType;
+                    inputEl.dataset.dirty = '1';
+                    setFilterPopupPositionText(inputEl, '');
+                    inputEl.classList.add('is-empty');
+                    const freqs = getNormalizedFilterTail3FollowFreqs();
+                    if (index >= 0 && index < freqs.length && freqs[index] != null) {
+                        freqs[index] = null;
+                        filterTail3FollowFreqs = freqs;
+                        saveFilterTail3FreqSettings();
+                        deferFilterPopupHeavyWork(() => {
+                            rebuildFilterPopupAfterParamChange();
+                        });
+                    }
+                    return;
+                }
+                const step = getFilterPopupValueStepDelta(event);
+                if (step) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    bumpFilterPopupTail3FollowFreq(index, step);
+                    return;
+                }
+                if (key === 'Enter') {
+                    event.preventDefault();
+                    inputEl.blur();
+                    return;
+                }
+                if (key === 'Escape') {
+                    event.preventDefault();
+                    const freqs = getNormalizedFilterTail3FollowFreqs();
+                    const text = formatFilterTail3FreqDisplay(freqs[index]);
+                    setFilterPopupPositionText(inputEl, text);
+                    inputEl.classList.toggle('is-empty', text === '');
+                    delete inputEl.dataset.dirty;
+                    inputEl.blur();
+                }
+            }, true);
+        }
+
+        function bindFilterPopupTail3DeriveInput(inputEl) {
+            if (!inputEl || inputEl.dataset.tail3DeriveBound === '1') {
+                return;
+            }
+            inputEl.dataset.tail3DeriveBound = '1';
+            inputEl.addEventListener('mousedown', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                inputEl.focus({ preventScroll: true });
+            });
+            inputEl.addEventListener('click', (event) => event.stopPropagation());
+            inputEl.addEventListener('focus', () => {
+                const text = formatFilterTail3FreqDisplay(getNormalizedFilterTail3DeriveFreq());
+                inputEl.dataset.draft = text;
+                inputEl.dataset.replaceOnType = '1';
+                setFilterPopupPositionText(inputEl, text);
+                inputEl.classList.toggle('is-empty', text === '');
+            });
+            inputEl.addEventListener('blur', () => {
+                if (inputEl.dataset.skipCommit === '1') {
+                    delete inputEl.dataset.skipCommit;
+                    delete inputEl.dataset.draft;
+                    delete inputEl.dataset.dirty;
+                    delete inputEl.dataset.replaceOnType;
+                    return;
+                }
+                const raw = inputEl.dataset.draft != null
+                    ? String(inputEl.dataset.draft)
+                    : getFilterPopupPositionText(inputEl);
+                filterTail3DeriveFreq = normalizeFilterTail3DeriveFreq(raw);
+                saveFilterTail3FreqSettings();
+                setFilterPopupPositionText(inputEl, formatFilterTail3FreqDisplay(filterTail3DeriveFreq));
+                inputEl.classList.toggle('is-empty', filterTail3DeriveFreq == null);
+                delete inputEl.dataset.draft;
+                delete inputEl.dataset.replaceOnType;
+                deferFilterPopupHeavyWork(() => {
+                    rebuildFilterPopupAfterParamChange();
+                });
+            });
+            inputEl.addEventListener('keydown', (event) => {
+                if (!periodFilterEnabled || !isTail3FilterMode(periodFilterMode)) {
+                    return;
+                }
+                const key = String(event.key || '');
+                if (key >= '1' && key <= '9') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    inputEl.dataset.draft = key;
+                    delete inputEl.dataset.replaceOnType;
+                    setFilterPopupPositionText(inputEl, key);
+                    inputEl.classList.remove('is-empty');
+                    const next = normalizeFilterTail3DeriveFreq(key);
+                    if (filterTail3DeriveFreq !== next) {
+                        filterTail3DeriveFreq = next;
+                        saveFilterTail3FreqSettings();
+                        deferFilterPopupHeavyWork(() => {
+                            rebuildFilterPopupAfterParamChange();
+                        });
+                    } else {
+                        saveFilterTail3FreqSettings();
+                    }
+                    return;
+                }
+                if (key === 'Backspace' || key === 'Delete') {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    inputEl.dataset.draft = '';
+                    delete inputEl.dataset.replaceOnType;
+                    setFilterPopupPositionText(inputEl, '');
+                    inputEl.classList.add('is-empty');
+                    if (filterTail3DeriveFreq != null) {
+                        filterTail3DeriveFreq = null;
+                        saveFilterTail3FreqSettings();
+                        deferFilterPopupHeavyWork(() => {
+                            rebuildFilterPopupAfterParamChange();
+                        });
+                    }
+                    return;
+                }
+                const step = getFilterPopupValueStepDelta(event);
+                if (step) {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    bumpFilterPopupTail3DeriveFreq(step);
+                    return;
+                }
+                if (key === 'Enter') {
+                    event.preventDefault();
+                    inputEl.blur();
+                    return;
+                }
+                if (key === 'Escape') {
+                    event.preventDefault();
+                    const text = formatFilterTail3FreqDisplay(getNormalizedFilterTail3DeriveFreq());
+                    setFilterPopupPositionText(inputEl, text);
+                    inputEl.classList.toggle('is-empty', text === '');
+                    inputEl.blur();
+                }
+            }, true);
+        }
+
+        function syncFilterPopupTail3FreqUi() {
+            const picker = el('filterPopupTail3FreqPicker');
+            const show = periodFilterEnabled && isTail3FilterMode(periodFilterMode);
+            if (picker) {
+                picker.classList.toggle('hidden', !show);
+                picker.setAttribute('aria-hidden', show ? 'false' : 'true');
+            }
+            if (isFilterPopupTail3FreqInputFocused()) {
+                ensureFilterPopupTail3DeriveBlock(show);
+                return;
+            }
+            rebuildFilterPopupTail3FollowList();
+        }
+
+        function initFilterPopupTail3FreqControls() {
+            loadFilterTail3FreqSettings();
+            syncFilterPopupTail3FreqUi();
+            const root = el('filterPopupTail3FreqPicker');
+            if (!root || root.dataset.bound === '1') {
+                return;
+            }
+            root.dataset.bound = '1';
+            root.addEventListener('mousedown', (event) => event.stopPropagation());
+            root.addEventListener('click', (event) => event.stopPropagation());
+            bindFilterPopupParamStripWheelScroll(root);
+            bindFilterPopupTrackingSpinButton(el('filterPopupTail3FollowAdd'), () => addFilterPopupTail3FollowFreq());
+            if (!document.documentElement.dataset.tail3FreqOutsideBlurBound) {
+                document.documentElement.dataset.tail3FreqOutsideBlurBound = '1';
+                document.addEventListener('pointerdown', (event) => {
+                    const active = document.activeElement;
+                    if (!(active instanceof HTMLElement)) {
+                        return;
+                    }
+                    if (!active.classList.contains('filter-popup-tail3-follow-freq')
+                        && !active.classList.contains('filter-popup-tail3-derive-freq')) {
+                        return;
+                    }
+                    const t = event.target;
+                    if (t instanceof Node && active.contains(t)) {
+                        return;
+                    }
+                    if (t instanceof Element) {
+                        const spin = t.closest('.filter-popup-p1-dist-spin, .filter-popup-tracking-belly-spin');
+                        if (spin && active.parentElement && active.parentElement.contains(spin)) {
+                            return;
+                        }
+                    }
+                    commitFilterPopupTail3FreqDraftsFromDom();
+                    active.blur();
+                }, true);
+            }
+        }
+
         function initFilterPopupP1DistControls() {
             loadFilterP1DistSettings();
             syncFilterPopupP1DistUi();
@@ -25578,6 +26383,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupSpecialKindsUi();
             syncFilterPopupTrackingBellyUi();
             syncFilterPopupP1DistUi();
+            syncFilterPopupTail3FreqUi();
             syncFilterPopupPhase1MechUi();
 
             if (light) {
@@ -25951,6 +26757,10 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (trackingBellyPicker && trackingBellyPicker.contains(target)) {
                 return true;
             }
+            const tail3FreqPicker = el('filterPopupTail3FreqPicker');
+            if (tail3FreqPicker && tail3FreqPicker.contains(target)) {
+                return true;
+            }
             const phase1MechPicker = el('filterPopupPhase1MechPicker');
             if (phase1MechPicker && phase1MechPicker.contains(target)) {
                 return true;
@@ -26035,6 +26845,7 @@ function getFilterNoteTRefMaxSelections(mode) {
         }
 
         function closeFilterPopup() {
+            commitFilterPopupTail3FreqDraftsFromDom();
             hideFilterPopupNonexist005PctTooltip();
             closeAllFilterPopupFloatingMenus();
             filterPopupHeavyRefreshSeq++;
@@ -26050,6 +26861,9 @@ function getFilterNoteTRefMaxSelections(mode) {
         function setPeriodFilterEnabled(enabled, options = {}) {
             const wasEnabled = periodFilterEnabled;
             const closingAllMode = wasEnabled && !enabled && isAllLikeFilterMode(periodFilterMode);
+            if (wasEnabled && !enabled && isTail3FilterMode(periodFilterMode)) {
+                commitFilterPopupTail3FreqDraftsFromDom();
+            }
             periodFilterEnabled = !!enabled;
 
             if (options.persist !== false) {
@@ -27296,6 +28110,13 @@ function getFilterNoteTRefMaxSelections(mode) {
             const p1DistKey = isP1DistFilterMode(periodFilterMode)
                 ? `p1d:r:${filterP1DistResultEnabled ? 1 : 0}:${filterP1DistResultLo}:${filterP1DistResultHi}`
                 : '';
+            const t3Follow = getNormalizedFilterTail3FollowFreqs()
+                .map((v) => (v == null ? '' : String(v)))
+                .join(',');
+            const t3Derive = getNormalizedFilterTail3DeriveFreq();
+            const tail3Key = isTail3FilterMode(periodFilterMode)
+                ? `t3:${t3Follow}:${t3Derive == null ? '' : String(t3Derive)}`
+                : '';
             return [
                 periodFilterMode,
                 tags,
@@ -27315,7 +28136,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                 h2on,
                 chainOn,
                 phase1Key,
-                p1DistKey
+                p1DistKey,
+                tail3Key
             ].join('|');
         }
 
@@ -27738,6 +28560,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupChainFilterUi();
             syncFilterPopupSpecialKindsUi();
             syncFilterPopupTrackingBellyUi();
+            syncFilterPopupP1DistUi();
+            syncFilterPopupTail3FreqUi();
             syncFilterPopupPhase1MechUi();
             if (isPhase1FilterMode(periodFilterMode) && sheetManager) {
                 filterModeCounts.phase1 = getFilterParentCountForMode('phase1');
@@ -28330,6 +29154,76 @@ function getFilterNoteTRefMaxSelections(mode) {
                 hidePct();
                 return;
             }
+
+            // Mode 3-tail: F% theo tham số freq.
+            // — Cả hai bên trống (= any): % kỳ có follow / evaluable (~66.7%).
+            // — Có freq cụ thể: % kỳ khớp follow→derive / evaluable.
+            if (isTail3FilterMode(periodFilterMode)) {
+                const evaluable = getTail3EvaluableIndicesFromSheet();
+                if (!evaluable.length) {
+                    hidePct();
+                    return;
+                }
+                const opts = getTail3FilterOptions();
+                const followFreqs = opts.tail3FollowFreqs;
+                const deriveFreq = opts.tail3DeriveFreq;
+                const freqActive = typeof RightPaneSheetManager !== 'undefined'
+                    && typeof RightPaneSheetManager.isTail3FollowDeriveFreqActive === 'function'
+                    ? RightPaneSheetManager.isTail3FollowDeriveFreqActive(followFreqs, deriveFreq)
+                    : false;
+                /** @type {Set<number>} */
+                const matchSet = new Set();
+                /** @type {Set<number>} */
+                const questionSet = new Set();
+                for (let i = 0; i < evaluable.length; i++) {
+                    const idx = evaluable[i];
+                    if (freqActive) {
+                        if (typeof sheetManager.rowMatchesTail3FollowDeriveFreq === 'function'
+                            && sheetManager.rowMatchesTail3FollowDeriveFreq(rows, idx, followFreqs, deriveFreq)) {
+                            matchSet.add(idx);
+                        }
+                    } else if (typeof sheetManager.rowHasDeterminedFollow === 'function'
+                        && sheetManager.rowHasDeterminedFollow(rows, idx)) {
+                        matchSet.add(idx);
+                    }
+                    if (typeof sheetManager.rowHasUndeterminedFollow === 'function'
+                        && sheetManager.rowHasUndeterminedFollow(rows, idx)) {
+                        questionSet.add(idx);
+                    }
+                }
+                wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                    const idx = Number(tr.dataset.idx);
+                    if (!Number.isFinite(idx)) {
+                        return;
+                    }
+                    if (matchSet.has(idx)) {
+                        tr.classList.add('filter-popup-follow-determined-hit');
+                    }
+                    if (questionSet.has(idx)) {
+                        tr.classList.add('filter-popup-follow-question-hit');
+                    }
+                });
+                if (!pctEl) {
+                    return;
+                }
+                const determinedPct = filterPopupPctFromCounts(matchSet.size, evaluable.length);
+                filterPopupFollowDeterminedPct = determinedPct;
+                pctEl.hidden = false;
+                applyFilterPopupFollowSubfilterButtonUi(pctEl, filterPopupFollowSubfilter, determinedPct);
+                applyFilterPopupFollowSubfilterWrapClasses(wrap, filterPopupFollowSubfilter);
+                if (filterPopupFollowSubfilter === 'determined' && matchSet.size === 0) {
+                    setFilterPopupFollowSubfilter('off');
+                } else if (filterPopupFollowSubfilter === 'undetermined' && questionSet.size === 0) {
+                    setFilterPopupFollowSubfilter('off');
+                } else if (isFilterPopupFollowSubfilterActive()) {
+                    reconcileFilterPopupActiveAfterSubfilterToggle();
+                }
+                updateFilterPopupMatchCount();
+                syncPeriodFilterNavModeToIframe();
+                applyFilterPopupNonexist005000RowBorders(wrap);
+                return;
+            }
+
             wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
                 const idx = Number(tr.dataset.idx);
                 if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
@@ -28357,19 +29251,34 @@ function getFilterNoteTRefMaxSelections(mode) {
             let tableTotal = 0;
             let green = 0;
             let question = 0;
-            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
-                const idx = Number(tr.dataset.idx);
-                if (!sampleSet.has(idx)) {
-                    return;
-                }
-                tableTotal += 1;
-                if (tr.classList.contains('filter-popup-follow-determined-hit')) {
-                    green += 1;
-                }
-                if (tr.classList.contains('filter-popup-follow-question-hit')) {
-                    question += 1;
-                }
-            });
+            // Đếm từ sample indices (không chỉ DOM) để % khớp đúng mẫu.
+            if (sampleSet.size) {
+                sampleSet.forEach((idx) => {
+                    tableTotal += 1;
+                    if (typeof sheetManager.rowHasDeterminedFollow === 'function'
+                        && sheetManager.rowHasDeterminedFollow(rows, idx)) {
+                        green += 1;
+                    }
+                    if (typeof sheetManager.rowHasUndeterminedFollow === 'function'
+                        && sheetManager.rowHasUndeterminedFollow(rows, idx)) {
+                        question += 1;
+                    }
+                });
+            } else {
+                wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                    const idx = Number(tr.dataset.idx);
+                    if (!sampleSet.has(idx)) {
+                        return;
+                    }
+                    tableTotal += 1;
+                    if (tr.classList.contains('filter-popup-follow-determined-hit')) {
+                        green += 1;
+                    }
+                    if (tr.classList.contains('filter-popup-follow-question-hit')) {
+                        question += 1;
+                    }
+                });
+            }
             if (!pctEl) {
                 return;
             }
@@ -29622,7 +30531,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             try {
                 const savedEnabled = localStorage.getItem(PERIOD_FILTER_ENABLED_KEY);
                 periodFilterEnabled = savedEnabled === '1';
-                periodFilterMode = 'all';
+                const savedMode = localStorage.getItem(PERIOD_FILTER_MODE_KEY);
+                periodFilterMode = normalizeFilterMode(savedMode || 'all');
             } catch (e) {
                 periodFilterEnabled = false;
                 periodFilterMode = 'all';
@@ -29652,6 +30562,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             initFilterPopupConn3OverlapPctToggle();
             initFilterPopupTail3OverlapPctToggle();
             initFilterPopupTrackingBellyControls();
+            initFilterPopupTail3FreqControls();
             initFilterPopupP1DistControls();
             initFilterPopupP1DistResultPctToggle();
             initFilterPopupTrackingOverlapPctToggle();
