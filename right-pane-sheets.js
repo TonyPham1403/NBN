@@ -2134,30 +2134,8 @@ class RightPaneSheetManager {
         }
 
         if (mode === 'tail3') {
-            const o = filterOptions || {};
-            const followFreqs = RightPaneSheetManager.normalizeTail3FollowFreqs(o.tail3FollowFreqs);
-            const deriveFreq = RightPaneSheetManager.normalizeTail3DeriveFreq(o.tail3DeriveFreq);
-            // Cả hai bên trống (= any): mẫu = mọi kỳ evaluable có follow (determined) — cùng mẫu F%.
-            if (!RightPaneSheetManager.isTail3FollowDeriveFreqActive(followFreqs, deriveFreq)) {
-                const evaluable = this.ensureTail3EvaluableIndicesCache();
-                const outFollow = [];
-                for (let e = 0; e < evaluable.length; e++) {
-                    const i = evaluable[e];
-                    if (this.rowHasDeterminedFollow(rows, i)) {
-                        outFollow.push(i);
-                    }
-                }
-                return outFollow;
-            }
-            const base = this.ensureTail3FilterIndicesCache();
-            const out = [];
-            for (let b = 0; b < base.length; b++) {
-                const i = base[b];
-                if (this.rowMatchesTail3FollowDeriveFreq(rows, i, followFreqs, deriveFreq)) {
-                    out.push(i);
-                }
-            }
-            return out;
+            // Mẫu = mọi kỳ evaluable (đủ lookback + có đáp án). F% / freq chỉ làm mờ, không ẩn.
+            return this.ensureTail3EvaluableIndicesCache().slice();
         }
 
         if (mode === 'conn3') {

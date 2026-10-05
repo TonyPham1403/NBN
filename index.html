@@ -9552,7 +9552,7 @@
                     <div id="filterPopupTail3FreqPicker" class="filter-popup-tail3-freq hidden" role="group"
                         aria-label="3-tail: follow freq → derive freq"
                         aria-hidden="true"
-                        title="Trái: ít nhất các follow freq đã chỉ định (trống=any). Phải: derive freq (trống=any). Cả hai trống = mọi kỳ có follow.">
+                        title="Trái: ít nhất các follow freq đã chỉ định (trống=any). Phải: derive freq (trống=any). Cả trống = đủ mẫu evaluable; F% làm mờ theo follow.">
                         <div class="filter-popup-tail3-follow-side">
                             <div id="filterPopupTail3FollowList" class="filter-popup-tail3-follow-list"></div>
                             <button type="button" id="filterPopupTail3FollowAdd"
@@ -9889,7 +9889,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
-    <script src="right-pane-sheets.js?v=20261006tail3Autoring"></script>
+    <script src="right-pane-sheets.js?v=20261006tail3Full"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -18141,6 +18141,114 @@ function getFilterNoteTRefMaxSelections(mode) {
                 .filter((idx) => Number.isFinite(idx));
         }
 
+        function isFilterTail3FreqConstraintActive() {
+            if (!periodFilterEnabled || !isTail3FilterMode(periodFilterMode)) {
+                return false;
+            }
+            const opts = getTail3FilterOptions();
+            if (typeof RightPaneSheetManager !== 'undefined'
+                && typeof RightPaneSheetManager.isTail3FollowDeriveFreqActive === 'function') {
+                return RightPaneSheetManager.isTail3FollowDeriveFreqActive(
+                    opts.tail3FollowFreqs,
+                    opts.tail3DeriveFreq
+                );
+            }
+            return false;
+        }
+
+        /** 3-tail: freq follow→derive và/hoặc F% đều là điều kiện lọc (làm mờ, không ẩn). */
+        function isFilterTail3FreqSubfilterActive() {
+            if (!periodFilterEnabled || !isTail3FilterMode(periodFilterMode)) {
+                return false;
+            }
+            return isFilterTail3FreqConstraintActive()
+                || filterPopupFollowSubfilter === 'determined'
+                || filterPopupFollowSubfilter === 'undetermined';
+        }
+
+        function collectFilterPopupTail3FreqHitIndicesOrdered(wrap) {
+            const root = wrap || el('filterTableWrap');
+            if (!root) {
+                return [];
+            }
+            return [...root.querySelectorAll('tbody tr.filter-popup-tail3-hit[data-idx]')]
+                .map((tr) => Number(tr.dataset.idx))
+                .filter((idx) => Number.isFinite(idx));
+        }
+
+        /**
+         * 3-tail (giống special): giữ đủ mẫu follow; làm mờ row không thỏa
+         * điều kiện freq follow→derive và/hoặc F% (AND).
+         */
+        function applyFilterPopupTail3FreqRowClasses(wrapArg) {
+            const wrap = wrapArg || el('filterTableWrap');
+            if (!wrap) {
+                return;
+            }
+            wrap.querySelectorAll(
+                'tbody tr.filter-popup-tail3-hit, tbody tr.filter-popup-tail3-disabled, tbody tr.filter-popup-follow-disabled, tbody tr.filter-popup-follow-determined-hit, tbody tr.filter-popup-follow-question-hit'
+            ).forEach((tr) => {
+                tr.classList.remove(
+                    'filter-popup-posnfreq-submit-hit',
+                    'filter-popup-tail3-hit',
+                    'filter-popup-tail3-disabled',
+                    'filter-popup-follow-disabled',
+                    'filter-popup-follow-determined-hit',
+                    'filter-popup-follow-question-hit'
+                );
+            });
+            if (!periodFilterEnabled || !isTail3FilterMode(periodFilterMode) || !sheetManager) {
+                return;
+            }
+            const freqActive = isFilterTail3FreqConstraintActive();
+            const fMode = filterPopupFollowSubfilter === 'determined'
+                || filterPopupFollowSubfilter === 'undetermined'
+                ? filterPopupFollowSubfilter
+                : 'off';
+            if (!freqActive && fMode === 'off') {
+                return;
+            }
+            const rows = sheetManager.getSourceSheetRows();
+            if (!Array.isArray(rows) || !rows.length) {
+                return;
+            }
+            const opts = getTail3FilterOptions();
+            const followFreqs = opts.tail3FollowFreqs;
+            const deriveFreq = opts.tail3DeriveFreq;
+            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
+                const idx = Number(tr.dataset.idx);
+                if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
+                    return;
+                }
+                let ok = true;
+                if (freqActive) {
+                    ok = typeof sheetManager.rowMatchesTail3FollowDeriveFreq === 'function'
+                        && sheetManager.rowMatchesTail3FollowDeriveFreq(rows, idx, followFreqs, deriveFreq);
+                }
+                if (ok && fMode === 'determined') {
+                    // F = follow determined; khi đã có freq thì freq match ⊂ follow.
+                    if (freqActive) {
+                        /* đã ok bởi freq */
+                    } else if (typeof sheetManager.rowHasDeterminedFollow === 'function') {
+                        ok = sheetManager.rowHasDeterminedFollow(rows, idx);
+                    }
+                } else if (ok && fMode === 'undetermined') {
+                    ok = typeof sheetManager.rowHasUndeterminedFollow === 'function'
+                        && sheetManager.rowHasUndeterminedFollow(rows, idx);
+                }
+                if (ok) {
+                    tr.classList.add('filter-popup-posnfreq-submit-hit', 'filter-popup-tail3-hit');
+                    if (fMode === 'determined') {
+                        tr.classList.add('filter-popup-follow-determined-hit');
+                    } else if (fMode === 'undetermined') {
+                        tr.classList.add('filter-popup-follow-question-hit');
+                    }
+                } else {
+                    tr.classList.add('filter-popup-tail3-disabled');
+                }
+            });
+        }
+
         function applyFilterPopupSpecialKindsRowClasses(wrapArg) {
             const wrap = wrapArg || el('filterTableWrap');
             if (!wrap) {
@@ -20696,10 +20804,11 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!wrap) {
                 return;
             }
-            const useDim = periodFilterEnabled && isTail3FilterMode(periodFilterMode);
-            if (useDim) {
+            // 3-tail: F% + freq cùng một hệ dim (tail3-disabled), không ẩn row.
+            if (periodFilterEnabled && isTail3FilterMode(periodFilterMode)) {
                 wrap.classList.remove('filter-popup-follow-determined-only', 'filter-popup-follow-question-only');
-                applyFilterPopupFollowDimClasses(wrap, mode);
+                clearFilterPopupFollowDimClasses(wrap);
+                applyFilterPopupTail3FreqRowClasses(wrap);
                 return;
             }
             clearFilterPopupFollowDimClasses(wrap);
@@ -20804,7 +20913,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                 || isFilterPopupFollowSubfilterActive()
                 || isFilterPopupConnectionSubfilterActive()
                 || isFilterPopupP1DistResultSubfilterActive()
-                || isFilterSpecialKindsSubfilterActive();
+                || isFilterSpecialKindsSubfilterActive()
+                || isFilterTail3FreqSubfilterActive();
         }
 
         function getFilterPopupEffectiveListIndices() {
@@ -20824,7 +20934,8 @@ function getFilterNoteTRefMaxSelections(mode) {
 
             const wrap = el('filterTableWrap');
             let followHits = null;
-            if (periodFilterEnabled && isFollowPctFilterMode(periodFilterMode)) {
+            if (periodFilterEnabled && isFollowPctFilterMode(periodFilterMode)
+                && !(isTail3FilterMode(periodFilterMode) && isFilterTail3FreqSubfilterActive())) {
                 if (filterPopupFollowSubfilter === 'determined') {
                     followHits = collectFilterPopupFollowDeterminedHitIndicesOrdered(wrap)
                         .filter((idx) => tableSet.has(idx));
@@ -20876,6 +20987,11 @@ function getFilterNoteTRefMaxSelections(mode) {
             let specialHits = null;
             if (isFilterSpecialKindsSubfilterActive()) {
                 specialHits = collectFilterPopupSpecialHitIndicesOrdered(wrap)
+                    .filter((idx) => tableSet.has(idx));
+            }
+            let tail3FreqHits = null;
+            if (isFilterTail3FreqSubfilterActive()) {
+                tail3FreqHits = collectFilterPopupTail3FreqHitIndicesOrdered(wrap)
                     .filter((idx) => tableSet.has(idx));
             }
 
@@ -20939,6 +21055,14 @@ function getFilterNoteTRefMaxSelections(mode) {
                     list = list.filter((idx) => setB.has(idx));
                 }
             }
+            if (tail3FreqHits !== null) {
+                if (list === null) {
+                    list = tail3FreqHits;
+                } else {
+                    const setB = new Set(tail3FreqHits);
+                    list = list.filter((idx) => setB.has(idx));
+                }
+            }
             if (list !== null) {
                 return list;
             }
@@ -20978,6 +21102,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return getFilterPopupNavListLength();
             }
             if (isFilterSpecialKindsSubfilterActive()) {
+                return getFilterPopupNavListLength();
+            }
+            if (isFilterTail3FreqSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
             return getFilterPopupTableIndices().length;
@@ -25770,6 +25897,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (isFilterSpecialKindsSubfilterActive()) {
                 return getFilterPopupNavListLength();
             }
+            if (isFilterTail3FreqSubfilterActive()) {
+                return getFilterPopupNavListLength();
+            }
             if (periodFilterEnabled && isPeriodFilterContextSheet()) {
                 return getFilterPopupTableIndices().length;
             }
@@ -28779,66 +28909,11 @@ function getFilterNoteTRefMaxSelections(mode) {
 
         function syncFilterPopupTail3WindowOverlap() {
             const wrap = el('filterTableWrap');
-            const clearHits = () => {
-                const wasOn = filterPopupTail3WindowOnly;
-                filterPopupTail3WindowOnly = false;
-                const w = el('filterTableWrap');
-                if (w) {
-                    w.classList.remove('filter-popup-posnfreq-green-only');
-                    w.querySelectorAll(
-                        'tbody tr.filter-popup-posnfreq-submit-hit, tbody tr.filter-popup-tail3-hit, tbody tr.filter-popup-tail3-disabled'
-                    ).forEach((tr) => {
-                        tr.classList.remove(
-                            'filter-popup-posnfreq-submit-hit',
-                            'filter-popup-tail3-hit',
-                            'filter-popup-tail3-disabled'
-                        );
-                    });
-                }
-                if (wasOn) {
-                    reconcileFilterPopupActiveAfterSubfilterToggle();
-                }
-                updateFilterPopupMatchCount();
-                syncPeriodFilterNavModeToIframe();
-            };
-            if (!wrap || !sheetManager) {
-                clearHits();
-                return;
-            }
-            if (!periodFilterEnabled || !isTail3FilterMode(periodFilterMode)) {
-                clearHits();
-                return;
-            }
-            // Chỉ đánh dấu hit (viền xanh) — không còn nút % riêng; lọc follow dùng nút F.
             filterPopupTail3WindowOnly = false;
-            wrap.classList.remove('filter-popup-posnfreq-green-only');
-            wrap.querySelectorAll(
-                'tbody tr.filter-popup-posnfreq-submit-hit, tbody tr.filter-popup-tail3-hit, tbody tr.filter-popup-tail3-disabled'
-            ).forEach((tr) => {
-                tr.classList.remove(
-                    'filter-popup-posnfreq-submit-hit',
-                    'filter-popup-tail3-hit',
-                    'filter-popup-tail3-disabled'
-                );
-            });
-            const rows = sheetManager.getSourceSheetRows();
-            if (!Array.isArray(rows) || !rows.length) {
-                clearHits();
-                return;
+            if (wrap) {
+                wrap.classList.remove('filter-popup-posnfreq-green-only');
             }
-            wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
-                const idx = Number(tr.dataset.idx);
-                if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
-                    return;
-                }
-                if (typeof sheetManager.rowMatchesTail3Filter === 'function'
-                    && sheetManager.rowMatchesTail3Filter(rows, idx)) {
-                    tr.classList.add(
-                        'filter-popup-posnfreq-submit-hit',
-                        'filter-popup-tail3-hit'
-                    );
-                }
-            });
+            applyFilterPopupTail3FreqRowClasses(wrap);
             updateFilterPopupMatchCount();
             syncPeriodFilterNavModeToIframe();
             applyFilterPopupNonexist005000RowBorders(wrap);
@@ -29251,12 +29326,13 @@ function getFilterNoteTRefMaxSelections(mode) {
                 filterPopupFollowDeterminedPct = determinedPct;
                 pctEl.hidden = false;
                 applyFilterPopupFollowSubfilterButtonUi(pctEl, filterPopupFollowSubfilter, determinedPct);
-                applyFilterPopupFollowSubfilterWrapClasses(wrap, filterPopupFollowSubfilter);
+                // Gộp F% + freq → làm mờ row miss (không ẩn).
+                applyFilterPopupTail3FreqRowClasses(wrap);
                 if (filterPopupFollowSubfilter === 'determined' && matchSet.size === 0) {
                     setFilterPopupFollowSubfilter('off');
                 } else if (filterPopupFollowSubfilter === 'undetermined' && questionSet.size === 0) {
                     setFilterPopupFollowSubfilter('off');
-                } else if (isFilterPopupFollowSubfilterActive()) {
+                } else if (isFilterPopupFollowSubfilterActive() || isFilterTail3FreqConstraintActive()) {
                     reconcileFilterPopupActiveAfterSubfilterToggle();
                 }
                 updateFilterPopupMatchCount();
