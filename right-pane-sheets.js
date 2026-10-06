@@ -3038,8 +3038,8 @@ class RightPaneSheetManager {
     /**
      * P1_dist result [a;b]: ≥1 số đáp án trên chuỗi trong [lo,hi].
      * Endpoint số 1–10 = nhãn chuỗi tuyệt đối.
-     * Endpoint chữ (x/y/a… hoặc x±n) = nhóm chữ đã gán từ pos (groupBind → chuỗi ± offset; groupNums → số specimen).
-     * Chữ chưa gán (pos toàn wildcard [1,,,]): fallback số đã khớp khối (assignedNums).
+     * Endpoint chữ (x/y/a… hoặc x±n) = cùng chữ đã gán trong pos bụng (groupBind → chuỗi ± offset).
+     * Chữ chưa gán (pos toàn wildcard): fallback specimen groupNums / assignedNums.
      * @param {object[]} rows
      * @param {number} rowIndex
      * @param {unknown} rawLo
@@ -3057,7 +3057,7 @@ class RightPaneSheetManager {
                 return null;
             }
             const s = String(raw).trim().toLowerCase().replace(/\s+/g, '');
-            // Chỉ chữ thuần (không offset) dùng nhánh specimen [x;x]
+            // Chỉ chữ thuần (x/y…) — phân biệt với x±n (vẫn qua resolveEnd).
             return /^[a-z]$/.test(s) ? s : null;
         };
         const resolveEnd = (raw) => {
@@ -3112,7 +3112,11 @@ class RightPaneSheetManager {
             return false;
         };
 
-        // Cùng chữ hai đầu [x;x]: specimen nhóm x; pos không gắn chữ đó → fallback số khớp khối.
+        // Cùng chữ hai đầu [x;x]:
+        // - Chữ đã bind chuỗi từ pos (vd [1,x] → x=6): KHÔNG early-return theo specimen.
+        //   Fall-through resolveEnd → đáp án phải nằm trên chuỗi x (tooltip: «chuỗi mà x gắn»).
+        //   Tránh kỳ kiểu 827: specimen 20 ∈ đáp án nhưng đáp án trên C7 trong khi x=6.
+        // - Chữ chưa bind (pos wildcard): fallback specimen nhóm / số khớp khối.
         const letterLo = asLetter(rawLo);
         const letterHi = asLetter(rawHi);
         const letterHasGroup = (letter) => {
@@ -3120,12 +3124,15 @@ class RightPaneSheetManager {
             return Array.isArray(list) && list.length > 0;
         };
         if (letterLo && letterHi && letterLo === letterHi) {
-            if (letterHasGroup(letterLo)) {
-                if (answerHasAny(numsByLetter[letterLo])) {
+            const letterBound = Object.prototype.hasOwnProperty.call(binds, letterLo);
+            if (!letterBound) {
+                if (letterHasGroup(letterLo)) {
+                    if (answerHasAny(numsByLetter[letterLo])) {
+                        return true;
+                    }
+                } else if (answerHasAny(blockNums)) {
                     return true;
                 }
-            } else if (answerHasAny(blockNums)) {
-                return true;
             }
         }
 
