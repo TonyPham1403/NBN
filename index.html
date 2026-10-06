@@ -5518,9 +5518,11 @@
 
         .filter-popup-derive-chain {
             position: relative;
+            z-index: 40;
             height: 100%;
             flex: 0 0 auto;
             overflow: visible;
+            pointer-events: auto;
         }
 
         .filter-popup-intersection-freq-key--derive-chain {
@@ -7922,17 +7924,32 @@
             color: #1d4ed8;
         }
 
-        .filter-popup-derive-chain-prop-tooltip-body {
-            margin: 0;
-            font-weight: 600;
-            color: #1e293b;
+        .filter-popup-derive-chain-prop-tooltip-statement {
+            margin: 0 0 8px;
+            font-weight: 700;
+            color: #0f172a;
             white-space: normal;
         }
 
+        .filter-popup-derive-chain-prop-tooltip-statement .dc-freq,
         .filter-popup-derive-chain-prop-tooltip-body .dc-freq {
             font-weight: 800;
             color: #0f766e;
             font-variant-numeric: tabular-nums;
+        }
+
+        .filter-popup-derive-chain-prop-tooltip-explain-label {
+            margin: 0 0 4px;
+            font-weight: 700;
+            font-size: 0.92em;
+            color: #334155;
+        }
+
+        .filter-popup-derive-chain-prop-tooltip-body {
+            margin: 0;
+            font-weight: 500;
+            color: #475569;
+            white-space: normal;
         }
 
         .sheet-data-table td.cell-note {
@@ -9875,7 +9892,7 @@
                         aria-label="Phần trăm connection unique">U 0%</button>
                     <button type="button" id="filterPopupDeriveChainTfPct"
                         class="filter-popup-posnfreq-overlap-pct is-derive-chain-tf-btn" hidden aria-pressed="false"
-                        title="Normal: đủ mẫu evaluable (~908), viền xanh=T / đỏ=F, blur phần còn lại. Nhấn: normal → chỉ T → chỉ F → normal. Nút luôn hiện T% (true/applicable)."
+                        title="Normal: mẫu evaluable, viền xanh=T / đỏ=F, blur=không applicable. Theo hàng: ≥1 derive[D] ★ → đúng (peer[P] được pick); mọi derive miss + peer ★ → F. Nhấn: normal → chỉ T → chỉ F → normal. Nút luôn hiện T% (true/applicable)."
                         aria-label="derive_chain normal / T / F">T 0%</button>
                     <div class="filter-popup-header-count-stack">
                         <span id="filterPopupMatchCount" class="period-filter-match-count filter-popup-match-count"
@@ -10063,7 +10080,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
-    <script src="right-pane-sheets.js?v=20261006p1distXxChain"></script>
+    <script src="right-pane-sheets.js?v=20261007filterLoadLatestWins"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -10467,6 +10484,9 @@
         let filterPopupHtmlCache = '';
         /** Chống race khi toggle liên tục trong lúc đang refresh nặng + loading. */
         let filterPopupHeavyRefreshSeq = 0;
+        /** Debounce heavy rebuild khi spam đổi tham số (mọi mode). */
+        let filterPopupHeavyDebounceTimer = null;
+        const FILTER_POPUP_HEAVY_DEBOUNCE_MS = 280;
         let filterPopupIndicesCached = [];
         let filterPopupBaseIndicesCached = [];
         /** Cache tập mẫu header2 (mauByRow + rowsByNum) — tính trước khi mở popup / đổi mode. */
@@ -10576,7 +10596,6 @@
         let filterDeriveChainPeerFreq = FILTER_DERIVE_CHAIN_DEFAULT.peerFreq;
         /** @type {'normal'|'hold'|'violate'} */
         let filterDeriveChainPolarity = FILTER_DERIVE_CHAIN_DEFAULT.polarity;
-        let filterDeriveChainApplyTimer = null;
         /** connection [C]: số connection duy nhất trong đáp án — ngưỡng 1–5. */
         let filterConnectionCount = 1;
         let filterConnectionOp = '=';
@@ -14365,6 +14384,45 @@ function getFilterNoteTRefMaxSelections(mode) {
             bind('filterPopupDeriveChainPeerInc', 'filterPopupDeriveChainPeerDec', filterDeriveChainPeerFreq);
         }
 
+        function syncFilterPopupDeriveChainFreqLabelsOnly(which) {
+            if (which === 'peer' || which == null) {
+                setFilterPopupDeriveChainFreqText(
+                    el('filterPopupDeriveChainPeerFreq'),
+                    filterDeriveChainPeerFreq
+                );
+            }
+            if (which === 'derive' || which == null) {
+                setFilterPopupDeriveChainFreqText(
+                    el('filterPopupDeriveChainDeriveFreq'),
+                    filterDeriveChainDeriveFreq
+                );
+            }
+            // Chỉ đụng nút spin của trục đang đổi — tránh layout thừa.
+            const active = periodFilterEnabled && isDeriveChainFilterMode(periodFilterMode);
+            if (which === 'peer' || which == null) {
+                const n = normalizeFilterDeriveChainFreqVal(filterDeriveChainPeerFreq);
+                const inc = el('filterPopupDeriveChainPeerInc');
+                const dec = el('filterPopupDeriveChainPeerDec');
+                if (inc) {
+                    inc.disabled = !active || (n != null && n >= FILTER_DERIVE_CHAIN_FREQ_MAX);
+                }
+                if (dec) {
+                    dec.disabled = !active || (n != null && n <= FILTER_DERIVE_CHAIN_FREQ_MIN);
+                }
+            }
+            if (which === 'derive' || which == null) {
+                const n = normalizeFilterDeriveChainFreqVal(filterDeriveChainDeriveFreq);
+                const inc = el('filterPopupDeriveChainDeriveInc');
+                const dec = el('filterPopupDeriveChainDeriveDec');
+                if (inc) {
+                    inc.disabled = !active || (n != null && n >= FILTER_DERIVE_CHAIN_FREQ_MAX);
+                }
+                if (dec) {
+                    dec.disabled = !active || (n != null && n <= FILTER_DERIVE_CHAIN_FREQ_MIN);
+                }
+            }
+        }
+
         function syncFilterPopupDeriveChainUi() {
             const picker = el('filterPopupDeriveChainPicker');
             const show = periodFilterEnabled && isDeriveChainFilterMode(periodFilterMode);
@@ -14391,7 +14449,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (val == null) {
                 return role === 'peer' ? 'cùng freq với derive đang xét' : 'freq bất kỳ';
             }
-            return `có freq=${val}`;
+            return `freq=${val}`;
         }
 
         function formatDeriveChainPropBadge(val, role) {
@@ -14410,10 +14468,12 @@ function getFilterNoteTRefMaxSelections(mode) {
             return {
                 d,
                 p,
+                dPart,
+                pPart,
                 dBadge: formatDeriveChainPropBadge(d, 'derive'),
                 pBadge: formatDeriveChainPropBadge(p, 'peer'),
-                // vd D=1 P=1: "Mọi derive có freq=1 … các số còn lại có freq=1 …"
-                text: `Mọi derive ${dPart} (mà không vào đáp án): trên mỗi chuỗi chứa nó, các số còn lại ${pPart} (bỏ derive khác cùng hàng) cũng phải không vào đáp án.`
+                statement: `Với mọi hàng trong cửa sổ 10 có ≥1 derive(${dPart}) và ≥1 peer(${pPart}) (số không phải derive [D] trên hàng đó): nếu không có derive nào trên hàng thuộc đáp án thì cũng không peer nào trên hàng thuộc đáp án.`,
+                text: `Trên mỗi chuỗi có derive(${dPart}) kèm peer(${pPart}): nếu ít nhất một derive trên hàng thuộc đáp án thì được pick peer; nếu không derive nào trên hàng thuộc đáp án mà peer thuộc đáp án thì mệnh đề sai.`
             };
         }
 
@@ -14471,27 +14531,56 @@ function getFilterNoteTRefMaxSelections(mode) {
 
             tip.appendChild(hdr);
 
+            const appendFreqHighlighted = (parent, raw) => {
+                // Highlight đúng tham số đang set: freq=2 / freq bất kỳ / cùng freq…
+                const tokens = [];
+                if (parts.dPart) {
+                    tokens.push(parts.dPart);
+                }
+                if (parts.pPart && parts.pPart !== parts.dPart) {
+                    tokens.push(parts.pPart);
+                } else if (parts.pPart && !tokens.length) {
+                    tokens.push(parts.pPart);
+                }
+                tokens.sort((a, b) => b.length - a.length);
+                if (!tokens.length) {
+                    parent.appendChild(document.createTextNode(raw));
+                    return;
+                }
+                const escaped = tokens.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+                const re = new RegExp(`(${escaped.join('|')})`, 'g');
+                let last = 0;
+                let m;
+                while ((m = re.exec(raw)) !== null) {
+                    if (m.index > last) {
+                        parent.appendChild(document.createTextNode(raw.slice(last, m.index)));
+                    }
+                    const em = document.createElement('span');
+                    em.className = 'dc-freq';
+                    em.textContent = m[0];
+                    parent.appendChild(em);
+                    last = m.index + m[0].length;
+                }
+                if (last < raw.length) {
+                    parent.appendChild(document.createTextNode(raw.slice(last)));
+                }
+            };
+
+            const statement = document.createElement('p');
+            statement.className = 'filter-popup-derive-chain-prop-tooltip-statement';
+            appendFreqHighlighted(statement, parts.statement);
+            tip.appendChild(statement);
+
+            const explainLabel = document.createElement('div');
+            explainLabel.className = 'filter-popup-derive-chain-prop-tooltip-explain-label';
+            explainLabel.textContent = 'Giải thích:';
+            tip.appendChild(explainLabel);
+
             const body = document.createElement('p');
             body.className = 'filter-popup-derive-chain-prop-tooltip-body';
-            // Tô đậm cụm freq=… / freq bất kỳ / cùng freq…
-            const raw = parts.text;
-            const re = /(có freq=\d+|freq bất kỳ|cùng freq với derive đang xét)/g;
-            let last = 0;
-            let m;
-            while ((m = re.exec(raw)) !== null) {
-                if (m.index > last) {
-                    body.appendChild(document.createTextNode(raw.slice(last, m.index)));
-                }
-                const em = document.createElement('span');
-                em.className = 'dc-freq';
-                em.textContent = m[0];
-                body.appendChild(em);
-                last = m.index + m[0].length;
-            }
-            if (last < raw.length) {
-                body.appendChild(document.createTextNode(raw.slice(last)));
-            }
+            appendFreqHighlighted(body, parts.text);
             tip.appendChild(body);
+
             return tip;
         }
 
@@ -14680,14 +14769,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 filterDeriveChainPolarity,
                 getDeriveChainTfStats()
             );
-            showFilterPopupLoading();
             deferFilterPopupHeavyWork(() => {
-                try {
-                    updatePeriodFilterMatchCount();
-                    rebuildFilterPopupAfterParamChange();
-                } finally {
-                    clearFilterPopupLoadingState();
-                }
+                updatePeriodFilterMatchCount();
+                rebuildFilterPopupAfterParamChange();
             });
         }
 
@@ -14739,35 +14823,84 @@ function getFilterNoteTRefMaxSelections(mode) {
             });
         }
 
-        function applyDeriveChainParamsFromUi() {
+        /**
+         * Heavy path derive_chain (sau debounce shared). seq = lần defer vừa bắt đầu.
+         */
+        function applyDeriveChainParamsFromUi(seqArg) {
             saveFilterDeriveChainSettings();
+            const seq = Number.isFinite(seqArg) ? seqArg : filterPopupHeavyRefreshSeq;
+            const aborted = () => isFilterPopupHeavyAborted(seq);
             if (!(periodFilterEnabled && isPeriodFilterContextSheet()
                 && isDeriveChainFilterMode(periodFilterMode))) {
                 syncFilterPopupDeriveChainUi();
-                clearFilterPopupLoadingState();
+                finishFilterPopupHeavyIfLatest(seq);
                 return;
             }
-            // deferFilterPopupHeavyWork: hiện đồng hồ → sau paint mới tính lại + rebuild bảng.
-            deferFilterPopupHeavyWork(() => {
+            const runAfterCache = () => {
+                if (aborted()) {
+                    return;
+                }
                 try {
-                    rebuildFilterModeCounts();
+                    filterModeCounts[DERIVE_CHAIN_FILTER_MODE] = getFilterParentCountForMode(
+                        DERIVE_CHAIN_FILTER_MODE
+                    );
+                    updatePeriodFilterModeMenuItemCounts();
                     updatePeriodFilterMatchCount();
                     syncFilterPopupDeriveChainTfPctUi();
-                    rebuildFilterPopupAfterParamChange();
+                    syncFilterPopupDeriveChainModeBtnTitle();
+                    if (aborted()) {
+                        return;
+                    }
+                    const wrap = el('filterTableWrap');
+                    const hasTable = !!(wrap && wrap.querySelector('table.sheet-data-table tbody tr[data-idx]'));
+                    const polarity = normalizeFilterDeriveChainPolarity(filterDeriveChainPolarity);
+                    // normal + bảng đã có: chỉ đổi viền T/F/blur — không wipe DOM (spam được lúc loading).
+                    if (polarity === 'normal' && hasTable) {
+                        filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
+                        applyFilterPopupDeriveChainRowClasses(wrap);
+                        updatePeriodFilterMatchCount();
+                        return;
+                    }
+                    invalidateFilterPopupRenderCache();
+                    if (wrap) {
+                        wrap.innerHTML = '';
+                    }
+                    if (aborted()) {
+                        return;
+                    }
+                    refreshFilterPopupHeavy({
+                        syncMain: false,
+                        clearPopupNav: true
+                    });
                 } finally {
-                    clearFilterPopupLoadingState();
+                    finishFilterPopupHeavyIfLatest(seq);
                 }
-            });
+            };
+            const d = normalizeFilterDeriveChainFreqVal(filterDeriveChainDeriveFreq);
+            const p = normalizeFilterDeriveChainFreqVal(filterDeriveChainPeerFreq);
+            if (sheetManager && typeof sheetManager.buildDeriveChainSplitCacheAsync === 'function') {
+                sheetManager.buildDeriveChainSplitCacheAsync(d, p, aborted).then((split) => {
+                    if (!split || aborted()) {
+                        return;
+                    }
+                    // Yield thêm một nhịp để spin [DCOP[P] kịp paint trước khi đụng DOM bảng.
+                    yieldAfterFilterPopupPaint(() => {
+                        if (aborted()) {
+                            return;
+                        }
+                        runAfterCache();
+                    });
+                });
+                return;
+            }
+            runAfterCache();
         }
 
         function scheduleApplyDeriveChainFromUi() {
-            clearTimeout(filterDeriveChainApplyTimer);
-            // Hiện đồng hồ ngay khi đổi [D]/[P] (trước debounce), tránh khựng “trơn”.
-            showFilterPopupLoading();
-            filterDeriveChainApplyTimer = setTimeout(() => {
-                filterDeriveChainApplyTimer = null;
-                applyDeriveChainParamsFromUi();
-            }, 120);
+            // Dùng helper chung: cancel + debounce + loading latest-wins (mọi mode).
+            deferFilterPopupHeavyWork((seq) => {
+                applyDeriveChainParamsFromUi(seq);
+            });
         }
 
         function bumpFilterPopupDeriveChainFreq(which, delta) {
@@ -14786,7 +14919,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             } else {
                 filterDeriveChainDeriveFreq = n;
             }
-            syncFilterPopupDeriveChainUi();
+            syncFilterPopupDeriveChainFreqLabelsOnly(which);
             scheduleApplyDeriveChainFromUi();
         }
 
@@ -14815,7 +14948,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 } else {
                     filterDeriveChainDeriveFreq = next;
                 }
-                syncFilterPopupDeriveChainUi();
+                syncFilterPopupDeriveChainFreqLabelsOnly(which);
                 scheduleApplyDeriveChainFromUi();
             });
             node.addEventListener('keydown', (event) => {
@@ -27906,8 +28039,9 @@ function getFilterNoteTRefMaxSelections(mode) {
             commitFilterPopupTail3FreqDraftsFromDom();
             hideFilterPopupNonexist005PctTooltip();
             closeAllFilterPopupFloatingMenus();
+            cancelFilterPopupHeavyDebounce();
             filterPopupHeavyRefreshSeq++;
-            clearFilterPopupLoadingState();
+            clearFilterPopupLoadingState(null, true);
             const dock = el('filterPopupDock');
             if (!dock) {
                 return;
@@ -29287,7 +29421,23 @@ function getFilterNoteTRefMaxSelections(mode) {
             return true;
         }
 
-        function clearFilterPopupLoadingState(wrapEl) {
+        /**
+         * @param {Element|null} [wrapEl]
+         * @param {boolean|number} [forceOrSeq] true = bắt buộc tắt (đóng popup);
+         *   number = chỉ tắt nếu vẫn đúng thế hệ heavy đó.
+         */
+        function clearFilterPopupLoadingState(wrapEl, forceOrSeq) {
+            const force = forceOrSeq === true;
+            const forSeq = Number.isFinite(forceOrSeq) ? forceOrSeq : NaN;
+            if (!force) {
+                // Đang debounce lần mới hơn → giữ đồng hồ cho tham số mới nhất.
+                if (filterPopupHeavyDebounceTimer) {
+                    return;
+                }
+                if (Number.isFinite(forSeq) && forSeq !== filterPopupHeavyRefreshSeq) {
+                    return;
+                }
+            }
             const wrap = wrapEl || el('filterTableWrap');
             const overlay = el('filterPopupLoadingOverlay');
             if (wrap) {
@@ -29310,42 +29460,88 @@ function getFilterNoteTRefMaxSelections(mode) {
             }, 0);
         }
 
-        /**
-         * UI đã đổi xong → hiện đồng hồ ngay → sau 2 lần yield (để browser kịp paint) mới chạy work nặng.
-         * Caller phải cập nhật nhãn/selected TRƯỚC khi gọi hàm này.
-         */
-        function deferFilterPopupHeavyWork(workFn) {
+        function cancelFilterPopupHeavyDebounce() {
+            if (filterPopupHeavyDebounceTimer) {
+                clearTimeout(filterPopupHeavyDebounceTimer);
+                filterPopupHeavyDebounceTimer = null;
+            }
+        }
+
+        /** Work/async đã bị thay bởi lần đổi tham số mới hơn (hoặc debounce đang chờ). */
+        function isFilterPopupHeavyAborted(seq) {
+            return seq !== filterPopupHeavyRefreshSeq || !!filterPopupHeavyDebounceTimer;
+        }
+
+        function finishFilterPopupHeavyIfLatest(seq) {
+            clearFilterPopupLoadingState(null, seq);
+        }
+
+        function forceFilterPopupLoadingPaint() {
             showFilterPopupLoading();
-            // Ép layout overlay để paint đồng hồ trước khi block main thread.
             try {
                 const overlay = el('filterPopupLoadingOverlay');
                 if (overlay) {
                     void overlay.offsetWidth;
                 }
             } catch (eForce) { /* ignore */ }
-            const seq = ++filterPopupHeavyRefreshSeq;
-            yieldAfterFilterPopupPaint(() => {
-                if (seq !== filterPopupHeavyRefreshSeq) {
-                    return;
-                }
+        }
+
+        /**
+         * Latest-wins cho mọi mode: hiện đồng hồ ngay → hủy work cũ → debounce → paint → chạy nặng.
+         * Đổi tham số liên tục khi đang loading: chỉ lần cuối chạy; bảng không wipe giữa chừng.
+         * Caller cập nhật nhãn/selected TRƯỚC khi gọi.
+         * @param {function} workFn
+         * @param {{ immediate?: boolean, debounceMs?: number }} [opts]
+         *   immediate: không debounce (đổi mode / mở popup).
+         */
+        function deferFilterPopupHeavyWork(workFn, opts) {
+            const o = opts || {};
+            const debounceMs = o.immediate === true
+                ? 0
+                : (Number.isFinite(o.debounceMs) ? Math.max(0, o.debounceMs) : FILTER_POPUP_HEAVY_DEBOUNCE_MS);
+            forceFilterPopupLoadingPaint();
+            // Hủy in-flight + debounce cũ — loading lại theo tham số mới nhất.
+            filterPopupHeavyRefreshSeq++;
+            cancelFilterPopupHeavyDebounce();
+            const start = () => {
+                filterPopupHeavyDebounceTimer = null;
+                forceFilterPopupLoadingPaint();
+                const seq = ++filterPopupHeavyRefreshSeq;
                 yieldAfterFilterPopupPaint(() => {
-                    if (seq !== filterPopupHeavyRefreshSeq) {
+                    if (isFilterPopupHeavyAborted(seq)) {
                         return;
                     }
-                    try {
-                        workFn();
-                    } catch (eWork) { /* ignore */ }
+                    yieldAfterFilterPopupPaint(() => {
+                        if (isFilterPopupHeavyAborted(seq)) {
+                            return;
+                        }
+                        try {
+                            workFn(seq);
+                        } catch (eWork) { /* ignore */ }
+                    });
                 });
-            });
+            };
+            if (debounceMs <= 0) {
+                start();
+            } else {
+                filterPopupHeavyDebounceTimer = setTimeout(start, debounceMs);
+            }
         }
 
         /** Sau khi đổi tham số lọc: rebuild bảng (loading đã hiện bởi deferFilterPopupHeavyWork). */
         function rebuildFilterPopupAfterParamChange() {
+            const seqAtStart = filterPopupHeavyRefreshSeq;
             if (isPeriodFilterContextSheet()) {
+                if (isFilterPopupHeavyAborted(seqAtStart)) {
+                    return;
+                }
                 invalidateFilterPopupRenderCache();
                 const wrap = el('filterTableWrap');
                 if (wrap) {
                     wrap.innerHTML = '';
+                }
+                if (isFilterPopupHeavyAborted(seqAtStart)) {
+                    return;
                 }
                 try {
                     refreshFilterPopupHeavy({
@@ -29353,28 +29549,29 @@ function getFilterNoteTRefMaxSelections(mode) {
                         clearPopupNav: true
                     });
                 } finally {
-                    clearFilterPopupLoadingState();
+                    finishFilterPopupHeavyIfLatest(seqAtStart);
                 }
             } else {
                 try {
                     rebuildFilterModeCounts();
                     updatePeriodFilterMatchCount();
                 } finally {
-                    clearFilterPopupLoadingState();
+                    finishFilterPopupHeavyIfLatest(seqAtStart);
                 }
             }
         }
 
         /**
-         * Hiện overlay ngay → sau paint mới reset DOM + chạy heavy (mọi mode).
+         * Hiện overlay ngay → sau paint mới reset DOM + chạy heavy (đổi mode / mở popup — không debounce).
          */
         function scheduleFilterPopupHeavyRefresh(options = {}) {
             const syncMain = options.syncMain === true;
             const clearPopupNav = options.clearPopupNav === true;
-            showFilterPopupLoading();
+            cancelFilterPopupHeavyDebounce();
+            forceFilterPopupLoadingPaint();
             const seq = ++filterPopupHeavyRefreshSeq;
             yieldAfterFilterPopupPaint(() => {
-                if (seq !== filterPopupHeavyRefreshSeq) {
+                if (isFilterPopupHeavyAborted(seq)) {
                     return;
                 }
                 try {
@@ -29385,7 +29582,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                     }
                 } catch (eClr) { /* ignore */ }
                 yieldAfterFilterPopupPaint(() => {
-                    if (seq !== filterPopupHeavyRefreshSeq) {
+                    if (isFilterPopupHeavyAborted(seq)) {
                         return;
                     }
                     try {
@@ -29394,9 +29591,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                             clearPopupNav
                         });
                     } finally {
-                        if (seq === filterPopupHeavyRefreshSeq) {
-                            clearFilterPopupLoadingState();
-                        }
+                        finishFilterPopupHeavyIfLatest(seq);
                     }
                 });
             });

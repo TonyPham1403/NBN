@@ -4189,57 +4189,98 @@ class RightPaneSheetManager {
             if (i >= 10 && candsCache[i] && candsCache[i].length && rowNums[i].length) {
                 const cands = candsCache[i];
                 /** @type {Set<number>} */
-                const deriveSet = new Set();
-                for (let ci = 0; ci < cands.length; ci++) {
-                    deriveSet.add(cands[ci].num);
-                }
-                /** @type {Set<number>} */
                 const answerSet = new Set(rowNums[i]);
-                let applicable = false;
-                let isViol = false;
-                const winStart = i - 10;
+                /** Derive khớp [D] trong kỳ này. */
+                /** @type {number[]} */
+                const derivesD = [];
                 for (let ci = 0; ci < cands.length; ci++) {
                     const c = cands[ci];
-                    if (!c || c.inAnswer) {
+                    if (!c) {
                         continue;
                     }
-                    const x = c.num;
-                    const xFreq = counts[x] | 0;
+                    const xFreq = counts[c.num] | 0;
                     if (deriveFreq != null && xFreq !== deriveFreq) {
                         continue;
                     }
-                    const wantPeer = peerFreq != null ? peerFreq : xFreq;
-                    for (let r = winStart; r < i; r++) {
-                        const nums = rowNums[r];
-                        let xOn = false;
+                    derivesD.push(c.num);
+                }
+                /** @type {Set<number>} */
+                const deriveDSet = new Set(derivesD);
+                let applicable = false;
+                let isViol = false;
+                const winStart = i - 10;
+                // Xét theo từng hàng (chuỗi) trong cửa sổ: nhóm mọi derive [D] trên hàng đó.
+                // ≥1 derive ★ trên hàng → peer [P] cùng hàng được pick, không phá.
+                // Cả derive [D] trên hàng đều ∉ đáp án + peer [P] ∈ đáp án → phá (F).
+                for (let r = winStart; r < i; r++) {
+                    const nums = rowNums[r];
+                    if (!nums.length) {
+                        continue;
+                    }
+                    /** @type {number[]} */
+                    const derivesOnRow = [];
+                    /** @type {Set<number>} */
+                    const seenD = new Set();
+                    for (let di = 0; di < derivesD.length; di++) {
+                        const x = derivesD[di];
+                        if (seenD.has(x)) {
+                            continue;
+                        }
+                        let on = false;
                         for (let ni = 0; ni < nums.length; ni++) {
                             if (nums[ni] === x) {
-                                xOn = true;
+                                on = true;
                                 break;
                             }
                         }
-                        if (!xOn) {
+                        if (on) {
+                            seenD.add(x);
+                            derivesOnRow.push(x);
+                        }
+                    }
+                    if (!derivesOnRow.length) {
+                        continue;
+                    }
+                    // Peer freq: [P] cố định, hoặc = freq derive trên hàng (cùng [D]).
+                    const wantPeer = peerFreq != null
+                        ? peerFreq
+                        : (counts[derivesOnRow[0]] | 0);
+                    /** @type {number[]} */
+                    const peersOnRow = [];
+                    /** @type {Set<number>} */
+                    const seenP = new Set();
+                    for (let ni = 0; ni < nums.length; ni++) {
+                        const v = nums[ni];
+                        if (!(v >= 1 && v <= 35) || seenP.has(v)) {
                             continue;
                         }
-                        /** @type {Set<number>} */
-                        const seen = new Set();
-                        for (let ni = 0; ni < nums.length; ni++) {
-                            const v = nums[ni];
-                            if (!(v >= 1 && v <= 35) || v === x || seen.has(v)) {
-                                continue;
-                            }
-                            seen.add(v);
-                            if ((counts[v] | 0) !== wantPeer) {
-                                continue;
-                            }
-                            if (deriveSet.has(v)) {
-                                continue;
-                            }
-                            // Chỉ applicable khi có peer freq=[P] thật trên chuỗi chứa derive.
-                            applicable = true;
-                            if (answerSet.has(v)) {
-                                isViol = true;
-                            }
+                        if (deriveDSet.has(v)) {
+                            continue;
+                        }
+                        if ((counts[v] | 0) !== wantPeer) {
+                            continue;
+                        }
+                        seenP.add(v);
+                        peersOnRow.push(v);
+                    }
+                    if (!peersOnRow.length) {
+                        continue;
+                    }
+                    applicable = true;
+                    let anyDeriveInAnswer = false;
+                    for (let di = 0; di < derivesOnRow.length; di++) {
+                        if (answerSet.has(derivesOnRow[di])) {
+                            anyDeriveInAnswer = true;
+                            break;
+                        }
+                    }
+                    if (anyDeriveInAnswer) {
+                        continue;
+                    }
+                    for (let pi = 0; pi < peersOnRow.length; pi++) {
+                        if (answerSet.has(peersOnRow[pi])) {
+                            isViol = true;
+                            break;
                         }
                     }
                 }
@@ -4268,10 +4309,191 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Mệnh đề derive_chain trên một kỳ:
-     * Với mỗi derive X (freq khớp [D], X ∉ đáp án): trên mỗi chuỗi chứa X,
-     * nếu có số freq khớp [P] (trừ X; trừ derive khác) thì các số đó cũng ∉ đáp án.
-     * Kỳ applicable chỉ khi tồn tại ít nhất một peer [P] thật trên chuỗi chứa derive [D].
+     * Bản async của ensureDeriveChainSplitCache — chunk + yield để UI vẫn nhận spin [D]/[P]
+     * khi đang loading; shouldAbort()=true → hủy, trả null (không ghi cache dở).
+     * @param {number|null} deriveFreq
+     * @param {number|null} peerFreq
+     * @param {() => boolean} [shouldAbort]
+     * @returns {Promise<{ key: string, hold: number[], violate: number[], applicable: number }|null>}
+     */
+    buildDeriveChainSplitCacheAsync(deriveFreq, peerFreq, shouldAbort) {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        const dKey = deriveFreq == null ? '' : String(deriveFreq);
+        const pKey = peerFreq == null ? '' : String(peerFreq);
+        const key = `${n}|${dKey}|${pKey}`;
+        if (this._deriveChainSplitCache && this._deriveChainSplitCache.key === key) {
+            return Promise.resolve(this._deriveChainSplitCache);
+        }
+        const abortFn = typeof shouldAbort === 'function' ? shouldAbort : null;
+        if (abortFn && abortFn()) {
+            return Promise.resolve(null);
+        }
+        const candsCache = this.ensureTail3AllDeriveCandsCache();
+        /** @type {number[]} */
+        const hold = [];
+        /** @type {number[]} */
+        const violate = [];
+        const counts = new Int16Array(36);
+        /** @type {number[][]} */
+        const rowNums = new Array(n);
+        for (let i = 0; i < n; i++) {
+            rowNums[i] = this.isEmptyResultRow(rows[i])
+                ? []
+                : this.parseMainNums(rows[i].result || rows[i].Result || '');
+        }
+        const addRow = (ri, sign) => {
+            if (ri < 0 || ri >= n) {
+                return;
+            }
+            const nums = rowNums[ri];
+            for (let ni = 0; ni < nums.length; ni++) {
+                const v = nums[ni];
+                if (v >= 1 && v <= 35) {
+                    counts[v] += sign;
+                }
+            }
+        };
+        const processRow = (i) => {
+            if (i >= 10 && candsCache[i] && candsCache[i].length && rowNums[i].length) {
+                const cands = candsCache[i];
+                const answerSet = new Set(rowNums[i]);
+                /** @type {number[]} */
+                const derivesD = [];
+                for (let ci = 0; ci < cands.length; ci++) {
+                    const c = cands[ci];
+                    if (!c) {
+                        continue;
+                    }
+                    const xFreq = counts[c.num] | 0;
+                    if (deriveFreq != null && xFreq !== deriveFreq) {
+                        continue;
+                    }
+                    derivesD.push(c.num);
+                }
+                const deriveDSet = new Set(derivesD);
+                let applicable = false;
+                let isViol = false;
+                const winStart = i - 10;
+                for (let r = winStart; r < i; r++) {
+                    const nums = rowNums[r];
+                    if (!nums.length) {
+                        continue;
+                    }
+                    /** @type {number[]} */
+                    const derivesOnRow = [];
+                    const seenD = new Set();
+                    for (let di = 0; di < derivesD.length; di++) {
+                        const x = derivesD[di];
+                        if (seenD.has(x)) {
+                            continue;
+                        }
+                        let on = false;
+                        for (let ni = 0; ni < nums.length; ni++) {
+                            if (nums[ni] === x) {
+                                on = true;
+                                break;
+                            }
+                        }
+                        if (on) {
+                            seenD.add(x);
+                            derivesOnRow.push(x);
+                        }
+                    }
+                    if (!derivesOnRow.length) {
+                        continue;
+                    }
+                    const wantPeer = peerFreq != null
+                        ? peerFreq
+                        : (counts[derivesOnRow[0]] | 0);
+                    /** @type {number[]} */
+                    const peersOnRow = [];
+                    const seenP = new Set();
+                    for (let ni = 0; ni < nums.length; ni++) {
+                        const v = nums[ni];
+                        if (!(v >= 1 && v <= 35) || seenP.has(v)) {
+                            continue;
+                        }
+                        if (deriveDSet.has(v)) {
+                            continue;
+                        }
+                        if ((counts[v] | 0) !== wantPeer) {
+                            continue;
+                        }
+                        seenP.add(v);
+                        peersOnRow.push(v);
+                    }
+                    if (!peersOnRow.length) {
+                        continue;
+                    }
+                    applicable = true;
+                    let anyDeriveInAnswer = false;
+                    for (let di = 0; di < derivesOnRow.length; di++) {
+                        if (answerSet.has(derivesOnRow[di])) {
+                            anyDeriveInAnswer = true;
+                            break;
+                        }
+                    }
+                    if (anyDeriveInAnswer) {
+                        continue;
+                    }
+                    for (let pi = 0; pi < peersOnRow.length; pi++) {
+                        if (answerSet.has(peersOnRow[pi])) {
+                            isViol = true;
+                            break;
+                        }
+                    }
+                }
+                if (applicable) {
+                    if (isViol) {
+                        violate.push(i);
+                    } else {
+                        hold.push(i);
+                    }
+                }
+            }
+            addRow(i, 1);
+            if (i >= 10) {
+                addRow(i - 10, -1);
+            }
+        };
+
+        return new Promise((resolve) => {
+            let i = 0;
+            const CHUNK = 24;
+            const pump = () => {
+                if (abortFn && abortFn()) {
+                    resolve(null);
+                    return;
+                }
+                const end = Math.min(n, i + CHUNK);
+                for (; i < end; i++) {
+                    processRow(i);
+                }
+                if (i < n) {
+                    setTimeout(pump, 0);
+                    return;
+                }
+                const out = {
+                    key,
+                    hold,
+                    violate,
+                    applicable: hold.length + violate.length
+                };
+                this._deriveChainSplitCache = out;
+                resolve(out);
+            };
+            setTimeout(pump, 0);
+        });
+    }
+
+    /**
+     * Mệnh đề derive_chain trên một kỳ (xét theo từng hàng/chuỗi trong cửa sổ 10):
+     * Trên hàng có ≥1 derive [D] và ≥1 peer [P] (số freq=[P] không phải derive [D] trên hàng):
+     * — ≥1 derive [D] trên hàng ∈ đáp án (★) → đúng (được pick peer [P]).
+     * — Mọi derive [D] trên hàng ∉ đáp án mà peer [P] ∈ đáp án → sai (F).
+     * Ví dụ 2 derive + 1 peer trên 1 hàng: chỉ cần 1 derive ★ là T; cả 2 miss + peer ★ → F.
+     * Kỳ applicable khi tồn tại ≥1 hàng như trên.
      * @returns {{ applicable: boolean, holds: boolean, violates: boolean }}
      */
     evaluateDeriveChainProposition(rows, rowIndex, opts) {
