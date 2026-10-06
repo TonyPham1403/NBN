@@ -9576,15 +9576,15 @@
                     </div>
                     <div id="filterPopupTrackingBellyPicker" class="filter-popup-tracking-belly hidden"
                         role="group" aria-label="Bụng TRACKING: nhiều tên bụng (AND)" aria-hidden="true"
-                        title="Lọc TRACKING: kỳ có bụng (vd 3[1]). IN = trong bụng; OUT = dưới brace; ? = phần bù (có bụng + số gọi nhưng không IN/OUT). Special cùng định nghĩa. +/− bụng.">
+                        title="Lọc TRACKING: kỳ có bụng (vd 3[1]). IN = trong bụng; OUT = dưới brace + freq sát 1 (pick vào bụng); ? = phần bù. Special cùng định nghĩa. +/− bụng.">
                         <div id="filterPopupTrackingIoToggle" class="filter-popup-tracking-io" role="group"
-                            aria-label="IN trong bụng / OUT dưới brace / ? phần bù — đồng bộ special">
+                            aria-label="IN trong bụng / OUT dưới brace sát freq / ? phần bù — đồng bộ special">
                             <button type="button" id="filterPopupTrackingInBtn"
                                 class="filter-popup-tracking-io-btn" aria-pressed="true"
                                 title="IN: số gọi nằm trong đúng bụng đang lọc (thành viên 3[1], …)">IN</button>
                             <button type="button" id="filterPopupTrackingOutBtn"
                                 class="filter-popup-tracking-io-btn" aria-pressed="false"
-                                title="OUT: số gọi là số ngay dưới brace của đúng bụng đang lọc">OUT</button>
+                                title="OUT: số gọi ngay dưới brace và freq sát bụng 1 (pick → vào bụng)">OUT</button>
                             <button type="button" id="filterPopupTrackingQBtn"
                                 class="filter-popup-tracking-io-btn" aria-pressed="false" data-tracking-io="q"
                                 title="?: có đúng bụng đang lọc + số gọi, nhưng không IN và không OUT">?</button>
@@ -10080,7 +10080,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
-    <script src="right-pane-sheets.js?v=20261007filterLoadLatestWins"></script>
+    <script src="right-pane-sheets.js?v=20261007bellyOutFreqAdj"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -10525,7 +10525,7 @@
         let filterPopupP1DistResultHitPct = 0;
         /** TRACKING: IN = số gọi ∈ nums bụng đang lọc */
         let filterTrackingPickIn = true;
-        /** TRACKING: OUT = số gọi = belowNum bụng đang lọc */
+        /** TRACKING: OUT = belowNum (dưới brace + freq = bụng−1) */
         let filterTrackingPickOut = false;
         /** TRACKING: ? = phần bù (có bụng + số gọi, không IN/OUT) */
         let filterTrackingPickQ = false;

@@ -509,7 +509,7 @@ class RightPaneSheetManager {
         /** Cache cột sheet1 `trend` (up/down/flat + streak). */
         this._sheet1SpecialPickTrendsCache = null;
         this._sheet1SpecialPickTrendsCacheKey = '';
-        /** Cache cột sheet1 `belly` (IN trong bụng / OUT dưới brace — đồng bộ basic). */
+        /** Cache cột sheet1 `belly` (IN / OUT sát freq dưới brace — đồng bộ basic). */
         this._sheet1SpecialPickBellyIoCache = null;
         this._sheet1SpecialPickBellyIoCacheKey = '';
         this.frequencyMap = {};
@@ -13635,12 +13635,18 @@ class RightPaneSheetManager {
                     nextStreakByKey.set(streakKey, streak);
                 }
                 nextBellyByFreq.set(freq, bellyKey);
+                // OUT = số ngay dưới brace VÀ freq sát bụng 1 đơn vị (pick → vào bụng).
                 const belowSlot = (group.maxSlot | 0) + 1;
+                const outFreq = freq - 1;
                 let belowNum = null;
-                for (let nn = 1; nn <= numMax; nn++) {
-                    if ((slotByNum[nn] | 0) === belowSlot) {
-                        belowNum = nn;
-                        break;
+                if (outFreq >= 0) {
+                    const counts = display.counts || {};
+                    for (let nn = 1; nn <= numMax; nn++) {
+                        if ((slotByNum[nn] | 0) === belowSlot
+                            && ((counts[nn] || 0) | 0) === outFreq) {
+                            belowNum = nn;
+                            break;
+                        }
                     }
                 }
                 bellies.push({
@@ -13767,7 +13773,7 @@ class RightPaneSheetManager {
         return false;
     }
 
-    /** OUT: ≥1 số gọi = số ngay dưới brace của đúng bụng size+streak. */
+    /** OUT: ≥1 số gọi = số ngay dưới brace + freq = bụng−1 (pick vào bụng). */
     rowMatchesBasicTrackingBellyPickBelow(rowIndex, memberCount, streak) {
         const rows = this.getSourceSheetRows();
         const row = rows[rowIndex];
@@ -15825,7 +15831,7 @@ class RightPaneSheetManager {
 
     /**
      * Special bar IN/OUT/? — cùng basic: layout pre-pick.
-     * IN = trong bụng freq-tie; OUT = số ngay dưới brace; còn lại '?'.
+     * IN = trong bụng freq-tie; OUT = dưới brace + freq sát bụng 1; còn lại '?'.
      * @returns {Record<number, 'in'|'out'|'?'>}
      */
     static computeSpecialTrackingBarPickBellyIo(series, fr, numMax) {
@@ -16026,7 +16032,8 @@ class RightPaneSheetManager {
     /**
      * IN/OUT/? đồng bộ basic + special (layout = pre-pick):
      * IN = pick ∈ bụng freq-tie (≥2 cùng freq);
-     * OUT = pick là số ngay dưới brace bụng (slot maxSlot+1);
+     * OUT = số ngay dưới brace (slot maxSlot+1) VÀ freq === bụng−1
+     *       (pick +1 → hòa freq bụng / tiến vào bụng); không đủ sát → '?';
      * phần bù → '?'.
      * @param {*} counts
      * @param {*} slotByNum
@@ -16040,8 +16047,10 @@ class RightPaneSheetManager {
             return '?';
         }
         const slots = Array.isArray(slotByNum) ? slotByNum : [];
+        const byNum = counts || {};
+        const pickFreq = (byNum[n] || 0) | 0;
         const groups = RightPaneSheetManager.buildBasicTrackingFreqTieGroups(
-            counts,
+            byNum,
             slots,
             numMax
         );
@@ -16055,8 +16064,9 @@ class RightPaneSheetManager {
             if (nums.indexOf(n) >= 0) {
                 return 'in';
             }
+            const bellyFreq = group.freq | 0;
             const belowSlot = (group.maxSlot | 0) + 1;
-            if ((slots[n] | 0) === belowSlot) {
+            if ((slots[n] | 0) === belowSlot && pickFreq === bellyFreq - 1) {
                 isOut = true;
             }
         }
