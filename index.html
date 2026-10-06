@@ -10854,7 +10854,8 @@
             }
 
             if (periodFilterEnabled) {
-                refreshFilterPopup({ syncMain: false, immediateRender: true });
+                // Zoom chỉ refresh ngầm — không tự mở popup.
+                refreshFilterPopup({ syncMain: false, immediateRender: true, skipOpen: true });
             }
 
             // Zoom changes row layout; re-anchor the 11-row window at the 60/40 split.
@@ -21318,7 +21319,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                     syncMain: false,
                     immediateRender: !deferHeavy,
                     deferHeavy,
-                    clearPopupNav: true
+                    clearPopupNav: true,
+                    // User đổi mode → mở popup nếu đang khôi phục filter ON nhưng dock đóng.
+                    forceOpen: true
                 });
             }
             requestAnimationFrame(() => restoreKeyboardFocusTarget());
@@ -30810,8 +30813,14 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return;
             }
 
+            // Không tự mở khi dock đang đóng (restore / zoom / đổi sheet).
+            // Chỉ mở khi đã mở sẵn, hoặc caller set forceOpen (đổi mode do user).
             if (!options.skipOpen) {
-                openFilterPopup();
+                const dockEl = dock || el('filterPopupDock');
+                const alreadyOpen = !!(dockEl && !dockEl.classList.contains('hidden'));
+                if (alreadyOpen || options.forceOpen === true) {
+                    openFilterPopup();
+                }
             }
 
             const wrap = el('filterTableWrap');
@@ -30824,14 +30833,24 @@ function getFilterNoteTRefMaxSelections(mode) {
             const canReuseHtml = !forceRender && filterPopupHasLiveTable(wrap, cacheKey);
 
             if (canReuseHtml) {
-                applyFilterPopupFastOpen(wrap, {
-                    syncMain,
-                    clearPopupNav: options.clearPopupNav === true
-                });
+                const dockEl = dock || el('filterPopupDock');
+                const alreadyOpen = !!(dockEl && !dockEl.classList.contains('hidden'));
+                // Dock đóng: chỉ giữ cache/indices, không “fast open” UI.
+                if (alreadyOpen || options.forceOpen === true) {
+                    applyFilterPopupFastOpen(wrap, {
+                        syncMain,
+                        clearPopupNav: options.clearPopupNav === true
+                    });
+                } else {
+                    filterPopupIndices = getFilterMatchingIndicesForMode(periodFilterMode);
+                    updatePeriodFilterMatchCount();
+                    syncPeriodFilterNavModeToIframe();
+                }
                 return;
             }
 
             // Mọi mode: reset bảng + loading kim đồng hồ, rồi mới tính lọc (tránh đơ UI khi toggle).
+            // Dock đóng: vẫn prebuild ngầm (overlay không hiện vì dock hidden).
             scheduleFilterPopupHeavyRefresh({
                 syncMain,
                 clearPopupNav: options.clearPopupNav === true
@@ -32449,7 +32468,12 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (periodFilterEnabled && isPeriodFilterContextSheet()) {
                     requestAnimationFrame(() => {
                         if (isPeriodFilterContextSheet()) {
-                            refreshFilterPopup({ syncMain: false, immediateRender: true });
+                            // Đổi sheet: refresh ngầm, không tự mở popup.
+                            refreshFilterPopup({
+                                syncMain: false,
+                                immediateRender: true,
+                                skipOpen: true
+                            });
                         }
                     });
                 }
