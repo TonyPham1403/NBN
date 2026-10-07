@@ -875,6 +875,22 @@
             font-weight: 600;
         }
 
+        /*
+         * Submit ON: chỉ nền xanh lá đáp án — tắt hết xanh dương Apply/khoanh (is-applied).
+         * Xanh dương chỉ hiện khi Submit OFF.
+         */
+        body.submit-preview-active .reference-hint-row.is-applied:not(.is-answer),
+        body.submit-preview-active .reference-hint-group-item.is-applied:not(.is-answer) {
+            border-color: transparent;
+            background: transparent;
+            box-shadow: none;
+        }
+
+        body.submit-preview-active .reference-hint-row.is-applied:not(.is-answer):hover,
+        body.submit-preview-active .reference-hint-group-item.is-applied:not(.is-answer):hover {
+            background: #eef7ee;
+        }
+
         /* Submit ON: đáp án nền xanh lá nhạt (cùng kiểu viền/inset như Apply xanh dương) */
         body.submit-preview-active .reference-hint-group-item.is-answer,
         body.submit-preview-active .reference-hint-row.is-answer {
@@ -2912,12 +2928,27 @@
             return true;
         }
 
-        /** Viền hàng / nhóm gộp ↔ khoanh submit (ưu tiên) hoặc khoanh đỏ. */
+        /**
+         * Viền hàng / nhóm gộp ↔ khoanh đỏ (Submit OFF) hoặc tắt xanh dương (Submit ON).
+         * Submit ON: không tô is-applied — chỉ CSS .is-answer (xanh lá đáp án).
+         */
         function syncReferenceHintAppliedRowsFromSelection() {
             const panel = document.getElementById('referenceHint');
             const nextKeys = new Set();
             if (panel) {
                 const rows = panel.querySelectorAll('.reference-hint-row[data-hint-key]');
+                const groups = panel.querySelectorAll('.reference-hint-group-item[data-hint-nums]');
+                // Submit ON: gỡ hết nền xanh dương khoanh/Apply — chỉ còn xanh lá đáp án.
+                if (submitActive) {
+                    for (let i = 0; i < rows.length; i++) {
+                        rows[i].classList.remove('is-applied');
+                    }
+                    for (let gi = 0; gi < groups.length; gi++) {
+                        groups[gi].classList.remove('is-applied');
+                    }
+                    referenceHintAppliedKeys = nextKeys;
+                    return;
+                }
                 for (let i = 0; i < rows.length; i++) {
                     const row = rows[i];
                     const key = row.getAttribute('data-hint-key') || '';
@@ -2933,7 +2964,6 @@
                         nextKeys.add(key);
                     }
                 }
-                const groups = panel.querySelectorAll('.reference-hint-group-item[data-hint-nums]');
                 for (let gi = 0; gi < groups.length; gi++) {
                     const item = groups[gi];
                     let nums = [];
@@ -3459,7 +3489,8 @@
                         item.setAttribute('data-hint-key', rowKey);
                     }
                     item.setAttribute('data-hint-nums', JSON.stringify(sortedNums));
-                    if (isReferenceHintRowSelected(sortedNums)) {
+                    // Submit ON: không gắn is-applied (xanh dương) — chỉ .is-answer xanh lá.
+                    if (!submitActive && isReferenceHintRowSelected(sortedNums)) {
                         item.classList.add('is-applied');
                         if (rowKey) {
                             referenceHintAppliedKeys.add(rowKey);
@@ -3553,7 +3584,8 @@
                     row.setAttribute('data-hint-key', rowKey);
                 }
                 row.setAttribute('data-hint-nums', JSON.stringify(sortedNums));
-                if (isReferenceHintRowSelected(sortedNums)) {
+                // Submit ON: không gắn is-applied (xanh dương) — chỉ .is-answer xanh lá.
+                if (!submitActive && isReferenceHintRowSelected(sortedNums)) {
                     row.classList.add('is-applied');
                     if (rowKey) {
                         referenceHintAppliedKeys.add(rowKey);
