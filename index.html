@@ -10143,7 +10143,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
-    <script src="right-pane-sheets.js?v=20261008tail3FollowOpLe"></script>
+    <script src="right-pane-sheets.js?v=20261008tail3ArityBlur"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -19260,9 +19260,10 @@ function getFilterNoteTRefMaxSelections(mode) {
         }
 
         /**
+        /**
          * 3-tail: giữ đủ mẫu evaluable.
-         * Normal + freq: xanh = thỏa; đỏ = không thỏa (applicable miss); blur = follow ?.
-         * F determined: chỉ nhấn xanh; F đỏ: chỉ nhấn đỏ (miss). Không freq: determined/? như cũ.
+         * Normal + freq: xanh = thỏa; đỏ = có arity trái khớp số khối nhưng lệch freq;
+         * blur = follow ? hoặc (= / ≤) không có phần tử text area đủ số Y trái.
          */
         function applyFilterPopupTail3FreqRowClasses(wrapArg) {
             const wrap = wrapArg || el('filterTableWrap');
@@ -19317,8 +19318,12 @@ function getFilterNoteTRefMaxSelections(mode) {
                 } else if (typeof sheetManager.rowHasDeterminedFollow === 'function') {
                     isMatch = sheetManager.rowHasDeterminedFollow(rows, idx);
                 }
-                // Miss freq (đỏ): evaluable đang hiện, không match, không phải follow ?.
-                const isMiss = freqActive && !isMatch && !isQuestion;
+                // = / ≤: đỏ chỉ khi text area có ≥1 nhóm đúng arity trái; thiếu → blur (vd toàn đơn khi =2).
+                const hasArity = !freqActive
+                    || followOp === '>='
+                    || (typeof sheetManager.rowHasTail3FollowLeftArity === 'function'
+                        && sheetManager.rowHasTail3FollowLeftArity(rows, idx, followFreqs, followOp));
+                const isMiss = freqActive && !isMatch && !isQuestion && hasArity;
 
                 if (freqActive && fMode === 'off') {
                     if (isMatch) {
@@ -30665,7 +30670,15 @@ function getFilterNoteTRefMaxSelections(mode) {
                     if (isMatch) {
                         matchSet.add(idx);
                     } else if (freqActive && !isQuestion) {
-                        missSet.add(idx);
+                        // = / ≤: chỉ đỏ khi text area có nhóm đủ số Y trái; thiếu → blur (không vào miss%).
+                        const hasArity = followOp === '>='
+                            || (typeof sheetManager.rowHasTail3FollowLeftArity === 'function'
+                                && sheetManager.rowHasTail3FollowLeftArity(
+                                    rows, idx, followFreqs, followOp
+                                ));
+                        if (hasArity) {
+                            missSet.add(idx);
+                        }
                     }
                 }
                 wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {

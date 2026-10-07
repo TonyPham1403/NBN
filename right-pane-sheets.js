@@ -4061,6 +4061,45 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Text area Y→X: có ≥1 phần tử (mọi derive cand) có số Y trái khớp op vs số khối.
+     * `=` N → cần ≥1 nhóm đúng N follow trái; không có → kỳ không applicable (blur, không đỏ).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @param {Array<number|null>} followFreqs
+     * @param {'>='|'='|'<='} [followOp='>=']
+     * @returns {boolean}
+     */
+    rowHasTail3FollowLeftArity(rows, rowIndex, followFreqs, followOp) {
+        const follow = RightPaneSheetManager.normalizeTail3FollowFreqs(followFreqs);
+        const op = RightPaneSheetManager.normalizeTail3FollowOp(followOp);
+        const nBlocks = follow.length;
+        if (nBlocks < 1) {
+            return false;
+        }
+        // ≥ không siết arity nhóm — mọi ★ evaluable vẫn applicable.
+        if (op === '>=') {
+            return true;
+        }
+        const candidates = this.enumerateTail3CandidateNumsForRow(rows, rowIndex, {
+            includeEdges: false
+        });
+        for (let ci = 0; ci < candidates.length; ci++) {
+            const c = candidates[ci];
+            const pc = c && Array.isArray(c.partners) ? c.partners.length : 0;
+            if (pc < 1) {
+                continue;
+            }
+            if (op === '=' && pc === nBlocks) {
+                return true;
+            }
+            if (op === '<=' && pc <= nBlocks) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * ★ + follow freqs (Y) → derive freq (X):
      * - Trái `>=`: partners **ít nhất** phủ freq đã chỉ định (được dư).
      * - Trái `=`: số partner = đúng số khối follow + phủ freq cụ thể.
