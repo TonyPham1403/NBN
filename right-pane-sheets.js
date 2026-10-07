@@ -4062,21 +4062,25 @@ class RightPaneSheetManager {
 
     /**
      * ★ + follow freqs (Y) → derive freq (X):
-     * - Trái: partners phải **ít nhất** phủ các freq đã chỉ định (null bỏ qua; được dư partner).
+     * - Trái `>=`: partners **ít nhất** phủ freq đã chỉ định (được dư).
+     * - Trái `=`: số partner = đúng số khối follow + phủ freq cụ thể.
+     * - Trái `<=`: số partner ≤ số khối follow + phủ freq cụ thể.
      * - Phải: xFreq = deriveFreq (null = any).
      * @param {object[]} rows
      * @param {number} rowIndex
      * @param {Array<number|null>} followFreqs
      * @param {number|null} deriveFreq
+     * @param {'>='|'='|'<='} [followOp='>=']
      * @returns {boolean}
      */
-    rowMatchesTail3FollowDeriveFreq(rows, rowIndex, followFreqs, deriveFreq) {
+    rowMatchesTail3FollowDeriveFreq(rows, rowIndex, followFreqs, deriveFreq, followOp) {
         if (!this.rowMatchesTail3Filter(rows, rowIndex)) {
             return false;
         }
         const follow = RightPaneSheetManager.normalizeTail3FollowFreqs(followFreqs);
         const derive = RightPaneSheetManager.normalizeTail3DeriveFreq(deriveFreq);
-        if (!RightPaneSheetManager.isTail3FollowDeriveFreqActive(follow, derive)) {
+        const op = RightPaneSheetManager.normalizeTail3FollowOp(followOp);
+        if (!RightPaneSheetManager.isTail3FollowDeriveFreqActive(follow, derive, op)) {
             return true;
         }
         const wantY = follow.slice();
@@ -4094,6 +4098,15 @@ class RightPaneSheetManager {
                 continue;
             }
             const gotY = c.partners.map((p) => freqMap.get(p.y) || 0);
+            if (op === '=') {
+                if (gotY.length !== wantY.length) {
+                    continue;
+                }
+            } else if (op === '<=') {
+                if (gotY.length > wantY.length) {
+                    continue;
+                }
+            }
             if (RightPaneSheetManager.tail3FreqMultisetCoversAtLeast(wantY, gotY)) {
                 return true;
             }
@@ -13425,19 +13438,32 @@ class RightPaneSheetManager {
         return out;
     }
 
+    /** @param {*} raw @returns {'>='|'='|'<='} */
+    static normalizeTail3FollowOp(raw) {
+        if (raw === '=' || raw === '<=') {
+            return raw;
+        }
+        return '>=';
+    }
+
     /**
-     * Chỉ active khi có ít nhất một freq cụ thể (follow 1–9 hoặc derive 0–9).
-     * Cả follow + derive đều trống (= any) → không siết freq.
+     * Active khi: derive cụ thể; hoặc follow có freq cụ thể;
+     * hoặc followOp `=` / `<=` (siết số khối, kể cả khối trống).
      * @param {Array<number|null>} followFreqs
      * @param {number|null} deriveFreq
+     * @param {'>='|'='|'<='} [followOp='>=']
      * @returns {boolean}
      */
-    static isTail3FollowDeriveFreqActive(followFreqs, deriveFreq) {
+    static isTail3FollowDeriveFreqActive(followFreqs, deriveFreq, followOp) {
         const derive = RightPaneSheetManager.normalizeTail3DeriveFreq(deriveFreq);
         if (derive != null) {
             return true;
         }
         const follow = RightPaneSheetManager.normalizeTail3FollowFreqs(followFreqs);
+        const op = RightPaneSheetManager.normalizeTail3FollowOp(followOp);
+        if ((op === '=' || op === '<=') && follow.length >= 1) {
+            return true;
+        }
         for (let i = 0; i < follow.length; i++) {
             if (follow[i] != null) {
                 return true;
@@ -13447,7 +13473,7 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Trái = ít nhất: mọi freq cụ thể trong want phải xuất hiện trong got (multiset).
+     * Trái ≥: mọi freq cụ thể trong want phải xuất hiện trong got (multiset).
      * Slot null (= any) bỏ qua; got được dài hơn want.
      * @param {Array<number|null>} want
      * @param {number[]} got

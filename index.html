@@ -5579,6 +5579,60 @@
             gap: 4px;
         }
 
+        /* 3-tail: ≥ (trắng, không siết count) / = (xanh lá, đúng số khối) */
+        .filter-popup-tail3-follow-op {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+            min-width: 22px;
+            height: 20px;
+            margin: 0;
+            padding: 0 3px;
+            border: 1px solid #cbd5e1;
+            border-radius: 3px;
+            background: #ffffff;
+            color: #334155;
+            font: 700 11px/1 Consolas, "Courier New", monospace;
+            cursor: pointer;
+            box-sizing: border-box;
+            user-select: none;
+        }
+
+        .filter-popup-tail3-follow-op:hover:not(:disabled) {
+            border-color: #94a3b8;
+            background: #f8fafc;
+        }
+
+        .filter-popup-tail3-follow-op[data-op="="] {
+            border-color: #006400;
+            background: #006400;
+            color: #ffffff;
+        }
+
+        .filter-popup-tail3-follow-op[data-op="="]:hover:not(:disabled) {
+            border-color: #004d00;
+            background: #004d00;
+            color: #ffffff;
+        }
+
+        .filter-popup-tail3-follow-op[data-op="<="] {
+            border-color: #ff0000;
+            background: #ff0000;
+            color: #ffffff;
+        }
+
+        .filter-popup-tail3-follow-op[data-op="<="]:hover:not(:disabled) {
+            border-color: #cc0000;
+            background: #cc0000;
+            color: #ffffff;
+        }
+
+        .filter-popup-tail3-follow-op:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
         .filter-popup-tail3-freq .filter-popup-tail3-freq-num {
             width: 2.5ch;
             min-width: 2.5ch;
@@ -6006,6 +6060,11 @@
         }
 
         #filterTableWrap tr.filter-popup-derive-chain-false:not(.filter-popup-row-focus) td {
+            box-shadow: inset 0 0 0 2px #ef4444;
+        }
+
+        /* 3-tail normal: không thỏa freq (applicable miss) — viền đỏ; khác blur (?) */
+        #filterTableWrap tr.filter-popup-tail3-miss:not(.filter-popup-row-focus) td {
             box-shadow: inset 0 0 0 2px #ef4444;
         }
 
@@ -9739,8 +9798,12 @@
                     <div id="filterPopupTail3FreqPicker" class="filter-popup-tail3-freq hidden" role="group"
                         aria-label="3-tail: follow freq → derive freq"
                         aria-hidden="true"
-                        title="Trái: ít nhất các follow freq đã chỉ định (trống=any). Phải: derive freq (trống=any). Cả trống = đủ mẫu evaluable; F% làm mờ theo follow.">
+                        title="Trái: follow freq (trống=any). Nút ≥/=/≤ : dư / đúng / tối đa số khối. Phải: derive freq (trống=any).">
                         <div class="filter-popup-tail3-follow-side">
+                            <button type="button" id="filterPopupTail3FollowOp"
+                                class="filter-popup-tail3-follow-op" data-op=">="
+                                title="≥ : ít nhất (được dư). = : đúng số khối. ≤ : tối đa số khối."
+                                aria-label="Toán tử số lượng follow: ≥ / = / ≤">≥</button>
                             <div id="filterPopupTail3FollowList" class="filter-popup-tail3-follow-list"></div>
                             <button type="button" id="filterPopupTail3FollowAdd"
                                 class="filter-popup-tracking-belly-add" title="Thêm khối follow (Y)"
@@ -9868,8 +9931,8 @@
                         title="% kỳ có viền xanh / tổng kỳ đang lọc. Bật: chỉ hiện các kỳ có viền xanh; tắt: hiện đủ lại.">0%</button>
                     <button type="button" id="filterPopupFollowOverlapPct"
                         class="filter-popup-posnfreq-overlap-pct is-follow-pct-btn" hidden aria-pressed="false"
-                        title="F = follow (phase1 hỗ trợ 3-tail). % trên kỳ đánh giá được ∩ mẫu mode. Nhấn: chỉ có follow → (cũ ?) → hiện đủ. Mode 3-tail: in mờ row không thỏa (không ẩn)."
-                        aria-label="Phần trăm kỳ có follow 3-tail">F 0%</button>
+                        title="F = follow 3-tail. Normal+freq: viền xanh=thỏa, đỏ=không thỏa, blur=?. Nhấn: chỉ xanh → chỉ đỏ (F% đỏ) → đủ."
+                        aria-label="Phần trăm kỳ follow 3-tail / miss">F 0%</button>
                     <button type="button" id="filterPopupConn3OverlapPct"
                         class="filter-popup-posnfreq-overlap-pct is-conn3-pct-btn" hidden aria-pressed="false"
                         title="3C = kỳ đáp án có 3-connection (viền xanh). Bật: chỉ kỳ 3C; tắt: đủ cửa sổ. AND với nút F (follow)."
@@ -10080,7 +10143,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
-    <script src="right-pane-sheets.js?v=20261007bellyOutFreqAdj"></script>
+    <script src="right-pane-sheets.js?v=20261008tail3FollowOpLe"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -10359,7 +10422,8 @@
         const FILTER_TAIL3_DERIVE_FREQ_MAX = 9;
         const FILTER_TAIL3_FREQ_DEFAULT = Object.freeze({
             followFreqs: Object.freeze([null]),
-            deriveFreq: null
+            deriveFreq: null,
+            followOp: '>='
         });
         const FILTER_PHASE1_MECH_KEY = 'filterPhase1Mech';
         const FILTER_PHASE1_POS_MODE_KEY = 'filterPhase1PosMode';
@@ -10499,6 +10563,8 @@
         /** 3-tail: follow freqs (Y, đa giá trị) → derive freq (X, 1 giá trị); mỗi giá trị 1–9. */
         let filterTail3FollowFreqs = [null];
         let filterTail3DeriveFreq = null;
+        /** 3-tail trái: '>=' dư OK; '=' đúng số khối; '<=' tối đa số khối. */
+        let filterTail3FollowOp = '>=';
         /**
          * TRACKING nút %: 't' | 'io' (hợp ≥2) | 'in' | 'out' | 'q' | 'off'.
          * T = mọi kỳ có bụng; io = viền xanh hợp cơ chế đang bật; còn lại = từng cơ chế.
@@ -10538,6 +10604,8 @@
         let filterPhase1PosMode = FILTER_PHASE1_POS_GE2;
         let filterPopupFollowSubfilter = 'off';
         let filterPopupFollowDeterminedPct = 0;
+        /** 3-tail: % kỳ viền đỏ (miss freq) / evaluable — dùng khi F% đỏ. */
+        let filterPopupFollowMissPct = 0;
         let filterPopupConnectionSubfilter = 'off';
         let filterPopupConnectionUniquePct = 0;
         /** Mode special: ['all'] hoặc ≥1 trong plain/merge/split/trans */
@@ -12789,7 +12857,7 @@
                 return `derive_chain [D]=${dLab} [P]=${pLab}`;
             }
             if (isTail3FilterMode(mode)) {
-                return '3-tail: ★ + follow freq trái (≥ các khối chỉ định) → derive freq phải; trống = any; vd 1,3 → 1';
+                return '3-tail: ★ + follow (nút ≥/= số khối) → derive freq; trống = any; vd 1,3 → 1';
             }
             if (isPosnfreqFilterMode(mode)) {
                 return 'posnfreq (position + frequency)';
@@ -19157,19 +19225,22 @@ function getFilterNoteTRefMaxSelections(mode) {
                 && typeof RightPaneSheetManager.isTail3FollowDeriveFreqActive === 'function') {
                 return RightPaneSheetManager.isTail3FollowDeriveFreqActive(
                     opts.tail3FollowFreqs,
-                    opts.tail3DeriveFreq
+                    opts.tail3DeriveFreq,
+                    opts.tail3FollowOp
                 );
             }
             return false;
         }
 
-        /** 3-tail: freq follow→derive và/hoặc F% đều là điều kiện lọc (làm mờ, không ẩn). */
+        /**
+         * 3-tail: thu hẹp list khi F% đang nhấn (xanh hoặc đỏ).
+         * Normal + freq chỉ tô viền, không thu hẹp (giữ đủ xanh+đỏ+blur).
+         */
         function isFilterTail3FreqSubfilterActive() {
             if (!periodFilterEnabled || !isTail3FilterMode(periodFilterMode)) {
                 return false;
             }
-            return isFilterTail3FreqConstraintActive()
-                || filterPopupFollowSubfilter === 'determined'
+            return filterPopupFollowSubfilter === 'determined'
                 || filterPopupFollowSubfilter === 'undetermined';
         }
 
@@ -19178,14 +19249,20 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!root) {
                 return [];
             }
-            return [...root.querySelectorAll('tbody tr.filter-popup-tail3-hit[data-idx]')]
+            // F% đỏ + freq: list = kỳ viền đỏ (miss). Còn lại: kỳ xanh (hit).
+            const sel = (isFilterTail3FreqConstraintActive()
+                && filterPopupFollowSubfilter === 'undetermined')
+                ? 'tbody tr.filter-popup-tail3-miss[data-idx]'
+                : 'tbody tr.filter-popup-tail3-hit[data-idx]';
+            return [...root.querySelectorAll(sel)]
                 .map((tr) => Number(tr.dataset.idx))
                 .filter((idx) => Number.isFinite(idx));
         }
 
         /**
-         * 3-tail (giống special): giữ đủ mẫu follow; làm mờ row không thỏa
-         * điều kiện freq follow→derive và/hoặc F% (AND).
+         * 3-tail: giữ đủ mẫu evaluable.
+         * Normal + freq: xanh = thỏa; đỏ = không thỏa (applicable miss); blur = follow ?.
+         * F determined: chỉ nhấn xanh; F đỏ: chỉ nhấn đỏ (miss). Không freq: determined/? như cũ.
          */
         function applyFilterPopupTail3FreqRowClasses(wrapArg) {
             const wrap = wrapArg || el('filterTableWrap');
@@ -19193,11 +19270,12 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return;
             }
             wrap.querySelectorAll(
-                'tbody tr.filter-popup-tail3-hit, tbody tr.filter-popup-tail3-disabled, tbody tr.filter-popup-follow-disabled, tbody tr.filter-popup-follow-determined-hit, tbody tr.filter-popup-follow-question-hit'
+                'tbody tr.filter-popup-tail3-hit, tbody tr.filter-popup-tail3-miss, tbody tr.filter-popup-tail3-disabled, tbody tr.filter-popup-follow-disabled, tbody tr.filter-popup-follow-determined-hit, tbody tr.filter-popup-follow-question-hit'
             ).forEach((tr) => {
                 tr.classList.remove(
                     'filter-popup-posnfreq-submit-hit',
                     'filter-popup-tail3-hit',
+                    'filter-popup-tail3-miss',
                     'filter-popup-tail3-disabled',
                     'filter-popup-follow-disabled',
                     'filter-popup-follow-determined-hit',
@@ -19222,26 +19300,76 @@ function getFilterNoteTRefMaxSelections(mode) {
             const opts = getTail3FilterOptions();
             const followFreqs = opts.tail3FollowFreqs;
             const deriveFreq = opts.tail3DeriveFreq;
+            const followOp = opts.tail3FollowOp;
             wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
                 const idx = Number(tr.dataset.idx);
                 if (!Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
                     return;
                 }
-                let ok = true;
+                const isQuestion = typeof sheetManager.rowHasUndeterminedFollow === 'function'
+                    && sheetManager.rowHasUndeterminedFollow(rows, idx);
+                let isMatch = false;
                 if (freqActive) {
-                    ok = typeof sheetManager.rowMatchesTail3FollowDeriveFreq === 'function'
-                        && sheetManager.rowMatchesTail3FollowDeriveFreq(rows, idx, followFreqs, deriveFreq);
+                    isMatch = typeof sheetManager.rowMatchesTail3FollowDeriveFreq === 'function'
+                        && sheetManager.rowMatchesTail3FollowDeriveFreq(
+                            rows, idx, followFreqs, deriveFreq, followOp
+                        );
+                } else if (typeof sheetManager.rowHasDeterminedFollow === 'function') {
+                    isMatch = sheetManager.rowHasDeterminedFollow(rows, idx);
                 }
-                if (ok && fMode === 'determined') {
-                    // F = follow determined; khi đã có freq thì freq match ⊂ follow.
-                    if (freqActive) {
-                        /* đã ok bởi freq */
-                    } else if (typeof sheetManager.rowHasDeterminedFollow === 'function') {
-                        ok = sheetManager.rowHasDeterminedFollow(rows, idx);
+                // Miss freq (đỏ): evaluable đang hiện, không match, không phải follow ?.
+                const isMiss = freqActive && !isMatch && !isQuestion;
+
+                if (freqActive && fMode === 'off') {
+                    if (isMatch) {
+                        tr.classList.add(
+                            'filter-popup-posnfreq-submit-hit',
+                            'filter-popup-tail3-hit',
+                            'filter-popup-follow-determined-hit'
+                        );
+                    } else if (isMiss) {
+                        tr.classList.add('filter-popup-tail3-miss');
+                    } else {
+                        tr.classList.add('filter-popup-tail3-disabled');
+                        if (isQuestion) {
+                            tr.classList.add('filter-popup-follow-question-hit');
+                        }
                     }
-                } else if (ok && fMode === 'undetermined') {
-                    ok = typeof sheetManager.rowHasUndeterminedFollow === 'function'
-                        && sheetManager.rowHasUndeterminedFollow(rows, idx);
+                    return;
+                }
+
+                if (freqActive && fMode === 'determined') {
+                    if (isMatch) {
+                        tr.classList.add(
+                            'filter-popup-posnfreq-submit-hit',
+                            'filter-popup-tail3-hit',
+                            'filter-popup-follow-determined-hit'
+                        );
+                    } else {
+                        tr.classList.add('filter-popup-tail3-disabled');
+                    }
+                    return;
+                }
+
+                if (freqActive && fMode === 'undetermined') {
+                    // F% đỏ: nhấn các kỳ viền đỏ (miss); còn lại blur.
+                    if (isMiss) {
+                        tr.classList.add('filter-popup-tail3-miss');
+                    } else {
+                        tr.classList.add('filter-popup-tail3-disabled');
+                        if (isQuestion) {
+                            tr.classList.add('filter-popup-follow-question-hit');
+                        }
+                    }
+                    return;
+                }
+
+                // Không freq: determined / ? như cũ (xanh / blur).
+                let ok = isMatch;
+                if (fMode === 'determined') {
+                    ok = isMatch;
+                } else if (fMode === 'undetermined') {
+                    ok = isQuestion;
                 }
                 if (ok) {
                     tr.classList.add('filter-popup-posnfreq-submit-hit', 'filter-popup-tail3-hit');
@@ -21849,11 +21977,16 @@ function getFilterNoteTRefMaxSelections(mode) {
             wrap.classList.toggle('filter-popup-follow-question-only', mode === 'undetermined');
         }
 
-        function applyFilterPopupFollowSubfilterButtonUi(btn, mode, determinedPct) {
+        function applyFilterPopupFollowSubfilterButtonUi(btn, mode, determinedPct, missPctArg) {
             if (!btn || btn.hidden) {
                 return;
             }
+            const missPct = Number.isFinite(missPctArg)
+                ? missPctArg
+                : filterPopupFollowMissPct;
             const complementPct = Math.max(0, Math.min(100, Math.round((100 - determinedPct) * 10) / 10));
+            // Có freq: F đỏ = % viền đỏ (miss). Không freq: F đỏ = phần bù / ?.
+            const redPct = isFilterTail3FreqConstraintActive() ? missPct : complementPct;
             if (mode === 'off') {
                 btn.textContent = `F ${formatFilterPopupPct1(determinedPct)}%`;
                 btn.setAttribute('aria-pressed', 'false');
@@ -21863,7 +21996,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 btn.setAttribute('aria-pressed', 'true');
                 btn.classList.remove('is-follow-question-mode');
             } else {
-                btn.textContent = `F ${formatFilterPopupPct1(complementPct)}%`;
+                btn.textContent = `F ${formatFilterPopupPct1(redPct)}%`;
                 btn.setAttribute('aria-pressed', 'true');
                 btn.classList.add('is-follow-question-mode');
             }
@@ -25818,10 +25951,27 @@ function getFilterNoteTRefMaxSelections(mode) {
             return filterTail3DeriveFreq;
         }
 
+        function normalizeFilterTail3FollowOp(raw) {
+            if (typeof RightPaneSheetManager !== 'undefined'
+                && typeof RightPaneSheetManager.normalizeTail3FollowOp === 'function') {
+                return RightPaneSheetManager.normalizeTail3FollowOp(raw);
+            }
+            if (raw === '=' || raw === '<=') {
+                return raw;
+            }
+            return '>=';
+        }
+
+        function getNormalizedFilterTail3FollowOp() {
+            filterTail3FollowOp = normalizeFilterTail3FollowOp(filterTail3FollowOp);
+            return filterTail3FollowOp;
+        }
+
         function getTail3FilterOptions() {
             return {
                 tail3FollowFreqs: getNormalizedFilterTail3FollowFreqs().slice(),
-                tail3DeriveFreq: getNormalizedFilterTail3DeriveFreq()
+                tail3DeriveFreq: getNormalizedFilterTail3DeriveFreq(),
+                tail3FollowOp: getNormalizedFilterTail3FollowOp()
             };
         }
 
@@ -25831,6 +25981,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (!raw) {
                     filterTail3FollowFreqs = FILTER_TAIL3_FREQ_DEFAULT.followFreqs.slice();
                     filterTail3DeriveFreq = FILTER_TAIL3_FREQ_DEFAULT.deriveFreq;
+                    filterTail3FollowOp = FILTER_TAIL3_FREQ_DEFAULT.followOp;
                     return;
                 }
                 const parsed = JSON.parse(raw);
@@ -25840,9 +25991,13 @@ function getFilterNoteTRefMaxSelections(mode) {
                     : (parsed && parsed.tail3DeriveFreq);
                 filterTail3FollowFreqs = normalizeFilterTail3FollowFreqs(followRaw);
                 filterTail3DeriveFreq = normalizeFilterTail3DeriveFreq(deriveRaw);
+                filterTail3FollowOp = normalizeFilterTail3FollowOp(
+                    parsed && (parsed.followOp != null ? parsed.followOp : parsed.tail3FollowOp)
+                );
             } catch (eLoadT3) {
                 filterTail3FollowFreqs = FILTER_TAIL3_FREQ_DEFAULT.followFreqs.slice();
                 filterTail3DeriveFreq = FILTER_TAIL3_FREQ_DEFAULT.deriveFreq;
+                filterTail3FollowOp = FILTER_TAIL3_FREQ_DEFAULT.followOp;
             }
         }
 
@@ -25850,9 +26005,45 @@ function getFilterNoteTRefMaxSelections(mode) {
             try {
                 localStorage.setItem(FILTER_TAIL3_FREQ_KEY, JSON.stringify({
                     followFreqs: getNormalizedFilterTail3FollowFreqs().slice(),
-                    deriveFreq: getNormalizedFilterTail3DeriveFreq()
+                    deriveFreq: getNormalizedFilterTail3DeriveFreq(),
+                    followOp: getNormalizedFilterTail3FollowOp()
                 }));
             } catch (eSaveT3) { /* ignore */ }
+        }
+
+        function syncFilterPopupTail3FollowOpUi() {
+            const btn = el('filterPopupTail3FollowOp');
+            if (!btn) {
+                return;
+            }
+            const op = getNormalizedFilterTail3FollowOp();
+            const show = periodFilterEnabled && isTail3FilterMode(periodFilterMode);
+            btn.disabled = !show;
+            btn.dataset.op = op;
+            btn.textContent = op === '=' ? '=' : (op === '<=' ? '≤' : '≥');
+            if (op === '=') {
+                btn.setAttribute('aria-label', 'Follow op = : đúng số khối (click → ≤)');
+                btn.title = '= : số partner = đúng số khối follow. Click → ≤';
+            } else if (op === '<=') {
+                btn.setAttribute('aria-label', 'Follow op ≤ : tối đa số khối (click → ≥)');
+                btn.title = '≤ : số partner ≤ số khối follow. Click → ≥';
+            } else {
+                btn.setAttribute('aria-label', 'Follow op ≥ : ít nhất, được dư (click → =)');
+                btn.title = '≥ : ít nhất các freq đã chọn (được dư). Click → =';
+            }
+        }
+
+        function toggleFilterPopupTail3FollowOp() {
+            if (!periodFilterEnabled || !isTail3FilterMode(periodFilterMode)) {
+                return;
+            }
+            const cur = getNormalizedFilterTail3FollowOp();
+            filterTail3FollowOp = cur === '>=' ? '=' : (cur === '=' ? '<=' : '>=');
+            saveFilterTail3FreqSettings();
+            syncFilterPopupTail3FollowOpUi();
+            deferFilterPopupHeavyWork(() => {
+                rebuildFilterPopupAfterParamChange();
+            });
         }
 
         /** Chốt draft đang gõ trên 3-tail (trước đổi mode / rebuild) rồi ghi localStorage. */
@@ -25922,8 +26113,14 @@ function getFilterNoteTRefMaxSelections(mode) {
             const wrap = document.createElement('div');
             wrap.className = 'filter-popup-intersection-freq-item';
             const isFollow = side === 'follow';
+            const followOp = getNormalizedFilterTail3FollowOp();
+            const followOpLabel = followOp === '=' ? '=' : (followOp === '<=' ? '≤' : '≥');
             wrap.title = isFollow
-                ? `Follow #${index + 1}: ít nhất freq này (1–9) hoặc trống (= any)`
+                ? (followOp === '='
+                    ? `Follow #${index + 1}: đúng số khối (=); freq 1–9 hoặc trống=any`
+                    : (followOp === '<='
+                        ? `Follow #${index + 1}: tối đa số khối (≤); freq 1–9 hoặc trống=any`
+                        : `Follow #${index + 1}: ít nhất freq này (≥); 1–9 hoặc trống=any`))
                 : 'Derive freq: 0–9 hoặc trống (= any)';
             const inputEl = document.createElement('span');
             inputEl.className = 'filter-popup-position-input filter-popup-tail3-freq-num'
@@ -25931,7 +26128,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             inputEl.tabIndex = show ? 0 : -1;
             inputEl.setAttribute('role', 'textbox');
             inputEl.setAttribute('aria-label', isFollow
-                ? `Follow freq #${index + 1} (≥, 1–9 hoặc trống=any)`
+                ? `Follow freq #${index + 1} (${followOpLabel}, 1–9 hoặc trống=any)`
                 : 'Derive freq (0–9 hoặc trống=any)');
             if (isFollow) {
                 inputEl.dataset.tail3FollowIdx = String(index);
@@ -26055,6 +26252,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 addBtn.disabled = !show || freqs.length >= FILTER_TAIL3_FOLLOW_FREQ_MAX;
             }
             ensureFilterPopupTail3DeriveBlock(show);
+            syncFilterPopupTail3FollowOpUi();
         }
 
         /** Cycle: empty ↔ min..max (empty = any). */
@@ -26373,6 +26571,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             if (isFilterPopupTail3FreqInputFocused()) {
                 ensureFilterPopupTail3DeriveBlock(show);
+                syncFilterPopupTail3FollowOpUi();
                 return;
             }
             rebuildFilterPopupTail3FollowList();
@@ -26390,6 +26589,19 @@ function getFilterNoteTRefMaxSelections(mode) {
             root.addEventListener('click', (event) => event.stopPropagation());
             bindFilterPopupParamStripWheelScroll(root);
             bindFilterPopupTrackingSpinButton(el('filterPopupTail3FollowAdd'), () => addFilterPopupTail3FollowFreq());
+            const opBtn = el('filterPopupTail3FollowOp');
+            if (opBtn) {
+                opBtn.addEventListener('mousedown', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                });
+                opBtn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    toggleFilterPopupTail3FollowOp();
+                });
+            }
+            syncFilterPopupTail3FollowOpUi();
             if (!document.documentElement.dataset.tail3FreqOutsideBlurBound) {
                 document.documentElement.dataset.tail3FreqOutsideBlurBound = '1';
                 document.addEventListener('pointerdown', (event) => {
@@ -30423,28 +30635,37 @@ function getFilterNoteTRefMaxSelections(mode) {
                 const opts = getTail3FilterOptions();
                 const followFreqs = opts.tail3FollowFreqs;
                 const deriveFreq = opts.tail3DeriveFreq;
+                const followOp = opts.tail3FollowOp;
                 const freqActive = typeof RightPaneSheetManager !== 'undefined'
                     && typeof RightPaneSheetManager.isTail3FollowDeriveFreqActive === 'function'
-                    ? RightPaneSheetManager.isTail3FollowDeriveFreqActive(followFreqs, deriveFreq)
+                    ? RightPaneSheetManager.isTail3FollowDeriveFreqActive(followFreqs, deriveFreq, followOp)
                     : false;
                 /** @type {Set<number>} */
                 const matchSet = new Set();
                 /** @type {Set<number>} */
                 const questionSet = new Set();
+                /** @type {Set<number>} */
+                const missSet = new Set();
                 for (let i = 0; i < evaluable.length; i++) {
                     const idx = evaluable[i];
-                    if (freqActive) {
-                        if (typeof sheetManager.rowMatchesTail3FollowDeriveFreq === 'function'
-                            && sheetManager.rowMatchesTail3FollowDeriveFreq(rows, idx, followFreqs, deriveFreq)) {
-                            matchSet.add(idx);
-                        }
-                    } else if (typeof sheetManager.rowHasDeterminedFollow === 'function'
-                        && sheetManager.rowHasDeterminedFollow(rows, idx)) {
-                        matchSet.add(idx);
-                    }
-                    if (typeof sheetManager.rowHasUndeterminedFollow === 'function'
-                        && sheetManager.rowHasUndeterminedFollow(rows, idx)) {
+                    const isQuestion = typeof sheetManager.rowHasUndeterminedFollow === 'function'
+                        && sheetManager.rowHasUndeterminedFollow(rows, idx);
+                    if (isQuestion) {
                         questionSet.add(idx);
+                    }
+                    let isMatch = false;
+                    if (freqActive) {
+                        isMatch = typeof sheetManager.rowMatchesTail3FollowDeriveFreq === 'function'
+                            && sheetManager.rowMatchesTail3FollowDeriveFreq(
+                                rows, idx, followFreqs, deriveFreq, followOp
+                            );
+                    } else if (typeof sheetManager.rowHasDeterminedFollow === 'function') {
+                        isMatch = sheetManager.rowHasDeterminedFollow(rows, idx);
+                    }
+                    if (isMatch) {
+                        matchSet.add(idx);
+                    } else if (freqActive && !isQuestion) {
+                        missSet.add(idx);
                     }
                 }
                 wrap.querySelectorAll('tbody tr[data-idx]').forEach((tr) => {
@@ -30463,15 +30684,22 @@ function getFilterNoteTRefMaxSelections(mode) {
                     return;
                 }
                 const determinedPct = filterPopupPctFromCounts(matchSet.size, evaluable.length);
+                const missPct = filterPopupPctFromCounts(missSet.size, evaluable.length);
                 filterPopupFollowDeterminedPct = determinedPct;
+                filterPopupFollowMissPct = missPct;
                 pctEl.hidden = false;
-                applyFilterPopupFollowSubfilterButtonUi(pctEl, filterPopupFollowSubfilter, determinedPct);
-                // Gộp F% + freq → làm mờ row miss (không ẩn).
+                applyFilterPopupFollowSubfilterButtonUi(
+                    pctEl, filterPopupFollowSubfilter, determinedPct, missPct
+                );
+                // Normal: xanh thỏa / đỏ miss / blur ? — F đỏ nhấn miss.
                 applyFilterPopupTail3FreqRowClasses(wrap);
                 if (filterPopupFollowSubfilter === 'determined' && matchSet.size === 0) {
                     setFilterPopupFollowSubfilter('off');
-                } else if (filterPopupFollowSubfilter === 'undetermined' && questionSet.size === 0) {
-                    setFilterPopupFollowSubfilter('off');
+                } else if (filterPopupFollowSubfilter === 'undetermined') {
+                    const redEmpty = freqActive ? missSet.size === 0 : questionSet.size === 0;
+                    if (redEmpty) {
+                        setFilterPopupFollowSubfilter('off');
+                    }
                 } else if (isFilterPopupFollowSubfilterActive() || isFilterTail3FreqConstraintActive()) {
                     reconcileFilterPopupActiveAfterSubfilterToggle();
                 }
