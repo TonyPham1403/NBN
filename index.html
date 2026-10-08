@@ -4098,6 +4098,7 @@
         #filterPopupDeriveChainDeriveSpin,
         #filterPopupDeriveChainPeerSpin,
         #filterPopupSoloFreqSpin,
+        #filterPopupSoloFreqCountSpin,
         #filterPopupNonexistBracketCountSpin,
         #submitRingFreqValueSpin,
         .filter-popup-tracking-belly-spin {
@@ -4125,6 +4126,7 @@
         #filterPopupDeriveChainDeriveSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupDeriveChainPeerSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupSoloFreqSpin .filter-popup-nonexist-num-spin-btn,
+        #filterPopupSoloFreqCountSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn,
         #submitRingFreqValueSpin .filter-popup-nonexist-num-spin-btn,
         .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn {
@@ -4155,6 +4157,7 @@
         #filterPopupDeriveChainDeriveSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupDeriveChainPeerSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupSoloFreqSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
+        #filterPopupSoloFreqCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #submitRingFreqValueSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn {
@@ -4171,6 +4174,7 @@
         #filterPopupDeriveChainDeriveSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupDeriveChainPeerSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupSoloFreqSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
+        #filterPopupSoloFreqCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #submitRingFreqValueSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled) {
@@ -4187,6 +4191,7 @@
         #filterPopupDeriveChainDeriveSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupDeriveChainPeerSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupSoloFreqSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
+        #filterPopupSoloFreqCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #submitRingFreqValueSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn:active:not(:disabled) {
@@ -4203,6 +4208,7 @@
         #filterPopupDeriveChainDeriveSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupDeriveChainPeerSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupSoloFreqSpin .filter-popup-nonexist-num-spin-btn:disabled,
+        #filterPopupSoloFreqCountSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #submitRingFreqValueSpin .filter-popup-nonexist-num-spin-btn:disabled,
         .filter-popup-tracking-belly-spin .filter-popup-nonexist-num-spin-btn:disabled {
@@ -9819,12 +9825,36 @@
                         </div>
                     </div>
                     <div id="filterPopupSoloFreqPicker" class="filter-popup-solo-freq hidden" role="group"
-                        aria-label="solo_freq: freq op và ngưỡng 1–9"
+                        aria-label="solo_freq: [] số lượng và freq"
                         aria-hidden="true"
-                        title="freq = W10 của số solo thuộc đáp án; chọn dấu và ngưỡng 1–9. Nút %: normal → T → F.">
+                        title="AND: [] = số lượng số đáp án vừa solo vừa khớp freq; freq = W10 của từng số đó. Nút %: normal → T → F.">
                         <div class="filter-popup-intersection-freq" role="group"
-                            title="freq: W10 của số solo thuộc đáp án so với ngưỡng."
-                            aria-label="solo_freq freq">
+                            title="AND giữa [] và freq: chỉ đếm số đáp án solo mà freq cũng khớp."
+                            aria-label="solo_freq [] AND freq">
+                            <div class="filter-popup-intersection-freq-item"
+                                title="Số lượng số đáp án thỏa solo_freq (và ràng freq).">
+                                <span
+                                    class="filter-popup-intersection-freq-key filter-popup-intersection-freq-key--solo-freq">[]</span>
+                                <select id="filterPopupSoloFreqCountOp" class="filter-popup-intersection-freq-op"
+                                    aria-label="Dấu so sánh số lượng witness solo">
+                                    <option value=">=">&gt;=</option>
+                                    <option value="=">=</option>
+                                    <option value="<=">&lt;=</option>
+                                </select>
+                                <span id="filterPopupSoloFreqCountVal"
+                                    class="filter-popup-position-input filter-popup-intersection-freq-num" tabindex="0"
+                                    role="textbox" aria-label="Ngưỡng số lượng [] (0–9)"
+                                    title="Ngưỡng số lượng 0–9; ▴▾ tăng giảm">1</span>
+                                <div id="filterPopupSoloFreqCountSpin" class="filter-popup-intersection-freq-spin"
+                                    role="group" aria-label="Tăng giảm ngưỡng [] (0–9)">
+                                    <button type="button" id="filterPopupSoloFreqCountInc"
+                                        class="filter-popup-nonexist-num-spin-btn" title="Tăng [] (tối đa 9)"
+                                        aria-label="Tăng ngưỡng []">▴</button>
+                                    <button type="button" id="filterPopupSoloFreqCountDec"
+                                        class="filter-popup-nonexist-num-spin-btn" title="Giảm [] (tối thiểu 0)"
+                                        aria-label="Giảm ngưỡng []">▾</button>
+                                </div>
+                            </div>
                             <div class="filter-popup-intersection-freq-item"
                                 title="Freq W10 của số solo thuộc đáp án.">
                                 <span
@@ -10248,7 +10278,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
-    <script src="right-pane-sheets.js?v=20261008soloFreqParam"></script>
+    <script src="right-pane-sheets.js?v=20261009soloFreqCount"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -10568,10 +10598,14 @@
         const FILTER_SOLO_FREQ_KEY = 'filterSoloFreqParams';
         const FILTER_SOLO_FREQ_FREQ_MIN = 1;
         const FILTER_SOLO_FREQ_FREQ_MAX = 9;
+        const FILTER_SOLO_FREQ_COUNT_MIN = 0;
+        const FILTER_SOLO_FREQ_COUNT_MAX = 9;
         const FILTER_SOLO_FREQ_DEFAULT = Object.freeze({
             polarity: 'normal',
             freqOp: '>=',
-            freqVal: 1
+            freqVal: 1,
+            countOp: '>=',
+            countVal: 1
         });
         /** Modes that show the follow-logic % button (determined / ?). */
         const FOLLOW_PCT_FILTER_MODES = new Set([
@@ -10785,6 +10819,10 @@
         let filterSoloFreqOp = FILTER_SOLO_FREQ_DEFAULT.freqOp;
         /** @type {number} */
         let filterSoloFreqVal = FILTER_SOLO_FREQ_DEFAULT.freqVal;
+        /** @type {'>='|'='|'<='} */
+        let filterSoloFreqCountOp = FILTER_SOLO_FREQ_DEFAULT.countOp;
+        /** @type {number} */
+        let filterSoloFreqCountVal = FILTER_SOLO_FREQ_DEFAULT.countVal;
         /** connection [C]: số connection duy nhất trong đáp án — ngưỡng 1–5. */
         let filterConnectionCount = 1;
         let filterConnectionOp = '=';
@@ -12982,9 +13020,11 @@
                 return `derive_chain [D]=${dLab} [P]=${pLab}`;
             }
             if (isSoloFreqFilterMode(mode)) {
+                const cOp = normalizeFilterSoloFreqOp(filterSoloFreqCountOp);
+                const cv = normalizeFilterSoloFreqCountVal(filterSoloFreqCountVal);
                 const op = normalizeFilterSoloFreqOp(filterSoloFreqOp);
                 const fv = normalizeFilterSoloFreqVal(filterSoloFreqVal);
-                return `solo_freq freq${op}${fv}: đáp án có số solo trên chuỗi W10`;
+                return `solo_freq []${cOp}${cv} freq${op}${fv}`;
             }
             if (isTail3FilterMode(mode)) {
                 return '3-tail: ★ + follow (nút ≥/= số khối) → derive freq; trống = any; vd 1,3 → 1';
@@ -13288,11 +13328,28 @@ function getFilterNoteTRefMaxSelections(mode) {
             return Math.min(FILTER_SOLO_FREQ_FREQ_MAX, Math.max(FILTER_SOLO_FREQ_FREQ_MIN, n | 0));
         }
 
+        function normalizeFilterSoloFreqCountVal(raw) {
+            if (typeof RightPaneSheetManager !== 'undefined'
+                && typeof RightPaneSheetManager.normalizeSoloFreqCountVal === 'function') {
+                const n = RightPaneSheetManager.normalizeSoloFreqCountVal(raw);
+                if (n != null) {
+                    return n;
+                }
+            }
+            const n = parseInt(raw, 10);
+            if (!Number.isFinite(n)) {
+                return FILTER_SOLO_FREQ_DEFAULT.countVal;
+            }
+            return Math.min(FILTER_SOLO_FREQ_COUNT_MAX, Math.max(FILTER_SOLO_FREQ_COUNT_MIN, n | 0));
+        }
+
         function getSoloFreqFilterOptions() {
             return {
                 polarity: normalizeFilterSoloFreqPolarity(filterSoloFreqPolarity),
                 freqOp: normalizeFilterSoloFreqOp(filterSoloFreqOp),
-                freqVal: normalizeFilterSoloFreqVal(filterSoloFreqVal)
+                freqVal: normalizeFilterSoloFreqVal(filterSoloFreqVal),
+                countOp: normalizeFilterSoloFreqOp(filterSoloFreqCountOp),
+                countVal: normalizeFilterSoloFreqCountVal(filterSoloFreqCountVal)
             };
         }
 
@@ -13301,7 +13358,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return null;
             }
             const opts = getSoloFreqFilterOptions();
-            return sheetManager.ensureSoloFreqSplitCache(opts.freqOp, opts.freqVal);
+            return sheetManager.ensureSoloFreqSplitCache(
+                opts.freqOp, opts.freqVal, opts.countOp, opts.countVal
+            );
         }
 
         function getConnectionFilterOptions() {
@@ -15306,6 +15365,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                     filterSoloFreqPolarity = FILTER_SOLO_FREQ_DEFAULT.polarity;
                     filterSoloFreqOp = FILTER_SOLO_FREQ_DEFAULT.freqOp;
                     filterSoloFreqVal = FILTER_SOLO_FREQ_DEFAULT.freqVal;
+                    filterSoloFreqCountOp = FILTER_SOLO_FREQ_DEFAULT.countOp;
+                    filterSoloFreqCountVal = FILTER_SOLO_FREQ_DEFAULT.countVal;
                     return;
                 }
                 const p = JSON.parse(raw);
@@ -15318,10 +15379,18 @@ function getFilterNoteTRefMaxSelections(mode) {
                 filterSoloFreqVal = Object.prototype.hasOwnProperty.call(p || {}, 'freqVal')
                     ? normalizeFilterSoloFreqVal(p.freqVal)
                     : FILTER_SOLO_FREQ_DEFAULT.freqVal;
+                filterSoloFreqCountOp = normalizeFilterSoloFreqOp(
+                    p && p.countOp != null ? p.countOp : FILTER_SOLO_FREQ_DEFAULT.countOp
+                );
+                filterSoloFreqCountVal = Object.prototype.hasOwnProperty.call(p || {}, 'countVal')
+                    ? normalizeFilterSoloFreqCountVal(p.countVal)
+                    : FILTER_SOLO_FREQ_DEFAULT.countVal;
             } catch (eSfLoad) {
                 filterSoloFreqPolarity = FILTER_SOLO_FREQ_DEFAULT.polarity;
                 filterSoloFreqOp = FILTER_SOLO_FREQ_DEFAULT.freqOp;
                 filterSoloFreqVal = FILTER_SOLO_FREQ_DEFAULT.freqVal;
+                filterSoloFreqCountOp = FILTER_SOLO_FREQ_DEFAULT.countOp;
+                filterSoloFreqCountVal = FILTER_SOLO_FREQ_DEFAULT.countVal;
             }
         }
 
@@ -15331,6 +15400,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                     polarity: normalizeFilterSoloFreqPolarity(filterSoloFreqPolarity),
                     freqOp: normalizeFilterSoloFreqOp(filterSoloFreqOp),
                     freqVal: normalizeFilterSoloFreqVal(filterSoloFreqVal),
+                    countOp: normalizeFilterSoloFreqOp(filterSoloFreqCountOp),
+                    countVal: normalizeFilterSoloFreqCountVal(filterSoloFreqCountVal),
                     tfCycle: 3
                 }));
             } catch (eSfSave) { /* ignore */ }
@@ -15339,12 +15410,17 @@ function getFilterNoteTRefMaxSelections(mode) {
         function getSoloFreqPropositionParts() {
             const op = normalizeFilterSoloFreqOp(filterSoloFreqOp);
             const fv = normalizeFilterSoloFreqVal(filterSoloFreqVal);
+            const cOp = normalizeFilterSoloFreqOp(filterSoloFreqCountOp);
+            const cv = normalizeFilterSoloFreqCountVal(filterSoloFreqCountVal);
             return {
                 op,
                 fv,
-                fBadge: `freq${op}${fv}`,
-                statement: `Trong cửa sổ 10 chuỗi trước kỳ: tồn tại ít nhất một số thuộc đáp án nằm trên một chuỗi, sao cho freq (W10) của số đó khác freq của mọi số còn lại trên cùng chuỗi đó, và freq đó thỏa ${op}${fv}.`,
-                text: `T (true): đáp án có số “solo freq” trên ≥1 chuỗi trong W10 với freq${op}${fv}. F (false): kỳ evaluable nhưng không có số đáp án nào như vậy. Ví dụ kỳ 933: số 22 trên chuỗi 8 freq=3 (các số còn lại 1 hoặc 4) — khớp khi ngưỡng cho phép 3 (vd >=1, =3, <=3…).`
+                cOp,
+                cv,
+                fBadge: `[]${cOp}${cv}`,
+                fBadge2: `freq${op}${fv}`,
+                statement: `AND: witness = số thuộc đáp án vừa solo trên ≥1 chuỗi W10 vừa có freq thỏa ${op}${fv}. T khi số lượng witness distinct thỏa []${cOp}${cv}.`,
+                text: `Ví dụ []=1 AND freq=2: đúng 1 số đáp án vừa solo vừa freq=2. Không đếm số solo có freq khác.`
             };
         }
 
@@ -15394,6 +15470,11 @@ function getFilterNoteTRefMaxSelections(mode) {
             badgeF.className = 'filter-popup-derive-chain-prop-tooltip-badge is-d';
             badgeF.textContent = parts.fBadge;
             hdr.appendChild(badgeF);
+
+            const badgeF2 = document.createElement('span');
+            badgeF2.className = 'filter-popup-derive-chain-prop-tooltip-badge is-p';
+            badgeF2.textContent = parts.fBadge2;
+            hdr.appendChild(badgeF2);
 
             tip.appendChild(hdr);
 
@@ -15579,6 +15660,15 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (dec) {
                 dec.disabled = !active || n <= FILTER_SOLO_FREQ_FREQ_MIN;
             }
+            const cn = normalizeFilterSoloFreqCountVal(filterSoloFreqCountVal);
+            const cInc = el('filterPopupSoloFreqCountInc');
+            const cDec = el('filterPopupSoloFreqCountDec');
+            if (cInc) {
+                cInc.disabled = !active || cn >= FILTER_SOLO_FREQ_COUNT_MAX;
+            }
+            if (cDec) {
+                cDec.disabled = !active || cn <= FILTER_SOLO_FREQ_COUNT_MIN;
+            }
         }
 
         function syncFilterPopupSoloFreqParamUi() {
@@ -15590,6 +15680,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             const opEl = el('filterPopupSoloFreqOp');
             const valEl = el('filterPopupSoloFreqVal');
+            const cOpEl = el('filterPopupSoloFreqCountOp');
+            const cValEl = el('filterPopupSoloFreqCountVal');
             if (opEl) {
                 opEl.value = normalizeFilterSoloFreqOp(filterSoloFreqOp);
                 opEl.disabled = !show;
@@ -15599,6 +15691,19 @@ function getFilterNoteTRefMaxSelections(mode) {
                     setFilterPopupPositionText(valEl, String(normalizeFilterSoloFreqVal(filterSoloFreqVal)));
                 }
                 valEl.tabIndex = show ? 0 : -1;
+            }
+            if (cOpEl) {
+                cOpEl.value = normalizeFilterSoloFreqOp(filterSoloFreqCountOp);
+                cOpEl.disabled = !show;
+            }
+            if (cValEl) {
+                if (document.activeElement !== cValEl) {
+                    setFilterPopupPositionText(
+                        cValEl,
+                        String(normalizeFilterSoloFreqCountVal(filterSoloFreqCountVal))
+                    );
+                }
+                cValEl.tabIndex = show ? 0 : -1;
             }
             syncFilterPopupSoloFreqSpinButtons();
         }
@@ -15627,10 +15732,30 @@ function getFilterNoteTRefMaxSelections(mode) {
             });
         }
 
+        function bumpFilterPopupSoloFreqCountVal(delta) {
+            if (!periodFilterEnabled || !isSoloFreqFilterMode(periodFilterMode)) {
+                return;
+            }
+            const next = normalizeFilterSoloFreqCountVal(filterSoloFreqCountVal) + (Number(delta) || 0);
+            filterSoloFreqCountVal = Math.min(
+                FILTER_SOLO_FREQ_COUNT_MAX,
+                Math.max(FILTER_SOLO_FREQ_COUNT_MIN, next)
+            );
+            saveFilterSoloFreqSettings();
+            syncFilterPopupSoloFreqParamUi();
+            syncFilterPopupSoloFreqModeBtnTitle();
+            deferFilterPopupHeavyWork(() => {
+                updatePeriodFilterMatchCount();
+                rebuildFilterPopupAfterParamChange();
+            });
+        }
+
         function scheduleApplySoloFreqParamsFromUi() {
             deferFilterPopupHeavyWork(() => {
                 const valEl = el('filterPopupSoloFreqVal');
                 const opEl = el('filterPopupSoloFreqOp');
+                const cValEl = el('filterPopupSoloFreqCountVal');
+                const cOpEl = el('filterPopupSoloFreqCountOp');
                 if (opEl) {
                     filterSoloFreqOp = normalizeFilterSoloFreqOp(opEl.value);
                     opEl.value = filterSoloFreqOp;
@@ -15641,6 +15766,17 @@ function getFilterNoteTRefMaxSelections(mode) {
                         Number.isFinite(parsed) ? parsed : filterSoloFreqVal
                     );
                     setFilterPopupPositionText(valEl, String(filterSoloFreqVal));
+                }
+                if (cOpEl) {
+                    filterSoloFreqCountOp = normalizeFilterSoloFreqOp(cOpEl.value);
+                    cOpEl.value = filterSoloFreqCountOp;
+                }
+                if (cValEl) {
+                    const parsed = parseInt(getFilterPopupPositionText(cValEl), 10);
+                    filterSoloFreqCountVal = normalizeFilterSoloFreqCountVal(
+                        Number.isFinite(parsed) ? parsed : filterSoloFreqCountVal
+                    );
+                    setFilterPopupPositionText(cValEl, String(filterSoloFreqCountVal));
                 }
                 saveFilterSoloFreqSettings();
                 syncFilterPopupSoloFreqSpinButtons();
@@ -15726,18 +15862,17 @@ function getFilterNoteTRefMaxSelections(mode) {
             loadFilterSoloFreqSettings();
             syncFilterPopupSoloFreqUi();
             const picker = el('filterPopupSoloFreqPicker');
-            const opEl = el('filterPopupSoloFreqOp');
             if (!picker || picker.dataset.bound === '1') {
                 return;
             }
             picker.dataset.bound = '1';
             picker.addEventListener('mousedown', (event) => event.stopPropagation());
             picker.addEventListener('click', (event) => event.stopPropagation());
-            const bindSpin = (btn, delta) => {
+            const bindSpin = (btn, bumpFn, delta) => {
                 if (!btn) {
                     return;
                 }
-                const run = () => bumpFilterPopupSoloFreqVal(delta);
+                const run = () => bumpFn(delta);
                 btn.addEventListener('pointerdown', (event) => {
                     if (event.button !== 0) {
                         return;
@@ -15754,12 +15889,18 @@ function getFilterNoteTRefMaxSelections(mode) {
                     }
                 });
             };
-            bindSpin(el('filterPopupSoloFreqInc'), 1);
-            bindSpin(el('filterPopupSoloFreqDec'), -1);
-            if (opEl) {
+            bindSpin(el('filterPopupSoloFreqInc'), bumpFilterPopupSoloFreqVal, 1);
+            bindSpin(el('filterPopupSoloFreqDec'), bumpFilterPopupSoloFreqVal, -1);
+            bindSpin(el('filterPopupSoloFreqCountInc'), bumpFilterPopupSoloFreqCountVal, 1);
+            bindSpin(el('filterPopupSoloFreqCountDec'), bumpFilterPopupSoloFreqCountVal, -1);
+
+            const bindOpChange = (opEl, assign) => {
+                if (!opEl) {
+                    return;
+                }
                 opEl.addEventListener('change', () => {
-                    filterSoloFreqOp = normalizeFilterSoloFreqOp(opEl.value);
-                    opEl.value = filterSoloFreqOp;
+                    assign(normalizeFilterSoloFreqOp(opEl.value));
+                    opEl.value = normalizeFilterSoloFreqOp(opEl.value);
                     saveFilterSoloFreqSettings();
                     if (periodFilterEnabled && isPeriodFilterContextSheet()
                         && isSoloFreqFilterMode(periodFilterMode)) {
@@ -15768,9 +15909,14 @@ function getFilterNoteTRefMaxSelections(mode) {
                         syncFilterPopupSoloFreqModeBtnTitle();
                     }
                 });
-            }
-            const valEl = el('filterPopupSoloFreqVal');
-            if (valEl && valEl.dataset.boundInput !== '1') {
+            };
+            bindOpChange(el('filterPopupSoloFreqOp'), (v) => { filterSoloFreqOp = v; });
+            bindOpChange(el('filterPopupSoloFreqCountOp'), (v) => { filterSoloFreqCountOp = v; });
+
+            const bindValInput = (valEl, opts) => {
+                if (!valEl || valEl.dataset.boundInput === '1') {
+                    return;
+                }
                 valEl.dataset.boundInput = '1';
                 valEl.addEventListener('mousedown', (event) => {
                     event.preventDefault();
@@ -15784,11 +15930,11 @@ function getFilterNoteTRefMaxSelections(mode) {
                         return;
                     }
                     const key = String(event.key || '');
-                    if (key >= '1' && key <= '9') {
+                    if (opts.digitRe.test(key)) {
                         event.preventDefault();
                         event.stopPropagation();
-                        filterSoloFreqVal = parseInt(key, 10);
-                        setFilterPopupPositionText(valEl, String(filterSoloFreqVal));
+                        opts.setVal(parseInt(key, 10));
+                        setFilterPopupPositionText(valEl, String(opts.getVal()));
                         syncFilterPopupSoloFreqSpinButtons();
                         scheduleApplySoloFreqParamsFromUi();
                         return;
@@ -15807,15 +15953,27 @@ function getFilterNoteTRefMaxSelections(mode) {
                     }
                     if (key === 'ArrowUp') {
                         event.preventDefault();
-                        bumpFilterPopupSoloFreqVal(1);
+                        opts.bump(1);
                         return;
                     }
                     if (key === 'ArrowDown') {
                         event.preventDefault();
-                        bumpFilterPopupSoloFreqVal(-1);
+                        opts.bump(-1);
                     }
                 });
-            }
+            };
+            bindValInput(el('filterPopupSoloFreqVal'), {
+                digitRe: /^[1-9]$/,
+                getVal: () => filterSoloFreqVal,
+                setVal: (n) => { filterSoloFreqVal = n; },
+                bump: bumpFilterPopupSoloFreqVal
+            });
+            bindValInput(el('filterPopupSoloFreqCountVal'), {
+                digitRe: /^[0-9]$/,
+                getVal: () => filterSoloFreqCountVal,
+                setVal: (n) => { filterSoloFreqCountVal = n; },
+                bump: bumpFilterPopupSoloFreqCountVal
+            });
         }
 
         function initFilterPopupSoloFreqTfPctToggle() {
@@ -21544,7 +21702,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return {
                     polarity: 'normal',
                     freqOp: FILTER_SOLO_FREQ_DEFAULT.freqOp,
-                    freqVal: FILTER_SOLO_FREQ_DEFAULT.freqVal
+                    freqVal: FILTER_SOLO_FREQ_DEFAULT.freqVal,
+                    countOp: FILTER_SOLO_FREQ_DEFAULT.countOp,
+                    countVal: FILTER_SOLO_FREQ_DEFAULT.countVal
                 };
             }
             return null;
@@ -21871,9 +22031,11 @@ function getFilterNoteTRefMaxSelections(mode) {
                 const polLabel = pol === 'violate'
                     ? 'F (false)'
                     : (pol === 'hold' ? 'T (true)' : 'evaluable');
+                const cOp = normalizeFilterSoloFreqOp(filterSoloFreqCountOp);
+                const cv = normalizeFilterSoloFreqCountVal(filterSoloFreqCountVal);
                 const op = normalizeFilterSoloFreqOp(filterSoloFreqOp);
                 const fv = normalizeFilterSoloFreqVal(filterSoloFreqVal);
-                return `Không có kỳ nào ${polLabel} solo_freq (freq${op}${fv}).`;
+                return `Không có kỳ nào ${polLabel} solo_freq ([]${cOp}${cv} freq${op}${fv}).`;
             }
             if (isIntersectionFilterMode(normalized)) {
                 const k = filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
@@ -30355,7 +30517,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 : '';
             const sfOpts = getSoloFreqFilterOptions();
             const soloFreqKey = isSoloFreqFilterMode(periodFilterMode)
-                ? `sf:${sfOpts.polarity}:${sfOpts.freqOp}:${sfOpts.freqVal}`
+                ? `sf:${sfOpts.polarity}:${sfOpts.countOp}:${sfOpts.countVal}:${sfOpts.freqOp}:${sfOpts.freqVal}`
                 : '';
             return [
                 periodFilterMode,

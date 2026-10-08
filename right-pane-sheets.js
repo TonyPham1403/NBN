@@ -2187,7 +2187,9 @@ class RightPaneSheetManager {
                 : (o.polarity === 'hold' ? 'hold' : 'normal');
             const freqOp = RightPaneSheetManager.normalizeSoloFreqOp(o.freqOp);
             const freqVal = RightPaneSheetManager.normalizeSoloFreqVal(o.freqVal);
-            const split = this.ensureSoloFreqSplitCache(freqOp, freqVal);
+            const countOp = RightPaneSheetManager.normalizeSoloFreqOp(o.countOp);
+            const countVal = RightPaneSheetManager.normalizeSoloFreqCountVal(o.countVal);
+            const split = this.ensureSoloFreqSplitCache(freqOp, freqVal, countOp, countVal);
             let base;
             if (polarity === 'violate') {
                 base = split.violate;
@@ -4648,6 +4650,22 @@ class RightPaneSheetManager {
     }
 
     /**
+     * Số lượng witness [] : 0–9; null = mặc định ≥1 (corner fold / không ràng count).
+     * @param {*} raw
+     * @returns {number|null}
+     */
+    static normalizeSoloFreqCountVal(raw) {
+        if (raw === null || raw === undefined || raw === '') {
+            return null;
+        }
+        const n = parseInt(raw, 10);
+        if (!Number.isFinite(n) || n < 0 || n > 9) {
+            return null;
+        }
+        return n | 0;
+    }
+
+    /**
      * @param {number} value
      * @param {'>='|'='|'<='} op
      * @param {number} threshold
@@ -4665,21 +4683,28 @@ class RightPaneSheetManager {
 
     /**
      * solo_freq: tách T/F theo mệnh đề
-     * T = đáp án có ≥1 số nằm trên một chuỗi trong W10 mà freq W10 của số đó
-     *     khác freq mọi số còn lại trên cùng chuỗi đó
-     *     (+ tùy chọn freq thỏa op/ngưỡng 1–9).
-     * F = kỳ evaluable (đủ 10 chuỗi trước + có đáp án) nhưng không thỏa T.
-     * chainMaskByRow[i]: bit (chain-1) bật nếu chuỗi đó có witness solo_freq (theo cùng ràng).
+     * Witness = số thuộc đáp án, solo trên ≥1 chuỗi W10 (freq khác mọi số còn lại cùng chuỗi),
+     *     và (nếu có) freq thỏa freqOp/freqVal.
+     * T = số lượng witness distinct thỏa countOp/countVal (mặc định ≥1 khi countVal null).
+     * F = kỳ evaluable nhưng không thỏa T.
+     * chainMaskByRow[i]: bit (chain-1) bật nếu chuỗi đó có ≥1 witness (theo ràng freq).
      * @param {string} [freqOp]
      * @param {number|null} [freqVal] null = không ràng freq
+     * @param {string} [countOp]
+     * @param {number|null} [countVal] null = ≥1
      * @returns {{ key: string, hold: number[], violate: number[], all: number[], applicable: number, holdSet: Set<number>, chainMaskByRow: Int16Array }}
      */
-    ensureSoloFreqSplitCache(freqOp, freqVal) {
+    ensureSoloFreqSplitCache(freqOp, freqVal, countOp, countVal) {
         const rows = this.getSourceSheetRows();
         const n = rows.length;
         const op = RightPaneSheetManager.normalizeSoloFreqOp(freqOp);
         const fv = RightPaneSheetManager.normalizeSoloFreqVal(freqVal);
-        const key = `${n}|${op}|${fv == null ? '' : String(fv)}`;
+        const cOp = RightPaneSheetManager.normalizeSoloFreqOp(countOp);
+        const cvRaw = RightPaneSheetManager.normalizeSoloFreqCountVal(countVal);
+        // Corner / không truyền count → coi như []>=1 (có ≥1 witness).
+        const cv = cvRaw == null ? 1 : cvRaw;
+        const cOpEff = cvRaw == null ? '>=' : cOp;
+        const key = `${n}|${op}|${fv == null ? '' : String(fv)}|${cOpEff}|${cv}`;
         if (!this._soloFreqSplitCacheMap) {
             this._soloFreqSplitCacheMap = new Map();
         }
@@ -4713,56 +4738,64 @@ class RightPaneSheetManager {
                 }
             }
         };
-        const chainHasSoloWitness = (ch, answerSet) => {
-            if (!ch.length) {
+        const isSoloOnChain = (ch, num) => {
+            const fNum = counts[num] | 0;
+            if (fv != null && !RightPaneSheetManager.compareSoloFreq(fNum, op, fv)) {
                 return false;
             }
-            for (let ni = 0; ni < ch.length; ni++) {
-                const num = ch[ni];
-                if (!answerSet.has(num)) {
+            let unique = true;
+            let hasOther = false;
+            for (let mj = 0; mj < ch.length; mj++) {
+                const other = ch[mj];
+                if (other === num) {
                     continue;
                 }
-                const fNum = counts[num] | 0;
-                if (fv != null && !RightPaneSheetManager.compareSoloFreq(fNum, op, fv)) {
-                    continue;
-                }
-                let unique = true;
-                let hasOther = false;
-                for (let mj = 0; mj < ch.length; mj++) {
-                    const other = ch[mj];
-                    if (other === num) {
-                        continue;
-                    }
-                    hasOther = true;
-                    if ((counts[other] | 0) === fNum) {
-                        unique = false;
-                        break;
-                    }
-                }
-                if (unique && hasOther) {
-                    return true;
+                hasOther = true;
+                if ((counts[other] | 0) === fNum) {
+                    unique = false;
+                    break;
                 }
             }
-            return false;
+            return unique && hasOther;
         };
         for (let i = 0; i < n; i++) {
             if (i >= 10 && rowNums[i].length) {
-                const answerSet = new Set(rowNums[i]);
+                const answerNums = rowNums[i];
+                const answerSet = new Set(answerNums);
+                /** @type {Set<number>} */
+                const witnessSet = new Set();
                 let mask = 0;
                 const winStart = i - 10;
                 for (let r = winStart; r < i; r++) {
-                    // Chuỗi label k = i - r (1 = sát kỳ).
                     const chainLabel = i - r;
                     if (chainLabel < 1 || chainLabel > 10) {
                         continue;
                     }
-                    if (chainHasSoloWitness(rowNums[r], answerSet)) {
+                    const ch = rowNums[r];
+                    if (!ch.length) {
+                        continue;
+                    }
+                    let chainHit = false;
+                    for (let ni = 0; ni < ch.length; ni++) {
+                        const num = ch[ni];
+                        if (!answerSet.has(num)) {
+                            continue;
+                        }
+                        if (!isSoloOnChain(ch, num)) {
+                            continue;
+                        }
+                        witnessSet.add(num);
+                        chainHit = true;
+                    }
+                    if (chainHit) {
                         mask |= (1 << (chainLabel - 1));
                     }
                 }
                 chainMaskByRow[i] = mask;
+                const wCount = witnessSet.size;
+                const holds = RightPaneSheetManager.compareSoloFreq(wCount, cOpEff, cv);
                 all.push(i);
-                if (mask) {
+                if (holds) {
                     hold.push(i);
                 } else {
                     violate.push(i);
