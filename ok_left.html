@@ -223,6 +223,45 @@
             opacity: 1;
         }
 
+        /*
+         * Khoanh vàng derive (toggle chữ Tổng trên panel 3-tail).
+         * Không giới hạn số; độc lập khoanh đỏ selected/auto-circled.
+         * Trùng đỏ+vàng: nửa trái đỏ, nửa phải vàng (conic trên ::after).
+         */
+        .cell.num.derive-yellow-circled:not(.selected):not(.auto-circled):not(.pre-submit-manual-pick)::after {
+            border-color: #ffff00;
+            box-shadow: 0 0 6px rgba(255, 255, 0, 0.28);
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+            background: transparent;
+            -webkit-mask: none;
+            mask: none;
+        }
+
+        .cell.num.derive-yellow-circled.selected::after,
+        .cell.num.derive-yellow-circled.auto-circled::after,
+        .cell.num.derive-yellow-circled.pre-submit-manual-pick::after {
+            border-color: transparent;
+            box-shadow: none;
+            background: conic-gradient(
+                from 180deg,
+                #ff0000 0deg 180deg,
+                #ffff00 180deg 360deg
+            );
+            -webkit-mask: radial-gradient(
+                farthest-side,
+                transparent calc(100% - var(--selected-ring-border)),
+                #fff calc(100% - var(--selected-ring-border))
+            );
+            mask: radial-gradient(
+                farthest-side,
+                transparent calc(100% - var(--selected-ring-border)),
+                #fff calc(100% - var(--selected-ring-border))
+            );
+            transform: translate(-50%, -50%) scale(1);
+            opacity: 1;
+        }
+
         /* Phase toolbar: viền vuông tím — chỉ style, độc lập autoring / khoanh tay */
         body.phase-toolbar-active .cell.num.phase-chain-square {
             position: relative;
@@ -1006,6 +1045,33 @@
         .reference-hint-foot {
             margin-top: 2px;
             font-weight: 600;
+        }
+
+        .reference-hint-tong-toggle {
+            display: inline;
+            cursor: pointer;
+            user-select: none;
+            padding: 0 3px;
+            margin: 0 1px 0 0;
+            border-radius: 3px;
+            border: 1px solid transparent;
+            font-weight: 700;
+            color: inherit;
+            background: transparent;
+            line-height: inherit;
+            font: inherit;
+        }
+
+        .reference-hint-tong-toggle:hover {
+            background: rgba(255, 255, 0, 0.28);
+            border-color: rgba(200, 180, 0, 0.45);
+        }
+
+        .reference-hint-tong-toggle.is-on {
+            background: #ffff00;
+            border-color: #c8b800;
+            color: #222;
+            box-shadow: 0 0 0 1px rgba(200, 180, 0, 0.35);
         }
 
         /* Gộp Y→X: xếp ngang trong đúng bề ngang panel; hết chỗ mới xuống dòng */
@@ -2727,6 +2793,60 @@
         let referenceHintSortMenuCloser = null;
         /** Giữ menu mở sau khi click option (toggle asc/desc liên tiếp). */
         let referenceHintSortMenuKeepOpen = false;
+        /** Toggle chữ Tổng → khoanh vàng toàn bộ derive (X) trên W10; độc lập khoanh đỏ. */
+        let referenceHintDeriveYellowActive = false;
+        /** @type {Set<number>} */
+        let referenceHintDeriveYellowNums = new Set();
+
+        function collectReferenceHintDeriveNums(groupLines) {
+            const out = new Set();
+            const list = Array.isArray(groupLines) ? groupLines : [];
+            for (let i = 0; i < list.length; i++) {
+                const x = parseInt(list[i] && list[i].x, 10);
+                if (Number.isFinite(x) && x >= 1 && x <= 35) {
+                    out.add(x);
+                }
+            }
+            return out;
+        }
+
+        function syncReferenceHintTongToggleUi() {
+            const btn = document.querySelector('#referenceHint .reference-hint-tong-toggle');
+            if (!btn) {
+                return;
+            }
+            btn.classList.toggle('is-on', !!referenceHintDeriveYellowActive);
+            btn.setAttribute('aria-pressed', referenceHintDeriveYellowActive ? 'true' : 'false');
+            btn.title = referenceHintDeriveYellowActive
+                ? 'Tắt khoanh vàng toàn bộ derive trên bảng W10'
+                : 'Bật khoanh vàng toàn bộ derive trên bảng W10';
+        }
+
+        function syncDeriveYellowCirclesOnW10() {
+            const right = document.getElementById('right');
+            if (!right) {
+                return;
+            }
+            const active = !!referenceHintDeriveYellowActive;
+            const nums = referenceHintDeriveYellowNums;
+            const spans = right.querySelectorAll('.cell.num[data-num]');
+            for (let i = 0; i < spans.length; i++) {
+                const span = spans[i];
+                const val = parseInt(span.getAttribute('data-num'), 10);
+                const on = active && Number.isFinite(val) && nums.has(val);
+                span.classList.toggle('derive-yellow-circled', on);
+            }
+        }
+
+        function setReferenceHintDeriveYellowActive(on) {
+            referenceHintDeriveYellowActive = !!on;
+            syncDeriveYellowCirclesOnW10();
+            syncReferenceHintTongToggleUi();
+        }
+
+        function toggleReferenceHintDeriveYellow() {
+            setReferenceHintDeriveYellowActive(!referenceHintDeriveYellowActive);
+        }
 
         function getReferenceHintArrowGroupItems() {
             const panel = document.getElementById('referenceHint');
@@ -3501,6 +3621,18 @@
             const sortDir = normalizeReferenceHintSortDir(referenceHintSortDir);
             const triplets = sortReferenceHintTriplets(tripletsRaw, sortMode, sortDir);
             const groupLines = sortReferenceHintGroupLines(groupLinesRaw, sortMode, sortDir);
+            // Derive = X của chuỗi hàng ngang (groupLines); khoanh vàng dùng set này (không cap 5).
+            referenceHintDeriveYellowNums = collectReferenceHintDeriveNums(
+                groupLinesRaw.length ? groupLinesRaw : groupLines
+            );
+            if (!referenceHintDeriveYellowNums.size && tripletsRaw.length) {
+                for (let ti = 0; ti < tripletsRaw.length; ti++) {
+                    const x = parseInt(tripletsRaw[ti] && tripletsRaw[ti].x, 10);
+                    if (Number.isFinite(x) && x >= 1 && x <= 35) {
+                        referenceHintDeriveYellowNums.add(x);
+                    }
+                }
+            }
             referenceConn3TripletsCache = triplets.slice();
             if (!headerLines.length && !tripletsRaw.length && !footerLine && !groupLinesRaw.length) {
                 referenceConn3PanelActive = false;
@@ -3511,6 +3643,7 @@
                 panel.appendChild(empty);
                 syncReferenceHintPanelHeight();
                 scheduleComputeAndApplyHeights();
+                syncDeriveYellowCirclesOnW10();
                 return;
             }
             referenceConn3PanelActive = true;
@@ -3552,7 +3685,28 @@
                 foot.className = triplets.length || groupLines.length
                     ? 'reference-hint-foot'
                     : 'reference-hint-empty-note';
-                foot.textContent = footerLine;
+                const footStr = String(footerLine || '');
+                if (/^Tổng/.test(footStr) && (groupLinesRaw.length || tripletsRaw.length)) {
+                    const tongBtn = document.createElement('button');
+                    tongBtn.type = 'button';
+                    tongBtn.className = 'reference-hint-tong-toggle'
+                        + (referenceHintDeriveYellowActive ? ' is-on' : '');
+                    tongBtn.textContent = 'Tổng';
+                    tongBtn.setAttribute('aria-pressed',
+                        referenceHintDeriveYellowActive ? 'true' : 'false');
+                    tongBtn.title = referenceHintDeriveYellowActive
+                        ? 'Tắt khoanh vàng toàn bộ derive trên bảng W10'
+                        : 'Bật khoanh vàng toàn bộ derive trên bảng W10';
+                    tongBtn.addEventListener('click', function (ev) {
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        toggleReferenceHintDeriveYellow();
+                    });
+                    foot.appendChild(tongBtn);
+                    foot.appendChild(document.createTextNode(footStr.replace(/^Tổng/, '')));
+                } else {
+                    foot.textContent = footStr;
+                }
                 panel.appendChild(foot);
             }
             if (groupLines.length) {
@@ -3745,6 +3899,8 @@
             syncReferenceConn3PickHintRow();
             syncReferenceHintPanelHeight();
             scheduleComputeAndApplyHeights();
+            syncDeriveYellowCirclesOnW10();
+            syncReferenceHintTongToggleUi();
         }
 
         function getLeftContainerScaleFactor() {
@@ -10619,6 +10775,9 @@
                     if (soloOnChain && soloOnChain.has(n)) cls += ' solo-freq-ul';
                     if (noteSet.indexOf(n) !== -1) cls += ' note-highlight';
                     if (nonexistSet.indexOf(n) !== -1) cls += ' nonexist-intersect';
+                    if (referenceHintDeriveYellowActive && referenceHintDeriveYellowNums.has(n)) {
+                        cls += ' derive-yellow-circled';
+                    }
                     let clickAttr = (!submitActive && !isBlocked(n))
                         ? `onclick="onNumberCellClick(${n},'right',${i})"` : "";
                     // Prefer class-based blocked styling (no inline black background)
@@ -10658,6 +10817,7 @@
             try { syncChuoiIndexSemanticStylesInDOM(); } catch (eIdx) { /* ignore */ }
             try { applyObserveChuoiPinUnderline(); } catch (ePinUl) { /* ignore */ }
             try { syncSoloFreqUnderlinesInDOM(); } catch (eSoloUl) { /* ignore */ }
+            try { syncDeriveYellowCirclesOnW10(); } catch (eYel) { /* ignore */ }
             if (!trackingFrameStepProcess) {
                 setTimeout(function () { scheduleComputeAndApplyHeights(); }, 0);
             }
@@ -13727,6 +13887,7 @@
                 });
 
                 try { syncSoloFreqUnderlinesInDOM(); } catch (eSoloUl) { /* ignore */ }
+                try { syncDeriveYellowCirclesOnW10(); } catch (eYel) { /* ignore */ }
 
                 syncLeftFreqZeroNonexistStylesInDOM();
                 try { syncChuoiIndexSemanticStylesInDOM(); } catch (eIdx) { /* ignore */ }
