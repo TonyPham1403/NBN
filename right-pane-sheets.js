@@ -492,6 +492,8 @@ class RightPaneSheetManager {
         this._tail3AllDeriveCandsCacheRowLen = 0;
         /** @type {{ key: string, hold: number[], violate: number[], applicable: number }|null} */
         this._deriveChainSplitCache = null;
+        /** @type {Map<string, { key: string, hold: number[], violate: number[], all: number[], applicable: number, holdSet: Set<number>, chainMaskByRow: Int16Array }>|null} */
+        this._soloFreqSplitCacheMap = null;
         /** Cache filter mode TRACKING (bụng basic: size + streak). */
         this._basicTrackingBellyFilterCache = null;
         this._basicTrackingBellyFilterCacheRowLen = 0;
@@ -666,6 +668,8 @@ class RightPaneSheetManager {
         this._tail3AllDeriveCandsCacheRowLen = 0;
         /** @type {{ key: string, hold: number[], violate: number[], applicable: number }|null} */
         this._deriveChainSplitCache = null;
+        /** @type {Map<string, { key: string, hold: number[], violate: number[], all: number[], applicable: number, holdSet: Set<number>, chainMaskByRow: Int16Array }>|null} */
+        this._soloFreqSplitCacheMap = null;
         this._basicTrackingBellyFilterCache = null;
         this._basicTrackingBellyFilterCacheRowLen = 0;
         this._phase1FilterCache = null;
@@ -2159,6 +2163,39 @@ class RightPaneSheetManager {
             } else {
                 // normal: đủ mẫu evaluable (~908), tô viền/blur ở UI
                 base = this.ensureTail3EvaluableIndicesCache();
+            }
+            if (!noteTags.length && !noteTRefs.length) {
+                return base.slice();
+            }
+            for (let b = 0; b < base.length; b++) {
+                const i = base[b];
+                if (noteTags.length > 0 && !this.rowMatchesNoteTagFilter(i, noteTags)) {
+                    continue;
+                }
+                if (noteTRefs.length > 0 && !this.rowMatchesNoteTRefFilter(i, noteTRefs)) {
+                    continue;
+                }
+                indices.push(i);
+            }
+            return indices;
+        }
+
+        if (mode === 'solo_freq') {
+            const o = filterOptions || {};
+            const polarity = o.polarity === 'violate'
+                ? 'violate'
+                : (o.polarity === 'hold' ? 'hold' : 'normal');
+            const freqOp = RightPaneSheetManager.normalizeSoloFreqOp(o.freqOp);
+            const freqVal = RightPaneSheetManager.normalizeSoloFreqVal(o.freqVal);
+            const split = this.ensureSoloFreqSplitCache(freqOp, freqVal);
+            let base;
+            if (polarity === 'violate') {
+                base = split.violate;
+            } else if (polarity === 'hold') {
+                base = split.hold;
+            } else {
+                // normal: mọi kỳ evaluable (T∪F) — mỗi kỳ đều T hoặc F, tô viền ở UI
+                base = split.all;
             }
             if (!noteTags.length && !noteTRefs.length) {
                 return base.slice();
@@ -4583,6 +4620,295 @@ class RightPaneSheetManager {
     }
 
     /**
+     * @param {*} raw
+     * @returns {'>='|'='|'<='}
+     */
+    static normalizeSoloFreqOp(raw) {
+        const s = String(raw || '').trim();
+        if (s === '=' || s === '<=') {
+            return s;
+        }
+        return '>=';
+    }
+
+    /**
+     * Freq ngưỡng solo_freq: 1–9; null/invalid = không ràng freq (dùng cho corner fold).
+     * @param {*} raw
+     * @returns {number|null}
+     */
+    static normalizeSoloFreqVal(raw) {
+        if (raw === null || raw === undefined || raw === '') {
+            return null;
+        }
+        const n = parseInt(raw, 10);
+        if (!Number.isFinite(n) || n < 1 || n > 9) {
+            return null;
+        }
+        return n | 0;
+    }
+
+    /**
+     * @param {number} value
+     * @param {'>='|'='|'<='} op
+     * @param {number} threshold
+     * @returns {boolean}
+     */
+    static compareSoloFreq(value, op, threshold) {
+        if (op === '=') {
+            return value === threshold;
+        }
+        if (op === '<=') {
+            return value <= threshold;
+        }
+        return value >= threshold;
+    }
+
+    /**
+     * solo_freq: tách T/F theo mệnh đề
+     * T = đáp án có ≥1 số nằm trên một chuỗi trong W10 mà freq W10 của số đó
+     *     khác freq mọi số còn lại trên cùng chuỗi đó
+     *     (+ tùy chọn freq thỏa op/ngưỡng 1–9).
+     * F = kỳ evaluable (đủ 10 chuỗi trước + có đáp án) nhưng không thỏa T.
+     * chainMaskByRow[i]: bit (chain-1) bật nếu chuỗi đó có witness solo_freq (theo cùng ràng).
+     * @param {string} [freqOp]
+     * @param {number|null} [freqVal] null = không ràng freq
+     * @returns {{ key: string, hold: number[], violate: number[], all: number[], applicable: number, holdSet: Set<number>, chainMaskByRow: Int16Array }}
+     */
+    ensureSoloFreqSplitCache(freqOp, freqVal) {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        const op = RightPaneSheetManager.normalizeSoloFreqOp(freqOp);
+        const fv = RightPaneSheetManager.normalizeSoloFreqVal(freqVal);
+        const key = `${n}|${op}|${fv == null ? '' : String(fv)}`;
+        if (!this._soloFreqSplitCacheMap) {
+            this._soloFreqSplitCacheMap = new Map();
+        }
+        if (this._soloFreqSplitCacheMap.has(key)) {
+            return this._soloFreqSplitCacheMap.get(key);
+        }
+        /** @type {number[]} */
+        const hold = [];
+        /** @type {number[]} */
+        const violate = [];
+        /** @type {number[]} */
+        const all = [];
+        const chainMaskByRow = new Int16Array(n);
+        const counts = new Int16Array(36);
+        /** @type {number[][]} */
+        const rowNums = new Array(n);
+        for (let i = 0; i < n; i++) {
+            rowNums[i] = this.isEmptyResultRow(rows[i])
+                ? []
+                : this.parseMainNums(rows[i].result || rows[i].Result || '');
+        }
+        const addRow = (ri, sign) => {
+            if (ri < 0 || ri >= n) {
+                return;
+            }
+            const nums = rowNums[ri];
+            for (let ni = 0; ni < nums.length; ni++) {
+                const v = nums[ni];
+                if (v >= 1 && v <= 35) {
+                    counts[v] += sign;
+                }
+            }
+        };
+        const chainHasSoloWitness = (ch, answerSet) => {
+            if (!ch.length) {
+                return false;
+            }
+            for (let ni = 0; ni < ch.length; ni++) {
+                const num = ch[ni];
+                if (!answerSet.has(num)) {
+                    continue;
+                }
+                const fNum = counts[num] | 0;
+                if (fv != null && !RightPaneSheetManager.compareSoloFreq(fNum, op, fv)) {
+                    continue;
+                }
+                let unique = true;
+                let hasOther = false;
+                for (let mj = 0; mj < ch.length; mj++) {
+                    const other = ch[mj];
+                    if (other === num) {
+                        continue;
+                    }
+                    hasOther = true;
+                    if ((counts[other] | 0) === fNum) {
+                        unique = false;
+                        break;
+                    }
+                }
+                if (unique && hasOther) {
+                    return true;
+                }
+            }
+            return false;
+        };
+        for (let i = 0; i < n; i++) {
+            if (i >= 10 && rowNums[i].length) {
+                const answerSet = new Set(rowNums[i]);
+                let mask = 0;
+                const winStart = i - 10;
+                for (let r = winStart; r < i; r++) {
+                    // Chuỗi label k = i - r (1 = sát kỳ).
+                    const chainLabel = i - r;
+                    if (chainLabel < 1 || chainLabel > 10) {
+                        continue;
+                    }
+                    if (chainHasSoloWitness(rowNums[r], answerSet)) {
+                        mask |= (1 << (chainLabel - 1));
+                    }
+                }
+                chainMaskByRow[i] = mask;
+                all.push(i);
+                if (mask) {
+                    hold.push(i);
+                } else {
+                    violate.push(i);
+                }
+            }
+            addRow(i, 1);
+            if (i >= 10) {
+                addRow(i - 10, -1);
+            }
+        }
+        const out = {
+            key,
+            hold,
+            violate,
+            all,
+            applicable: all.length,
+            holdSet: new Set(hold),
+            chainMaskByRow
+        };
+        this._soloFreqSplitCacheMap.set(key, out);
+        return out;
+    }
+
+    /**
+     * Kỳ có corner solo_freq (thỏa T).
+     * @param {object[]} rows
+     * @param {number} rowIndex
+     * @returns {boolean}
+     */
+    rowHasSoloFreqFold(rows, rowIndex) {
+        const idx = Number(rowIndex);
+        if (!Number.isFinite(idx) || idx < 0) {
+            return false;
+        }
+        // Cache gắn source sheet; chỉ đúng khi rows là source.
+        if (rows && rows !== this.getSourceSheetRows()) {
+            const ev = this.evaluateSoloFreqProposition(rows, idx);
+            return !!(ev.applicable && ev.holds);
+        }
+        const split = this.ensureSoloFreqSplitCache();
+        return split.holdSet.has(idx);
+    }
+
+    /**
+     * % kỳ solo_freq T theo từng chuỗi 1…10 trong mẫu rowIndices.
+     * eligible = kỳ đủ W10 + có đáp án; withSolo = có witness trên đúng chuỗi đó.
+     * @returns {{ chain: number, eligible: number, withSolo: number, pct: number|null }[]}
+     */
+    computeSoloFreqFoldStatsByChain(rows, rowIndices) {
+        const split = this.ensureSoloFreqSplitCache();
+        const list = rows || this.getSourceSheetRows();
+        const indices = Array.isArray(rowIndices)
+            ? rowIndices.filter((i) => i >= 0 && i < list.length)
+            : list.map((_, i) => i);
+        const out = [];
+        for (let chain = 1; chain <= 10; chain++) {
+            const bit = 1 << (chain - 1);
+            let eligible = 0;
+            let withSolo = 0;
+            for (let k = 0; k < indices.length; k++) {
+                const i = indices[k];
+                // Cùng mẫu evaluable với solo_freq (all).
+                if (i < 10) {
+                    continue;
+                }
+                const row = list[i];
+                if (!row || this.isEmptyResultRow(row)) {
+                    continue;
+                }
+                eligible++;
+                if ((split.chainMaskByRow[i] & bit) !== 0) {
+                    withSolo++;
+                }
+            }
+            out.push({
+                chain,
+                eligible,
+                withSolo,
+                pct: eligible > 0 ? (withSolo / eligible) * 100 : null
+            });
+        }
+        return out;
+    }
+
+    formatSoloFreqFoldPct(stats) {
+        if (!stats || !stats.eligible) {
+            return '—';
+        }
+        const rounded = Math.round(stats.pct * 10) / 10;
+        return rounded.toFixed(1) + '%';
+    }
+
+    formatSoloFreqFoldPctByChain(statsByChain) {
+        const lines = [];
+        for (let chain = 1; chain <= 10; chain++) {
+            const stats = statsByChain && statsByChain[chain - 1]
+                ? statsByChain[chain - 1]
+                : null;
+            lines.push(`${chain}: ${this.formatSoloFreqFoldPct(stats)}`);
+        }
+        return lines.join('\n');
+    }
+
+    /**
+     * Cập nhật tooltip % corner solo_freq (sau lọc popup / tái dùng HTML cache).
+     */
+    applySoloFreqFoldTooltips(tableWrap, rows, rowIndices) {
+        if (!tableWrap) {
+            return null;
+        }
+        const statsByChain = this.computeSoloFreqFoldStatsByChain(rows, rowIndices);
+        const pctLabel = this.formatSoloFreqFoldPctByChain(statsByChain);
+        const pctAttr = this.encodePrevPeriodRecallFoldTooltipAttr(pctLabel);
+        tableWrap.querySelectorAll('td.cell-result.has-solo-freq').forEach(function (cell) {
+            let hit = cell.querySelector('.solo-freq-fold');
+            if (!hit) {
+                hit = document.createElement('span');
+                hit.className = 'solo-freq-fold';
+                cell.appendChild(hit);
+            }
+            hit.setAttribute('data-pct', pctAttr);
+            hit.removeAttribute('title');
+        });
+        return statsByChain;
+    }
+
+    /**
+     * @returns {{ applicable: boolean, holds: boolean, violates: boolean }}
+     */
+    evaluateSoloFreqProposition(rows, rowIndex) {
+        const empty = { applicable: false, holds: true, violates: false };
+        const idx = Number(rowIndex);
+        if (!Array.isArray(rows) || !Number.isFinite(idx) || idx < 0 || idx >= rows.length) {
+            return empty;
+        }
+        const split = this.ensureSoloFreqSplitCache();
+        if (split.hold.indexOf(idx) !== -1) {
+            return { applicable: true, holds: true, violates: false };
+        }
+        if (split.violate.indexOf(idx) !== -1) {
+            return { applicable: true, holds: false, violates: true };
+        }
+        return empty;
+    }
+
+    /**
      * @returns {number[]}
      */
     ensureTail3EvaluableIndicesCache() {
@@ -6337,6 +6663,10 @@ class RightPaneSheetManager {
         const prevRecallFoldStatsByChain = this.computePrevPeriodRecallFoldStatsByChain(displayRows, rowIndices);
         const prevRecallFoldPctLabel = this.formatPrevPeriodRecallFoldPctByChain(prevRecallFoldStatsByChain);
         const prevRecallFoldPctAttr = this.encodePrevPeriodRecallFoldTooltipAttr(prevRecallFoldPctLabel);
+        const soloFreqFoldStatsByChain = this.computeSoloFreqFoldStatsByChain(displayRows, rowIndices);
+        const soloFreqFoldPctLabel = this.formatSoloFreqFoldPctByChain(soloFreqFoldStatsByChain);
+        const soloFreqFoldPctAttr = this.encodePrevPeriodRecallFoldTooltipAttr(soloFreqFoldPctLabel);
+        const soloFreqHoldSet = this.ensureSoloFreqSplitCache().holdSet;
         const specialKinds = this.getSheet1SpecialContiguousKinds(displayRows);
         const specialKindCounts = this.countSheet1SpecialContiguousKinds(specialKinds, rowIndices);
         const specialStatsAttr = this.encodeSheet1SpecialStatsTooltipAttr(specialKindCounts);
@@ -6402,9 +6732,15 @@ class RightPaneSheetManager {
             const idStyle = idBg ? ` style="background:${idBg};"` : '';
             const activeClass = highlightIdx === i ? ' filter-popup-row-active' : '';
             const prevRecallFold = !isEmptyResultRow && this.recallsAtLeastOneFromImmediatePrevPeriod(displayRows, i);
-            const resultCellClass = 'cell-result' + (prevRecallFold ? ' has-prev-period-recall' : '');
+            const soloFreqFold = !isEmptyResultRow && soloFreqHoldSet.has(i);
+            const resultCellClass = 'cell-result'
+                + (prevRecallFold ? ' has-prev-period-recall' : '')
+                + (soloFreqFold ? ' has-solo-freq' : '');
             const prevRecallFoldHit = prevRecallFold
                 ? `<span class="prev-period-recall-fold" data-pct="${prevRecallFoldPctAttr}"></span>`
+                : '';
+            const soloFreqFoldHit = soloFreqFold
+                ? `<span class="solo-freq-fold" data-pct="${soloFreqFoldPctAttr}"></span>`
                 : '';
             const pickLabelHtml = isEmptyResultRow ? '' : this.getRowPickPropertyLabelHtml(displayRows, i, row);
             const starCell = (useStarCache && tail3StarCellCache[i])
@@ -6483,7 +6819,7 @@ class RightPaneSheetManager {
                 <td class="cell-pick-label">${pickLabelHtml}</td>
                 <td class="${followTdClass}"${followTdTitle}>${followHtml}</td>
                 <td class="cell-derive"${deriveTdTitle}>${deriveHtml}</td>
-                <td class="${resultCellClass}">${prevRecallFoldHit}${resultHtml}</td>
+                <td class="${resultCellClass}">${prevRecallFoldHit}${soloFreqFoldHit}${resultHtml}</td>
                 <td class="cell-note"${noteStyle}>${noteHtml}</td>
                 <td class="cell-nonexist">${nonexistHtml}</td>
             </tr>`;
@@ -8012,6 +8348,8 @@ class RightPaneSheetManager {
         const result = dataRow.result || dataRow.Result || '';
         const fold = resultCell.querySelector('.prev-period-recall-fold');
         const foldHtml = fold ? fold.outerHTML : '';
+        const soloFold = resultCell.querySelector('.solo-freq-fold');
+        const soloFoldHtml = soloFold ? soloFold.outerHTML : '';
         const winLabel = resultCell.querySelector('.win-label-inline');
         const winLabelHtml = winLabel ? winLabel.outerHTML : '';
         let resultHtml = this.highlightResultByFrequency(result);
@@ -8022,7 +8360,7 @@ class RightPaneSheetManager {
                 focusNxSet: focusNonexistNumSet
             };
         resultHtml = this.decorateResultMainNums(resultHtml, decorOpts);
-        resultCell.innerHTML = foldHtml + resultHtml + winLabelHtml;
+        resultCell.innerHTML = foldHtml + soloFoldHtml + resultHtml + winLabelHtml;
     }
 
     /**
@@ -20065,7 +20403,7 @@ function bindPrevPeriodRecallFoldTooltipGlobal() {
         }
 
         const hit = event.target && event.target.closest
-            ? event.target.closest('.prev-period-recall-fold')
+            ? event.target.closest('.prev-period-recall-fold, .solo-freq-fold')
             : null;
         if (!hit) {
             return;
@@ -20102,7 +20440,7 @@ function bindPrevPeriodRecallFoldTooltipGlobal() {
         }
 
         const hit = event.target && event.target.closest
-            ? event.target.closest('.prev-period-recall-fold')
+            ? event.target.closest('.prev-period-recall-fold, .solo-freq-fold')
             : null;
         if (!hit) {
             return;

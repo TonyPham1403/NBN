@@ -291,12 +291,14 @@
             color: var(--submit-nonexist-color) !important;
         }
 
-        .red {
+        /* solo_freq: gạch chân đỏ */
+        .solo-freq-ul {
             color: inherit;
             text-decoration: underline;
-            text-decoration-color: red;
+            text-decoration-color: #ff0000;
             text-decoration-thickness: 2px;
-            text-decoration-style: solid
+            text-decoration-style: solid;
+            text-underline-offset: 2px;
         }
 
         .idx-highlight {
@@ -2518,6 +2520,90 @@
             if (!raw || !raw.freq) return '';
             if ((parseInt(raw.freq[n], 10) || 0) !== 1) return '';
             return getCh11Ch12NumsSet().has(n) ? ' freq1-ch11-12-italic' : '';
+        }
+
+        /**
+         * Số solo_freq trên W10 (gạch chân đỏ):
+         * trên một chuỗi, freq W10 của số đó khác freq mọi số còn lại cùng chuỗi
+         * — không cần thuộc đáp án.
+         * @returns {{ all: Set<number>, byLabel: Object<string, Set<number>> }}
+         */
+        function getSoloFreqWitnessInfo() {
+            const empty = { all: new Set(), byLabel: {} };
+            if (!raw || !raw.freq) {
+                return empty;
+            }
+            const displayLines = getRawDisplayLines();
+            const L = displayLines.length;
+            if (!L) {
+                return empty;
+            }
+            const all = new Set();
+            const byLabel = {};
+            for (let i = 0; i < L; i++) {
+                const label = L - i;
+                const nums = getNumsFromLineObj(displayLines[i]);
+                if (!nums || !nums.length) {
+                    continue;
+                }
+                for (let ni = 0; ni < nums.length; ni++) {
+                    const n = nums[ni];
+                    if (!(n >= 1 && n <= MAX_NUM)) {
+                        continue;
+                    }
+                    const fNum = parseInt(raw.freq[n], 10) || 0;
+                    let unique = true;
+                    let hasOther = false;
+                    for (let mj = 0; mj < nums.length; mj++) {
+                        const other = nums[mj];
+                        if (other === n) {
+                            continue;
+                        }
+                        hasOther = true;
+                        if ((parseInt(raw.freq[other], 10) || 0) === fNum) {
+                            unique = false;
+                            break;
+                        }
+                    }
+                    if (unique && hasOther) {
+                        all.add(n);
+                        const key = String(label);
+                        if (!byLabel[key]) {
+                            byLabel[key] = new Set();
+                        }
+                        byLabel[key].add(n);
+                    }
+                }
+            }
+            return { all: all, byLabel: byLabel };
+        }
+
+        /** Bảng tần suất: teal mọi witness; bảng W10: teal chỉ trên chuỗi thỏa. */
+        function syncSoloFreqUnderlinesInDOM() {
+            const info = getSoloFreqWitnessInfo();
+            const left = document.getElementById('left');
+            if (left) {
+                left.querySelectorAll('.cell.num[data-num]').forEach(function (span) {
+                    const val = parseInt(span.getAttribute('data-num'), 10);
+                    span.classList.toggle('solo-freq-ul', info.all.has(val));
+                    span.classList.remove('red');
+                });
+            }
+            const right = document.getElementById('right');
+            if (right) {
+                right.querySelectorAll('tr.chuoi-main-row').forEach(function (tr) {
+                    const labelSpan = tr.querySelector('[data-chuoi-label]');
+                    const label = labelSpan
+                        ? String(labelSpan.getAttribute('data-chuoi-label') || '')
+                        : '';
+                    const set = label && info.byLabel[label] ? info.byLabel[label] : null;
+                    tr.querySelectorAll('.cell.num[data-num]').forEach(function (span) {
+                        const val = parseInt(span.getAttribute('data-num'), 10);
+                        span.classList.toggle('solo-freq-ul', !!(set && set.has(val)));
+                        span.classList.remove('red');
+                    });
+                });
+            }
         }
 
         const MAX_PICK_NUMBERS = 5;
@@ -9968,7 +10054,8 @@
                 left.innerHTML = html;
                 return;
             }
-            let { freq, firstNums } = raw;
+            let { freq } = raw;
+            const soloFreqInfo = getSoloFreqWitnessInfo();
             const agg = buildAggregatedNoteNonexistSets();
             const aggregatedNoteSet = agg.noteSet;
             const aggregatedNonexistSet = agg.nonexistSet;
@@ -9987,7 +10074,7 @@
                 html += "<td>" + f + "</td>";
                 html += "<td>" + arr.map(n => {
                     let cls = "";
-                    if (firstNums.includes(n)) cls += " red";
+                    if (soloFreqInfo.all.has(n)) cls += " solo-freq-ul";
                     if (selected.has(n)) cls += " selected";
                     if (isBlocked(n)) cls += " blocked";
                     if (isFreqZeroRow) {
@@ -10458,6 +10545,7 @@
             }
             let { freq } = raw;
             let displayLines = getRawDisplayLines();
+            const soloFreqInfo = getSoloFreqWitnessInfo();
 
             // Pattern counting
             const patternCount = {};
@@ -10522,10 +10610,13 @@
                 const noteQClass = isNoteQ ? ' chuoi-note-q' : '';
 
                 // Main row
+                const chuoiLabel = displayLines.length - i;
+                const soloOnChain = soloFreqInfo.byLabel[String(chuoiLabel)] || null;
                 html += `<tr class="chuoi-main-row${noteQClass}">`;
-                html += `<td style="${labelStyle};${labelVars}position:relative" class="${chuoiTdClass}"><span onclick="toggleChuoi(${i})" data-chuoi-label="${displayLines.length - i}" style="cursor:pointer;position:relative;z-index:2" title="Thêm/gỡ 5 viền cam chuỗi này (có thể chọn nhiều chuỗi)">Chuỗi ${displayLines.length - i}</span></td>`;
+                html += `<td style="${labelStyle};${labelVars}position:relative" class="${chuoiTdClass}"><span onclick="toggleChuoi(${i})" data-chuoi-label="${chuoiLabel}" style="cursor:pointer;position:relative;z-index:2" title="Thêm/gỡ 5 viền cam chuỗi này (có thể chọn nhiều chuỗi)">Chuỗi ${chuoiLabel}</span></td>`;
                 html += `<td style='font-size:13px;position:relative;'>` + nums.map(n => {
                     let cls = selected.has(n) ? ' selected' : '';
+                    if (soloOnChain && soloOnChain.has(n)) cls += ' solo-freq-ul';
                     if (noteSet.indexOf(n) !== -1) cls += ' note-highlight';
                     if (nonexistSet.indexOf(n) !== -1) cls += ' nonexist-intersect';
                     let clickAttr = (!submitActive && !isBlocked(n))
@@ -10566,6 +10657,7 @@
             } catch (eOv2) { /* ignore */ }
             try { syncChuoiIndexSemanticStylesInDOM(); } catch (eIdx) { /* ignore */ }
             try { applyObserveChuoiPinUnderline(); } catch (ePinUl) { /* ignore */ }
+            try { syncSoloFreqUnderlinesInDOM(); } catch (eSoloUl) { /* ignore */ }
             if (!trackingFrameStepProcess) {
                 setTimeout(function () { scheduleComputeAndApplyHeights(); }, 0);
             }
@@ -13595,7 +13687,7 @@
                     }
                 }
 
-                // update left table cells (submit highlight, blocked and red underline)
+                // update left table cells (submit highlight, blocked)
                 var leftAgg = buildAggregatedNoteNonexistSets();
                 var leftNoteSet = leftAgg.noteSet;
                 var leftNonexistSet = leftAgg.nonexistSet;
@@ -13632,12 +13724,9 @@
                     } else {
                         span.classList.remove('blocked');
                     }
-                    if (Array.isArray(raw.firstNums) && raw.firstNums.indexOf(val) !== -1) {
-                        span.classList.add('red');
-                    } else {
-                        span.classList.remove('red');
-                    }
                 });
+
+                try { syncSoloFreqUnderlinesInDOM(); } catch (eSoloUl) { /* ignore */ }
 
                 syncLeftFreqZeroNonexistStylesInDOM();
                 try { syncChuoiIndexSemanticStylesInDOM(); } catch (eIdx) { /* ignore */ }
