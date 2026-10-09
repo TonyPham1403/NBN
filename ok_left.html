@@ -952,15 +952,6 @@
             font-weight: 600;
         }
 
-        /* Submit OFF: ẩn “(N nằm trong đáp án)” trên footer */
-        .reference-hint-foot-answer-count {
-            display: none;
-        }
-
-        body.submit-preview-active .reference-hint-foot-answer-count {
-            display: inline;
-        }
-
         /* Số phase1 (Y): viền vuông tím/hồng — gọn, không đội chiều cao hàng */
         .reference-hint-tail-y {
             position: relative;
@@ -3687,25 +3678,8 @@
                 foot.className = triplets.length || groupLines.length
                     ? 'reference-hint-foot'
                     : 'reference-hint-empty-note';
-                // Giữ “(N nằm trong đáp án)” trong DOM; CSS ẩn khi Submit OFF.
+                // “(N nằm trong đáp án)” luôn hiện — Submit on/off đều giữ.
                 const footStr = String(footerLine || '');
-                const appendFootRest = function (parent, rest) {
-                    const m = String(rest || '').match(/^(.*?)(\((\d+)\s*nằm trong đáp án\))(.*)$/i);
-                    if (!m) {
-                        parent.appendChild(document.createTextNode(rest));
-                        return;
-                    }
-                    if (m[1]) {
-                        parent.appendChild(document.createTextNode(m[1]));
-                    }
-                    const ansSpan = document.createElement('span');
-                    ansSpan.className = 'reference-hint-foot-answer-count';
-                    ansSpan.textContent = m[2];
-                    parent.appendChild(ansSpan);
-                    if (m[4]) {
-                        parent.appendChild(document.createTextNode(m[4]));
-                    }
-                };
                 if (/^Tổng/.test(footStr) && (groupLinesRaw.length || tripletsRaw.length)) {
                     const tongBtn = document.createElement('button');
                     tongBtn.type = 'button';
@@ -3723,9 +3697,9 @@
                         toggleReferenceHintDeriveYellow();
                     });
                     foot.appendChild(tongBtn);
-                    appendFootRest(foot, footStr.replace(/^Tổng/, ''));
+                    foot.appendChild(document.createTextNode(footStr.replace(/^Tổng/, '')));
                 } else {
-                    appendFootRest(foot, footStr);
+                    foot.textContent = footStr;
                 }
                 panel.appendChild(foot);
             }
