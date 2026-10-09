@@ -2224,7 +2224,11 @@ class RightPaneSheetManager {
                 ? 'violate'
                 : (o.polarity === 'hold' ? 'hold' : 'normal');
             const bounds = RightPaneSheetManager.normalizeAnswerFreqBounds(o.freqLo, o.freqHi);
-            const split = this.ensureAnswerFreqSplitCache(bounds.lo, bounds.hi);
+            const countOp = RightPaneSheetManager.normalizeSoloFreqOp(o.countOp);
+            const countVal = RightPaneSheetManager.normalizeSoloFreqCountVal(o.countVal);
+            const split = this.ensureAnswerFreqSplitCache(
+                bounds.lo, bounds.hi, countOp, countVal
+            );
             let base;
             if (polarity === 'violate') {
                 base = split.violate;
@@ -4750,20 +4754,27 @@ class RightPaneSheetManager {
     }
 
     /**
-     * Mode Freq: tách T/F theo freq W10 của số đáp án trong [lo;hi] (đã sort).
-     * T = ≥1 số đáp án có freq ∈ [lo;hi].
+     * Mode Freq: tách T/F theo số lượng số đáp án có freq W10 ∈ [lo;hi] (đã sort).
+     * [] = số lượng distinct số đáp án thỏa freq ∈ [lo;hi].
+     * T = [] thỏa countOp/countVal (mặc định ≥1 khi countVal null).
      * F = kỳ evaluable (đủ W10 + có đáp án) nhưng không thỏa T.
      * @param {number} [freqLo]
      * @param {number} [freqHi]
+     * @param {string} [countOp]
+     * @param {number|null} [countVal] null = ≥1
      * @returns {{ key: string, hold: number[], violate: number[], all: number[], applicable: number, holdSet: Set<number> }}
      */
-    ensureAnswerFreqSplitCache(freqLo, freqHi) {
+    ensureAnswerFreqSplitCache(freqLo, freqHi, countOp, countVal) {
         const rows = this.getSourceSheetRows();
         const n = rows.length;
         const bounds = RightPaneSheetManager.normalizeAnswerFreqBounds(freqLo, freqHi);
         const lo = bounds.lo;
         const hi = bounds.hi;
-        const key = `${n}|${lo}|${hi}`;
+        const cOp = RightPaneSheetManager.normalizeSoloFreqOp(countOp);
+        const cvRaw = RightPaneSheetManager.normalizeSoloFreqCountVal(countVal);
+        const cv = cvRaw == null ? 1 : cvRaw;
+        const cOpEff = cvRaw == null ? '>=' : cOp;
+        const key = `${n}|${lo}|${hi}|${cOpEff}|${cv}`;
         if (!this._answerFreqSplitCacheMap) {
             this._answerFreqSplitCacheMap = new Map();
         }
@@ -4799,18 +4810,20 @@ class RightPaneSheetManager {
         for (let i = 0; i < n; i++) {
             if (i >= 10 && rowNums[i].length) {
                 const answerNums = rowNums[i];
-                let holds = false;
+                let matchCount = 0;
+                const seen = new Set();
                 for (let ai = 0; ai < answerNums.length; ai++) {
                     const num = answerNums[ai];
-                    if (num < 1 || num > 35) {
+                    if (num < 1 || num > 35 || seen.has(num)) {
                         continue;
                     }
+                    seen.add(num);
                     const f = counts[num] | 0;
                     if (f >= lo && f <= hi) {
-                        holds = true;
-                        break;
+                        matchCount++;
                     }
                 }
+                const holds = RightPaneSheetManager.compareSoloFreq(matchCount, cOpEff, cv);
                 all.push(i);
                 if (holds) {
                     hold.push(i);

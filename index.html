@@ -4098,6 +4098,7 @@
         #filterPopupDeriveChainDeriveSpin,
         #filterPopupDeriveChainPeerSpin,
         #filterPopupSoloFreqCountSpin,
+        #filterPopupAnswerFreqCountSpin,
         #filterPopupAnswerFreqLoSpin,
         #filterPopupAnswerFreqHiSpin,
         #filterPopupNonexistBracketCountSpin,
@@ -4127,6 +4128,7 @@
         #filterPopupDeriveChainDeriveSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupDeriveChainPeerSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupSoloFreqCountSpin .filter-popup-nonexist-num-spin-btn,
+        #filterPopupAnswerFreqCountSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupAnswerFreqLoSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupAnswerFreqHiSpin .filter-popup-nonexist-num-spin-btn,
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn,
@@ -4159,6 +4161,7 @@
         #filterPopupDeriveChainDeriveSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupDeriveChainPeerSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupSoloFreqCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
+        #filterPopupAnswerFreqCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupAnswerFreqLoSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupAnswerFreqHiSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn+.filter-popup-nonexist-num-spin-btn,
@@ -4177,6 +4180,7 @@
         #filterPopupDeriveChainDeriveSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupDeriveChainPeerSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupSoloFreqCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
+        #filterPopupAnswerFreqCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupAnswerFreqLoSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupAnswerFreqHiSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:hover:not(:disabled),
@@ -4195,6 +4199,7 @@
         #filterPopupDeriveChainDeriveSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupDeriveChainPeerSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupSoloFreqCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
+        #filterPopupAnswerFreqCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupAnswerFreqLoSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupAnswerFreqHiSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:active:not(:disabled),
@@ -4213,6 +4218,7 @@
         #filterPopupDeriveChainDeriveSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupDeriveChainPeerSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupSoloFreqCountSpin .filter-popup-nonexist-num-spin-btn:disabled,
+        #filterPopupAnswerFreqCountSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupAnswerFreqLoSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupAnswerFreqHiSpin .filter-popup-nonexist-num-spin-btn:disabled,
         #filterPopupNonexistBracketCountSpin .filter-popup-nonexist-num-spin-btn:disabled,
@@ -9859,10 +9865,35 @@
                         </div>
                     </div>
                     <div id="filterPopupAnswerFreqPicker" class="filter-popup-answer-freq hidden" role="group"
-                        aria-label="Freq: khoảng freq đáp án trên W10"
-                        aria-hidden="true">
+                        aria-label="Freq: [] số đáp án có freq ∈ [a;b] trên W10"
+                        aria-hidden="true"
+                        title="[] = số lượng số đáp án có freq W10 ∈ [a;b]; nút %: normal → T → F.">
                         <div class="filter-popup-intersection-freq" role="group"
-                            aria-label="Freq thuộc khoảng [a;b]">
+                            aria-label="Freq [] và khoảng [a;b]">
+                            <div class="filter-popup-intersection-freq-item"
+                                title="Số lượng số đáp án có freq ∈ [a;b].">
+                                <span
+                                    class="filter-popup-intersection-freq-key filter-popup-intersection-freq-key--solo-freq">[]</span>
+                                <select id="filterPopupAnswerFreqCountOp" class="filter-popup-intersection-freq-op"
+                                    aria-label="Dấu so sánh số lượng []">
+                                    <option value=">=">&gt;=</option>
+                                    <option value="=">=</option>
+                                    <option value="<=">&lt;=</option>
+                                </select>
+                                <span id="filterPopupAnswerFreqCountVal"
+                                    class="filter-popup-position-input filter-popup-intersection-freq-num" tabindex="0"
+                                    role="textbox" aria-label="Ngưỡng số lượng [] (0–9)"
+                                    title="Ngưỡng số lượng 0–9; ▴▾ tăng giảm">1</span>
+                                <div id="filterPopupAnswerFreqCountSpin" class="filter-popup-intersection-freq-spin"
+                                    role="group" aria-label="Tăng giảm ngưỡng [] (0–9)">
+                                    <button type="button" id="filterPopupAnswerFreqCountInc"
+                                        class="filter-popup-nonexist-num-spin-btn" title="Tăng [] (tối đa 9)"
+                                        aria-label="Tăng ngưỡng []">▴</button>
+                                    <button type="button" id="filterPopupAnswerFreqCountDec"
+                                        class="filter-popup-nonexist-num-spin-btn" title="Giảm [] (tối thiểu 0)"
+                                        aria-label="Giảm ngưỡng []">▾</button>
+                                </div>
+                            </div>
                             <div class="filter-popup-intersection-freq-item filter-popup-answer-freq-range">
                                 <span
                                     class="filter-popup-intersection-freq-key filter-popup-intersection-freq-key--solo-freq">Freq ∈</span>
@@ -10329,7 +10360,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
-    <script src="right-pane-sheets.js?v=20261009freqRange"></script>
+    <script src="right-pane-sheets.js?v=20261009freqCount"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -10643,8 +10674,12 @@
         const FILTER_ANSWER_FREQ_KEY = 'filterAnswerFreqParams';
         const FILTER_ANSWER_FREQ_MIN = 0;
         const FILTER_ANSWER_FREQ_MAX = 9;
+        const FILTER_ANSWER_FREQ_COUNT_MIN = 0;
+        const FILTER_ANSWER_FREQ_COUNT_MAX = 9;
         const FILTER_ANSWER_FREQ_DEFAULT = Object.freeze({
             polarity: 'normal',
+            countOp: '>=',
+            countVal: 1,
             freqLo: 3,
             freqHi: 3
         });
@@ -10878,6 +10913,10 @@
         let filterSoloFreqCountVal = FILTER_SOLO_FREQ_DEFAULT.countVal;
         /** @type {'normal'|'hold'|'violate'} */
         let filterAnswerFreqPolarity = FILTER_ANSWER_FREQ_DEFAULT.polarity;
+        /** @type {'>='|'='|'<='} */
+        let filterAnswerFreqCountOp = FILTER_ANSWER_FREQ_DEFAULT.countOp;
+        /** @type {number} */
+        let filterAnswerFreqCountVal = FILTER_ANSWER_FREQ_DEFAULT.countVal;
         /** @type {number} */
         let filterAnswerFreqLo = FILTER_ANSWER_FREQ_DEFAULT.freqLo;
         /** @type {number} */
@@ -13405,6 +13444,28 @@ function getFilterNoteTRefMaxSelections(mode) {
             return normalizeFilterSoloFreqPolarity(raw);
         }
 
+        function normalizeFilterAnswerFreqCountOp(raw) {
+            return normalizeFilterSoloFreqOp(raw);
+        }
+
+        function normalizeFilterAnswerFreqCountVal(raw) {
+            if (typeof RightPaneSheetManager !== 'undefined'
+                && typeof RightPaneSheetManager.normalizeSoloFreqCountVal === 'function') {
+                const n = RightPaneSheetManager.normalizeSoloFreqCountVal(raw);
+                if (n != null) {
+                    return n;
+                }
+            }
+            const n = parseInt(raw, 10);
+            if (!Number.isFinite(n)) {
+                return FILTER_ANSWER_FREQ_DEFAULT.countVal;
+            }
+            return Math.min(
+                FILTER_ANSWER_FREQ_COUNT_MAX,
+                Math.max(FILTER_ANSWER_FREQ_COUNT_MIN, n | 0)
+            );
+        }
+
         function normalizeFilterAnswerFreqVal(raw, fallback) {
             if (typeof RightPaneSheetManager !== 'undefined'
                 && typeof RightPaneSheetManager.normalizeAnswerFreqVal === 'function') {
@@ -13446,6 +13507,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             const bounds = normalizeFilterAnswerFreqBounds(filterAnswerFreqLo, filterAnswerFreqHi);
             return {
                 polarity: normalizeFilterAnswerFreqPolarity(filterAnswerFreqPolarity),
+                countOp: normalizeFilterAnswerFreqCountOp(filterAnswerFreqCountOp),
+                countVal: normalizeFilterAnswerFreqCountVal(filterAnswerFreqCountVal),
                 freqLo: bounds.lo,
                 freqHi: bounds.hi
             };
@@ -13456,7 +13519,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return null;
             }
             const opts = getAnswerFreqFilterOptions();
-            return sheetManager.ensureAnswerFreqSplitCache(opts.freqLo, opts.freqHi);
+            return sheetManager.ensureAnswerFreqSplitCache(
+                opts.freqLo, opts.freqHi, opts.countOp, opts.countVal
+            );
         }
 
         function getSoloFreqSplitCacheFromUi() {
@@ -16025,6 +16090,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                 const raw = localStorage.getItem(FILTER_ANSWER_FREQ_KEY);
                 if (!raw) {
                     filterAnswerFreqPolarity = FILTER_ANSWER_FREQ_DEFAULT.polarity;
+                    filterAnswerFreqCountOp = FILTER_ANSWER_FREQ_DEFAULT.countOp;
+                    filterAnswerFreqCountVal = FILTER_ANSWER_FREQ_DEFAULT.countVal;
                     filterAnswerFreqLo = FILTER_ANSWER_FREQ_DEFAULT.freqLo;
                     filterAnswerFreqHi = FILTER_ANSWER_FREQ_DEFAULT.freqHi;
                     return;
@@ -16033,6 +16100,12 @@ function getFilterNoteTRefMaxSelections(mode) {
                 filterAnswerFreqPolarity = normalizeFilterAnswerFreqPolarity(
                     p && p.polarity != null ? p.polarity : FILTER_ANSWER_FREQ_DEFAULT.polarity
                 );
+                filterAnswerFreqCountOp = normalizeFilterAnswerFreqCountOp(
+                    p && p.countOp != null ? p.countOp : FILTER_ANSWER_FREQ_DEFAULT.countOp
+                );
+                filterAnswerFreqCountVal = Object.prototype.hasOwnProperty.call(p || {}, 'countVal')
+                    ? normalizeFilterAnswerFreqCountVal(p.countVal)
+                    : FILTER_ANSWER_FREQ_DEFAULT.countVal;
                 let loRaw = FILTER_ANSWER_FREQ_DEFAULT.freqLo;
                 let hiRaw = FILTER_ANSWER_FREQ_DEFAULT.freqHi;
                 if (Object.prototype.hasOwnProperty.call(p || {}, 'freqLo')
@@ -16047,6 +16120,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                 applySortedAnswerFreqBoundsToState(loRaw, hiRaw);
             } catch (eAfLoad) {
                 filterAnswerFreqPolarity = FILTER_ANSWER_FREQ_DEFAULT.polarity;
+                filterAnswerFreqCountOp = FILTER_ANSWER_FREQ_DEFAULT.countOp;
+                filterAnswerFreqCountVal = FILTER_ANSWER_FREQ_DEFAULT.countVal;
                 filterAnswerFreqLo = FILTER_ANSWER_FREQ_DEFAULT.freqLo;
                 filterAnswerFreqHi = FILTER_ANSWER_FREQ_DEFAULT.freqHi;
             }
@@ -16059,6 +16134,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                 filterAnswerFreqHi = bounds.hi;
                 localStorage.setItem(FILTER_ANSWER_FREQ_KEY, JSON.stringify({
                     polarity: normalizeFilterAnswerFreqPolarity(filterAnswerFreqPolarity),
+                    countOp: normalizeFilterAnswerFreqCountOp(filterAnswerFreqCountOp),
+                    countVal: normalizeFilterAnswerFreqCountVal(filterAnswerFreqCountVal),
                     freqLo: bounds.lo,
                     freqHi: bounds.hi
                 }));
@@ -16126,10 +16203,19 @@ function getFilterNoteTRefMaxSelections(mode) {
         function syncFilterPopupAnswerFreqSpinButtons() {
             const active = periodFilterEnabled && isAnswerFreqFilterMode(periodFilterMode);
             const bounds = normalizeFilterAnswerFreqBounds(filterAnswerFreqLo, filterAnswerFreqHi);
+            const cn = normalizeFilterAnswerFreqCountVal(filterAnswerFreqCountVal);
+            const cInc = el('filterPopupAnswerFreqCountInc');
+            const cDec = el('filterPopupAnswerFreqCountDec');
             const loInc = el('filterPopupAnswerFreqLoInc');
             const loDec = el('filterPopupAnswerFreqLoDec');
             const hiInc = el('filterPopupAnswerFreqHiInc');
             const hiDec = el('filterPopupAnswerFreqHiDec');
+            if (cInc) {
+                cInc.disabled = !active || cn >= FILTER_ANSWER_FREQ_COUNT_MAX;
+            }
+            if (cDec) {
+                cDec.disabled = !active || cn <= FILTER_ANSWER_FREQ_COUNT_MIN;
+            }
             if (loInc) {
                 loInc.disabled = !active || bounds.lo >= FILTER_ANSWER_FREQ_MAX;
             }
@@ -16165,6 +16251,21 @@ function getFilterNoteTRefMaxSelections(mode) {
                 picker.classList.toggle('hidden', !show);
                 picker.setAttribute('aria-hidden', show ? 'false' : 'true');
             }
+            const cOpEl = el('filterPopupAnswerFreqCountOp');
+            const cValEl = el('filterPopupAnswerFreqCountVal');
+            if (cOpEl) {
+                cOpEl.value = normalizeFilterAnswerFreqCountOp(filterAnswerFreqCountOp);
+                cOpEl.disabled = !show;
+            }
+            if (cValEl) {
+                if (document.activeElement !== cValEl) {
+                    setFilterPopupPositionText(
+                        cValEl,
+                        String(normalizeFilterAnswerFreqCountVal(filterAnswerFreqCountVal))
+                    );
+                }
+                cValEl.tabIndex = show ? 0 : -1;
+            }
             const bounds = applySortedAnswerFreqBoundsToState(filterAnswerFreqLo, filterAnswerFreqHi);
             const loEl = el('filterPopupAnswerFreqLo');
             const hiEl = el('filterPopupAnswerFreqHi');
@@ -16187,6 +16288,23 @@ function getFilterNoteTRefMaxSelections(mode) {
             syncFilterPopupAnswerFreqParamUi();
             syncFilterPopupAnswerFreqTfPctUi();
             syncFilterPopupAnswerFreqModeBtnTitle();
+        }
+
+        function bumpFilterPopupAnswerFreqCountVal(delta) {
+            if (!periodFilterEnabled || !isAnswerFreqFilterMode(periodFilterMode)) {
+                return;
+            }
+            const next = normalizeFilterAnswerFreqCountVal(filterAnswerFreqCountVal) + (Number(delta) || 0);
+            filterAnswerFreqCountVal = Math.min(
+                FILTER_ANSWER_FREQ_COUNT_MAX,
+                Math.max(FILTER_ANSWER_FREQ_COUNT_MIN, next)
+            );
+            saveFilterAnswerFreqSettings();
+            syncFilterPopupAnswerFreqParamUi();
+            deferFilterPopupHeavyWork(() => {
+                updatePeriodFilterMatchCount();
+                rebuildFilterPopupAfterParamChange();
+            });
         }
 
         function bumpFilterPopupAnswerFreqBound(which, delta) {
@@ -16218,6 +16336,19 @@ function getFilterNoteTRefMaxSelections(mode) {
 
         function scheduleApplyAnswerFreqParamsFromUi() {
             deferFilterPopupHeavyWork(() => {
+                const cValEl = el('filterPopupAnswerFreqCountVal');
+                const cOpEl = el('filterPopupAnswerFreqCountOp');
+                if (cOpEl) {
+                    filterAnswerFreqCountOp = normalizeFilterAnswerFreqCountOp(cOpEl.value);
+                    cOpEl.value = filterAnswerFreqCountOp;
+                }
+                if (cValEl) {
+                    const parsed = parseInt(getFilterPopupPositionText(cValEl), 10);
+                    filterAnswerFreqCountVal = normalizeFilterAnswerFreqCountVal(
+                        Number.isFinite(parsed) ? parsed : filterAnswerFreqCountVal
+                    );
+                    setFilterPopupPositionText(cValEl, String(filterAnswerFreqCountVal));
+                }
                 const loEl = el('filterPopupAnswerFreqLo');
                 const hiEl = el('filterPopupAnswerFreqHi');
                 let lo = filterAnswerFreqLo;
@@ -16344,10 +16475,94 @@ function getFilterNoteTRefMaxSelections(mode) {
                     }
                 });
             };
+            const bindCountSpin = (btn, delta) => {
+                if (!btn) {
+                    return;
+                }
+                const run = () => bumpFilterPopupAnswerFreqCountVal(delta);
+                btn.addEventListener('pointerdown', (event) => {
+                    if (event.button !== 0) {
+                        return;
+                    }
+                    event.preventDefault();
+                    event.stopPropagation();
+                    run();
+                });
+                btn.addEventListener('click', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (event.detail === 0) {
+                        run();
+                    }
+                });
+            };
+            bindCountSpin(el('filterPopupAnswerFreqCountInc'), 1);
+            bindCountSpin(el('filterPopupAnswerFreqCountDec'), -1);
             bindSpin(el('filterPopupAnswerFreqLoInc'), 'lo', 1);
             bindSpin(el('filterPopupAnswerFreqLoDec'), 'lo', -1);
             bindSpin(el('filterPopupAnswerFreqHiInc'), 'hi', 1);
             bindSpin(el('filterPopupAnswerFreqHiDec'), 'hi', -1);
+
+            const cOpEl = el('filterPopupAnswerFreqCountOp');
+            if (cOpEl) {
+                cOpEl.addEventListener('change', () => {
+                    filterAnswerFreqCountOp = normalizeFilterAnswerFreqCountOp(cOpEl.value);
+                    cOpEl.value = filterAnswerFreqCountOp;
+                    saveFilterAnswerFreqSettings();
+                    if (periodFilterEnabled && isPeriodFilterContextSheet()
+                        && isAnswerFreqFilterMode(periodFilterMode)) {
+                        scheduleApplyAnswerFreqParamsFromUi();
+                    }
+                });
+            }
+
+            const cValEl = el('filterPopupAnswerFreqCountVal');
+            if (cValEl && cValEl.dataset.boundInput !== '1') {
+                cValEl.dataset.boundInput = '1';
+                cValEl.addEventListener('mousedown', (event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    cValEl.focus({ preventScroll: true });
+                });
+                cValEl.addEventListener('click', (event) => event.stopPropagation());
+                cValEl.addEventListener('blur', () => scheduleApplyAnswerFreqParamsFromUi());
+                cValEl.addEventListener('keydown', (event) => {
+                    if (!periodFilterEnabled || !isAnswerFreqFilterMode(periodFilterMode)) {
+                        return;
+                    }
+                    const key = String(event.key || '');
+                    if (/^[0-9]$/.test(key)) {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        filterAnswerFreqCountVal = normalizeFilterAnswerFreqCountVal(parseInt(key, 10));
+                        setFilterPopupPositionText(cValEl, String(filterAnswerFreqCountVal));
+                        syncFilterPopupAnswerFreqSpinButtons();
+                        scheduleApplyAnswerFreqParamsFromUi();
+                        return;
+                    }
+                    if (key === 'Backspace' || key === 'Delete') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        setFilterPopupPositionText(cValEl, '');
+                        return;
+                    }
+                    if (key === 'Enter') {
+                        event.preventDefault();
+                        event.stopPropagation();
+                        scheduleApplyAnswerFreqParamsFromUi();
+                        return;
+                    }
+                    if (key === 'ArrowUp') {
+                        event.preventDefault();
+                        bumpFilterPopupAnswerFreqCountVal(1);
+                        return;
+                    }
+                    if (key === 'ArrowDown') {
+                        event.preventDefault();
+                        bumpFilterPopupAnswerFreqCountVal(-1);
+                    }
+                });
+            }
 
             const bindBoundInput = (valEl, which) => {
                 if (!valEl || valEl.dataset.boundInput === '1') {
@@ -22128,6 +22343,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (isAnswerFreqFilterMode(normalized)) {
                 return {
                     polarity: 'normal',
+                    countOp: FILTER_ANSWER_FREQ_DEFAULT.countOp,
+                    countVal: FILTER_ANSWER_FREQ_DEFAULT.countVal,
                     freqLo: FILTER_ANSWER_FREQ_DEFAULT.freqLo,
                     freqHi: FILTER_ANSWER_FREQ_DEFAULT.freqHi
                 };
@@ -22470,8 +22687,10 @@ function getFilterNoteTRefMaxSelections(mode) {
                 const polLabel = pol === 'violate'
                     ? 'F (false)'
                     : (pol === 'hold' ? 'T (true)' : 'evaluable');
+                const cOp = normalizeFilterAnswerFreqCountOp(filterAnswerFreqCountOp);
+                const cv = normalizeFilterAnswerFreqCountVal(filterAnswerFreqCountVal);
                 const bounds = normalizeFilterAnswerFreqBounds(filterAnswerFreqLo, filterAnswerFreqHi);
-                return `Không có kỳ nào ${polLabel} Freq (Freq ∈ [${bounds.lo} ; ${bounds.hi}]).`;
+                return `Không có kỳ nào ${polLabel} Freq ([]${cOp}${cv} Freq ∈ [${bounds.lo} ; ${bounds.hi}]).`;
             }
             if (isIntersectionFilterMode(normalized)) {
                 const k = filterIntersectionKind === 'nearintersect' ? 'nearintersect' : 'intersect';
@@ -30992,7 +31211,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 : '';
             const afOpts = getAnswerFreqFilterOptions();
             const answerFreqKey = isAnswerFreqFilterMode(periodFilterMode)
-                ? `af:${afOpts.polarity}:${afOpts.freqLo}:${afOpts.freqHi}`
+                ? `af:${afOpts.polarity}:${afOpts.countOp}:${afOpts.countVal}:${afOpts.freqLo}:${afOpts.freqHi}`
                 : '';
             return [
                 periodFilterMode,
