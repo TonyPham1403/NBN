@@ -952,6 +952,15 @@
             font-weight: 600;
         }
 
+        /* Submit OFF: ẩn “(N nằm trong đáp án)” trên footer */
+        .reference-hint-foot-answer-count {
+            display: none;
+        }
+
+        body.submit-preview-active .reference-hint-foot-answer-count {
+            display: inline;
+        }
+
         /* Số phase1 (Y): viền vuông tím/hồng — gọn, không đội chiều cao hàng */
         .reference-hint-tail-y {
             position: relative;
@@ -3678,11 +3687,25 @@
                 foot.className = triplets.length || groupLines.length
                     ? 'reference-hint-foot'
                     : 'reference-hint-empty-note';
-                // Submit OFF: bỏ “(N nằm trong đáp án)” — không lộ số lượng đáp án.
-                let footStr = String(footerLine || '');
-                if (!submitActive) {
-                    footStr = footStr.replace(/\s*\(\d+\s*nằm trong đáp án\)/gi, '');
-                }
+                // Giữ “(N nằm trong đáp án)” trong DOM; CSS ẩn khi Submit OFF.
+                const footStr = String(footerLine || '');
+                const appendFootRest = function (parent, rest) {
+                    const m = String(rest || '').match(/^(.*?)(\((\d+)\s*nằm trong đáp án\))(.*)$/i);
+                    if (!m) {
+                        parent.appendChild(document.createTextNode(rest));
+                        return;
+                    }
+                    if (m[1]) {
+                        parent.appendChild(document.createTextNode(m[1]));
+                    }
+                    const ansSpan = document.createElement('span');
+                    ansSpan.className = 'reference-hint-foot-answer-count';
+                    ansSpan.textContent = m[2];
+                    parent.appendChild(ansSpan);
+                    if (m[4]) {
+                        parent.appendChild(document.createTextNode(m[4]));
+                    }
+                };
                 if (/^Tổng/.test(footStr) && (groupLinesRaw.length || tripletsRaw.length)) {
                     const tongBtn = document.createElement('button');
                     tongBtn.type = 'button';
@@ -3700,9 +3723,9 @@
                         toggleReferenceHintDeriveYellow();
                     });
                     foot.appendChild(tongBtn);
-                    foot.appendChild(document.createTextNode(footStr.replace(/^Tổng/, '')));
+                    appendFootRest(foot, footStr.replace(/^Tổng/, ''));
                 } else {
-                    foot.textContent = footStr;
+                    appendFootRest(foot, footStr);
                 }
                 panel.appendChild(foot);
             }
@@ -3715,9 +3738,9 @@
                 for (let gi = 0; gi < groupLines.length; gi++) {
                     const g = groupLines[gi];
                     const item = document.createElement('span');
-                    // Submit OFF: không gắn is-answer (tránh lộ đáp án qua style).
+                    // Luôn gắn is-answer khi đúng đáp án; CSS chỉ tô xanh khi Submit ON.
                     item.className = 'reference-hint-group-item'
-                        + (submitActive && g.inAnswer ? ' is-answer' : '');
+                        + (g.inAnswer ? ' is-answer' : '');
                     const xApply = parseInt(g.x, 10);
                     const sortedNums = Number.isFinite(xApply) && xApply >= 1 && xApply <= 35
                         ? [xApply]
@@ -3812,9 +3835,8 @@
             for (let ti = 0; ti < triplets.length; ti++) {
                 const t = triplets[ti];
                 const row = document.createElement('div');
-                // Submit OFF: không gắn is-answer (tránh lộ đáp án qua style).
-                row.className = 'reference-hint-row'
-                    + (submitActive && t.inAnswer ? ' is-answer' : '');
+                // Luôn gắn is-answer khi đúng đáp án; CSS chỉ tô xanh khi Submit ON.
+                row.className = 'reference-hint-row' + (t.inAnswer ? ' is-answer' : '');
                 const rowKey = referenceHintRowKey(t);
                 const sorted = Array.isArray(t.sorted) ? t.sorted.slice() : [];
                 const sortedNums = sorted
@@ -3832,8 +3854,7 @@
                     }
                 }
                 const line = document.createElement('span');
-                line.className = 'reference-hint-line'
-                    + (submitActive && t.inAnswer ? ' answer-triplet' : '');
+                line.className = 'reference-hint-line' + (t.inAnswer ? ' answer-triplet' : '');
                 const yNum = parseInt(t.y, 10);
                 const xNum = parseInt(t.x, 10);
                 const edgesArr = Array.isArray(t.edges) ? t.edges : [];
