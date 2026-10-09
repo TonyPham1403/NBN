@@ -494,6 +494,8 @@ class RightPaneSheetManager {
         this._deriveChainSplitCache = null;
         /** @type {Map<string, { key: string, hold: number[], violate: number[], all: number[], applicable: number, holdSet: Set<number>, chainMaskByRow: Int16Array }>|null} */
         this._soloFreqSplitCacheMap = null;
+        /** @type {Map<string, { key: string, hold: number[], violate: number[], all: number[], applicable: number, holdSet: Set<number> }>|null} */
+        this._answerFreqSplitCacheMap = null;
         /** Cache filter mode TRACKING (bụng basic: size + streak). */
         this._basicTrackingBellyFilterCache = null;
         this._basicTrackingBellyFilterCacheRowLen = 0;
@@ -670,6 +672,8 @@ class RightPaneSheetManager {
         this._deriveChainSplitCache = null;
         /** @type {Map<string, { key: string, hold: number[], violate: number[], all: number[], applicable: number, holdSet: Set<number>, chainMaskByRow: Int16Array }>|null} */
         this._soloFreqSplitCacheMap = null;
+        /** @type {Map<string, { key: string, hold: number[], violate: number[], all: number[], applicable: number, holdSet: Set<number> }>|null} */
+        this._answerFreqSplitCacheMap = null;
         this._basicTrackingBellyFilterCache = null;
         this._basicTrackingBellyFilterCacheRowLen = 0;
         this._phase1FilterCache = null;
@@ -2185,11 +2189,10 @@ class RightPaneSheetManager {
             const polarity = o.polarity === 'violate'
                 ? 'violate'
                 : (o.polarity === 'hold' ? 'hold' : 'normal');
-            const freqOp = RightPaneSheetManager.normalizeSoloFreqOp(o.freqOp);
-            const freqVal = RightPaneSheetManager.normalizeSoloFreqVal(o.freqVal);
+            // Không ràng freq W10 — chỉ [] (số lượng witness solo).
             const countOp = RightPaneSheetManager.normalizeSoloFreqOp(o.countOp);
             const countVal = RightPaneSheetManager.normalizeSoloFreqCountVal(o.countVal);
-            const split = this.ensureSoloFreqSplitCache(freqOp, freqVal, countOp, countVal);
+            const split = this.ensureSoloFreqSplitCache('>=', null, countOp, countVal);
             let base;
             if (polarity === 'violate') {
                 base = split.violate;
@@ -2197,6 +2200,37 @@ class RightPaneSheetManager {
                 base = split.hold;
             } else {
                 // normal: mọi kỳ evaluable (T∪F) — mỗi kỳ đều T hoặc F, tô viền ở UI
+                base = split.all;
+            }
+            if (!noteTags.length && !noteTRefs.length) {
+                return base.slice();
+            }
+            for (let b = 0; b < base.length; b++) {
+                const i = base[b];
+                if (noteTags.length > 0 && !this.rowMatchesNoteTagFilter(i, noteTags)) {
+                    continue;
+                }
+                if (noteTRefs.length > 0 && !this.rowMatchesNoteTRefFilter(i, noteTRefs)) {
+                    continue;
+                }
+                indices.push(i);
+            }
+            return indices;
+        }
+
+        if (mode === 'freq') {
+            const o = filterOptions || {};
+            const polarity = o.polarity === 'violate'
+                ? 'violate'
+                : (o.polarity === 'hold' ? 'hold' : 'normal');
+            const bounds = RightPaneSheetManager.normalizeAnswerFreqBounds(o.freqLo, o.freqHi);
+            const split = this.ensureAnswerFreqSplitCache(bounds.lo, bounds.hi);
+            let base;
+            if (polarity === 'violate') {
+                base = split.violate;
+            } else if (polarity === 'hold') {
+                base = split.hold;
+            } else {
                 base = split.all;
             }
             if (!noteTags.length && !noteTRefs.length) {
@@ -4679,6 +4713,126 @@ class RightPaneSheetManager {
             return value <= threshold;
         }
         return value >= threshold;
+    }
+
+    /**
+     * Một đầu khoảng mode Freq (đáp án W10): 0–9.
+     * @param {*} raw
+     * @param {number} [fallback=3]
+     * @returns {number}
+     */
+    static normalizeAnswerFreqVal(raw, fallback = 3) {
+        const n = parseInt(raw, 10);
+        if (!Number.isFinite(n)) {
+            const fb = parseInt(fallback, 10);
+            return Number.isFinite(fb)
+                ? Math.min(9, Math.max(0, fb | 0))
+                : 3;
+        }
+        return Math.min(9, Math.max(0, n | 0));
+    }
+
+    /**
+     * Khoảng [lo;hi] mode Freq — luôn sort lo ≤ hi.
+     * @param {*} rawLo
+     * @param {*} rawHi
+     * @returns {{ lo: number, hi: number }}
+     */
+    static normalizeAnswerFreqBounds(rawLo, rawHi) {
+        let a = RightPaneSheetManager.normalizeAnswerFreqVal(rawLo, 3);
+        let b = RightPaneSheetManager.normalizeAnswerFreqVal(rawHi, a);
+        if (a > b) {
+            const t = a;
+            a = b;
+            b = t;
+        }
+        return { lo: a, hi: b };
+    }
+
+    /**
+     * Mode Freq: tách T/F theo freq W10 của số đáp án trong [lo;hi] (đã sort).
+     * T = ≥1 số đáp án có freq ∈ [lo;hi].
+     * F = kỳ evaluable (đủ W10 + có đáp án) nhưng không thỏa T.
+     * @param {number} [freqLo]
+     * @param {number} [freqHi]
+     * @returns {{ key: string, hold: number[], violate: number[], all: number[], applicable: number, holdSet: Set<number> }}
+     */
+    ensureAnswerFreqSplitCache(freqLo, freqHi) {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        const bounds = RightPaneSheetManager.normalizeAnswerFreqBounds(freqLo, freqHi);
+        const lo = bounds.lo;
+        const hi = bounds.hi;
+        const key = `${n}|${lo}|${hi}`;
+        if (!this._answerFreqSplitCacheMap) {
+            this._answerFreqSplitCacheMap = new Map();
+        }
+        if (this._answerFreqSplitCacheMap.has(key)) {
+            return this._answerFreqSplitCacheMap.get(key);
+        }
+        /** @type {number[]} */
+        const hold = [];
+        /** @type {number[]} */
+        const violate = [];
+        /** @type {number[]} */
+        const all = [];
+        const counts = new Int16Array(36);
+        /** @type {number[][]} */
+        const rowNums = new Array(n);
+        for (let i = 0; i < n; i++) {
+            rowNums[i] = this.isEmptyResultRow(rows[i])
+                ? []
+                : this.parseMainNums(rows[i].result || rows[i].Result || '');
+        }
+        const addRow = (ri, sign) => {
+            if (ri < 0 || ri >= n) {
+                return;
+            }
+            const nums = rowNums[ri];
+            for (let ni = 0; ni < nums.length; ni++) {
+                const v = nums[ni];
+                if (v >= 1 && v <= 35) {
+                    counts[v] += sign;
+                }
+            }
+        };
+        for (let i = 0; i < n; i++) {
+            if (i >= 10 && rowNums[i].length) {
+                const answerNums = rowNums[i];
+                let holds = false;
+                for (let ai = 0; ai < answerNums.length; ai++) {
+                    const num = answerNums[ai];
+                    if (num < 1 || num > 35) {
+                        continue;
+                    }
+                    const f = counts[num] | 0;
+                    if (f >= lo && f <= hi) {
+                        holds = true;
+                        break;
+                    }
+                }
+                all.push(i);
+                if (holds) {
+                    hold.push(i);
+                } else {
+                    violate.push(i);
+                }
+            }
+            addRow(i, 1);
+            if (i >= 10) {
+                addRow(i - 10, -1);
+            }
+        }
+        const out = {
+            key,
+            hold,
+            violate,
+            all,
+            applicable: all.length,
+            holdSet: new Set(hold)
+        };
+        this._answerFreqSplitCacheMap.set(key, out);
+        return out;
     }
 
     /**
