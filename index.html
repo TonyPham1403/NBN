@@ -7277,15 +7277,15 @@
         #filterTableWrap .sheet-data-table td.cell-follow,
         #filterTableWrap .sheet-data-table td.cell-derive,
         #filterTableWrap .sheet-data-table td.cell-result,
-        #filterTableWrap .sheet-data-table thead th:nth-child(1),
-        #filterTableWrap .sheet-data-table thead th:nth-child(2),
-        #filterTableWrap .sheet-data-table thead th:nth-child(3),
-        #filterTableWrap .sheet-data-table thead th:nth-child(4),
-        #filterTableWrap .sheet-data-table thead th:nth-child(5),
-        #filterTableWrap .sheet-data-table thead th:nth-child(6),
-        #filterTableWrap .sheet-data-table thead th:nth-child(7),
-        #filterTableWrap .sheet-data-table thead th:nth-child(8),
-        #filterTableWrap .sheet-data-table thead th:nth-child(9) {
+        #filterTableWrap .sheet-data-table thead th.cell-date-h,
+        #filterTableWrap .sheet-data-table thead th.cell-id-h,
+        #filterTableWrap .sheet-data-table thead th.cell-special-h,
+        #filterTableWrap .sheet-data-table thead th.cell-belly-h,
+        #filterTableWrap .sheet-data-table thead th.cell-trend-h,
+        #filterTableWrap .sheet-data-table thead th.cell-pick-label-h,
+        #filterTableWrap .sheet-data-table thead th.cell-follow-h,
+        #filterTableWrap .sheet-data-table thead th.cell-derive-h,
+        #filterTableWrap .sheet-data-table thead th.cell-result-h {
             white-space: nowrap;
             width: 1%;
         }
@@ -7297,8 +7297,7 @@
         }
 
         #filterTableWrap .sheet-data-table td.cell-note,
-        #filterTableWrap .sheet-data-table thead th:nth-child(9),
-        #filterTableWrap .sheet-data-table thead th:nth-child(10) {
+        #filterTableWrap .sheet-data-table thead th.cell-note-h {
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
@@ -7429,10 +7428,72 @@
             color: #0050ff;
         }
 
-        .sheet-data-table th.cell-special-h,
-        .sheet-data-table th.cell-trend-h,
-        .sheet-data-table th.cell-belly-h {
+        .sheet-data-table th.sheet-col-draggable {
+            cursor: grab;
+            touch-action: none;
+            user-select: none;
+        }
+
+        .sheet-data-table th.sheet-col-fixed {
             cursor: default;
+        }
+
+        /* Ẩn cột nguồn + chèn placeholder cùng chỗ thead/tbody → cột khác tự tránh, không lệch data */
+        .sheet-data-table th.is-col-drag-source,
+        .sheet-data-table td.is-col-drag-source {
+            display: none !important;
+        }
+
+        #tableWrap.is-sheet-col-dragging,
+        #filterTableWrap.is-sheet-col-dragging {
+            cursor: grabbing;
+        }
+
+        #tableWrap.is-sheet-col-dragging .sheet-data-table thead th,
+        #filterTableWrap.is-sheet-col-dragging .sheet-data-table thead th,
+        #tableWrap.is-sheet-col-dragging .sheet-data-table tbody td,
+        #filterTableWrap.is-sheet-col-dragging .sheet-data-table tbody td {
+            transition: none !important;
+        }
+
+        .sheet-data-table th.sheet-col-drag-placeholder,
+        .sheet-data-table td.sheet-col-drag-placeholder {
+            padding: 0 !important;
+            background: #f1f5f9;
+            box-shadow: inset 0 0 0 2px #94a3b8;
+            border-radius: 2px;
+            vertical-align: top;
+            line-height: 0;
+        }
+
+        .sheet-col-drag-ghost {
+            position: fixed;
+            left: 0;
+            top: 0;
+            z-index: 90;
+            margin: 0;
+            padding: 0;
+            pointer-events: none;
+            box-sizing: border-box;
+            will-change: transform;
+            filter: drop-shadow(0 4px 12px rgba(15, 23, 42, 0.18));
+        }
+
+        .sheet-col-drag-ghost-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            box-sizing: border-box;
+            background: #ffffff;
+            border: 1px solid #64748b;
+            border-bottom: 2px solid #64748b;
+            padding: 4px 6px;
+            font-weight: 700;
+            font-size: inherit;
+            color: #0f172a;
+            cursor: grabbing;
         }
 
         #filterTableWrap .sheet-data-table td.cell-trend,
@@ -10360,7 +10421,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
-    <script src="right-pane-sheets.js?v=20261009freqCount"></script>
+    <script src="right-pane-sheets.js?v=20261011colDrag4"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.

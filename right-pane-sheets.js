@@ -1191,7 +1191,90 @@ class RightPaneSheetManager {
         const rows = this.getSourceSheetRows();
         const tail = rows.length ? rows[rows.length - 1] : {};
         const tailId = String(tail.id ?? tail.ID ?? '');
-        return `${rows.length}|${tailId}`;
+        const colOrder = this.getSheetColumnOrder().join(',');
+        return `${rows.length}|${tailId}|cols:${colOrder}`;
+    }
+
+    /** Cột được phép kéo đổi vị trí (result/note/nonexist luôn cuối, không kéo). */
+    static get SHEET_MOVABLE_COLS() {
+        return ['date', 'id', 'special', 'belly', 'trend', 'label', 'follow', 'derive'];
+    }
+
+    static get SHEET_FIXED_COLS() {
+        return ['result', 'note', 'nonexist'];
+    }
+
+    static get SHEET_DEFAULT_COL_ORDER() {
+        return RightPaneSheetManager.SHEET_MOVABLE_COLS.concat(
+            RightPaneSheetManager.SHEET_FIXED_COLS
+        );
+    }
+
+    normalizeSheetColumnOrder(rawOrder) {
+        const movable = RightPaneSheetManager.SHEET_MOVABLE_COLS;
+        const fixed = RightPaneSheetManager.SHEET_FIXED_COLS;
+        const movableSet = new Set(movable);
+        const seen = new Set();
+        /** @type {string[]} */
+        const outMovable = [];
+        const list = Array.isArray(rawOrder) ? rawOrder : [];
+        for (let i = 0; i < list.length; i++) {
+            const key = String(list[i] || '').trim();
+            if (!movableSet.has(key) || seen.has(key)) {
+                continue;
+            }
+            seen.add(key);
+            outMovable.push(key);
+        }
+        for (let i = 0; i < movable.length; i++) {
+            if (!seen.has(movable[i])) {
+                outMovable.push(movable[i]);
+            }
+        }
+        return outMovable.concat(fixed);
+    }
+
+    getSheetColumnOrder() {
+        if (!this._sheetColumnOrder) {
+            this._sheetColumnOrder = RightPaneSheetManager.SHEET_DEFAULT_COL_ORDER.slice();
+        }
+        return this.normalizeSheetColumnOrder(this._sheetColumnOrder);
+    }
+
+    setSheetColumnOrder(rawOrder) {
+        this._sheetColumnOrder = this.normalizeSheetColumnOrder(rawOrder);
+        this.invalidateSheet1TableDomCache();
+        return this._sheetColumnOrder;
+    }
+
+    buildSheetColumnHeaderHtml(col, ctx) {
+        const dragTitle = 'Kéo để đổi thứ tự cột';
+        switch (col) {
+            case 'date':
+                return `<th class="cell-date-h sheet-col-draggable" data-col="date" data-col-drag="1" title="${dragTitle}">date</th>`;
+            case 'id':
+                return `<th class="cell-id-h sheet-col-draggable" data-col="id" data-col-drag="1" title="${dragTitle}">id</th>`;
+            case 'special':
+                return `<th class="cell-special-h sheet-col-draggable" data-col="special" data-col-drag="1" data-special-stats="${ctx.specialStatsAttr}" title="${dragTitle}">special</th>`;
+            case 'belly':
+                return `<th class="cell-belly-h sheet-col-draggable" data-col="belly" data-col-drag="1" data-belly-stats="${ctx.bellyStatsAttr}" title="${dragTitle}">belly</th>`;
+            case 'trend':
+                return `<th class="cell-trend-h sheet-col-draggable" data-col="trend" data-col-drag="1" data-trend-stats="${ctx.trendStatsAttr}" title="${dragTitle}">trend</th>`;
+            case 'label':
+                return `<th class="cell-pick-label-h sheet-col-draggable" data-col="label" data-col-drag="1" title="${dragTitle}">label</th>`;
+            case 'follow':
+                return `<th class="cell-follow-h sheet-col-draggable" data-col="follow" data-col-drag="1" title="${dragTitle}">follow</th>`;
+            case 'derive':
+                return `<th class="cell-derive-h sheet-col-draggable" data-col="derive" data-col-drag="1" title="${dragTitle}">derive</th>`;
+            case 'result':
+                return '<th class="cell-result-h sheet-col-fixed" data-col="result">result</th>';
+            case 'note':
+                return '<th class="cell-note-h sheet-col-fixed" data-col="note">note</th>';
+            case 'nonexist':
+                return '<th class="cell-nonexist-h sheet-col-fixed" data-col="nonexist">nonexist</th>';
+            default:
+                return '';
+        }
     }
 
     getActiveWindowRangeCacheKey() {
@@ -1252,6 +1335,7 @@ class RightPaneSheetManager {
             return false;
         }
         tableWrap.innerHTML = this._sheet1DomCache.html;
+        this.bindSheetColumnDrag(tableWrap);
         if (options.bindKeyboard !== false) {
             this.bindSourceSheetKeyboardNavigation(tableWrap);
         }
@@ -6895,15 +6979,17 @@ class RightPaneSheetManager {
             }
             : this.activeWindowRange;
         const pickDecorMaps = this.buildNonexistPickDecorationMaps(focusForNxDecor, decorWin);
-
-        let html = '<table class="sheet-data-table sheet1-source-table"><thead><tr>'
-            + '<th>date</th><th>id</th>'
-            + `<th class="cell-special-h" data-special-stats="${specialStatsAttr}">special</th>`
-            + `<th class="cell-belly-h" data-belly-stats="${bellyStatsAttr}">belly</th>`
-            + `<th class="cell-trend-h" data-trend-stats="${trendStatsAttr}">trend</th>`
-            + '<th class="cell-pick-label-h">label</th><th class="cell-follow-h">follow</th>'
-            + '<th class="cell-derive-h">derive</th>'
-            + '<th>result</th><th>note</th><th>nonexist</th></tr></thead><tbody>';
+        const colOrder = this.getSheetColumnOrder();
+        const headerCtx = {
+            specialStatsAttr,
+            bellyStatsAttr,
+            trendStatsAttr
+        };
+        let html = '<table class="sheet-data-table sheet1-source-table"><thead><tr>';
+        for (let ci = 0; ci < colOrder.length; ci++) {
+            html += this.buildSheetColumnHeaderHtml(colOrder[ci], headerCtx);
+        }
+        html += '</tr></thead><tbody>';
 
         for (const i of rowIndices) {
             const row = displayRows[i];
@@ -7010,27 +7096,402 @@ class RightPaneSheetManager {
                 ? `<span class="cell-belly-val cell-belly-val--${bellyIoCls}"${bellyIo === '?' ? ' style="color:#ffdd00"' : ''}>${bellyIoTxt}</span>`
                 : '';
 
-            html += `<tr data-idx="${i}" class="data-row${activeClass}" data-has-result="${!!result}" data-empty="${isEmptyResultRow ? '1' : '0'}">
-                <td class="cell-date"${dateBg}>${date}</td>
-                <td class="cell-id"${idStyle}>${id}</td>
-                <td class="cell-special">${specialHtml}</td>
-                <td class="cell-belly">${bellyHtml}</td>
-                <td class="cell-trend">${trendHtml}</td>
-                <td class="cell-pick-label">${pickLabelHtml}</td>
-                <td class="${followTdClass}"${followTdTitle}>${followHtml}</td>
-                <td class="cell-derive"${deriveTdTitle}>${deriveHtml}</td>
-                <td class="${resultCellClass}">${prevRecallFoldHit}${soloFreqFoldHit}${resultHtml}</td>
-                <td class="cell-note"${noteStyle}>${noteHtml}</td>
-                <td class="cell-nonexist">${nonexistHtml}</td>
-            </tr>`;
+            /** @type {Record<string, string>} */
+            const cellByCol = {
+                date: `<td class="cell-date" data-col="date"${dateBg}>${date}</td>`,
+                id: `<td class="cell-id" data-col="id"${idStyle}>${id}</td>`,
+                special: `<td class="cell-special" data-col="special">${specialHtml}</td>`,
+                belly: `<td class="cell-belly" data-col="belly">${bellyHtml}</td>`,
+                trend: `<td class="cell-trend" data-col="trend">${trendHtml}</td>`,
+                label: `<td class="cell-pick-label" data-col="label">${pickLabelHtml}</td>`,
+                follow: `<td class="${followTdClass}" data-col="follow"${followTdTitle}>${followHtml}</td>`,
+                derive: `<td class="cell-derive" data-col="derive"${deriveTdTitle}>${deriveHtml}</td>`,
+                result: `<td class="${resultCellClass}" data-col="result">${prevRecallFoldHit}${soloFreqFoldHit}${resultHtml}</td>`,
+                note: `<td class="cell-note" data-col="note"${noteStyle}>${noteHtml}</td>`,
+                nonexist: `<td class="cell-nonexist" data-col="nonexist">${nonexistHtml}</td>`
+            };
+
+            html += `<tr data-idx="${i}" class="data-row${activeClass}" data-has-result="${!!result}" data-empty="${isEmptyResultRow ? '1' : '0'}">`;
+            for (let ci = 0; ci < colOrder.length; ci++) {
+                html += cellByCol[colOrder[ci]] || '';
+            }
+            html += '</tr>';
         }
         html += '</tbody></table>';
         tableWrap.innerHTML = html;
 
+        try {
+            tableWrap.__sourceSheetRenderArgs = {
+                rows: displayRows,
+                options: Object.assign({}, options, { indices: rowIndices.slice() })
+            };
+        } catch (eArgs) { /* ignore */ }
+
         this.bindSourceSheetTableAfterRender(tableWrap, options);
+        this.bindSheetColumnDrag(tableWrap);
         if (this.activeSheet === 'sheet1' && tableWrap.id === 'tableWrap') {
             this.cacheSheet1TableDom(tableWrap);
         }
+    }
+
+    clearSheetColPointerDragUi(tableWrap) {
+        const wrap = tableWrap || (this._sheetColPointerDrag && this._sheetColPointerDrag.tableWrap);
+        if (wrap) {
+            wrap.classList.remove('is-sheet-col-dragging');
+            wrap.querySelectorAll('.is-col-drag-source').forEach((el) => {
+                el.classList.remove('is-col-drag-source');
+            });
+            wrap.querySelectorAll('.sheet-col-drag-placeholder').forEach((el) => {
+                try { el.remove(); } catch (err) { /* ignore */ }
+            });
+        }
+        if (this._sheetColPointerDrag) {
+            if (this._sheetColPointerDrag.raf) {
+                cancelAnimationFrame(this._sheetColPointerDrag.raf);
+            }
+            if (this._sheetColPointerDrag.ghostEl) {
+                try { this._sheetColPointerDrag.ghostEl.remove(); } catch (err) { /* ignore */ }
+            }
+        }
+        this._sheetColPointerDrag = null;
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+    }
+
+    /** th kéo được còn lại (đã loại cột source + placeholder). */
+    getSheetColMovableThOthers(table, fromKey) {
+        const list = [];
+        const ths = table.querySelectorAll('thead th.sheet-col-draggable');
+        for (let i = 0; i < ths.length; i++) {
+            const th = ths[i];
+            if (th.classList.contains('is-col-drag-source')) {
+                continue;
+            }
+            if ((th.getAttribute('data-col') || '') === fromKey) {
+                continue;
+            }
+            list.push(th);
+        }
+        return list;
+    }
+
+    getSheetColInsertIndex(clientX, table, fromKey) {
+        const ths = this.getSheetColMovableThOthers(table, fromKey);
+        for (let i = 0; i < ths.length; i++) {
+            const rect = ths[i].getBoundingClientRect();
+            if (clientX < rect.left + rect.width * 0.5) {
+                return i;
+            }
+        }
+        return ths.length;
+    }
+
+    createSheetColDragGhost(th, tableWrap) {
+        const ghost = document.createElement('div');
+        ghost.className = 'sheet-col-drag-ghost';
+        const label = document.createElement('div');
+        label.className = 'sheet-col-drag-ghost-label';
+        label.textContent = String(th.textContent || '').trim();
+        ghost.appendChild(label);
+        const rect = th.getBoundingClientRect();
+        ghost.style.width = `${Math.max(36, rect.width)}px`;
+        ghost.style.height = `${Math.max(22, rect.height)}px`;
+        tableWrap.appendChild(ghost);
+        return ghost;
+    }
+
+    /**
+     * Placeholder cột (thead + mọi hàng) — cùng width cột đang kéo để các cột khác tự tránh,
+     * giữ thead/tbody thẳng hàng (khác với chỉ ẩn cột → data note/nonexist lệch).
+     */
+    createSheetColPlaceholders(table, colWidth) {
+        const w = `${Math.max(28, colWidth | 0)}px`;
+        const th = document.createElement('th');
+        th.className = 'sheet-col-drag-placeholder';
+        th.setAttribute('aria-hidden', 'true');
+        th.style.width = w;
+        th.style.minWidth = w;
+        th.style.maxWidth = w;
+
+        /** @type {HTMLTableCellElement[]} */
+        const tds = [];
+        const rows = table.querySelectorAll('tbody tr');
+        for (let i = 0; i < rows.length; i++) {
+            const td = document.createElement('td');
+            td.className = 'sheet-col-drag-placeholder';
+            td.setAttribute('aria-hidden', 'true');
+            td.style.width = w;
+            td.style.minWidth = w;
+            td.style.maxWidth = w;
+            tds.push(td);
+        }
+        return { th, tds };
+    }
+
+    repositionSheetColPlaceholders(drag) {
+        const table = drag.table;
+        const placeholderTh = drag.placeholderTh;
+        const placeholderTds = drag.placeholderTds;
+        const theadRow = table && table.querySelector('thead tr');
+        if (!table || !theadRow || !placeholderTh || !placeholderTds) {
+            return;
+        }
+        const others = this.getSheetColMovableThOthers(table, drag.fromKey);
+        const firstFixedTh = theadRow.querySelector('th.sheet-col-fixed');
+        const uiInsert = drag.uiInsert;
+        /** @type {Element|null} */
+        let beforeTh = null;
+        if (uiInsert >= others.length) {
+            beforeTh = firstFixedTh;
+        } else {
+            beforeTh = others[uiInsert];
+        }
+        if (beforeTh) {
+            theadRow.insertBefore(placeholderTh, beforeTh);
+        } else {
+            theadRow.appendChild(placeholderTh);
+        }
+
+        const beforeCol = beforeTh ? (beforeTh.getAttribute('data-col') || '') : '';
+        const rows = table.querySelectorAll('tbody tr');
+        const n = Math.min(rows.length, placeholderTds.length);
+        for (let i = 0; i < n; i++) {
+            const tr = rows[i];
+            const td = placeholderTds[i];
+            let beforeTd = null;
+            if (beforeCol) {
+                beforeTd = tr.querySelector(`td[data-col="${beforeCol}"]`);
+            }
+            if (beforeTd) {
+                tr.insertBefore(td, beforeTd);
+            } else {
+                tr.appendChild(td);
+            }
+        }
+    }
+
+    positionSheetColDragGhost(drag) {
+        const ghost = drag.ghostEl;
+        if (!ghost) {
+            return;
+        }
+        let left = drag.clientX - drag.offsetX;
+        let top = drag.headerTop;
+        if (drag.placeholderTh && drag.placeholderTh.isConnected) {
+            const slot = drag.placeholderTh.getBoundingClientRect();
+            top = slot.top;
+        }
+        // Bounds live theo DOM lúc kéo (sau khi cột khác tránh chỗ) — cho ghost sát mép result.
+        const others = this.getSheetColMovableThOthers(drag.table, drag.fromKey);
+        const firstFixed = drag.table
+            ? drag.table.querySelector('thead th.sheet-col-fixed')
+            : null;
+        let minLeft = drag.movableBounds.left - drag.colWidth * 0.5;
+        let maxLeft = drag.movableBounds.right;
+        if (others.length) {
+            minLeft = others[0].getBoundingClientRect().left - drag.colWidth * 0.5;
+        }
+        if (firstFixed) {
+            // Sát mép trái cột result (không trừ 0.35*width — trước đó chặn sớm).
+            maxLeft = firstFixed.getBoundingClientRect().left - 1;
+        } else if (drag.placeholderTh && drag.placeholderTh.isConnected) {
+            maxLeft = drag.placeholderTh.getBoundingClientRect().left;
+        }
+        if (left < minLeft) {
+            left = minLeft;
+        }
+        if (left > maxLeft) {
+            left = maxLeft;
+        }
+        ghost.style.transform = `translate3d(${left}px, ${top}px, 0)`;
+    }
+
+    tickSheetColDrag() {
+        const drag = this._sheetColPointerDrag;
+        if (!drag || !drag.table) {
+            return;
+        }
+        drag.raf = 0;
+        const uiInsert = this.getSheetColInsertIndex(drag.clientX, drag.table, drag.fromKey);
+        if (uiInsert !== drag.uiInsert) {
+            drag.uiInsert = uiInsert;
+            this.repositionSheetColPlaceholders(drag);
+        }
+        this.positionSheetColDragGhost(drag);
+    }
+
+    onSheetColDragPointerDown(e, tableWrap) {
+        if (e.button !== 0) {
+            return;
+        }
+        const th = e.target.closest('th[data-col-drag="1"]');
+        if (!th || !tableWrap.contains(th)) {
+            return;
+        }
+        const table = th.closest('table.sheet1-source-table');
+        if (!table) {
+            return;
+        }
+        const colKey = th.getAttribute('data-col') || '';
+        const movable = RightPaneSheetManager.SHEET_MOVABLE_COLS;
+        if (!movable.includes(colKey)) {
+            return;
+        }
+        e.preventDefault();
+        e.stopPropagation();
+
+        const order = this.getSheetColumnOrder();
+        const movableOrder = order.filter((c) => movable.includes(c));
+        const fromIdx = movableOrder.indexOf(colKey);
+        if (fromIdx < 0) {
+            return;
+        }
+
+        const thRect = th.getBoundingClientRect();
+        const colWidth = th.offsetWidth || thRect.width || 48;
+        const ghostEl = this.createSheetColDragGhost(th, tableWrap);
+        const placeholders = this.createSheetColPlaceholders(table, colWidth);
+
+        th.classList.add('is-col-drag-source');
+        table.querySelectorAll(`td[data-col="${colKey}"]`).forEach((td) => {
+            td.classList.add('is-col-drag-source');
+        });
+        tableWrap.classList.add('is-sheet-col-dragging');
+        document.body.style.userSelect = 'none';
+        document.body.style.cursor = 'grabbing';
+
+        // Bounds đo TRƯỚC khi ẩn source + chèn placeholder.
+        let boundsLeft = thRect.left;
+        let boundsRight = thRect.right;
+        table.querySelectorAll('thead th.sheet-col-draggable').forEach((el) => {
+            const r = el.getBoundingClientRect();
+            if (r.left < boundsLeft) {
+                boundsLeft = r.left;
+            }
+            if (r.right > boundsRight) {
+                boundsRight = r.right;
+            }
+        });
+        const firstFixed = table.querySelector('thead th.sheet-col-fixed');
+        if (firstFixed) {
+            const fr = firstFixed.getBoundingClientRect();
+            if (fr.left > boundsRight) {
+                boundsRight = fr.left;
+            }
+        }
+
+        this._sheetColPointerDrag = {
+            tableWrap,
+            table,
+            fromKey: colKey,
+            fromIdx,
+            uiInsert: fromIdx,
+            ghostEl,
+            placeholderTh: placeholders.th,
+            placeholderTds: placeholders.tds,
+            colWidth,
+            offsetX: e.clientX - thRect.left,
+            headerTop: thRect.top,
+            clientX: e.clientX,
+            clientY: e.clientY,
+            movableBounds: { left: boundsLeft, right: boundsRight },
+            raf: 0
+        };
+        this.repositionSheetColPlaceholders(this._sheetColPointerDrag);
+        this.positionSheetColDragGhost(this._sheetColPointerDrag);
+
+        const move = (ev) => {
+            const drag = this._sheetColPointerDrag;
+            if (!drag) {
+                return;
+            }
+            drag.clientX = ev.clientX;
+            drag.clientY = ev.clientY;
+            if (drag.raf) {
+                return;
+            }
+            drag.raf = requestAnimationFrame(() => this.tickSheetColDrag());
+        };
+        const up = (ev) => {
+            try {
+                th.releasePointerCapture(ev.pointerId);
+            } catch (errRel) { /* ignore */ }
+            document.removeEventListener('pointermove', move);
+            document.removeEventListener('pointerup', up);
+            document.removeEventListener('pointercancel', up);
+            this.onSheetColDragPointerUp();
+        };
+        try {
+            th.setPointerCapture(e.pointerId);
+        } catch (errCap) { /* ignore */ }
+        document.addEventListener('pointermove', move);
+        document.addEventListener('pointerup', up);
+        document.addEventListener('pointercancel', up);
+    }
+
+    onSheetColDragPointerUp() {
+        const drag = this._sheetColPointerDrag;
+        if (!drag) {
+            return;
+        }
+        if (drag.raf) {
+            cancelAnimationFrame(drag.raf);
+            drag.raf = 0;
+        }
+        const uiInsert = this.getSheetColInsertIndex(drag.clientX, drag.table, drag.fromKey);
+        const fromIdx = drag.fromIdx;
+        const tableWrap = drag.tableWrap;
+        this.clearSheetColPointerDragUi(tableWrap);
+
+        const movable = RightPaneSheetManager.SHEET_MOVABLE_COLS;
+        const order = this.getSheetColumnOrder();
+        const movableOrder = order.filter((c) => movable.includes(c));
+        if (fromIdx < 0 || fromIdx >= movableOrder.length) {
+            return;
+        }
+        // uiInsert đã tính trên các cột còn lại (đã loại cột đang kéo).
+        const item = movableOrder.splice(fromIdx, 1)[0];
+        const insertAt = Math.max(0, Math.min(uiInsert, movableOrder.length));
+        movableOrder.splice(insertAt, 0, item);
+        const nextOrder = movableOrder.concat(RightPaneSheetManager.SHEET_FIXED_COLS);
+        if (nextOrder.join(',') === order.join(',')) {
+            return;
+        }
+        this.setSheetColumnOrder(nextOrder);
+        this.rerenderSourceSheetsAfterColumnReorder(tableWrap);
+    }
+
+    rerenderSourceSheetsAfterColumnReorder(primaryWrap) {
+        const wraps = [];
+        if (primaryWrap) {
+            wraps.push(primaryWrap);
+        }
+        const main = typeof document !== 'undefined' ? document.getElementById('tableWrap') : null;
+        const filter = typeof document !== 'undefined' ? document.getElementById('filterTableWrap') : null;
+        [main, filter].forEach((w) => {
+            if (w && wraps.indexOf(w) < 0) {
+                wraps.push(w);
+            }
+        });
+        for (let i = 0; i < wraps.length; i++) {
+            const wrap = wraps[i];
+            const args = wrap.__sourceSheetRenderArgs;
+            if (args && args.rows) {
+                this.renderSourceSheet(wrap, args.rows, args.options || {});
+            } else if (wrap.id === 'tableWrap' && this.activeSheet === 'sheet1') {
+                this.renderActiveSheet();
+            }
+        }
+    }
+
+    bindSheetColumnDrag(tableWrap) {
+        if (!tableWrap || tableWrap.dataset.sheetColDragBound === '1') {
+            return;
+        }
+        tableWrap.dataset.sheetColDragBound = '1';
+        tableWrap.addEventListener('pointerdown', (event) => {
+            this.onSheetColDragPointerDown(event, tableWrap);
+        });
     }
 
     /**
