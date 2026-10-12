@@ -7055,7 +7055,7 @@
             display: none !important;
         }
 
-        /* PHASE1 % viền vàng (relative): sau các bước xanh */
+        /* PHASE1 % viền đỏ (miss / không thỏa): giống Freq F */
         #filterTableWrap.filter-popup-phase1-yu-only tbody tr[data-idx]:not(.filter-popup-phase1-miss-hit) {
             display: none !important;
         }
@@ -7073,9 +7073,9 @@
         }
 
         #filterPopupPhase1OverlapPct.is-phase1-miss-pct {
-            background: #eab308;
-            color: #111111;
-            border-color: #ca8a04;
+            background: #ef4444;
+            color: #ffffff;
+            border-color: #dc2626;
         }
 
         .filter-popup-phase1-mech.hidden {
@@ -7157,13 +7157,13 @@
             z-index: 40;
         }
 
-        /* PHASE1 relative: có số always-above/same/below nhưng không nằm trong đáp án */
+        /* PHASE1: không thỏa cơ chế đang bật — viền đỏ (giống Freq/solo_freq F) */
         #filterTableWrap tr.filter-popup-phase1-miss-hit:not(.filter-popup-row-focus):not(.filter-popup-posnfreq-submit-hit) td {
-            box-shadow: inset 0 0 0 2px #eab308;
+            box-shadow: inset 0 0 0 2px #ef4444;
         }
 
         #filterTableWrap tr.filter-popup-phase1-miss-hit.filter-popup-row-focus:not(.filter-popup-posnfreq-submit-hit) td {
-            box-shadow: inset 0 0 0 2px #eab308;
+            box-shadow: inset 0 0 0 2px #ef4444;
         }
 
         #filterTableWrap.filter-popup-follow-determined-only tbody tr[data-idx]:not(.filter-popup-follow-determined-hit) {
@@ -7281,6 +7281,7 @@
         #filterTableWrap .sheet-data-table td.cell-belly,
         #filterTableWrap .sheet-data-table td.cell-pick-label,
         #filterTableWrap .sheet-data-table td.cell-follow,
+        #filterTableWrap .sheet-data-table td.cell-p1-relative,
         #filterTableWrap .sheet-data-table td.cell-derive,
         #filterTableWrap .sheet-data-table td.cell-result,
         #filterTableWrap .sheet-data-table thead th.cell-date-h,
@@ -7290,6 +7291,7 @@
         #filterTableWrap .sheet-data-table thead th.cell-trend-h,
         #filterTableWrap .sheet-data-table thead th.cell-pick-label-h,
         #filterTableWrap .sheet-data-table thead th.cell-follow-h,
+        #filterTableWrap .sheet-data-table thead th.cell-p1-relative-h,
         #filterTableWrap .sheet-data-table thead th.cell-derive-h,
         #filterTableWrap .sheet-data-table thead th.cell-result-h {
             white-space: nowrap;
@@ -7561,7 +7563,9 @@
         }
 
         .sheet-data-table td.cell-follow,
-        .sheet-data-table th.cell-follow-h {
+        .sheet-data-table th.cell-follow-h,
+        .sheet-data-table td.cell-p1-relative,
+        .sheet-data-table th.cell-p1-relative-h {
             padding: 2px 1px;
             text-align: center;
             vertical-align: middle;
@@ -7569,6 +7573,11 @@
             width: 1%;
             font-weight: 700;
             font-variant-numeric: tabular-nums;
+        }
+
+        .sheet-data-table .cell-p1-relative-val {
+            font-weight: 800;
+            letter-spacing: 0.02em;
         }
 
         .sheet-data-table .cell-follow-undetermined {
@@ -10253,8 +10262,8 @@
                         aria-label="Lọc mẫu TRACKING T / hợp / I / O / ?">T 0%</button>
                     <button type="button" id="filterPopupPhase1OverlapPct"
                         class="filter-popup-posnfreq-overlap-pct is-phase1-pct-btn" hidden aria-pressed="false"
-                        title="T = hiện đủ. Nhấn: T → (hợp xanh→vàng) → A→YA → S→YS → B→YB (relative). Xanh = trong đáp án; vàng = thỏa quan hệ nhưng không trong đáp án."
-                        aria-label="Lọc mẫu PHASE1 T / xanh / vàng">T 0%</button>
+                        title="T = hiện đủ. Nhấn: T → hợp U → A/S/B(/N). Xanh = thỏa cơ chế đang bật; đỏ = không thỏa (giống Freq)."
+                        aria-label="Lọc mẫu PHASE1 T / xanh / đỏ">T 0%</button>
                     <button type="button" id="filterPopupP1DistResultPct"
                         class="filter-popup-posnfreq-overlap-pct is-p1-dist-result-pct-btn" hidden aria-pressed="false"
                         title="R = con của khối P1_dist. Chữ trong [a;b] trỏ nhóm pos. Nhấn: khớp → bù đỏ → đủ."
@@ -10460,7 +10469,7 @@
     <script src="presence-config.js"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
-    <script src="right-pane-sheets.js?v=20261012tail2Bracket"></script>
+    <script src="right-pane-sheets.js?v=20261012p1rel"></script>
     <script src="answer-popup.js?v=20250621"></script>
     <script>
         /* Mobile: khung thiết kế ngang + scale theo chiều cao; PC bỏ qua.
@@ -23547,20 +23556,13 @@ function getFilterNoteTRefMaxSelections(mode) {
                 mech.push('none');
             }
             // Chỉ 1 cơ chế: bỏ bước hợp `u` (nhãn trùng A/S/B/N → toggle A hai lần).
-            // relative: xanh rồi vàng liền cặp — u→yu, A→YA, S→YS, B→YB (không dồn vàng cuối).
+            // relative: chỉ xanh/đỏ như Freq — không còn bước vàng YA/YS/YB.
             const modes = ['t'];
             if (mech.length >= 2) {
                 modes.push('u');
-                if (relative) {
-                    modes.push('yu');
-                }
             }
             for (let i = 0; i < mech.length; i++) {
-                const m = mech[i];
-                modes.push(m);
-                if (relative && (m === 'above' || m === 'same' || m === 'below')) {
-                    modes.push('y' + m);
-                }
+                modes.push(mech[i]);
             }
             return modes;
         }
@@ -32609,13 +32611,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                 const sameHit = !!(filterPhase1Same && rel && rel.same);
                 const belowHit = !!(filterPhase1Below && rel && rel.below);
                 const noneHit = !!(!relative && filterPhase1None && rel && rel.none);
-                // relative: số thỏa quan hệ nhưng không nằm trong đáp án → viền vàng
-                const aboveMiss = !!(relative && filterPhase1Above && rel && rel.aboveOut);
-                const sameMiss = !!(relative && filterPhase1Same && rel && rel.sameOut);
-                const belowMiss = !!(relative && filterPhase1Below && rel && rel.belowOut);
                 const anyGreen = aboveHit || sameHit || belowHit || noneHit;
-                const anyMiss = aboveMiss || sameMiss || belowMiss;
-                // Class A/S/B/N + đếm % xanh; vàng-only gắn miss (+ per-mech) cho bước % YA/YS/YB.
+                // Class A/S/B/N + đếm % xanh; không xanh → viền đỏ (giống Freq T/F).
                 if (aboveHit) {
                     tr.classList.add('filter-popup-phase1-above-hit');
                     aboveCount++;
@@ -32635,18 +32632,18 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (anyGreen) {
                     tr.classList.add('filter-popup-posnfreq-submit-hit');
                     unionCount++;
-                } else if (anyMiss) {
+                } else if (mechActive) {
                     tr.classList.add('filter-popup-phase1-miss-hit');
                     missUnionCount++;
-                    if (aboveMiss) {
+                    if (filterPhase1Above && !aboveHit) {
                         tr.classList.add('filter-popup-phase1-above-miss');
                         aboveMissCount++;
                     }
-                    if (sameMiss) {
+                    if (filterPhase1Same && !sameHit) {
                         tr.classList.add('filter-popup-phase1-same-miss');
                         sameMissCount++;
                     }
-                    if (belowMiss) {
+                    if (filterPhase1Below && !belowHit) {
                         tr.classList.add('filter-popup-phase1-below-miss');
                         belowMissCount++;
                     }

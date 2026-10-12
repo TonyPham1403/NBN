@@ -1206,7 +1206,7 @@ class RightPaneSheetManager {
 
     /** Cột được phép kéo đổi vị trí (result/note/nonexist luôn cuối, không kéo). */
     static get SHEET_MOVABLE_COLS() {
-        return ['date', 'id', 'special', 'belly', 'trend', 'label', 'follow', 'derive'];
+        return ['date', 'id', 'special', 'belly', 'trend', 'label', 'follow', 'p1_relative', 'derive'];
     }
 
     static get SHEET_FIXED_COLS() {
@@ -1217,6 +1217,28 @@ class RightPaneSheetManager {
         return RightPaneSheetManager.SHEET_MOVABLE_COLS.concat(
             RightPaneSheetManager.SHEET_FIXED_COLS
         );
+    }
+
+    /**
+     * Nhãn P1_relative từ quan hệ relative trong đáp án: A/S/B ghép theo thứ tự cố định.
+     * @param {{ above?: boolean, same?: boolean, below?: boolean }|null|undefined} rel
+     * @returns {string}
+     */
+    static formatP1RelativeLabel(rel) {
+        if (!rel) {
+            return '';
+        }
+        let s = '';
+        if (rel.above) {
+            s += 'A';
+        }
+        if (rel.same) {
+            s += 'S';
+        }
+        if (rel.below) {
+            s += 'B';
+        }
+        return s;
     }
 
     normalizeSheetColumnOrder(rawOrder) {
@@ -1235,10 +1257,21 @@ class RightPaneSheetManager {
             seen.add(key);
             outMovable.push(key);
         }
+        // Cột mới: chèn đúng vị trí default (sau cột đứng trước trong SHEET_MOVABLE_COLS).
         for (let i = 0; i < movable.length; i++) {
-            if (!seen.has(movable[i])) {
-                outMovable.push(movable[i]);
+            if (seen.has(movable[i])) {
+                continue;
             }
+            let insertAt = outMovable.length;
+            for (let j = i - 1; j >= 0; j--) {
+                const prevIdx = outMovable.indexOf(movable[j]);
+                if (prevIdx >= 0) {
+                    insertAt = prevIdx + 1;
+                    break;
+                }
+            }
+            outMovable.splice(insertAt, 0, movable[i]);
+            seen.add(movable[i]);
         }
         return outMovable.concat(fixed);
     }
@@ -1273,6 +1306,8 @@ class RightPaneSheetManager {
                 return `<th class="cell-pick-label-h sheet-col-draggable" data-col="label" data-col-drag="1" title="${dragTitle}">label</th>`;
             case 'follow':
                 return `<th class="cell-follow-h sheet-col-draggable" data-col="follow" data-col-drag="1" title="${dragTitle}">follow</th>`;
+            case 'p1_relative':
+                return `<th class="cell-p1-relative-h sheet-col-draggable" data-col="p1_relative" data-col-drag="1" title="${dragTitle}">P1rel</th>`;
             case 'derive':
                 return `<th class="cell-derive-h sheet-col-draggable" data-col="derive" data-col-drag="1" title="${dragTitle}">derive</th>`;
             case 'result':
@@ -7121,10 +7156,13 @@ class RightPaneSheetManager {
         const specialTrends = this.getSheet1SpecialPickTrends(displayRows);
         // Kỳ đáp án thỏa 3-tail → viền xanh lá ô follow (dùng cache filter indices).
         const tail3HitIndexSet = new Set(this.ensureTail3FilterIndicesCache());
-        // follow/derive: 1 pass cache — tránh enumerate 2 lần × mọi hàng lúc render.
+        // follow/derive/P1_relative: 1 pass cache — tránh enumerate 2 lần × mọi hàng lúc render.
         const sourceRowsRef = this.getSourceSheetRows();
         const tail3StarCellCache = this.ensureTail3StarCellCache();
         const useStarCache = displayRows === sourceRowsRef;
+        const p1RelativeCache = useStarCache
+            ? this.ensurePhase1FilterCache('relative')
+            : null;
         const trendDetailed = this.countSheet1SpecialPickTrendsDetailed(specialTrends, rowIndices);
         const trendStatsAttr = this.encodeSheet1TrendStatsTooltipAttr(trendDetailed);
         const specialBellyIo = this.getSheet1SpecialPickBellyIo(displayRows);
@@ -7241,6 +7279,18 @@ class RightPaneSheetManager {
             const deriveTdTitle = (deriveValue && deriveValue !== '?')
                 ? ` title="Đáp án X (phải mũi tên ★): ${this.escapeHtml(deriveValue)}"`
                 : '';
+            const p1Rel = isEmptyResultRow
+                ? null
+                : (p1RelativeCache
+                    ? (p1RelativeCache[i] || null)
+                    : this.computePhase1RelativeFilterRelation(i));
+            const p1RelativeLabel = RightPaneSheetManager.formatP1RelativeLabel(p1Rel);
+            const p1RelativeHtml = p1RelativeLabel
+                ? `<span class="cell-p1-relative-val">${p1RelativeLabel}</span>`
+                : '';
+            const p1RelativeTdTitle = p1RelativeLabel
+                ? ` title="PHASE1 relative trong đáp án: ${p1RelativeLabel}"`
+                : '';
             const specialKind = specialKinds[i] || '';
             const specialHtml = specialKind
                 ? `<span class="cell-special-val cell-special-val--${specialKind}">${String(specialKind).toUpperCase()}</span>`
@@ -7269,6 +7319,7 @@ class RightPaneSheetManager {
                 trend: `<td class="cell-trend" data-col="trend">${trendHtml}</td>`,
                 label: `<td class="cell-pick-label" data-col="label">${pickLabelHtml}</td>`,
                 follow: `<td class="${followTdClass}" data-col="follow"${followTdTitle}>${followHtml}</td>`,
+                p1_relative: `<td class="cell-p1-relative" data-col="p1_relative"${p1RelativeTdTitle}>${p1RelativeHtml}</td>`,
                 derive: `<td class="cell-derive" data-col="derive"${deriveTdTitle}>${deriveHtml}</td>`,
                 result: `<td class="${resultCellClass}" data-col="result">${prevRecallFoldHit}${soloFreqFoldHit}${resultHtml}</td>`,
                 note: `<td class="cell-note" data-col="note"${noteStyle}>${noteHtml}</td>`,
@@ -15158,7 +15209,7 @@ class RightPaneSheetManager {
      * Relative: số R (freq≥2) “luôn” nằm trên/cùng/dưới số phase1 P trên cửa sổ chuỗi.
      * ABOVE: mọi lần R ở Chuỗi L thì P ở L−1 (vd 321: 34@10/6 → 30@9/5).
      * above/same/below = R nằm trong đáp án (viền xanh);
-     * aboveOut/sameOut/belowOut = R thỏa quan hệ nhưng không nằm trong đáp án (viền vàng).
+     * aboveOut/sameOut/belowOut = R thỏa quan hệ nhưng không nằm trong đáp án (cờ phụ; UI chỉ tô đỏ khi không xanh).
      */
     computePhase1RelativeFilterRelation(rowIndex) {
         const empty = {
