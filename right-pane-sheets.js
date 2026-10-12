@@ -483,6 +483,11 @@ class RightPaneSheetManager {
         this._tail3FilterIndicesCacheRowLen = 0;
         this._tail3EvaluableIndicesCache = null;
         this._tail3EvaluableIndicesCacheRowLen = 0;
+        /** Cache 2-tail (cặp W20 trong đáp án). */
+        this._tail2EvaluableIndicesCache = null;
+        this._tail2EvaluableIndicesCacheRowLen = 0;
+        this._tail2AnswerPairsCache = null;
+        this._tail2AnswerPairsCacheRowLen = 0;
         /** Cache follow/derive/★ theo kỳ — tránh enumerate 5×35 trên mọi hàng lúc render. */
         this._tail3StarCellCache = null;
         this._tail3StarCellCacheRowLen = 0;
@@ -662,6 +667,10 @@ class RightPaneSheetManager {
         this._tail3FilterIndicesCacheRowLen = 0;
         this._tail3EvaluableIndicesCache = null;
         this._tail3EvaluableIndicesCacheRowLen = 0;
+        this._tail2EvaluableIndicesCache = null;
+        this._tail2EvaluableIndicesCacheRowLen = 0;
+        this._tail2AnswerPairsCache = null;
+        this._tail2AnswerPairsCacheRowLen = 0;
         this._tail3StarCellCache = null;
         this._tail3StarCellCacheRowLen = 0;
         this._tail3StarCellCacheVer = 0;
@@ -2340,6 +2349,11 @@ class RightPaneSheetManager {
         if (mode === 'tail3') {
             // Mẫu = mọi kỳ evaluable (đủ lookback + có đáp án). F% / freq chỉ làm mờ, không ẩn.
             return this.ensureTail3EvaluableIndicesCache().slice();
+        }
+
+        if (mode === 'tail2') {
+            // 2-tail: mẫu = đủ W20 + có đáp án (cùng evaluable 3-tail).
+            return this.ensureTail2EvaluableIndicesCache().slice();
         }
 
         if (mode === 'conn3') {
@@ -4173,6 +4187,156 @@ class RightPaneSheetManager {
         }
         const focusRow = rows[i];
         return !!(focusRow && !this.isEmptyResultRow(focusRow));
+    }
+
+    /** 2-tail dùng cùng điều kiện evaluable (đủ W20 + có đáp án). */
+    rowIsTail2Evaluable(rows, rowIndex) {
+        return this.rowIsTail3Evaluable(rows, rowIndex);
+    }
+
+    /**
+     * Cặp 2-tail trong đáp án kỳ focus: cả hai đầu ∈ đáp án, trên W20 ≥2 kề non-overlap.
+     * @returns {{ a: number, b: number, aFreq: number, bFreq: number }[]}
+     */
+    enumerateTail2AnswerPairsForRow(rows, rowIndex) {
+        const idx = Number(rowIndex);
+        if (!this.rowIsTail2Evaluable(rows, idx)) {
+            return [];
+        }
+        const lookback = this.getFocusChainHitLookbackPeriods();
+        const histStart = Math.max(0, idx - lookback);
+        const histRows = rows.slice(histStart, idx);
+        if (histRows.length < 3) {
+            return [];
+        }
+        const histSets = histRows.map(
+            (row) => new Set(this.parseMainNums(row.result || row.Result || ''))
+        );
+        const answer = this.parseMainNums(rows[idx].result || rows[idx].Result || '');
+        if (answer.length !== 5) {
+            return [];
+        }
+        const freqMap = this.buildTail3WindowFreqMap(rows, idx);
+        /** @type {{ a: number, b: number, aFreq: number, bFreq: number }[]} */
+        const pairs = [];
+        for (let i = 0; i < answer.length; i++) {
+            for (let j = 0; j < answer.length; j++) {
+                if (i === j) {
+                    continue;
+                }
+                const a = answer[i];
+                const b = answer[j];
+                const counted = this.nonOverlapAdjCountStarts(
+                    this.collectDirectedAdjEdgeIndices(histRows, a, b, histSets)
+                );
+                if (counted.length < 2) {
+                    continue;
+                }
+                pairs.push({
+                    a,
+                    b,
+                    aFreq: freqMap.get(a) || 0,
+                    bFreq: freqMap.get(b) || 0
+                });
+            }
+        }
+        return pairs;
+    }
+
+    /**
+     * Cache pairs 2-tail ★ theo kỳ nguồn.
+     * @returns {Array<Array<{ a: number, b: number, aFreq: number, bFreq: number }>>}
+     */
+    ensureTail2AnswerPairsCache() {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        if (this._tail2AnswerPairsCache && this._tail2AnswerPairsCacheRowLen === n) {
+            return this._tail2AnswerPairsCache;
+        }
+        /** @type {Array<Array<{ a: number, b: number, aFreq: number, bFreq: number }>>} */
+        const cache = new Array(n);
+        for (let i = 0; i < n; i++) {
+            cache[i] = this.enumerateTail2AnswerPairsForRow(rows, i);
+        }
+        this._tail2AnswerPairsCache = cache;
+        this._tail2AnswerPairsCacheRowLen = n;
+        return this._tail2AnswerPairsCache;
+    }
+
+    getTail2AnswerPairsCached(rowIndex) {
+        const cache = this.ensureTail2AnswerPairsCache();
+        const i = Number(rowIndex);
+        if (!Number.isFinite(i) || i < 0 || i >= cache.length) {
+            return [];
+        }
+        return cache[i] || [];
+    }
+
+    /** Kỳ có ≥1 cặp 2-tail trong đáp án. */
+    rowMatchesTail2Filter(rows, rowIndex) {
+        if (!this.rowIsTail2Evaluable(rows, rowIndex)) {
+            return false;
+        }
+        if (rows === this.getSourceSheetRows()) {
+            return this.getTail2AnswerPairsCached(rowIndex).length >= 1;
+        }
+        return this.enumerateTail2AnswerPairsForRow(rows, rowIndex).length >= 1;
+    }
+
+    /**
+     * [2-tail] luôn có op+val (giống Freq []).
+     * @param {'>='|'='|'<='} [countOp='>=']
+     * @param {number|null|string} countVal
+     */
+    static isTail2ParamsActive(countOp, countVal) {
+        const cv = countVal == null || countVal === '' ? null : Math.floor(Number(countVal));
+        return cv != null && Number.isFinite(cv);
+    }
+
+    /**
+     * Lọc 2-tail: [2-tail]op n — số cặp pool W20 mà đáp án lấy (cả hai đầu ∈ đáp án).
+     * @param {'>='|'='|'<='} [countOp='>=']
+     * @param {number|null|string} [countVal=2]
+     */
+    rowMatchesTail2Params(rows, rowIndex, countOp, countVal) {
+        if (!this.rowIsTail2Evaluable(rows, rowIndex)) {
+            return false;
+        }
+        const pairs = rows === this.getSourceSheetRows()
+            ? this.getTail2AnswerPairsCached(rowIndex)
+            : this.enumerateTail2AnswerPairsForRow(rows, rowIndex);
+        const n = pairs.length;
+        let cv = countVal == null || countVal === '' ? 2 : Math.floor(Number(countVal));
+        if (!Number.isFinite(cv)) {
+            cv = 2;
+        }
+        cv = Math.min(9, Math.max(0, cv));
+        const op = countOp === '=' || countOp === '<=' || countOp === '>=' ? countOp : '>=';
+        if (op === '=') {
+            return n === cv;
+        }
+        if (op === '<=') {
+            return n <= cv;
+        }
+        return n >= cv;
+    }
+
+    /** @returns {number[]} */
+    ensureTail2EvaluableIndicesCache() {
+        const rows = this.getSourceSheetRows();
+        const n = rows.length;
+        if (this._tail2EvaluableIndicesCache && this._tail2EvaluableIndicesCacheRowLen === n) {
+            return this._tail2EvaluableIndicesCache;
+        }
+        const indices = [];
+        for (let i = 0; i < n; i++) {
+            if (this.rowIsTail2Evaluable(rows, i)) {
+                indices.push(i);
+            }
+        }
+        this._tail2EvaluableIndicesCache = indices;
+        this._tail2EvaluableIndicesCacheRowLen = n;
+        return this._tail2EvaluableIndicesCache;
     }
 
     /**
@@ -12163,9 +12327,11 @@ class RightPaneSheetManager {
      * Handle row click - dispatch to parent
      */
     onRowClick(idx, isEmptyRow, event, options = {}) {
+        // Gửi đủ lookback W20 trước focus (prefix trước cửa sổ 10) — tailList ok_left dùng toàn bộ.
+        const lookback = this.getFocusChainHitLookbackPeriods();
         const windowTop = idx >= 10 ? idx - 10 : 0;
-        const contextPrefixCount = idx >= 10 ? Math.min(2, windowTop) : 0;
-        const dataStart = Math.max(0, windowTop - contextPrefixCount);
+        const dataStart = Math.max(0, idx - lookback);
+        const contextPrefixCount = Math.max(0, windowTop - dataStart);
         const slice = isEmptyRow ? this.dataRows.slice(dataStart, idx) : this.dataRows.slice(dataStart, idx + 1);
         const lines = slice.map((r, offset) => {
             const res = r.result || r.Result || '';
@@ -13373,9 +13539,11 @@ class RightPaneSheetManager {
         if (!Array.isArray(rows) || typeof idx !== 'number' || idx < 0 || idx >= rows.length) {
             return null;
         }
+        // Đồng bộ onRowClick: prefix = phần W20 đứng trước cửa sổ 10 (tối đa 10 dòng).
+        const lookback = this.getFocusChainHitLookbackPeriods();
         const windowTop = idx >= 10 ? idx - 10 : 0;
-        const contextPrefixCount = idx >= 10 ? Math.min(2, windowTop) : 0;
-        const dataStart = Math.max(0, windowTop - contextPrefixCount);
+        const dataStart = Math.max(0, idx - lookback);
+        const contextPrefixCount = Math.max(0, windowTop - dataStart);
         const isEmptyRow = this.isEmptyResultRow(rows[idx]);
         const rowAtClick = rows[idx] || {};
         const clickedRowId = String(rowAtClick.id || rowAtClick.ID || '').trim();

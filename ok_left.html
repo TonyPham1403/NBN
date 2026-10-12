@@ -622,20 +622,32 @@
             display: flex;
             flex: 1 1 auto;
             flex-direction: column;
-            justify-content: center;
-            /* center table vertically within left column */
+            justify-content: flex-start;
+            /* stack căn mid bảng tần suất ↔ W10 bằng marginTop JS */
             align-items: flex-start;
-            /* anchor table to left edge so it grows rightwards */
+            /* visible: không cắt #tailList khi cao tới mép W10 */
             overflow-x: visible;
-            overflow-y: hidden;
+            overflow-y: visible;
             max-width: none;
             width: auto;
             box-sizing: border-box;
         }
 
-        /* ensure the left output area itself doesn't show a vertical scrollbar */
+        /* Submit/Block/A/S/B + bảng tần suất: một khối dính nhau */
+        .leftFreqStack {
+            display: flex;
+            flex-direction: column;
+            align-items: flex-start;
+            flex: 0 0 auto;
+            max-width: 100%;
+            box-sizing: border-box;
+            margin-top: 0;
+            overflow: visible;
+        }
+
+        /* visible: tránh cắt tailList (scroll chỉ trong #tailList) */
         #left {
-            overflow-y: hidden;
+            overflow: visible;
         }
 
         /* Hide scrollbar visuals for left area across browsers */
@@ -2067,7 +2079,7 @@
                 drop-shadow(0 0 4px rgba(31, 41, 55, 0.55));
         }
 
-        /* Actions row directly above the left table (hidden until we align after scaling) */
+        /* Actions row — dính sát trên bảng tần suất (hidden until align after scaling) */
         .tableActions {
             display: none;
             justify-content: space-between;
@@ -2075,11 +2087,12 @@
             gap: 8px;
             width: 100%;
             box-sizing: border-box;
-            padding: 4px 0 6px 0;
+            padding: 4px 0 2px 0;
+            margin: 0;
             align-self: stretch;
             position: relative;
             z-index: 2;
-            /* make it span full width inside .tableWrapper */
+            flex-shrink: 0;
         }
 
         .tableActions .actions-right {
@@ -2189,6 +2202,63 @@
         .search-hit {
             background: gold !important;
             font-weight: bold;
+        }
+
+        /* W20: max-height JS = tới mép dưới bảng W10; vượt mới scroll. Không đổi style nút. */
+        #tailList {
+            max-height: none;
+            overflow-x: hidden;
+            overflow-y: auto;
+            scrollbar-width: thin;
+            scrollbar-color: #aaa transparent;
+        }
+
+        #tailList::-webkit-scrollbar {
+            width: 8px;
+            height: 0;
+            background: transparent;
+        }
+
+        #tailList::-webkit-scrollbar-thumb {
+            background: #aaa;
+            border-radius: 4px;
+        }
+
+        #tailList::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        /* Toggle nhãn 2-tail[N]: off = chỉ neon; on = full + gạch chân */
+        #tailList .tail-list-toggle {
+            background: none;
+            border: none;
+            padding: 0;
+            margin: 0;
+            font: inherit;
+            font-weight: bold;
+            color: inherit;
+            cursor: pointer;
+            line-height: inherit;
+            text-decoration: none;
+        }
+
+        #tailList .tail-list-toggle.is-on {
+            text-decoration: underline;
+        }
+
+        #tailList .tail-list-sep {
+            font: inherit;
+            font-weight: bold;
+            color: inherit;
+        }
+
+        #tailList .tail-list-btns {
+            display: contents;
+        }
+
+        /* Author .pair-btn { display:inline-flex } đè UA [hidden] — bắt buộc ẩn khi filter neon. */
+        #tailList .tail-btn[hidden] {
+            display: none !important;
         }
 
         .pair-btn {
@@ -2418,29 +2488,31 @@
                     <div id="debug" style="margin-top:8px;font-size:13px;color:#333"></div>
                 </div>
                 <div class="tableWrapper">
-                    <div class="tableActions">
-                        <div class="actions-left">
-                            <button id="submitBtn" type="button">Submit</button>
-                            <button id="blockBtn" type="button" aria-pressed="false">Block</button>
-                            <button id="relPhaseAboveBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
-                                title="A = ABOVE: freq≥2 luôn trên phase1 — nối 2 góc trên">A</button>
-                            <button id="relPhaseSameBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
-                                title="S = SAME: freq≥2 luôn cùng chuỗi phase1 — nối cạnh trái + phải">S</button>
-                            <button id="relPhaseBelowBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
-                                title="B = BELOW: freq≥2 luôn dưới phase1 — nối 2 góc dưới">B</button>
+                    <div class="leftFreqStack">
+                        <div class="tableActions">
+                            <div class="actions-left">
+                                <button id="submitBtn" type="button">Submit</button>
+                                <button id="blockBtn" type="button" aria-pressed="false">Block</button>
+                                <button id="relPhaseAboveBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
+                                    title="A = ABOVE: freq≥2 luôn trên phase1 — nối 2 góc trên">A</button>
+                                <button id="relPhaseSameBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
+                                    title="S = SAME: freq≥2 luôn cùng chuỗi phase1 — nối cạnh trái + phải">S</button>
+                                <button id="relPhaseBelowBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
+                                    title="B = BELOW: freq≥2 luôn dưới phase1 — nối 2 góc dưới">B</button>
+                            </div>
+                            <div class="actions-right">
+                                <button type="button" id="leftPosnfreqHexBtn" class="left-posnfreq-hex" hidden
+                                    title="Posnfreq: click nhanh Mẫu ↔ Số; giữ kéo vào số 1–35 để chọn specimen (giống header lọc)."
+                                    aria-label="Lục giác posnfreq: kéo chọn specimen"></button>
+                                <input id="searchBox" type="text" inputmode="numeric" maxlength="5" placeholder="search"
+                                    name="left-pane-pattern-search" autocomplete="off" autocorrect="off"
+                                    autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true"
+                                    data-form-type="other">
+                                <button id="resetBtn">Reset</button>
+                            </div>
                         </div>
-                        <div class="actions-right">
-                            <button type="button" id="leftPosnfreqHexBtn" class="left-posnfreq-hex" hidden
-                                title="Posnfreq: click nhanh Mẫu ↔ Số; giữ kéo vào số 1–35 để chọn specimen (giống header lọc)."
-                                aria-label="Lục giác posnfreq: kéo chọn specimen"></button>
-                            <input id="searchBox" type="text" inputmode="numeric" maxlength="5" placeholder="search"
-                                name="left-pane-pattern-search" autocomplete="off" autocorrect="off"
-                                autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true"
-                                data-form-type="other">
-                            <button id="resetBtn">Reset</button>
-                        </div>
+                        <div id="left" class="left"></div>
                     </div>
-                    <div id="left" class="left"></div>
                 </div>
             </div>
             <div id="right"></div>
@@ -2510,7 +2582,8 @@
 
         /**
          * Chuỗi 11 & 12: hai dòng ngay trên cửa sổ 10 (không gồm dòng đáp án).
-         * - Dữ liệu từ iframe parent: raw.contextPrefixCount = số dòng “chỉ để ngữ cảnh” đứng trước cửa sổ 10 (1 hoặc 2) → ch11/ch12 tại [prefix-1],[prefix-2].
+         * - Dữ liệu từ iframe parent: raw.contextPrefixCount = số dòng đứng trước cửa sổ 10 (tối đa 10 = nửa W20 ngoài)
+         *   → ch11/ch12 vẫn tại [prefix-1],[prefix-2]; toàn bộ 0..prefix+10 dùng cho tailList W20.
          * - Dán trực tiếp đủ dòng: ≥13 dòng → [10],[11]; 12 dòng → chỉ [10]; 11 dòng → không ch11/ch12.
          */
         function getCh11Ch12NumsSet() {
@@ -4071,6 +4144,21 @@
         let currentPairIndex = -1;
         let currentTails = [];
         let currentTailIndex = -1;
+        /** false = chỉ hiện neon hint (append theo thứ tự khoanh); true = full list. Persist localStorage. */
+        const TAIL_LIST_SHOW_FULL_KEY = 'tailListShowFull';
+        let tailListShowFull = false;
+        try {
+            tailListShowFull = localStorage.getItem(TAIL_LIST_SHOW_FULL_KEY) === '1';
+        } catch (eTailPref) {
+            tailListShowFull = false;
+        }
+        function saveTailListShowFullSetting() {
+            try {
+                localStorage.setItem(TAIL_LIST_SHOW_FULL_KEY, tailListShowFull ? '1' : '0');
+            } catch (eSave) { /* ignore */ }
+        }
+        /** data-tail-idx đã lộ khi toggle off, theo thứ tự khoanh. */
+        let tailNeonRevealOrder = [];
         let submitAutoCircleEnabled = false;
         let submitAutoCircleMode = 'freq';
         /** Khi mode === 'custom': khoanh đúng một số x (1–35), không phụ thuộc tần suất trong đáp án. */
@@ -7577,6 +7665,7 @@
                 pairNeonObserveNum = null;
                 clearPairContributionTracking();
                 basicTrackingPreviewPickActive = false;
+                tailNeonRevealOrder = [];
             }
             let rows = [];
             if (!rawText) { updateRender(); return; }
@@ -7609,7 +7698,8 @@
             let contextPrefix = pendingContextPrefixCount | 0;
             pendingContextPrefixCount = 0;
             if (contextPrefix < 0) contextPrefix = 0;
-            if (contextPrefix > 2) contextPrefix = 2;
+            // Tối đa 10 = phần ngoài W20 trước cửa sổ 10 (parent gửi lookback 20).
+            if (contextPrefix > 10) contextPrefix = 10;
             if (rowsUsed.length < contextPrefix + 10) contextPrefix = 0;
             // Chỉ bỏ dòng thứ 11 khi đúng 11 dòng và dòng đó trống (không áp dụng khi parent đã gửi thêm prefix ch11/ch12).
             if (!hadIncomingPrefix && rowsUsed.length === 11) {
@@ -8218,11 +8308,36 @@
             } catch (e) { }
             return false;
         }
+        /**
+         * Cửa sổ kề cho tailList: tối đa 20 kỳ trước đáp án/focus (W20),
+         * cùng heuristic non-overlap ≥2 như trước — chỉ mở rộng nguồn dòng.
+         */
+        function getTailLookbackLines() {
+            if (!raw || !Array.isArray(raw.lines) || !raw.lines.length) {
+                return [];
+            }
+            const prefix = getRawContextPrefixCount();
+            const w10End = prefix + 10;
+            let end = w10End;
+            const answerIdx = getRawAnswerLineIndex();
+            if (answerIdx >= 0 && answerIdx <= raw.lines.length) {
+                end = Math.min(answerIdx, raw.lines.length);
+            } else {
+                end = Math.min(w10End, raw.lines.length);
+            }
+            if (end < 2) {
+                return [];
+            }
+            const start = Math.max(0, end - 20);
+            return raw.lines.slice(start, end);
+        }
+
         function computeTails() {
             // Lightweight tails computation: return empty array when insufficient data
             if (!raw || !raw.lines || getRawDisplayLines().length < 10) return [];
-            // Use a simplified adjacent-occurrence heuristic
-            const display = getRawDisplayLines();
+            // W20 (hoặc ít hơn nếu đầu dữ liệu): cùng heuristic kề non-overlap ≥2.
+            const display = getTailLookbackLines();
+            if (display.length < 3) return [];
             const sets = display.map(l => new Set(getNumsFromLineObj(l)));
             const adjMap = {};
             for (let i = 0; i < sets.length - 1; i++) {
@@ -8853,7 +8968,9 @@
             if (!tailList || !currentTails || currentTails.length === 0) {
                 return false;
             }
-            const candidates = Array.from(tailList.querySelectorAll('.pair-btn'));
+            const candidates = Array.from(tailList.querySelectorAll('.tail-btn')).filter(function (b) {
+                return !b.hidden;
+            });
             if (!candidates.length) {
                 return false;
             }
@@ -9626,6 +9743,165 @@
             } catch (e4) { }
         }
 
+        function getEffectiveSelectionSetForTailNeon() {
+            const effective = new Set();
+            if (submitActive) {
+                simulatedSelected.forEach((n) => effective.add(n));
+            } else {
+                selected.forEach((n) => effective.add(n));
+                simulatedSelected.forEach((n) => effective.add(n));
+                transientSelected.forEach((n) => effective.add(n));
+            }
+            return effective;
+        }
+
+        /** Index tail đang đủ điều kiện neon (chạm khoanh, chưa chọn đủ 2 đầu). */
+        function collectTailNeonEligibleIndices(effective) {
+            const out = new Set();
+            const eff = effective || getEffectiveSelectionSetForTailNeon();
+            if (!currentTails || !currentTails.length) {
+                return out;
+            }
+            for (let i = 0; i < currentTails.length; i++) {
+                const t = currentTails[i];
+                if (!t) {
+                    continue;
+                }
+                const touches = eff.has(t.a) || eff.has(t.b);
+                const both = eff.has(t.a) && eff.has(t.b);
+                if (touches && !both) {
+                    out.add(i);
+                }
+            }
+            return out;
+        }
+
+        /** Index tail pair-selected (cả hai đầu đang khoanh). */
+        function collectTailPairSelectedIndices(effective) {
+            const out = new Set();
+            const eff = effective || getEffectiveSelectionSetForTailNeon();
+            if (!currentTails || !currentTails.length) {
+                return out;
+            }
+            for (let i = 0; i < currentTails.length; i++) {
+                const t = currentTails[i];
+                if (!t) {
+                    continue;
+                }
+                if (eff.has(t.a) && eff.has(t.b)) {
+                    out.add(i);
+                }
+            }
+            return out;
+        }
+
+        /**
+         * Toggle off: hiện neon hint + pair-selected.
+         * Giữ thứ tự lộ; append neon mới theo pickOrder; pair-selected giữ/chèn nếu chưa có.
+         */
+        function refreshTailNeonRevealOrder() {
+            const eff = getEffectiveSelectionSetForTailNeon();
+            const neonIdxs = collectTailNeonEligibleIndices(eff);
+            const selectedIdxs = collectTailPairSelectedIndices(eff);
+            const visibleIdxs = new Set();
+            neonIdxs.forEach(function (i) { visibleIdxs.add(i); });
+            selectedIdxs.forEach(function (i) { visibleIdxs.add(i); });
+            tailNeonRevealOrder = (tailNeonRevealOrder || []).filter(function (i) {
+                return visibleIdxs.has(i);
+            });
+            const order = Array.isArray(pickOrder) ? pickOrder : [];
+            for (let oi = 0; oi < order.length; oi++) {
+                const n = parseInt(order[oi], 10);
+                if (!Number.isFinite(n)) {
+                    continue;
+                }
+                for (let i = 0; i < currentTails.length; i++) {
+                    if (!neonIdxs.has(i) || tailNeonRevealOrder.indexOf(i) !== -1) {
+                        continue;
+                    }
+                    const t = currentTails[i];
+                    if (t && (t.a === n || t.b === n)) {
+                        tailNeonRevealOrder.push(i);
+                    }
+                }
+            }
+            neonIdxs.forEach(function (i) {
+                if (tailNeonRevealOrder.indexOf(i) === -1) {
+                    tailNeonRevealOrder.push(i);
+                }
+            });
+            // pair-selected: giữ chỗ cũ nếu đã lộ; chưa có thì append sau.
+            selectedIdxs.forEach(function (i) {
+                if (tailNeonRevealOrder.indexOf(i) === -1) {
+                    tailNeonRevealOrder.push(i);
+                }
+            });
+        }
+
+        /** Áp toggle full / chỉ neon+selected lên DOM #tailList (không đổi style nút cặp). */
+        function syncTailListDisplayMode() {
+            const tailList = document.getElementById('tailList');
+            if (!tailList) {
+                return;
+            }
+            const toggle = document.getElementById('tailListToggle');
+            if (toggle) {
+                toggle.classList.toggle('is-on', !!tailListShowFull);
+                toggle.setAttribute('aria-pressed', tailListShowFull ? 'true' : 'false');
+                toggle.title = tailListShowFull
+                    ? 'Đang hiện đủ tail — click để chỉ còn neon + pair-selected'
+                    : 'Đang chỉ hiện neon + pair-selected — click để hiện đủ tail';
+            }
+            const btnsWrap = document.getElementById('tailListBtns') || tailList;
+            const btns = Array.from(tailList.querySelectorAll('.tail-btn'));
+            if (!btns.length) {
+                return;
+            }
+            if (tailListShowFull) {
+                btns.sort(function (a, b) {
+                    return (parseInt(a.getAttribute('data-tail-idx'), 10) || 0)
+                        - (parseInt(b.getAttribute('data-tail-idx'), 10) || 0);
+                });
+                btns.forEach(function (btn) {
+                    btn.hidden = false;
+                    btnsWrap.appendChild(btn);
+                });
+                try { syncTailListMaxHeightToW10(); } catch (eH1) { /* ignore */ }
+                return;
+            }
+            refreshTailNeonRevealOrder();
+            const revealSet = new Set(tailNeonRevealOrder);
+            btns.forEach(function (btn) {
+                const i = parseInt(btn.getAttribute('data-tail-idx'), 10);
+                btn.hidden = !revealSet.has(i);
+            });
+            for (let ri = 0; ri < tailNeonRevealOrder.length; ri++) {
+                const btn = tailList.querySelector(
+                    '.tail-btn[data-tail-idx="' + tailNeonRevealOrder[ri] + '"]'
+                );
+                if (btn) {
+                    btnsWrap.appendChild(btn);
+                }
+            }
+            try { syncTailListMaxHeightToW10(); } catch (eH2) { /* ignore */ }
+        }
+
+        function bindTailListToggle() {
+            const toggle = document.getElementById('tailListToggle');
+            if (!toggle || toggle._tailToggleBound) {
+                return;
+            }
+            toggle._tailToggleBound = true;
+            toggle.addEventListener('click', function (ev) {
+                ev.preventDefault();
+                ev.stopPropagation();
+                tailListShowFull = !tailListShowFull;
+                saveTailListShowFullSetting();
+                syncTailListDisplayMode();
+                try { scheduleSyncPairNeonHintAnimations(); } catch (eSch) { /* ignore */ }
+            });
+        }
+
         /**
          * Viền neon trên các nút tail: mọi tail có ít nhất một đầu trùng số đang khoanh (tập hiệu lực giống pair neon).
          * Tắt khi bỏ khoanh hết liên quan hoặc khi cả hai đầu đã khoanh (nút tail đang pair-selected — cùng CSS pair-neon-hint:not(.pair-selected)).
@@ -9646,16 +9922,10 @@
             }
             if (!hasLeftPaneRecordForPairNeon() || !raw) {
                 btns.forEach(stripTailNeon);
+                try { syncTailListDisplayMode(); } catch (eSync0) { /* ignore */ }
                 return;
             }
-            const effective = new Set();
-            if (submitActive) {
-                simulatedSelected.forEach((n) => effective.add(n));
-            } else {
-                selected.forEach((n) => effective.add(n));
-                simulatedSelected.forEach((n) => effective.add(n));
-                transientSelected.forEach((n) => effective.add(n));
-            }
+            const effective = getEffectiveSelectionSetForTailNeon();
             for (const btn of btns) {
                 const a = parseInt(btn.getAttribute('data-a'), 10);
                 const b = parseInt(btn.getAttribute('data-b'), 10);
@@ -9673,6 +9943,7 @@
                     btn.style.removeProperty('animation');
                 }
             });
+            try { syncTailListDisplayMode(); } catch (eSync1) { /* ignore */ }
         }
 
         /**
@@ -9783,6 +10054,7 @@
                 tailList.style.maxWidth = tableWidth + 'px';
                 tailList.style.boxSizing = 'border-box';
             }
+            try { syncTailListMaxHeightToW10(); } catch (eTailMax) { /* ignore */ }
         }
 
         function refreshPairTailSelectionState() {
@@ -10267,12 +10539,19 @@
                 const tails = computeTails();
                 if (tails && tails.length) {
                     html += '<div id="tailList" style="margin-top:8px;font-size:13px;font-weight:bold;display:flex;align-items:center;flex-wrap:wrap;gap:6px;box-sizing:border-box;">';
-                    html += 'tail[' + tails.length + ']: ';
+                    html += '<button type="button" id="tailListToggle" class="tail-list-toggle'
+                        + (tailListShowFull ? ' is-on' : '')
+                        + '" aria-pressed="' + (tailListShowFull ? 'true' : 'false')
+                        + '">2-tail[' + tails.length + ']</button>';
+                    html += '<span class="tail-list-sep">: </span>';
+                    html += '<span id="tailListBtns" class="tail-list-btns">';
+                    // Toggle off: sinh sẵn hidden — chưa khoanh thì không lộ cặp (tránh flash full list).
+                    const tailBtnHiddenAttr = tailListShowFull ? '' : ' hidden';
                     for (let ti = 0; ti < tails.length; ti++) {
                         const t = tails[ti]; const a = t.a, b = t.b, main = (t.main === Infinity) ? '-' : t.main;
-                        html += '<button type="button" class="pair-btn tail-btn" data-tail-idx="' + ti + '" data-a="' + a + '" data-b="' + b + '" data-main="' + main + '" data-tail-count="' + t.count + '">' + formatTailButtonLabel(a, b, t.count) + '</button>';
+                        html += '<button type="button" class="pair-btn tail-btn" data-tail-idx="' + ti + '" data-a="' + a + '" data-b="' + b + '" data-main="' + main + '" data-tail-count="' + t.count + '"' + tailBtnHiddenAttr + '>' + formatTailButtonLabel(a, b, t.count) + '</button>';
                     }
-                    html += '</div>';
+                    html += '</span></div>';
                 }
             } catch (e) { console.error(e); }
 
@@ -10281,14 +10560,18 @@
             // Attach click handlers for tail buttons and set selection state
             try {
                 currentTails = computeTails() || [];
+                // Đổi kỳ / render lại: reset thứ tự lộ neon (giữ preference toggle full).
+                tailNeonRevealOrder = [];
                 const tailEl = document.getElementById('tailList');
                 if (tailEl) {
-                    const tbtns = Array.from(tailEl.querySelectorAll('.pair-btn'));
-                    tbtns.forEach((btn, idx) => {
+                    try { bindTailListToggle(); } catch (eBind) { /* ignore */ }
+                    const tbtns = Array.from(tailEl.querySelectorAll('.tail-btn'));
+                    tbtns.forEach((btn) => {
                         btn.addEventListener('click', function (ev) {
                             ev.preventDefault();
                             const a = parseInt(btn.getAttribute('data-a'), 10);
                             const b = parseInt(btn.getAttribute('data-b'), 10);
+                            const idx = parseInt(btn.getAttribute('data-tail-idx'), 10);
                             try {
                                 lastClickedRegion = 'tailList';
                                 syncLeftKeyboardRegion('tailList');
@@ -10298,7 +10581,7 @@
                             if (selected.has(a) && selected.has(b)) {
                                 removePairContributionForToggleOff(a, b);
                                 currentTailIndex = -1;
-                            } else {
+                            } else if (Number.isFinite(idx)) {
                                 applyTailByIndex(idx, {});
                             }
                             try {
@@ -10976,8 +11259,136 @@
                 } catch (e) { /* ignore */ }
 
                 syncPairTailWrapWidths();
+                try { alignLeftFreqTableMidToW10(); } catch (eMid) { /* ignore */ }
             } catch (e) { console.error(e); }
         }
+
+        /**
+         * Căn middle chiều cao bảng tần suất (#left table) trùng middle bảng W10 (#right table).
+         * Nếu phía trên (pair list / controls) đã chiếm chỗ → clamp marginTop≥0 (đôn xuống).
+         */
+        function alignLeftFreqTableMidToW10() {
+            var wrapper = document.querySelector('.tableWrapper');
+            var stack = document.querySelector('.leftFreqStack');
+            var left = document.getElementById('left');
+            var right = document.getElementById('right');
+            var leftContainer = document.querySelector('.left-container');
+            if (!wrapper || !stack || !left || !right) {
+                return;
+            }
+            var leftTable = left.querySelector('table');
+            var rightTable = right.querySelector('table');
+            if (!leftTable || !rightTable) {
+                return;
+            }
+
+            stack.style.marginTop = '0px';
+            wrapper.style.justifyContent = 'flex-start';
+            void stack.offsetHeight;
+
+            var scale = 1;
+            if (leftContainer) {
+                var tr = window.getComputedStyle(leftContainer).transform;
+                if (tr && tr !== 'none') {
+                    var m = tr.match(/matrix\(([^)]+)\)/);
+                    if (m) {
+                        var parts = m[1].split(',');
+                        var a = parseFloat(parts[0]);
+                        if (Number.isFinite(a) && Math.abs(a) > 1e-6) {
+                            scale = Math.abs(a);
+                        }
+                    }
+                }
+            }
+
+            var rightRect = rightTable.getBoundingClientRect();
+            var leftTableRect = leftTable.getBoundingClientRect();
+            var stackRect = stack.getBoundingClientRect();
+            var wrapperRect = wrapper.getBoundingClientRect();
+            if (!(rightRect.height > 0) || !(leftTableRect.height > 0)) {
+                return;
+            }
+
+            var rightMidY = rightRect.top + rightRect.height / 2;
+            var desiredLeftTableTop = rightMidY - leftTableRect.height / 2;
+            var stackToTable = leftTableRect.top - stackRect.top;
+            var desiredStackTop = desiredLeftTableTop - stackToTable;
+            // getBoundingClientRect = sau scale; marginTop CSS = trước scale.
+            var visualDelta = desiredStackTop - wrapperRect.top;
+            var marginTop = Math.round(visualDelta / (scale || 1));
+            if (!Number.isFinite(marginTop) || marginTop < 0) {
+                marginTop = 0;
+            }
+            stack.style.marginTop = marginTop + 'px';
+            try { syncTailListMaxHeightToW10(); } catch (eTailH) { /* ignore */ }
+        }
+
+        /**
+         * #tailList được cao tới mép dưới bảng W10 (visual); vượt mới có thanh scroll.
+         * Tránh bị .tableWrapper/#left/midwrap cắt cụt đoạn dưới.
+         */
+        function syncTailListMaxHeightToW10() {
+            var tailList = document.getElementById('tailList');
+            var right = document.getElementById('right');
+            var leftContainer = document.querySelector('.left-container');
+            var midwrap = document.querySelector('.midwrap');
+            if (!tailList || !right) {
+                return;
+            }
+            var rightTable = right.querySelector('table');
+            if (!rightTable) {
+                tailList.style.maxHeight = '';
+                return;
+            }
+
+            // Bỏ cap tạm để đo top ổn định, rồi đặt lại theo biên W10.
+            tailList.style.maxHeight = 'none';
+            void tailList.offsetHeight;
+
+            var scale = 1;
+            if (leftContainer) {
+                var tr = window.getComputedStyle(leftContainer).transform;
+                if (tr && tr !== 'none') {
+                    var m = tr.match(/matrix\(([^)]+)\)/);
+                    if (m) {
+                        var parts = m[1].split(',');
+                        var a = parseFloat(parts[0]);
+                        if (Number.isFinite(a) && Math.abs(a) > 1e-6) {
+                            scale = Math.abs(a);
+                        }
+                    }
+                }
+            }
+
+            var rightRect = rightTable.getBoundingClientRect();
+            var tailRect = tailList.getBoundingClientRect();
+            if (!(rightRect.height > 0)) {
+                return;
+            }
+            var clipBottom = rightRect.bottom;
+            if (midwrap) {
+                var midRect = midwrap.getBoundingClientRect();
+                if (midRect.height > 0) {
+                    clipBottom = Math.min(clipBottom, midRect.bottom - 2);
+                }
+            }
+            var visualAvail = clipBottom - tailRect.top - 2;
+            var minRow = 28; // ~1 hàng nút
+            var maxH = Math.floor(visualAvail / (scale || 1));
+            if (!Number.isFinite(maxH) || maxH < minRow) {
+                maxH = minRow;
+            }
+            tailList.style.maxHeight = maxH + 'px';
+            void tailList.offsetHeight;
+            // Chỉnh lại nếu sau scale vẫn tràn mép W10/midwrap (làm tròn / origin).
+            var tailAfter = tailList.getBoundingClientRect();
+            var over = tailAfter.bottom - clipBottom;
+            if (over > 1) {
+                maxH = Math.max(minRow, Math.floor(maxH - over / (scale || 1) - 1));
+                tailList.style.maxHeight = maxH + 'px';
+            }
+        }
+
         function computeAndApplyHeights() {
             var container = document.querySelector('.container');
             var right = document.getElementById('right');
@@ -11013,6 +11424,11 @@
             if (leftTable) {
                 leftTable.style.transform = '';
                 leftTable.style.transformOrigin = '';
+                leftTable.style.marginTop = '0px';
+            }
+            var leftFreqStack = document.querySelector('.leftFreqStack');
+            if (leftFreqStack) {
+                leftFreqStack.style.marginTop = '0px';
             }
             right.style.removeProperty('--right-row-padding');
             right.style.removeProperty('--right-font-size');
@@ -11027,11 +11443,12 @@
             if (tableH <= availableH) {
                 var top = Math.max(0, Math.floor((availableH - tableH) / 2));
                 table.style.marginTop = top + 'px';
-                if (leftTable) leftTable.style.marginTop = top + 'px';
+                if (leftTable) leftTable.style.marginTop = '0px';
                 right.style.overflowY = 'hidden';
                 // align actions and center group, then position floating buttons
                 alignTableActionsAndCenter();
                 try { syncReferenceHintPanelHeight(); } catch (eHintH) { /* ignore */ }
+                try { alignLeftFreqTableMidToW10(); } catch (eMid2) { /* ignore */ }
                 updateFloatingCopyButtons();
                 try { updateFocusIndicator(); } catch (e) { }
                 return;
@@ -11078,7 +11495,7 @@
                     var scaledH = table.getBoundingClientRect().height;
                     var top = Math.max(0, Math.floor((availableH - scaledH) / 2));
                     table.style.marginTop = top + 'px';
-                    if (leftTable) leftTable.style.marginTop = top + 'px';
+                    if (leftTable) leftTable.style.marginTop = '0px';
                     right.style.overflowY = 'hidden';
                     // align actions and center group, then position floating buttons
                     alignTableActionsAndCenter();
@@ -11093,7 +11510,7 @@
             if (tableH <= availableH) {
                 var top2 = Math.max(0, Math.floor((availableH - tableH) / 2));
                 table.style.marginTop = top2 + 'px';
-                if (leftTable) leftTable.style.marginTop = top2 + 'px';
+                if (leftTable) leftTable.style.marginTop = '0px';
                 right.style.overflowY = 'hidden';
             } else {
                 table.style.marginTop = '0px';
@@ -11104,6 +11521,7 @@
             // align actions and center group, then position floating buttons
             alignTableActionsAndCenter();
             try { syncReferenceHintPanelHeight(); } catch (eHintH) { /* ignore */ }
+            try { alignLeftFreqTableMidToW10(); } catch (eMid3) { /* ignore */ }
             updateFloatingCopyButtons();
             try { updateFocusIndicator(); } catch (e) { }
         }
@@ -14244,7 +14662,7 @@
                     pendingContextPrefixCount = 0;
                     if (msg.contextPrefixCount != null) {
                         const cpc = parseInt(msg.contextPrefixCount, 10);
-                        if (!isNaN(cpc) && cpc > 0) pendingContextPrefixCount = Math.min(2, cpc);
+                        if (!isNaN(cpc) && cpc > 0) pendingContextPrefixCount = Math.min(10, cpc);
                     }
                     if (!trackingFrameStepProcess) {
                         if (typeof msg.submitAutoCircleEnabled === 'boolean') {
