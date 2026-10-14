@@ -554,7 +554,7 @@
   .modal .pool-sub .pool-sub-text {
     min-width: 0;
   }
-  .modal .pool-sub .copy-nums-btn {
+  .modal .copy-nums-btn {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -570,17 +570,17 @@
     line-height: 0;
     opacity: .75;
   }
-  .modal .pool-sub .copy-nums-btn svg {
+  .modal .copy-nums-btn svg {
     width: 11px;
     height: 11px;
     display: block;
   }
-  .modal .pool-sub .copy-nums-btn:hover {
+  .modal .copy-nums-btn:hover {
     background: #f1f5f9;
     color: #64748b;
     opacity: 1;
   }
-  .modal .pool-sub .copy-nums-btn.is-ok {
+  .modal .copy-nums-btn.is-ok {
     background: transparent;
     color: #16a34a;
     opacity: 1;
@@ -657,8 +657,12 @@
     font-weight: 800; color: #ef4444; text-align: right; white-space: nowrap;
   }
   .modal .th-tl-row .tl-pool {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
     white-space: nowrap;
   }
+  .modal .th-tl-row .tl-pool-text { min-width: 0; }
   .modal .th-tl-row .tl-pool b { font-weight: 800; color: #111; }
   .modal .th-tl-row .tl-phá {
     color: #b91c1c; font-weight: 700; white-space: nowrap;
@@ -1681,13 +1685,15 @@
   }
 
   function formatTimelinePoolHtml(poolArr, newlyIn) {
+    const nums = poolArr || [];
     const bold = new Set(newlyIn || []);
     const parts = [];
-    for (let i = 0; i < poolArr.length; i++) {
-      const n = poolArr[i];
+    for (let i = 0; i < nums.length; i++) {
+      const n = nums[i];
       parts.push(bold.has(n) ? ('<b>' + n + '</b>') : String(n));
     }
-    return 'pool[' + poolArr.length + ']{' + parts.join(',') + '}';
+    const body = 'pool[' + nums.length + ']{' + parts.join(',') + '}';
+    return '<span class="tl-pool-text">' + body + '</span>' + copyNumsBtnHtml(nums);
   }
 
   function renderThresholdTimelineHtml(milestones, mode) {
@@ -2082,6 +2088,7 @@
   };
   if (modalRest) modalRest.addEventListener('click', onCopyNumsClick);
   if (modalPool) modalPool.addEventListener('click', onCopyNumsClick);
+  if (modalTimeline) modalTimeline.addEventListener('click', onCopyNumsClick);
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !modalBack.hidden) hidePopup();
   });
