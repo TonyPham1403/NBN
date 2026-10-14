@@ -1275,6 +1275,14 @@
     return { focusId, focusIdx, details, violDetails, disabled };
   }
 
+  /** T% cột luật (hold/applicable) — gắn sau nhãn (D,P) trong popup. */
+  function pairHoldPctText(pi) {
+    if (!tableBundle || !tableBundle.stats || !tableBundle.stats[pi]) return '';
+    const pct = tableBundle.stats[pi].pct;
+    if (!pct || pct === '—') return '';
+    return ' ' + pct;
+  }
+
   function renderPairElimBlocks(details, disabled, mask) {
     const chosen = [];
     const allElim = new Set();
@@ -1286,7 +1294,7 @@
       chosen.push(d.label);
       d.elim.forEach((x) => allElim.add(x));
       html += '<div class="pair-block">';
-      html += '<div class="pair-title">' + d.label + ' → loại: '
+      html += '<div class="pair-title">' + d.label + pairHoldPctText(pi) + ' → loại: '
         + (d.elim.length ? d.elim.join(', ') : '(không)') + '</div>';
       if (!d.lines.length) {
         html += '<div class="none">Không có chuỗi witness derive[D]+peer[P]</div>';
@@ -1315,7 +1323,7 @@
       chosen.push(d.label);
       d.viol.forEach((x) => allViol.add(x));
       html += '<div class="pair-block viol-block">';
-      html += '<div class="pair-title viol">' + d.label + ' → phá: '
+      html += '<div class="pair-title viol">' + d.label + pairHoldPctText(pi) + ' → phá: '
         + d.viol.join(', ') + '</div>';
       for (let li = 0; li < d.lines.length; li++) {
         const L = d.lines[li];
