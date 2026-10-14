@@ -516,6 +516,16 @@
     box-shadow: 0 20px 50px rgba(0,0,0,.35);
     padding: 16px 18px 18px;
   }
+  /* Popup Xem danh sách id — không bung full màn hình */
+  .modal.is-stats {
+    width: min(420px, calc(100vw - 32px));
+    min-width: 0;
+    max-width: min(420px, calc(100vw - 32px));
+  }
+  .modal.is-stats .id-list {
+    width: 100%;
+    box-sizing: border-box;
+  }
   .modal h2 { margin: 0 0 6px; font-size: 16px; }
   .modal .sub { margin: 0 0 4px; font-size: 12px; color: #4b5563; }
   .modal .pool-sub {
@@ -722,6 +732,16 @@
       <strong id="sumZeroCount">0</strong>
       <button type="button" id="btnZeroList">Xem</button>
     </div>
+    <div class="chip" title="Cột derive (★∈đáp án) === tập phá max (hợp mọi cột) · bỏ cặp rỗng">
+      <span>3/ derive trùng tập phá max</span>
+      <strong id="sumDerivePhaCount">0</strong>
+      <button type="button" id="btnDerivePhaList">Xem</button>
+    </div>
+    <div class="chip" title="Cột derive (★∈đáp án) === tập rest (ngoài pool tối đa, freq&gt;0) · bỏ cặp rỗng">
+      <span>4/ derive trùng tập rest</span>
+      <strong id="sumDeriveRestCount">0</strong>
+      <button type="button" id="btnDeriveRestList">Xem</button>
+    </div>
   </div>
   <p id="err" class="err" hidden></p>
 </div>
@@ -756,6 +776,8 @@
   const summaryEl = document.getElementById('summary');
   const sumFullCount = document.getElementById('sumFullCount');
   const sumZeroCount = document.getElementById('sumZeroCount');
+  const sumDerivePhaCount = document.getElementById('sumDerivePhaCount');
+  const sumDeriveRestCount = document.getElementById('sumDeriveRestCount');
   const sumViolPct = document.getElementById('sumViolPct');
   const sumViolFrac = document.getElementById('sumViolFrac');
   const chipViolRate = document.getElementById('chipViolRate');
@@ -766,7 +788,10 @@
   let restHitCache = null;
   const btnFullList = document.getElementById('btnFullList');
   const btnZeroList = document.getElementById('btnZeroList');
+  const btnDerivePhaList = document.getElementById('btnDerivePhaList');
+  const btnDeriveRestList = document.getElementById('btnDeriveRestList');
   const modalBack = document.getElementById('modalBack');
+  const modalEl = modalBack ? modalBack.querySelector('.modal') : null;
   const modalTitle = document.getElementById('modalTitle');
   const modalSub = document.getElementById('modalSub');
   const modalRest = document.getElementById('modalRest');
@@ -799,7 +824,7 @@
   let histIdOnIdx = null;
   /** @type {'elim'|'stats'|null} */
   let popupKind = null;
-  /** @type {'full'|'zero'|null} */
+  /** @type {'full'|'zero'|'derivePha'|'deriveRest'|null} */
   let statsPopupKind = null;
   /** @type {{ rows: object[], rowNums: number[][], ids: number[], candsCache: object[][], holdMasks: Map<number, boolean[]>, violateMasks: Map<number, boolean[]> } | null} */
   let dataCtx = null;
@@ -807,6 +832,10 @@
   let fullTickList = [];
   /** @type {number[]} */
   let zeroTickList = [];
+  /** @type {{ id: number, nums: number[] }[]} */
+  let derivePhaMaxList = [];
+  /** @type {{ id: number, nums: number[] }[]} */
+  let deriveRestList = [];
   /** @type {null | { displayIdx: number[], ids: number[], splits: object[], stats: object[], pairLabels: string[], msHint: string }} */
   let tableBundle = null;
   const TH_LS_KEY = 'ticks.threshold';
@@ -1785,6 +1814,7 @@
     modalBody.innerHTML = html;
     popupKind = 'elim';
     statsPopupKind = null;
+    if (modalEl) modalEl.classList.remove('is-stats');
     modalBack.hidden = false;
     document.body.classList.add('modal-open');
   }
@@ -1927,32 +1957,62 @@
   }
 
   function showIdListPopup(kind) {
-    const isFull = kind === 'full';
-    const list = isFull ? fullTickList : zeroTickList;
-    modalTitle.textContent = isFull
-      ? '1/ Tick đủ mọi cột còn mở'
-      : '2/ Không tick cột nào';
-    modalSub.textContent = 'id > 20 · ' + list.length + ' kỳ · click id để đóng popup và nhảy tới hàng'
-      + (isFull ? ' · (en = số cột không bị disable)' : '');
+    let title = '';
+    let subExtra = '';
+    let listHtml = '';
+    let listLen = 0;
+    if (kind === 'full') {
+      title = '1/ Tick đủ mọi cột còn mở';
+      subExtra = ' · (en = số cột không bị disable)';
+      listLen = fullTickList.length;
+      listHtml = fullTickList.length
+        ? ('<div class="id-list">'
+          + fullTickList.map((x) => '<button type="button" data-jump-id="' + x.id + '">'
+            + x.id + ' <small>en=' + x.enabled + '</small></button>').join('')
+          + '</div>')
+        : '';
+    } else if (kind === 'zero') {
+      title = '2/ Không tick cột nào';
+      listLen = zeroTickList.length;
+      listHtml = zeroTickList.length
+        ? ('<div class="id-list">'
+          + zeroTickList.map((id) => '<button type="button" data-jump-id="' + id + '">' + id + '</button>').join('')
+          + '</div>')
+        : '';
+    } else if (kind === 'derivePha') {
+      title = '3/ derive trùng tập phá max';
+      subExtra = ' · derive (★∈đáp án) === phá max · bỏ cặp rỗng';
+      listLen = derivePhaMaxList.length;
+      listHtml = derivePhaMaxList.length
+        ? ('<div class="id-list">'
+          + derivePhaMaxList.map((x) => '<button type="button" data-jump-id="' + x.id + '">'
+            + x.id + ' <small>' + x.nums.join(',') + '</small></button>').join('')
+          + '</div>')
+        : '';
+    } else if (kind === 'deriveRest') {
+      title = '4/ derive trùng tập rest';
+      subExtra = ' · derive (★∈đáp án) === rest · bỏ cặp rỗng';
+      listLen = deriveRestList.length;
+      listHtml = deriveRestList.length
+        ? ('<div class="id-list">'
+          + deriveRestList.map((x) => '<button type="button" data-jump-id="' + x.id + '">'
+            + x.id + ' <small>' + x.nums.join(',') + '</small></button>').join('')
+          + '</div>')
+        : '';
+    } else {
+      return;
+    }
+    modalTitle.textContent = title;
+    modalSub.textContent = 'id > 20 · ' + listLen + ' kỳ · click id để đóng popup và nhảy tới hàng' + subExtra;
     hideModalRestPool();
     modalTimeline.hidden = true;
     modalTimeline.innerHTML = '';
     resetPopupPoolTrack();
     modalSum.hidden = true;
-    if (!list.length) {
-      modalBody.innerHTML = '<p class="none">Không có kỳ nào.</p>';
-    } else if (isFull) {
-      modalBody.innerHTML = '<div class="id-list">'
-        + list.map((x) => '<button type="button" data-jump-id="' + x.id + '">'
-          + x.id + ' <small>en=' + x.enabled + '</small></button>').join('')
-        + '</div>';
-    } else {
-      modalBody.innerHTML = '<div class="id-list">'
-        + list.map((id) => '<button type="button" data-jump-id="' + id + '">' + id + '</button>').join('')
-        + '</div>';
-    }
+    modalBody.innerHTML = listHtml || '<p class="none">Không có kỳ nào.</p>';
     popupKind = 'stats';
-    statsPopupKind = isFull ? 'full' : 'zero';
+    statsPopupKind = kind;
+    if (modalEl) modalEl.classList.add('is-stats');
     modalBack.hidden = false;
     document.body.classList.add('modal-open');
   }
@@ -1981,6 +2041,7 @@
       : null;
     modalBack.hidden = true;
     document.body.classList.remove('modal-open');
+    if (modalEl) modalEl.classList.remove('is-stats');
     if (wasElim) clearAllIdOn();
     popupKind = null;
     statsPopupKind = null;
@@ -2026,6 +2087,8 @@
   });
   btnFullList.addEventListener('click', () => showIdListPopup('full'));
   btnZeroList.addEventListener('click', () => showIdListPopup('zero'));
+  if (btnDerivePhaList) btnDerivePhaList.addEventListener('click', () => showIdListPopup('derivePha'));
+  if (btnDeriveRestList) btnDeriveRestList.addEventListener('click', () => showIdListPopup('deriveRest'));
 
   function syncSimRowDom() {
     const tr = wrap.querySelector('tr.sim-row');
@@ -2412,6 +2475,62 @@
     return Array.from(set).sort((a, b) => a - b);
   }
 
+  function setsEqual(a, b) {
+    if (!a || !b || a.size !== b.size) return false;
+    let ok = true;
+    a.forEach((x) => {
+      if (!b.has(x)) ok = false;
+    });
+    return ok;
+  }
+
+  /**
+   * 3/ derive (★∈đáp án) === phá max · 4/ derive === rest
+   * Cố định theo pool tối đa — không đổi theo threshold header.
+   */
+  function computeDeriveOverlapLists() {
+    derivePhaMaxList = [];
+    deriveRestList = [];
+    if (!tableBundle || !dataCtx) {
+      if (sumDerivePhaCount) sumDerivePhaCount.textContent = '0';
+      if (sumDeriveRestCount) sumDeriveRestCount.textContent = '0';
+      return;
+    }
+    const { displayIdx, ids, splits } = tableBundle;
+    const candsCache = dataCtx.candsCache;
+    const maxPairs = maxPoolPairIndices();
+    for (let j = 0; j < displayIdx.length; j++) {
+      const i = displayIdx[j];
+      const derive = new Set();
+      const cands = candsCache[i] || [];
+      for (let ci = 0; ci < cands.length; ci++) {
+        if (cands[ci] && cands[ci].inAnswer) derive.add(cands[ci].num);
+      }
+      if (!derive.size) continue;
+      // phá max = hợp violNums mọi cột (D,P)
+      const pha = new Set();
+      for (let pi = 0; pi < splits.length; pi++) {
+        const s = splits[pi];
+        if (!s || s.disabled.has(i) || !s.violate.has(i)) continue;
+        const vn = s.violNums && s.violNums.get(i);
+        if (vn) vn.forEach((x) => pha.add(x));
+      }
+      const poolMax = poolNumsArrForRow(i, maxPairs);
+      const restItems = buildRestItems(poolMax, windowCounts(dataCtx.rowNums, i));
+      const rest = new Set();
+      for (let r = 0; r < restItems.length; r++) rest.add(restItems[r].num);
+      const nums = sortedNumsFromSet(derive);
+      if (pha.size > 0 && setsEqual(derive, pha)) {
+        derivePhaMaxList.push({ id: ids[i], nums: nums });
+      }
+      if (rest.size > 0 && setsEqual(derive, rest)) {
+        deriveRestList.push({ id: ids[i], nums: nums });
+      }
+    }
+    if (sumDerivePhaCount) sumDerivePhaCount.textContent = String(derivePhaMaxList.length);
+    if (sumDeriveRestCount) sumDeriveRestCount.textContent = String(deriveRestList.length);
+  }
+
   function formatPoolCell(arr) {
     if (!arr.length) return '';
     return 'pool[' + arr.length + '] {' + arr.join(',') + '}';
@@ -2647,6 +2766,8 @@
     simIdOn = false;
     histIdOnIdx = null;
     restHitCache = null;
+    derivePhaMaxList = [];
+    deriveRestList = [];
 
     const n = rows.length;
     const rowNums = new Array(n);
@@ -2710,6 +2831,7 @@
       msHint: ms + 'ms'
     };
 
+    computeDeriveOverlapLists();
     paintTable({ keepScroll: false });
     requestAnimationFrame(() => {
       if (window.FocusSync && typeof window.FocusSync.seedFromUrlOrStorage === 'function') {
