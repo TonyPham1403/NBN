@@ -1,0 +1,2845 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>derive_chain T ticks</title>
+<style>
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: flex; flex-direction: column;
+    font: 13px/1.35 "Segoe UI", system-ui, sans-serif;
+    background: #f6f7f9; color: #111;
+  }
+  .banner {
+    flex: 0 0 auto;
+    background: #111827; color: #fff;
+    padding: 10px 16px;
+  }
+  .banner .title-row {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px;
+  }
+  .banner h1 { margin: 0; font-size: 16px; font-weight: 700; }
+  .banner p {
+    margin: 4px 0 0; opacity: .85; font-size: 12px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .threshold {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: #fff; color: #111;
+    border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 4px 8px; font-size: 12px;
+    /* Nằm trên overlay popup — vẫn chỉnh được khi modal mở. */
+    position: relative;
+    z-index: 60;
+  }
+  body.modal-open .threshold {
+    box-shadow: 0 0 0 2px #fff, 0 8px 24px rgba(0, 0, 0, .35);
+  }
+  .threshold .th-label { font-weight: 700; color: #374151; }
+  .threshold input {
+    font: inherit; color: #111;
+    border: 1px solid #d1d5db; border-radius: 5px;
+    background: #fff; height: 28px; box-sizing: border-box;
+  }
+  /* Dropdown dấu (custom — để tô màu từng option; native <select> không tô được trên Windows). */
+  .threshold .op-dd {
+    position: relative;
+    display: inline-block;
+    z-index: 70;
+  }
+  .threshold .op-dd-btn {
+    display: inline-flex; align-items: center; justify-content: center;
+    gap: 4px;
+    min-width: 52px; height: 28px; padding: 0 8px;
+    border: 1px solid #111; border-radius: 5px;
+    font: inherit; font-weight: 800; font-size: 12px; line-height: 1;
+    cursor: pointer; user-select: none;
+  }
+  .threshold .op-dd-btn::after {
+    content: "";
+    width: 0; height: 0;
+    border-left: 4px solid transparent;
+    border-right: 4px solid transparent;
+    border-top: 5px solid currentColor;
+    opacity: 0.85;
+  }
+  .threshold .op-dd-btn.op-ge { background: #ff0000; color: #fff; }
+  .threshold .op-dd-btn.op-eq { background: #ffff00; color: #111; }
+  .threshold .op-dd-btn.op-le { background: #006400; color: #fff; }
+  .threshold .op-dd-menu {
+    position: absolute; top: calc(100% + 3px); left: 0;
+    min-width: 100%;
+    background: #fff;
+    border: 1px solid #111;
+    border-radius: 6px;
+    overflow: hidden;
+    box-shadow: 0 8px 20px rgba(0,0,0,.25);
+    z-index: 80;
+  }
+  .threshold .op-dd-menu[hidden] { display: none; }
+  .threshold .op-dd-item {
+    display: flex; align-items: center; justify-content: center;
+    width: 100%; height: 28px; padding: 0 8px;
+    border: 0; border-radius: 0;
+    font: inherit; font-weight: 800; font-size: 12px; line-height: 1;
+    cursor: pointer; text-align: center;
+  }
+  .threshold .op-dd-item.op-ge { background: #ff0000; color: #fff; }
+  .threshold .op-dd-item.op-eq { background: #ffff00; color: #111; }
+  .threshold .op-dd-item.op-le { background: #006400; color: #fff; }
+  .threshold .op-dd-item:hover { filter: brightness(1.08); }
+  .threshold .op-dd-item.is-on { outline: 2px solid #111; outline-offset: -2px; }
+  .threshold input[type=number] {
+    width: 52px; text-align: center; font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    appearance: textfield;
+  }
+  .threshold input[type=number]::-webkit-outer-spin-button,
+  .threshold input[type=number]::-webkit-inner-spin-button {
+    appearance: none; margin: 0;
+  }
+  .threshold .step {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px; height: 28px; padding: 0;
+    border: 1px solid transparent; border-radius: 5px;
+    font-weight: 800; font-size: 16px; line-height: 1;
+    cursor: pointer; user-select: none;
+  }
+  .threshold .step > span {
+    display: block;
+    line-height: 1;
+    transform: translateY(-0.5px);
+  }
+  .threshold .step.dec {
+    background: #ff0000; color: #fff; border-color: #990000;
+  }
+  .threshold .step.dec:hover { filter: brightness(0.92); }
+  .threshold .step.dec:active { filter: brightness(0.85); }
+  .threshold .step.inc {
+    background: #006400; color: #fff; border-color: #003d00;
+  }
+  .threshold .step.inc:hover { filter: brightness(1.12); }
+  .threshold .step.inc:active { filter: brightness(0.9); }
+  .threshold .unit { color: #6b7280; font-weight: 600; }
+  .banner .err { color: #fecaca; margin-top: 8px; }
+  .banner .summary {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    margin-top: 10px;
+  }
+  .banner .summary .chip {
+    display: inline-flex; align-items: center; gap: 8px;
+    background: #fff; border: 1px solid #e5e7eb;
+    border-radius: 8px; padding: 6px 8px 6px 12px;
+    font-size: 12px; color: #111;
+  }
+  .banner .summary .chip strong {
+    font-variant-numeric: tabular-nums; font-size: 14px;
+  }
+  .viol-rate,
+  .rest-rate {
+    display: inline-flex; align-items: baseline; gap: 6px;
+    font-size: 12px; color: #fff;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+    position: relative;
+    z-index: 60;
+  }
+  .viol-rate .vr-label,
+  .rest-rate .vr-label { opacity: .85; font-weight: 600; }
+  .viol-rate .vr-pct { font-weight: 800; color: #ef4444; font-size: 14px; }
+  .rest-rate .vr-pct { font-weight: 800; color: #4ade80; font-size: 14px; }
+  .viol-rate .vr-frac,
+  .rest-rate .vr-frac { opacity: .75; font-weight: 600; font-size: 12px; }
+  body.modal-open .viol-rate,
+  body.modal-open .rest-rate {
+    text-shadow: 0 1px 2px rgba(0, 0, 0, .45);
+  }
+  .banner .summary button {
+    border: 1px solid #d1d5db; cursor: pointer; font-weight: 700; font-size: 11px;
+    padding: 5px 10px; border-radius: 6px;
+    background: #fff; color: #111;
+  }
+  .banner .summary button:hover { background: #f3f4f6; }
+  .id-list {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    font-variant-numeric: tabular-nums;
+  }
+  .modal .id-list button,
+  .id-list button {
+    background: #fff !important;
+    border: 1px solid #d1d5db !important;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
+    cursor: pointer;
+    color: #111 !important;
+    font-weight: 600;
+  }
+  .modal .id-list button:hover,
+  .id-list button:hover {
+    background: #eff6ff !important;
+    border-color: #93c5fd !important;
+  }
+  .id-list button small { font-weight: 500; color: #6b7280; }
+  tr.flash-row td:not(.nop) { animation: flashRow .9s ease; }
+  @keyframes flashRow {
+    0%, 100% { background: inherit; }
+    30% { background: #fde68a !important; }
+  }
+  /* Luôn giữ chỗ scrollbar ngang/dọc — thêm/bớt cột không làm co viewport (nhảy hàng). */
+  .wrap {
+    flex: 1 1 auto;
+    overflow: scroll;
+    scrollbar-gutter: stable;
+    padding: 0 0 24px;
+  }
+  /* Không min-width:100% — ít cột sẽ bị kéo giãn ô → lệch hàng khi đổi ngưỡng. */
+  table {
+    border-collapse: separate; border-spacing: 0;
+    width: max-content;
+    background: #fff;
+  }
+  th, td {
+    border-bottom: 1px solid #9ca3af;
+    border-right: 1px solid #9ca3af;
+    padding: 6px 10px;
+    text-align: center;
+    white-space: nowrap;
+  }
+  /* Chiều cao hàng data cố định — thêm/bớt cột không đổi geometry dọc. */
+  tbody td {
+    height: 32px;
+    max-height: 32px;
+    box-sizing: border-box;
+    line-height: 18px;
+    vertical-align: middle;
+  }
+  /* Ẩn cột không thỏa threshold — không innerHTML lại (giữ scroll). */
+  table.dc-table th.col-off,
+  table.dc-table td.col-off {
+    display: none !important;
+  }
+  thead th.pct {
+    position: sticky; top: 0; z-index: 4;
+    background: #0f766e; color: #ecfdf5;
+    font-weight: 700; font-variant-numeric: tabular-nums;
+    height: 28px; box-sizing: border-box;
+  }
+  thead th.xy {
+    position: sticky; top: 28px; z-index: 4;
+    background: #115e59; color: #ccfbf1;
+    font-weight: 600; font-variant-numeric: tabular-nums;
+    height: 28px; box-sizing: border-box;
+  }
+  thead th.name {
+    position: sticky; top: 56px; z-index: 4;
+    background: #1f2937; color: #fff;
+    font-weight: 600;
+    height: 30px; box-sizing: border-box;
+  }
+  /* Freeze pane ngang: id(72) | pool(148) | phá(88) | rest(88) — width cố định = left */
+  thead th.id.pct {
+    position: sticky; top: 0; left: 0; z-index: 8;
+    background: #0f766e; text-align: left;
+    box-sizing: border-box;
+    min-width: 72px; width: 72px; max-width: 72px;
+  }
+  thead th.id.xy {
+    position: sticky; top: 28px; left: 0; z-index: 8;
+    background: #115e59; text-align: left;
+    box-sizing: border-box;
+    min-width: 72px; width: 72px; max-width: 72px;
+  }
+  thead th.id.name {
+    position: sticky; top: 56px; left: 0; z-index: 8;
+    background: #111827; text-align: left;
+    box-sizing: border-box;
+    min-width: 72px; width: 72px; max-width: 72px;
+  }
+  td.id {
+    position: sticky; left: 0; z-index: 5;
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+    font-weight: 700;
+    background: #fff;
+    box-sizing: border-box;
+    min-width: 72px; width: 72px; max-width: 72px;
+  }
+  thead th.pool-h.pct {
+    position: sticky; top: 0; left: 72px; z-index: 7;
+    background: #0f766e; color: #ecfdf5;
+    font-weight: 700;
+    box-sizing: border-box;
+    min-width: 148px; width: 148px; max-width: 148px;
+  }
+  thead th.pool-h.xy {
+    position: sticky; top: 28px; left: 72px; z-index: 7;
+    background: #115e59; color: #ccfbf1;
+    font-weight: 600;
+    box-sizing: border-box;
+    min-width: 148px; width: 148px; max-width: 148px;
+  }
+  thead th.pool-h.name {
+    position: sticky; top: 56px; left: 72px; z-index: 7;
+    background: #1e3a5f; color: #bfdbfe;
+    font-weight: 700;
+    box-sizing: border-box;
+    min-width: 148px; width: 148px; max-width: 148px;
+    border-bottom: 3px solid #111827;
+  }
+  td.pool-nums {
+    position: sticky; left: 72px; z-index: 4;
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+    font-weight: 700;
+    color: #1e40af;
+    background: #fff;
+    box-sizing: border-box;
+    min-width: 148px; width: 148px; max-width: 148px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  tr:nth-child(even) td.pool-nums { background: #eff6ff; }
+  tr:hover td.pool-nums { background: #dbeafe; }
+  tr.sim-row td.pool-nums {
+    background: #fef3c7 !important;
+    color: #1e40af;
+    font-weight: 700;
+  }
+  thead th.viol-h.pct {
+    position: sticky; top: 0; left: 220px; z-index: 7;
+    background: #0f766e; color: #ecfdf5;
+    font-weight: 700;
+    box-sizing: border-box;
+    min-width: 88px; width: 88px; max-width: 88px;
+  }
+  thead th.viol-h.xy {
+    position: sticky; top: 28px; left: 220px; z-index: 7;
+    background: #115e59; color: #ccfbf1;
+    font-weight: 600;
+    box-sizing: border-box;
+    min-width: 88px; width: 88px; max-width: 88px;
+  }
+  thead th.viol-h.name {
+    position: sticky; top: 56px; left: 220px; z-index: 7;
+    background: #7f1d1d; color: #fecaca;
+    font-weight: 700;
+    box-sizing: border-box;
+    min-width: 88px; width: 88px; max-width: 88px;
+    border-bottom: 3px solid #111827;
+  }
+  td.viol-nums {
+    position: sticky; left: 220px; z-index: 4;
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+    font-weight: 700;
+    color: #b91c1c;
+    background: #fff;
+    box-sizing: border-box;
+    min-width: 88px; width: 88px; max-width: 88px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  tr:nth-child(even) td.viol-nums { background: #fef2f2; }
+  tr:hover td.viol-nums { background: #fee2e2; }
+  tr.sim-row td.viol-nums {
+    background: #fef3c7 !important;
+    color: #9ca3af;
+    font-weight: 600;
+  }
+  thead th.rest-h.pct {
+    position: sticky; top: 0; left: 308px; z-index: 7;
+    background: #0f766e; color: #ecfdf5;
+    font-weight: 700;
+    box-sizing: border-box;
+    min-width: 88px; width: 88px; max-width: 88px;
+    border-right: 3px solid #111827;
+  }
+  thead th.rest-h.xy {
+    position: sticky; top: 28px; left: 308px; z-index: 7;
+    background: #115e59; color: #ccfbf1;
+    font-weight: 600;
+    box-sizing: border-box;
+    min-width: 88px; width: 88px; max-width: 88px;
+    border-right: 3px solid #111827;
+  }
+  thead th.rest-h.name {
+    position: sticky; top: 56px; left: 308px; z-index: 7;
+    background: #14532d; color: #bbf7d0;
+    font-weight: 700;
+    box-sizing: border-box;
+    min-width: 88px; width: 88px; max-width: 88px;
+    border-right: 3px solid #111827;
+    border-bottom: 3px solid #111827;
+  }
+  /* Đường đậm dưới hàng tên cột */
+  thead tr.name th {
+    border-bottom: 3px solid #111827;
+  }
+  td.rest-ans {
+    position: sticky; left: 308px; z-index: 4;
+    text-align: left;
+    font-variant-numeric: tabular-nums;
+    font-size: 11px;
+    font-weight: 800;
+    color: #005000;
+    background: #fff;
+    box-sizing: border-box;
+    min-width: 88px; width: 88px; max-width: 88px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    border-right: 3px solid #111827;
+  }
+  tr:nth-child(even) td.rest-ans { background: #f0fdf4; }
+  tr:hover td.rest-ans { background: #dcfce7; }
+  tr.sim-row td.rest-ans {
+    background: #fef3c7 !important;
+    color: #9ca3af;
+    font-weight: 600;
+  }
+  td.id.hist-id {
+    cursor: pointer;
+    user-select: none;
+  }
+  /* Viền trong (chỉ kỳ đã có đáp án): tick đủ = xanh · không tick = đỏ */
+  td.id.hist-id.tick-full {
+    box-shadow: inset 0 0 0 2px #16a34a;
+  }
+  td.id.hist-id.tick-zero {
+    box-shadow: inset 0 0 0 2px #dc2626;
+  }
+  td.id.hist-id.is-on {
+    background: #f59e0b !important;
+    color: #111;
+    box-shadow: inset 3px 0 0 #b45309;
+  }
+  td.id.hist-id.tick-full.is-on {
+    box-shadow: inset 0 0 0 2px #16a34a, inset 3px 0 0 #b45309;
+  }
+  td.id.hist-id.tick-zero.is-on {
+    box-shadow: inset 0 0 0 2px #dc2626, inset 3px 0 0 #b45309;
+  }
+  tr:nth-child(even) td { background: #fafbfc; }
+  tr:nth-child(even) td.id { background: #f3f4f6; }
+  tr:nth-child(even) td.id.hist-id.is-on { background: #f59e0b !important; }
+  tr:hover td:not(.nop):not(.sim-cell) { background: #eef6ff; }
+  tr:hover td.id:not(.sim-id):not(.is-on) { background: #dbeafe; }
+  td.ok { color: #15803d; font-weight: 800; font-size: 15px; }
+  td.nop {
+    background: #111827 !important;
+    border-color: #0b1220;
+    cursor: not-allowed;
+  }
+  tr.sim-row td {
+    height: 34px;
+    min-height: 34px;
+    max-height: 34px;
+    box-sizing: border-box;
+    line-height: 20px;
+    vertical-align: middle;
+    overflow: hidden;
+  }
+  tr.sim-row td:not(.nop) {
+    background: #fffbeb !important;
+    border-top: 2px solid #d97706;
+  }
+  tr.sim-row td.nop {
+    background: #111827 !important;
+    border-color: #0b1220;
+    border-top: 2px solid #d97706;
+    cursor: not-allowed;
+  }
+  tr.sim-row td.id.sim-id {
+    background: #fef3c7 !important;
+    cursor: pointer;
+    user-select: none;
+    min-width: 72px;
+  }
+  tr.sim-row td.id.sim-id.is-on {
+    background: #f59e0b !important;
+    color: #111;
+  }
+  tr.sim-row td.id.sim-id::after {
+    content: " OFF";
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: .04em;
+    opacity: .7;
+    margin-left: 4px;
+  }
+  tr.sim-row td.id.sim-id.is-on::after { content: " ON"; }
+  tr.sim-row td.sim-cell:not(.nop) {
+    cursor: pointer;
+    min-width: 36px;
+  }
+  tr.sim-row.is-locked td.sim-cell:not(.nop) {
+    cursor: default;
+  }
+  tr.sim-row td.sim-cell.ok {
+    font-size: 15px;
+    line-height: 20px;
+    outline: 2px solid #15803d;
+    outline-offset: -2px;
+  }
+  tr.sim-row:not(.is-locked) td.sim-cell:not(.nop):hover {
+    background: #fde68a !important;
+  }
+  tr.sim-row:hover td.nop {
+    background: #111827 !important;
+  }
+  .modal-back {
+    position: fixed; inset: 0; z-index: 50;
+    background: rgba(15, 23, 42, .55);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .modal-back[hidden] { display: none; }
+  .modal {
+    background: #fff;
+    color: #111;
+    box-sizing: border-box;
+    /* Mặc định ~640px; nới ngang chỉ khi pool/phá (fit-content) dài hơn. */
+    width: fit-content;
+    min-width: min(640px, calc(100vw - 24px));
+    max-width: calc(100vw - 24px);
+    max-height: min(80vh, 720px);
+    overflow: auto;
+    border-radius: 10px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.35);
+    padding: 16px 18px 18px;
+  }
+  .modal h2 { margin: 0 0 6px; font-size: 16px; }
+  .modal .sub { margin: 0 0 4px; font-size: 12px; color: #4b5563; }
+  .modal .pool-sub {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px 8px;
+    margin: 0 0 4px;
+    font-size: 12px;
+    color: #4b5563;
+    font-variant-numeric: tabular-nums;
+  }
+  .modal .pool-sub.rest-sub { margin: 0 0 4px; }
+  .modal .pool-sub.pool-line { margin: 0 0 12px; }
+  .modal .pool-sub[hidden] { display: none; }
+  .modal .pool-sub b { font-weight: 800; color: #111; }
+  .modal .pool-sub .freq-sub {
+    font-size: 0.75em;
+    vertical-align: sub;
+    line-height: 0;
+  }
+  .modal .pool-sub .rest-hit {
+    color: #005000;
+    font-weight: 800;
+  }
+  .modal .pool-sub .pool-sub-text {
+    min-width: 0;
+  }
+  .modal .pool-sub .copy-nums-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 auto;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: none;
+    border-radius: 3px;
+    background: transparent;
+    color: #94a3b8;
+    cursor: pointer;
+    line-height: 0;
+    opacity: .75;
+  }
+  .modal .pool-sub .copy-nums-btn svg {
+    width: 11px;
+    height: 11px;
+    display: block;
+  }
+  .modal .pool-sub .copy-nums-btn:hover {
+    background: #f1f5f9;
+    color: #64748b;
+    opacity: 1;
+  }
+  .modal .pool-sub .copy-nums-btn.is-ok {
+    background: transparent;
+    color: #16a34a;
+    opacity: 1;
+  }
+  .modal .elim-sum {
+    font-size: 18px; font-weight: 800; color: #b45309;
+    margin: 0 0 8px; font-variant-numeric: tabular-nums;
+  }
+  .modal .viol-sum {
+    font-size: 18px; font-weight: 800; color: #b91c1c;
+    margin: 0 0 8px; font-variant-numeric: tabular-nums;
+  }
+  .modal .th-timeline {
+    position: relative;
+    margin: 0 0 12px;
+    padding: 8px 10px 8px 22px;
+    background: #f9fafb;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    font-size: 12px;
+    color: #374151;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.45;
+    /* Đủ rộng theo nội dung; tối thiểu full popup để cột phá căn phải. */
+    width: max(100%, max-content);
+    box-sizing: border-box;
+  }
+  .modal .th-timeline[hidden] { display: none; }
+  /* Mũi tên dọc: đọc timeline từ trên xuống dưới */
+  .modal .th-tl-flow {
+    position: absolute;
+    left: 6px;
+    top: 28px;
+    bottom: 10px;
+    width: 10px;
+    pointer-events: none;
+  }
+  .modal .th-tl-flow::before {
+    content: "";
+    position: absolute;
+    left: 4px;
+    top: 0;
+    bottom: 8px;
+    width: 2px;
+    background: #6b7280;
+    border-radius: 1px;
+  }
+  .modal .th-tl-flow::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 0;
+    height: 0;
+    border-left: 5px solid transparent;
+    border-right: 5px solid transparent;
+    border-top: 8px solid #6b7280;
+  }
+  .modal .th-tl-title {
+    font-weight: 800; color: #111; margin: 0 0 6px; font-size: 12px;
+  }
+  .modal .th-tl-row {
+    display: grid;
+    grid-template-columns: 3.25em 4.25em max-content 1fr;
+    column-gap: 8px;
+    align-items: baseline;
+    margin: 2px 0;
+    width: 100%;
+  }
+  .modal .th-tl-row .tl-t {
+    font-weight: 700; text-align: right; white-space: nowrap;
+  }
+  .modal .th-tl-row .tl-rate {
+    font-weight: 800; color: #ef4444; text-align: right; white-space: nowrap;
+  }
+  .modal .th-tl-row .tl-pool {
+    white-space: nowrap;
+  }
+  .modal .th-tl-row .tl-pool b { font-weight: 800; color: #111; }
+  .modal .th-tl-row .tl-phá {
+    color: #b91c1c; font-weight: 700; white-space: nowrap;
+    text-align: right;
+    justify-self: end;
+  }
+  .modal .sec-title {
+    margin: 14px 0 6px; font-size: 13px; font-weight: 800;
+    color: #374151; letter-spacing: .02em;
+  }
+  .modal .sec-title:first-child { margin-top: 0; }
+  .modal .sec-title.viol { color: #b91c1c; }
+  .modal .pair-block {
+    border-top: 1px solid #e5e7eb;
+    padding: 10px 0;
+  }
+  .modal .pair-block:first-of-type { border-top: 0; }
+  .modal .pair-block.viol-block { border-top-color: #fecaca; }
+  .modal .pair-title { font-weight: 700; margin-bottom: 4px; }
+  .modal .pair-title.viol { color: #b91c1c; }
+  .modal .pair-line { font-size: 12px; color: #374151; margin: 2px 0; }
+  .modal .none { color: #9ca3af; font-size: 12px; }
+  .modal .actions { margin-top: 14px; text-align: right; }
+  .modal .actions button {
+    border: 0; background: #111827; color: #fff;
+    padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 600;
+  }
+</style>
+</head>
+<body>
+<div class="banner">
+  <div class="title-row">
+    <h1>derive_chain — tick khi mệnh đề đúng (hold)</h1>
+    <div class="threshold" title="Chỉ hiện cột có T% thỏa ngưỡng">
+      <span class="th-label">threshold</span>
+      <div class="op-dd" id="thOpDd">
+        <button type="button" class="op-dd-btn op-ge" id="thOpBtn" aria-haspopup="listbox" aria-expanded="false" aria-label="toán tử ngưỡng">&gt;=</button>
+        <div class="op-dd-menu" id="thOpMenu" role="listbox" hidden>
+          <button type="button" class="op-dd-item op-ge" role="option" data-op=">=">&gt;=</button>
+          <button type="button" class="op-dd-item op-eq" role="option" data-op="=">=</button>
+          <button type="button" class="op-dd-item op-le" role="option" data-op="<=">&lt;=</button>
+        </div>
+      </div>
+      <button type="button" class="step dec" id="thDec" aria-label="giảm"><span>−</span></button>
+      <input id="thVal" type="number" min="1" max="100" value="70" inputmode="numeric" aria-label="ngưỡng %"/>
+      <button type="button" class="step inc" id="thInc" aria-label="tăng"><span>+</span></button>
+      <span class="unit">%</span>
+    </div>
+    <div class="viol-rate" id="chipViolRate"
+      title="mẫu = id cuối có đáp án − 21 + 1 · tử = mẫu − (1/ tick đủ) · % = tử / mẫu">
+      <span class="vr-label">% phá luật</span>
+      <span class="vr-pct" id="sumViolPct">—</span>
+      <span class="vr-frac" id="sumViolFrac"></span>
+    </div>
+    <div class="rest-rate" id="chipRestRate"
+      title="mẫu = id cuối có đáp án − 21 + 1 · tử = số kỳ đáp án ∩ rest ≠ ∅ · rest cố định theo pool tối đa">
+      <span class="vr-label">%rest</span>
+      <span class="vr-pct" id="sumRestPct">—</span>
+      <span class="vr-frac" id="sumRestFrac"></span>
+    </div>
+  </div>
+  <p id="status">Đang tải data.json…</p>
+  <div class="summary" id="summary" hidden>
+    <div class="chip">
+      <span>1/ Tick đủ cột mở (id&gt;20)</span>
+      <strong id="sumFullCount">0</strong>
+      <button type="button" id="btnFullList">Xem</button>
+    </div>
+    <div class="chip zero">
+      <span>2/ Không tick cột nào (id&gt;20)</span>
+      <strong id="sumZeroCount">0</strong>
+      <button type="button" id="btnZeroList">Xem</button>
+    </div>
+  </div>
+  <p id="err" class="err" hidden></p>
+</div>
+<div class="wrap" id="wrap"></div>
+<div class="modal-back" id="modalBack" hidden>
+  <div class="modal" role="dialog" aria-modal="true">
+    <h2 id="modalTitle">Số bị loại</h2>
+    <p class="sub" id="modalSub"></p>
+    <p class="sub pool-sub rest-sub" id="modalRest" hidden></p>
+    <p class="sub pool-sub pool-line" id="modalPool" hidden></p>
+    <p class="elim-sum" id="modalSum"></p>
+    <div class="th-timeline" id="modalTimeline" hidden></div>
+    <div id="modalBody"></div>
+    <div class="actions"><button type="button" id="modalClose">Đóng</button></div>
+  </div>
+</div>
+<script src="focus-sync.js?v=20261015popup2"></script>
+<script>
+(function () {
+  // Pool đủ (D,P) ∈ 0..9; thứ tự: P tăng dần, rồi D tăng dần.
+  // Cột chỉ vào bảng khi T% thỏa threshold.
+  const PAIRS = [];
+  for (let P = 0; P <= 9; P++) {
+    for (let D = 0; D <= 9; D++) {
+      PAIRS.push([D, P]);
+    }
+  }
+  const MIN_ID = 21;
+  const statusEl = document.getElementById('status');
+  const errEl = document.getElementById('err');
+  const wrap = document.getElementById('wrap');
+  const summaryEl = document.getElementById('summary');
+  const sumFullCount = document.getElementById('sumFullCount');
+  const sumZeroCount = document.getElementById('sumZeroCount');
+  const sumViolPct = document.getElementById('sumViolPct');
+  const sumViolFrac = document.getElementById('sumViolFrac');
+  const chipViolRate = document.getElementById('chipViolRate');
+  const sumRestPct = document.getElementById('sumRestPct');
+  const sumRestFrac = document.getElementById('sumRestFrac');
+  const chipRestRate = document.getElementById('chipRestRate');
+  /** Cache: %rest không phụ thuộc threshold header. */
+  let restHitCache = null;
+  const btnFullList = document.getElementById('btnFullList');
+  const btnZeroList = document.getElementById('btnZeroList');
+  const modalBack = document.getElementById('modalBack');
+  const modalTitle = document.getElementById('modalTitle');
+  const modalSub = document.getElementById('modalSub');
+  const modalRest = document.getElementById('modalRest');
+  const modalPool = document.getElementById('modalPool');
+  const modalSum = document.getElementById('modalSum');
+  const SUBSCRIPT_DIGITS = '₀₁₂₃₄₅₆₇₈₉';
+  const modalTimeline = document.getElementById('modalTimeline');
+  const modalBody = document.getElementById('modalBody');
+  const modalClose = document.getElementById('modalClose');
+  /** Pool kỳ đang mở popup — so sánh khi đổi threshold để in đậm số mới vào. */
+  /** @type {Set<number>|null} */
+  let popupPoolPrev = null;
+  /** Số từng mới vào pool trong phiên popup — giữ in đậm đến khi ra khỏi pool. */
+  /** @type {Set<number>} */
+  let popupPoolBold = new Set();
+  const thOpDd = document.getElementById('thOpDd');
+  const thOpBtn = document.getElementById('thOpBtn');
+  const thOpMenu = document.getElementById('thOpMenu');
+  const thOpItems = Array.prototype.slice.call(thOpMenu.querySelectorAll('[data-op]'));
+  const thValEl = document.getElementById('thVal');
+  const thDecEl = document.getElementById('thDec');
+  const thIncEl = document.getElementById('thInc');
+  const OP_LABEL = { '>=': '>=', '=': '=', '<=': '<=' };
+
+  /** @type {{ focusId: number, focusIdx: number, disabled: boolean[], details: object[], cands: number[] } | null} */
+  let simState = null;
+  let simTicks = PAIRS.map(() => false);
+  let simIdOn = false;
+  /** @type {number|null} */
+  let histIdOnIdx = null;
+  /** @type {'elim'|'stats'|null} */
+  let popupKind = null;
+  /** @type {'full'|'zero'|null} */
+  let statsPopupKind = null;
+  /** @type {{ rows: object[], rowNums: number[][], ids: number[], candsCache: object[][], holdMasks: Map<number, boolean[]>, violateMasks: Map<number, boolean[]> } | null} */
+  let dataCtx = null;
+  /** @type {{ id: number, enabled: number }[]} */
+  let fullTickList = [];
+  /** @type {number[]} */
+  let zeroTickList = [];
+  /** @type {null | { displayIdx: number[], ids: number[], splits: object[], stats: object[], pairLabels: string[], msHint: string }} */
+  let tableBundle = null;
+  const TH_LS_KEY = 'ticks.threshold';
+  let thOp = '>=';
+  let thVal = 70;
+
+  function isEmptyResultRow(row) {
+    return !String((row && (row.result || row.Result)) || '').trim();
+  }
+
+  function parseMainNums(s) {
+    if (!s) return [];
+    return String(s).split('|')[0].split(',')
+      .map((x) => parseInt(x, 10))
+      .filter((n) => !isNaN(n));
+  }
+
+  function rowIdOf(row, i) {
+    const raw = String(row.id || row.ID || '').replace(/^0+/, '');
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) ? n : i + 1;
+  }
+
+  function collectDirectedAdjEdgeIndices(histSets, y, x) {
+    const idxs = [];
+    for (let e = 0; e < histSets.length - 1; e++) {
+      if (histSets[e].has(y) && histSets[e + 1].has(x)) idxs.push(e);
+    }
+    return idxs;
+  }
+
+  function nonOverlapAdjCountStarts(idxs) {
+    const sorted = idxs.slice().sort((a, b) => a - b);
+    let last = -3;
+    const counted = [];
+    for (let i = 0; i < sorted.length; i++) {
+      const ii = sorted[i];
+      if (ii > last + 1) {
+        counted.push(ii);
+        last = ii;
+      }
+    }
+    return counted;
+  }
+
+  /** focusIdx có thể = rows.length (kỳ giả lập chưa có đáp án). */
+  function enumerateTail3Cands(rows, rowNums, focusIdx) {
+    const n = rows.length;
+    const idx = focusIdx;
+    if (idx < 1 || idx > n) return [];
+    const phaseRow = rows[idx - 1];
+    if (!phaseRow || isEmptyResultRow(phaseRow)) return [];
+    const phase1 = rowNums[idx - 1];
+    if (!phase1 || phase1.length !== 5) return [];
+    const lookback = 20;
+    const histStart = Math.max(0, idx - lookback);
+    if (idx - histStart < 3) return [];
+    const answerSet = new Set(idx < n ? rowNums[idx] : []);
+    const histSets = [];
+    for (let r = histStart; r < idx; r++) {
+      histSets.push(new Set(rowNums[r] || []));
+    }
+    const byNum = new Map();
+    for (let yi = 0; yi < phase1.length; yi++) {
+      const y = phase1[yi];
+      for (let x = 1; x <= 35; x++) {
+        if (x === y) continue;
+        const counted = nonOverlapAdjCountStarts(
+          collectDirectedAdjEdgeIndices(histSets, y, x)
+        );
+        if (counted.length < 2) continue;
+        if (!byNum.has(x)) {
+          byNum.set(x, { num: x, inAnswer: answerSet.has(x) });
+        }
+      }
+    }
+    return Array.from(byNum.values());
+  }
+
+  function buildCandsCache(rows, rowNums) {
+    const n = rows.length;
+    const cache = new Array(n);
+    for (let i = 0; i < n; i++) {
+      cache[i] = enumerateTail3Cands(rows, rowNums, i);
+    }
+    return cache;
+  }
+
+  function windowCounts(rowNums, focusIdx) {
+    const counts = new Int16Array(36);
+    for (let r = focusIdx - 10; r < focusIdx; r++) {
+      if (r < 0 || r >= rowNums.length) continue;
+      const nums = rowNums[r];
+      for (let ni = 0; ni < nums.length; ni++) {
+        const v = nums[ni];
+        if (v >= 1 && v <= 35) counts[v]++;
+      }
+    }
+    return counts;
+  }
+
+  /**
+   * Cần ít nhất 1 hàng W10 có derive[D] và peer[P] khác số (cùng chuỗi).
+   * Chỉ có derive freq=D mà không còn P khác cùng hàng → disable (vd 942,(5,5)).
+   */
+  function hasDerivePeerWitness(rowNums, focusIdx, cands, counts, deriveFreq, peerFreq) {
+    if (!cands || !cands.length) return false;
+    const derivesD = [];
+    for (let ci = 0; ci < cands.length; ci++) {
+      const c = cands[ci];
+      if (!c) continue;
+      if ((counts[c.num] | 0) === deriveFreq) derivesD.push(c.num);
+    }
+    if (!derivesD.length) return false;
+    const deriveDSet = new Set(derivesD);
+    for (let r = focusIdx - 10; r < focusIdx; r++) {
+      if (r < 0 || r >= rowNums.length) continue;
+      const nums = rowNums[r];
+      if (!nums.length) continue;
+      let hasDerive = false;
+      for (let di = 0; di < derivesD.length; di++) {
+        if (nums.indexOf(derivesD[di]) !== -1) {
+          hasDerive = true;
+          break;
+        }
+      }
+      if (!hasDerive) continue;
+      for (let ni = 0; ni < nums.length; ni++) {
+        const v = nums[ni];
+        if (!(v >= 1 && v <= 35)) continue;
+        if (deriveDSet.has(v)) continue;
+        if ((counts[v] | 0) === peerFreq) return true;
+      }
+    }
+    return false;
+  }
+
+  function isPairDisabled(rowNums, focusIdx, cands, counts, deriveFreq, peerFreq) {
+    return !hasDerivePeerWitness(rowNums, focusIdx, cands, counts, deriveFreq, peerFreq);
+  }
+
+  function splitFor(rows, rowNums, candsCache, deriveFreq, peerFreq) {
+    const n = rows.length;
+    const hold = [];
+    const violate = [];
+    const disabled = [];
+    /** @type {Map<number, Set<number>>} */
+    const violNums = new Map();
+    /** Peer loại theo (D,P) tại kỳ — hợp thành cột pool; phá ⊆ pool. */
+    /** @type {Map<number, Set<number>>} */
+    const poolNums = new Map();
+    const counts = new Int16Array(36);
+    const addRow = (ri, sign) => {
+      if (ri < 0 || ri >= n) return;
+      const nums = rowNums[ri];
+      for (let ni = 0; ni < nums.length; ni++) {
+        const v = nums[ni];
+        if (v >= 1 && v <= 35) counts[v] += sign;
+      }
+    };
+
+    for (let i = 0; i < n; i++) {
+      if (i >= 10 && rowNums[i].length) {
+        const cands = candsCache[i] || [];
+        if (isPairDisabled(rowNums, i, cands, counts, deriveFreq, peerFreq)) {
+          disabled.push(i);
+        } else {
+          const answerSet = new Set(rowNums[i]);
+          const derivesD = [];
+          for (let ci = 0; ci < cands.length; ci++) {
+            const c = cands[ci];
+            if (!c) continue;
+            if (deriveFreq != null && (counts[c.num] | 0) !== deriveFreq) continue;
+            derivesD.push(c.num);
+          }
+          const deriveDSet = new Set(derivesD);
+          let applicable = false;
+          let isViol = false;
+          /** @type {Set<number>|null} */
+          let hitPeers = null;
+          /** @type {Set<number>|null} */
+          let allPeers = null;
+          const winStart = i - 10;
+          for (let r = winStart; r < i; r++) {
+            const nums = rowNums[r];
+            if (!nums.length) continue;
+            const derivesOnRow = [];
+            const seenD = new Set();
+            for (let di = 0; di < derivesD.length; di++) {
+              const x = derivesD[di];
+              if (seenD.has(x)) continue;
+              if (nums.indexOf(x) === -1) continue;
+              seenD.add(x);
+              derivesOnRow.push(x);
+            }
+            if (!derivesOnRow.length) continue;
+            const wantPeer = peerFreq != null ? peerFreq : (counts[derivesOnRow[0]] | 0);
+            const peersOnRow = [];
+            const seenP = new Set();
+            for (let ni = 0; ni < nums.length; ni++) {
+              const v = nums[ni];
+              if (!(v >= 1 && v <= 35) || seenP.has(v)) continue;
+              if (deriveDSet.has(v)) continue;
+              if ((counts[v] | 0) !== wantPeer) continue;
+              seenP.add(v);
+              peersOnRow.push(v);
+            }
+            if (!peersOnRow.length) continue;
+            applicable = true;
+            if (!allPeers) allPeers = new Set();
+            for (let pi = 0; pi < peersOnRow.length; pi++) allPeers.add(peersOnRow[pi]);
+            let anyDeriveInAnswer = false;
+            for (let di = 0; di < derivesOnRow.length; di++) {
+              if (answerSet.has(derivesOnRow[di])) {
+                anyDeriveInAnswer = true;
+                break;
+              }
+            }
+            if (anyDeriveInAnswer) continue;
+            for (let pi = 0; pi < peersOnRow.length; pi++) {
+              if (answerSet.has(peersOnRow[pi])) {
+                isViol = true;
+                if (!hitPeers) hitPeers = new Set();
+                hitPeers.add(peersOnRow[pi]);
+              }
+            }
+          }
+          if (applicable) {
+            if (allPeers && allPeers.size) poolNums.set(i, allPeers);
+            if (isViol) {
+              violate.push(i);
+              if (hitPeers && hitPeers.size) violNums.set(i, hitPeers);
+            } else hold.push(i);
+          }
+        }
+      }
+      addRow(i, 1);
+      if (i >= 10) addRow(i - 10, -1);
+    }
+    return {
+      hold: new Set(hold),
+      violate: new Set(violate),
+      disabled: new Set(disabled),
+      violNums: violNums,
+      poolNums: poolNums
+    };
+  }
+
+  /** Chi tiết loại peer khi giả định (D,P) đúng — trước đáp án. */
+  function elimDetailsForPair(rows, rowNums, ids, focusIdx, focusId, cands, counts, D, P) {
+    const label = '(' + D + ',' + P + ')';
+    if (isPairDisabled(rowNums, focusIdx, cands, counts, D, P)) {
+      return { label, D, P, disabled: true, lines: [], elim: [] };
+    }
+    const derivesD = [];
+    for (let ci = 0; ci < cands.length; ci++) {
+      const c = cands[ci];
+      if (!c) continue;
+      if ((counts[c.num] | 0) === D) derivesD.push(c.num);
+    }
+    const deriveDSet = new Set(derivesD);
+    const lines = [];
+    const elim = new Set();
+    for (let r = focusIdx - 10; r < focusIdx; r++) {
+      if (r < 0 || r >= rowNums.length) continue;
+      const nums = rowNums[r];
+      if (!nums.length) continue;
+      const chuoi = focusId - ids[r];
+      const derivesOnRow = [];
+      for (let di = 0; di < derivesD.length; di++) {
+        const x = derivesD[di];
+        if (nums.indexOf(x) !== -1) derivesOnRow.push(x);
+      }
+      if (!derivesOnRow.length) continue;
+      const peersOnRow = [];
+      const seenP = new Set();
+      for (let ni = 0; ni < nums.length; ni++) {
+        const v = nums[ni];
+        if (!(v >= 1 && v <= 35) || seenP.has(v)) continue;
+        if (deriveDSet.has(v)) continue;
+        if ((counts[v] | 0) !== P) continue;
+        seenP.add(v);
+        peersOnRow.push(v);
+      }
+      if (!peersOnRow.length) continue;
+      peersOnRow.forEach((p) => elim.add(p));
+      lines.push({
+        chuoi: chuoi,
+        rowId: ids[r],
+        derives: derivesOnRow.slice(),
+        peers: peersOnRow.slice()
+      });
+    }
+    return {
+      label,
+      D,
+      P,
+      disabled: false,
+      lines,
+      elim: Array.from(elim).sort((a, b) => a - b)
+    };
+  }
+
+  /** Peer nằm trong đáp án (derive không) → phá luật (D,P). */
+  function violateDetailsForPair(rows, rowNums, ids, focusIdx, focusId, cands, counts, D, P) {
+    const label = '(' + D + ',' + P + ')';
+    if (isPairDisabled(rowNums, focusIdx, cands, counts, D, P)) {
+      return { label, D, P, disabled: true, lines: [], viol: [] };
+    }
+    const answerSet = new Set(rowNums[focusIdx] || []);
+    const derivesD = [];
+    for (let ci = 0; ci < cands.length; ci++) {
+      const c = cands[ci];
+      if (!c) continue;
+      if ((counts[c.num] | 0) === D) derivesD.push(c.num);
+    }
+    const deriveDSet = new Set(derivesD);
+    const lines = [];
+    const viol = new Set();
+    for (let r = focusIdx - 10; r < focusIdx; r++) {
+      if (r < 0 || r >= rowNums.length) continue;
+      const nums = rowNums[r];
+      if (!nums.length) continue;
+      const chuoi = focusId - ids[r];
+      const derivesOnRow = [];
+      for (let di = 0; di < derivesD.length; di++) {
+        const x = derivesD[di];
+        if (nums.indexOf(x) !== -1) derivesOnRow.push(x);
+      }
+      if (!derivesOnRow.length) continue;
+      const peersOnRow = [];
+      const seenP = new Set();
+      for (let ni = 0; ni < nums.length; ni++) {
+        const v = nums[ni];
+        if (!(v >= 1 && v <= 35) || seenP.has(v)) continue;
+        if (deriveDSet.has(v)) continue;
+        if ((counts[v] | 0) !== P) continue;
+        seenP.add(v);
+        peersOnRow.push(v);
+      }
+      if (!peersOnRow.length) continue;
+      let anyDeriveInAnswer = false;
+      for (let di = 0; di < derivesOnRow.length; di++) {
+        if (answerSet.has(derivesOnRow[di])) {
+          anyDeriveInAnswer = true;
+          break;
+        }
+      }
+      if (anyDeriveInAnswer) continue;
+      const hit = [];
+      for (let pi = 0; pi < peersOnRow.length; pi++) {
+        const p = peersOnRow[pi];
+        if (answerSet.has(p)) {
+          hit.push(p);
+          viol.add(p);
+        }
+      }
+      if (!hit.length) continue;
+      lines.push({
+        chuoi: chuoi,
+        rowId: ids[r],
+        derives: derivesOnRow.slice(),
+        peers: hit.slice()
+      });
+    }
+    return {
+      label,
+      D,
+      P,
+      disabled: false,
+      lines,
+      viol: Array.from(viol).sort((a, b) => a - b)
+    };
+  }
+
+  /**
+   * Kỳ giả lập = kỳ ngay sau kỳ cuối CÓ đáp án.
+   * Nếu data có hàng rỗng trailing (vd id 943 trống) thì focus đúng hàng đó,
+   * không +1 thêm thành 944 (phase1 sẽ rỗng → mọi cột loại không).
+   */
+  function resolveSimFocus(rows, rowNums, ids) {
+    let lastNe = rows.length - 1;
+    while (lastNe >= 0 && !(rowNums[lastNe] && rowNums[lastNe].length)) {
+      lastNe--;
+    }
+    if (lastNe < 0) return null;
+    if (lastNe + 1 < rows.length && !(rowNums[lastNe + 1] && rowNums[lastNe + 1].length)) {
+      return { focusIdx: lastNe + 1, focusId: ids[lastNe + 1] };
+    }
+    return { focusIdx: lastNe + 1, focusId: ids[lastNe] + 1 };
+  }
+
+  function buildSimState(rows, rowNums, ids) {
+    const focus = resolveSimFocus(rows, rowNums, ids);
+    if (!focus) return null;
+    const { focusIdx, focusId } = focus;
+    const counts = windowCounts(rowNums, focusIdx);
+    const cands = enumerateTail3Cands(rows, rowNums, focusIdx);
+    const disabled = [];
+    const details = [];
+    for (let pi = 0; pi < PAIRS.length; pi++) {
+      const D = PAIRS[pi][0];
+      const P = PAIRS[pi][1];
+      disabled[pi] = isPairDisabled(rowNums, focusIdx, cands, counts, D, P);
+      details[pi] = elimDetailsForPair(
+        rows, rowNums, ids, focusIdx, focusId, cands, counts, D, P
+      );
+    }
+    return { focusId, focusIdx, disabled, details, cands: cands.map((c) => c.num) };
+  }
+
+  function detailsAtFocus(focusIdx, focusId) {
+    if (!dataCtx) return null;
+    const { rows, rowNums, ids, candsCache } = dataCtx;
+    const counts = windowCounts(rowNums, focusIdx);
+    const cands = focusIdx < candsCache.length
+      ? candsCache[focusIdx]
+      : enumerateTail3Cands(rows, rowNums, focusIdx);
+    const details = [];
+    const violDetails = [];
+    const disabled = [];
+    for (let pi = 0; pi < PAIRS.length; pi++) {
+      const D = PAIRS[pi][0];
+      const P = PAIRS[pi][1];
+      disabled[pi] = isPairDisabled(rowNums, focusIdx, cands || [], counts, D, P);
+      details[pi] = elimDetailsForPair(
+        rows, rowNums, ids, focusIdx, focusId, cands || [], counts, D, P
+      );
+      violDetails[pi] = violateDetailsForPair(
+        rows, rowNums, ids, focusIdx, focusId, cands || [], counts, D, P
+      );
+    }
+    return { focusId, focusIdx, details, violDetails, disabled };
+  }
+
+  function renderPairElimBlocks(details, disabled, mask) {
+    const chosen = [];
+    const allElim = new Set();
+    let html = '';
+    for (let pi = 0; pi < PAIRS.length; pi++) {
+      if (!mask[pi] || disabled[pi]) continue;
+      const d = details[pi];
+      if (!d) continue;
+      chosen.push(d.label);
+      d.elim.forEach((x) => allElim.add(x));
+      html += '<div class="pair-block">';
+      html += '<div class="pair-title">' + d.label + ' → loại: '
+        + (d.elim.length ? d.elim.join(', ') : '(không)') + '</div>';
+      if (!d.lines.length) {
+        html += '<div class="none">Không có chuỗi witness derive[D]+peer[P]</div>';
+      } else {
+        for (let li = 0; li < d.lines.length; li++) {
+          const L = d.lines[li];
+          html += '<div class="pair-line">chuỗi ' + L.chuoi
+            + ' (id ' + L.rowId + '): derive {' + L.derives.join(',')
+            + '} → loại {' + L.peers.join(',') + '}</div>';
+        }
+      }
+      html += '</div>';
+    }
+    return { chosen, allElim, html };
+  }
+
+  function renderPairViolBlocks(violDetails, disabled, violMask, lineSuffix) {
+    const suffix = lineSuffix || 'đáp án có peer';
+    const chosen = [];
+    const allViol = new Set();
+    let html = '';
+    for (let pi = 0; pi < PAIRS.length; pi++) {
+      if (!violMask[pi] || disabled[pi]) continue;
+      const d = violDetails[pi];
+      if (!d || !d.viol || !d.viol.length) continue;
+      chosen.push(d.label);
+      d.viol.forEach((x) => allViol.add(x));
+      html += '<div class="pair-block viol-block">';
+      html += '<div class="pair-title viol">' + d.label + ' → phá: '
+        + d.viol.join(', ') + '</div>';
+      for (let li = 0; li < d.lines.length; li++) {
+        const L = d.lines[li];
+        html += '<div class="pair-line">chuỗi ' + L.chuoi
+          + ' (id ' + L.rowId + '): derive {' + L.derives.join(',')
+          + '} → ' + suffix + ' {' + L.peers.join(',') + '}</div>';
+      }
+      html += '</div>';
+    }
+    return { chosen, allViol, html };
+  }
+
+  function escapeAttr(s) {
+    return String(s)
+      .replace(/&/g, '&amp;')
+      .replace(/"/g, '&quot;')
+      .replace(/</g, '&lt;');
+  }
+
+  const COPY_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+    + '<path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>'
+    + '</svg>';
+  const COPY_OK_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+    + '<path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>'
+    + '</svg>';
+
+  /** Nút copy dãy a,b,c (không freq) — icon clipboard. */
+  function copyNumsBtnHtml(nums) {
+    const csv = (nums || []).join(',');
+    return '<button type="button" class="copy-nums-btn" data-copy="'
+      + escapeAttr(csv)
+      + '" title="Copy ' + (csv ? csv : '(rỗng)') + '" aria-label="Copy dãy số">'
+      + COPY_ICON_SVG + '</button>';
+  }
+
+  function copyTextToClipboard(text, btn) {
+    const done = () => {
+      if (!btn) return;
+      btn.innerHTML = COPY_OK_ICON_SVG;
+      btn.classList.add('is-ok');
+      setTimeout(() => {
+        btn.innerHTML = COPY_ICON_SVG;
+        btn.classList.remove('is-ok');
+      }, 900);
+    };
+    const fail = () => {
+      if (btn) btn.title = 'Copy thất bại';
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done).catch(fail);
+      return;
+    }
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text;
+      ta.setAttribute('readonly', '');
+      ta.style.position = 'fixed';
+      ta.style.left = '-9999px';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+      done();
+    } catch (e) {
+      fail();
+    }
+  }
+
+  function formatPoolSubHtml(arr, boldSet) {
+    const nums = arr || [];
+    let body;
+    if (!nums.length) {
+      body = 'pool[0] {}';
+    } else {
+      const parts = [];
+      for (let i = 0; i < nums.length; i++) {
+        const n = nums[i];
+        const isBold = !!(boldSet && boldSet.has(n));
+        parts.push(isBold ? ('<b>' + n + '</b>') : String(n));
+      }
+      body = 'pool[' + nums.length + '] {' + parts.join(',') + '}';
+    }
+    return '<span class="pool-sub-text">' + body + '</span>' + copyNumsBtnHtml(nums);
+  }
+
+  function toSubscript(n) {
+    return String(n).replace(/[0-9]/g, (d) => SUBSCRIPT_DIGITS[Number(d)]);
+  }
+
+  /**
+   * Cột khi pool tối đa: hợp active của >=1% và <=100%
+   * (rest cố định, không đổi theo threshold header).
+   */
+  function maxPoolPairIndices() {
+    const seen = new Set();
+    const out = [];
+    function addAll(list) {
+      for (let i = 0; i < list.length; i++) {
+        const pi = list[i];
+        if (seen.has(pi)) continue;
+        seen.add(pi);
+        out.push(pi);
+      }
+    }
+    addAll(activePairIndicesAt('>=', 1));
+    addAll(activePairIndicesAt('<=', 100));
+    return out;
+  }
+
+  /** rest = (1..35) \ nonexist(freq=0) \ poolMax; mỗi số kèm freq dưới chân. */
+  function buildRestItems(poolMaxArr, counts) {
+    const poolSet = new Set(poolMaxArr || []);
+    const out = [];
+    for (let n = 1; n <= 35; n++) {
+      const f = counts && (counts[n] | 0);
+      if (!f) continue;
+      if (poolSet.has(n)) continue;
+      out.push({ num: n, freq: f });
+    }
+    return out;
+  }
+
+  function formatRestSubHtml(restItems, answerSet) {
+    const items = restItems || [];
+    const nums = items.map((it) => it.num);
+    let body;
+    if (!items.length) {
+      body = 'rest[0] {}';
+    } else {
+      const ans = answerSet || null;
+      const parts = [];
+      for (let i = 0; i < items.length; i++) {
+        const it = items[i];
+        const bit = String(it.num) + '<span class="freq-sub">' + toSubscript(it.freq) + '</span>';
+        parts.push(ans && ans.has(it.num)
+          ? ('<span class="rest-hit">' + bit + '</span>')
+          : bit);
+      }
+      body = 'rest[' + items.length + '] {' + parts.join(',') + '}';
+    }
+    return '<span class="pool-sub-text">' + body + '</span>' + copyNumsBtnHtml(nums);
+  }
+
+  function hideModalRestPool() {
+    if (modalRest) {
+      modalRest.hidden = true;
+      modalRest.innerHTML = '';
+    }
+    if (modalPool) {
+      modalPool.hidden = true;
+      modalPool.innerHTML = '';
+    }
+  }
+
+  function resetPopupPoolTrack() {
+    popupPoolPrev = null;
+    popupPoolBold = new Set();
+  }
+
+  function syncPopupPoolBold(poolArr) {
+    const next = new Set(poolArr);
+    if (!popupPoolPrev) {
+      popupPoolBold = new Set();
+    } else {
+      const newlyIn = [];
+      next.forEach((n) => {
+        if (!popupPoolPrev.has(n)) newlyIn.push(n);
+      });
+      if (newlyIn.length) {
+        // Có số mới → chỉ đậm đúng các số vừa vào lần này.
+        popupPoolBold = new Set(newlyIn);
+      } else {
+        // Không có số mới → giữ đậm các số đậm trước đó còn nằm trong pool.
+        const kept = new Set();
+        popupPoolBold.forEach((n) => {
+          if (next.has(n)) kept.add(n);
+        });
+        popupPoolBold = kept;
+      }
+    }
+    popupPoolPrev = next;
+  }
+
+  /** Đậm dòng pool phía trên = peer của luật mới ở mốc timeline cuối. */
+  function seedPoolBoldFromMilestones(milestones, poolArr) {
+    const bold = new Set();
+    if (milestones && milestones.length) {
+      const last = milestones[milestones.length - 1];
+      const newly = last.newlyIn || [];
+      for (let i = 0; i < newly.length; i++) bold.add(newly[i]);
+    }
+    popupPoolBold = bold;
+    popupPoolPrev = new Set(poolArr);
+  }
+
+  function activePairIndicesAt(op, val) {
+    if (!tableBundle) return [];
+    const out = [];
+    for (let pi = 0; pi < PAIRS.length; pi++) {
+      const st = tableBundle.stats[pi];
+      if (!st || !st.applicable) continue;
+      if (pctMeets(st.pctNum, op, val)) out.push(pi);
+    }
+    out.sort((a, b) => {
+      const Pa = PAIRS[a][1];
+      const Pb = PAIRS[b][1];
+      if (Pa !== Pb) return Pa - Pb;
+      return PAIRS[a][0] - PAIRS[b][0];
+    });
+    return out;
+  }
+
+  function simPoolPháArrAt(active) {
+    const poolSet = new Set();
+    const pháArr = [];
+    const pháSeen = new Set();
+    if (!simState) return { pool: [], phá: [] };
+    for (let ai = 0; ai < active.length; ai++) {
+      const pi = active[ai];
+      if (simState.disabled[pi]) continue;
+      const d = simState.details[pi];
+      if (!d || !d.elim) continue;
+      d.elim.forEach((x) => poolSet.add(x));
+      if (!simTicks[pi]) {
+        d.elim.forEach((x) => {
+          if (pháSeen.has(x)) return;
+          pháSeen.add(x);
+          pháArr.push(x);
+        });
+      }
+    }
+    return { pool: sortedNumsFromSet(poolSet), phá: pháArr };
+  }
+
+  /** Peer pool chỉ từ các cặp pairIndices (luật mới) tại kỳ i. */
+  function poolNumsArrForPairs(i, pairIndices) {
+    if (!tableBundle || !pairIndices || !pairIndices.length) return [];
+    const { splits } = tableBundle;
+    const set = new Set();
+    for (let ai = 0; ai < pairIndices.length; ai++) {
+      const pi = pairIndices[ai];
+      const s = splits[pi];
+      if (!s || s.disabled.has(i)) continue;
+      if (!s.hold.has(i) && !s.violate.has(i)) continue;
+      const pn = s.poolNums && s.poolNums.get(i);
+      if (!pn) continue;
+      pn.forEach((x) => set.add(x));
+    }
+    return Array.from(set);
+  }
+
+  function simPoolNumsForPairs(pairIndices) {
+    if (!simState || !pairIndices || !pairIndices.length) return [];
+    const set = new Set();
+    for (let ai = 0; ai < pairIndices.length; ai++) {
+      const pi = pairIndices[ai];
+      if (simState.disabled[pi]) continue;
+      const d = simState.details[pi];
+      if (!d || !d.elim) continue;
+      d.elim.forEach((x) => set.add(x));
+    }
+    return Array.from(set);
+  }
+
+  function lastAnsweredIdForRate() {
+    if (!dataCtx) return null;
+    for (let i = dataCtx.ids.length - 1; i >= 0; i--) {
+      if (dataCtx.rowNums[i] && dataCtx.rowNums[i].length) return dataCtx.ids[i];
+    }
+    return null;
+  }
+
+  /** % phá luật tại một bộ cột active: (mẫu − tick đủ) / mẫu. */
+  function violPctAtActive(active) {
+    if (!tableBundle) return null;
+    const { displayIdx, splits } = tableBundle;
+    let full = 0;
+    for (let j = 0; j < displayIdx.length; j++) {
+      const i = displayIdx[j];
+      let en = 0;
+      let h = 0;
+      for (let ai = 0; ai < active.length; ai++) {
+        const pi = active[ai];
+        if (splits[pi].disabled.has(i)) continue;
+        en++;
+        if (splits[pi].hold.has(i)) h++;
+      }
+      if (en > 0 && h === en) full++;
+    }
+    const lastId = lastAnsweredIdForRate();
+    if (lastId == null) return null;
+    const mau = lastId - MIN_ID + 1;
+    if (mau <= 0) return null;
+    return (100 * (mau - full)) / mau;
+  }
+
+  /**
+   * Timeline từ đầu thang về ngưỡng hiện tại; chỉ ghi mốc khi |pool| đổi.
+   * >= : 100→thVal · <= : 1→thVal · = : một mốc.
+   * boldNums: mọi peer của luật MỚI (so với mốc trước) — kể cả số đã có trong pool.
+   */
+  function buildThresholdPoolTimeline(opts) {
+    const op = thOp;
+    const end = thVal;
+    const steps = [];
+    if (op === '>=') {
+      for (let t = 100; t >= end; t--) steps.push(t);
+    } else if (op === '<=') {
+      for (let t = 1; t <= end; t++) steps.push(t);
+    } else {
+      steps.push(end);
+    }
+    let prevSize = null;
+    /** @type {Set<number>|null} */
+    let prevMilestoneActive = null;
+    /** Phá append theo timeline — không sort. */
+    const pháChain = [];
+    const pháSeen = new Set();
+    const milestones = [];
+    const isHist = opts.mode === 'hist' && Number.isFinite(opts.focusIdx);
+    for (let si = 0; si < steps.length; si++) {
+      const t = steps[si];
+      const active = activePairIndicesAt(op, t);
+      let poolArr;
+      let pháArr;
+      if (isHist) {
+        poolArr = poolNumsArrForRow(opts.focusIdx, active);
+        pháArr = violNumsArrForRow(opts.focusIdx, active, true);
+      } else {
+        const packed = simPoolPháArrAt(active);
+        poolArr = packed.pool;
+        pháArr = packed.phá;
+      }
+      if (prevSize !== null && poolArr.length === prevSize) continue;
+      const newPairs = [];
+      for (let ai = 0; ai < active.length; ai++) {
+        const pi = active[ai];
+        if (!prevMilestoneActive || !prevMilestoneActive.has(pi)) newPairs.push(pi);
+      }
+      const related = isHist
+        ? poolNumsArrForPairs(opts.focusIdx, newPairs)
+        : simPoolNumsForPairs(newPairs);
+      const poolSet = new Set(poolArr);
+      const boldNums = [];
+      for (let i = 0; i < related.length; i++) {
+        const n = related[i];
+        if (poolSet.has(n)) boldNums.push(n);
+      }
+      for (let i = 0; i < pháArr.length; i++) {
+        const n = pháArr[i];
+        if (pháSeen.has(n)) continue;
+        pháSeen.add(n);
+        pháChain.push(n);
+      }
+      const rate = violPctAtActive(active);
+      milestones.push({
+        t: t,
+        pool: poolArr,
+        phá: pháChain.slice(),
+        newlyIn: boldNums,
+        violPct: rate
+      });
+      prevSize = poolArr.length;
+      prevMilestoneActive = new Set(active);
+    }
+    return milestones;
+  }
+
+  function formatTimelinePoolHtml(poolArr, newlyIn) {
+    const bold = new Set(newlyIn || []);
+    const parts = [];
+    for (let i = 0; i < poolArr.length; i++) {
+      const n = poolArr[i];
+      parts.push(bold.has(n) ? ('<b>' + n + '</b>') : String(n));
+    }
+    return 'pool[' + poolArr.length + ']{' + parts.join(',') + '}';
+  }
+
+  function renderThresholdTimelineHtml(milestones, mode) {
+    if (!milestones.length) {
+      return '<div class="th-tl-title">Timeline threshold</div>'
+        + '<div class="th-tl-row">(không có mốc)</div>';
+    }
+    const isSim = mode === 'sim';
+    const dir = thOp === '>='
+      ? ('>= 100% → ' + thVal + '%')
+      : (thOp === '<='
+        ? ('<= 1% → ' + thVal + '%')
+        : ('= ' + thVal + '%'));
+    let html = '<div class="th-tl-title">Timeline threshold (' + dir
+      + ') · mốc khi |pool| đổi</div>';
+    if (milestones.length > 1) html += '<div class="th-tl-flow" aria-hidden="true"></div>';
+    for (let i = 0; i < milestones.length; i++) {
+      const m = milestones[i];
+      const pháTxt = isSim
+        ? '???'
+        : (m.phá.length ? m.phá.join(',') : '');
+      const rateTxt = Number.isFinite(m.violPct)
+        ? (m.violPct.toFixed(1) + '%')
+        : '—';
+      html += '<div class="th-tl-row">'
+        + '<span class="tl-t">' + m.t + '%</span>'
+        + '<span class="tl-rate" title="% phá luật tại threshold này">' + rateTxt + '</span>'
+        + '<span class="tl-pool">' + formatTimelinePoolHtml(m.pool, m.newlyIn) + '</span>'
+        + '<span class="tl-phá">phá: ' + pháTxt + '</span>'
+        + '</div>';
+    }
+    return html;
+  }
+
+  function showElimPopupFrom(opts) {
+    const focusId = opts.focusId;
+    const details = opts.details;
+    const disabled = opts.disabled || [];
+    const mask = opts.mask || [];
+    const modeLabel = opts.modeLabel || '';
+    const emptyHint = opts.emptyHint || 'Không có cột đúng để loại số.';
+    const showViolate = !!opts.showViolate;
+    const violDetails = opts.violDetails || [];
+    const violMask = opts.violMask || [];
+    const violSecTitle = opts.violSecTitle || 'Phá luật (cột không ✓)';
+    const violEmptyHint = opts.violEmptyHint
+      || 'Kỳ này không phá luật cột nào (trong threshold).';
+    const violLineSuffix = opts.violLineSuffix || 'đáp án có peer';
+    const poolArr = Array.isArray(opts.poolNums) ? opts.poolNums.slice() : [];
+    const wCounts = opts.counts || null;
+
+    const elimPart = renderPairElimBlocks(details, disabled, mask);
+    const violPart = showViolate
+      ? renderPairViolBlocks(violDetails, disabled, violMask, violLineSuffix)
+      : { chosen: [], allViol: new Set(), html: '' };
+
+    let html = '';
+    if (showViolate) {
+      html += '<div class="sec-title">Loại (cột ✓)</div>';
+      html += elimPart.chosen.length
+        ? elimPart.html
+        : '<p class="none">' + emptyHint + '</p>';
+      html += '<div class="sec-title viol">' + violSecTitle + '</div>';
+      html += violPart.chosen.length
+        ? violPart.html
+        : '<p class="none">' + violEmptyHint + '</p>';
+    } else {
+      html = elimPart.chosen.length
+        ? elimPart.html
+        : '<p class="none">' + emptyHint + '</p>';
+    }
+
+    const elimArr = Array.from(elimPart.allElim).sort((a, b) => a - b);
+    const violArr = Array.from(violPart.allViol).sort((a, b) => a - b);
+    modalTitle.textContent = showViolate ? ('Kỳ id ' + focusId) : 'Số bị loại';
+    const colBits = [];
+    if (elimPart.chosen.length) colBits.push('✓ ' + elimPart.chosen.join(' '));
+    if (violPart.chosen.length) colBits.push('phá ' + violPart.chosen.join(' '));
+    modalSub.textContent = modeLabel + ' id ' + focusId
+      + ' · ' + (colBits.length ? colBits.join(' · ') : '—');
+    let tlMilestones = null;
+    if (showViolate) {
+      const tlOpts = opts.timelineMode === 'sim'
+        ? { mode: 'sim' }
+        : { mode: 'hist', focusIdx: opts.focusIdx };
+      tlMilestones = buildThresholdPoolTimeline(tlOpts);
+      seedPoolBoldFromMilestones(tlMilestones, poolArr);
+    } else {
+      syncPopupPoolBold(poolArr);
+    }
+    if (wCounts) {
+      const answerSet = opts.answerSet instanceof Set ? opts.answerSet : null;
+      const poolMaxArr = Array.isArray(opts.maxPoolNums) ? opts.maxPoolNums : poolArr;
+      modalRest.innerHTML = formatRestSubHtml(buildRestItems(poolMaxArr, wCounts), answerSet);
+      modalRest.hidden = false;
+    } else {
+      modalRest.hidden = true;
+      modalRest.innerHTML = '';
+    }
+    modalPool.innerHTML = formatPoolSubHtml(poolArr, popupPoolBold);
+    modalPool.hidden = false;
+    let sumHtml = elimArr.length
+      ? ('Loại (' + elimArr.length + ' số): ' + elimArr.join(', '))
+      : 'Loại (0 số): (không)';
+    if (showViolate) {
+      sumHtml += '<div class="viol-sum">'
+        + (violArr.length
+          ? ('Phá luật (' + violArr.length + ' số): ' + violArr.join(', '))
+          : 'Phá luật (0 số): (không)')
+        + '</div>';
+    }
+    modalSum.innerHTML = sumHtml;
+    modalSum.hidden = false;
+    if (showViolate && tlMilestones) {
+      modalTimeline.innerHTML = renderThresholdTimelineHtml(
+        tlMilestones,
+        opts.timelineMode === 'sim' ? 'sim' : 'hist'
+      );
+      modalTimeline.hidden = false;
+    } else {
+      modalTimeline.hidden = true;
+      modalTimeline.innerHTML = '';
+    }
+    modalBody.innerHTML = html;
+    popupKind = 'elim';
+    statsPopupKind = null;
+    modalBack.hidden = false;
+    document.body.classList.add('modal-open');
+  }
+
+  /** @type {{ id: number, popup: boolean, mode: string|null }|null} */
+  let pendingSharedFocus = null;
+  let sharedFocusApplyToken = 0;
+
+  function alignRowIntoView(id, opts) {
+    const td = wrap.querySelector('td.hist-id[data-id="' + String(id) + '"]')
+      || wrap.querySelector('td.sim-id[data-id="' + String(id) + '"]');
+    if (!td) return false;
+    const tr = td.closest('tr');
+    const smooth = !(opts && opts.instant);
+    const thead = wrap.querySelector('thead');
+    const stickyPad = thead ? thead.getBoundingClientRect().height : 86;
+    const delta = td.getBoundingClientRect().top - wrap.getBoundingClientRect().top;
+    const top = Math.max(0, wrap.scrollTop + delta - stickyPad);
+    wrap.scrollTo({ top: top, behavior: smooth ? 'smooth' : 'auto' });
+    wrap.querySelectorAll('tr.flash-row').forEach((r) => r.classList.remove('flash-row'));
+    if (tr) {
+      tr.classList.add('flash-row');
+      setTimeout(() => tr.classList.remove('flash-row'), 1000);
+    }
+    return true;
+  }
+
+  function scrollToRowId(id, opts) {
+    // Nhảy từ list stats: đóng popup local, không broadcast (tránh tắt hết tab).
+    modalBack.hidden = true;
+    document.body.classList.remove('modal-open');
+    popupKind = null;
+    statsPopupKind = null;
+    resetPopupPoolTrack();
+    hideModalRestPool();
+    modalTimeline.hidden = true;
+    modalTimeline.innerHTML = '';
+    return alignRowIntoView(id, opts);
+  }
+
+  function publishSharedFocus(id, opts) {
+    if (!window.FocusSync || typeof window.FocusSync.publish !== 'function') return;
+    if (window.FocusSync.isApplying && window.FocusSync.isApplying()) return;
+    const n = Number(id);
+    if (!Number.isFinite(n) || n <= 0) return;
+    window.FocusSync.publish(n, opts || {});
+  }
+
+  function findHistIdxById(n) {
+    if (!tableBundle) return -1;
+    const { ids, displayIdx } = tableBundle;
+    for (let j = 0; j < displayIdx.length; j++) {
+      const i = displayIdx[j];
+      if (ids[i] === n) return i;
+    }
+    return -1;
+  }
+
+  /** Sync từ tab khác / URL: focus id + mở/tắt popup elim đồng bộ. */
+  function applySharedFocusState(state, meta) {
+    const st = state && typeof state === 'object'
+      ? state
+      : { id: state, popup: false, mode: null };
+    const n = Number(st.id);
+    if (!Number.isFinite(n) || n <= 0) return false;
+    const wantPopup = !!st.popup;
+    const mode = st.mode === 'sim' ? 'sim' : 'hist';
+    const instant = !!(meta && (meta.remote || meta.seed || meta.instant));
+
+    if (!tableBundle || !dataCtx) {
+      pendingSharedFocus = { id: n, popup: wantPopup, mode: wantPopup ? mode : null };
+      return false;
+    }
+
+    const focusIdx = findHistIdxById(n);
+    const isSim = !!(simState && simState.focusId === n);
+
+    if (focusIdx < 0 && !isSim) {
+      pendingSharedFocus = { id: n, popup: wantPopup, mode: wantPopup ? mode : null };
+      return false;
+    }
+    pendingSharedFocus = null;
+    const token = ++sharedFocusApplyToken;
+
+    if (!wantPopup) {
+      // Đóng popup + bỏ ON — không publish lại.
+      modalBack.hidden = true;
+      document.body.classList.remove('modal-open');
+      if (popupKind === 'elim') clearAllIdOn();
+      else {
+        simIdOn = false;
+        histIdOnIdx = null;
+        syncSimRowDom();
+        syncHistIdDom();
+      }
+      popupKind = null;
+      statsPopupKind = null;
+      resetPopupPoolTrack();
+      hideModalRestPool();
+      modalTimeline.hidden = true;
+      modalTimeline.innerHTML = '';
+      // Vẫn đánh dấu hàng focus (không bật ON).
+      requestAnimationFrame(() => {
+        if (token !== sharedFocusApplyToken) return;
+        alignRowIntoView(n, { instant: instant });
+      });
+      return true;
+    }
+
+    // Mở popup elim trên mọi tab ticks.
+    requestAnimationFrame(() => {
+      if (token !== sharedFocusApplyToken) return;
+      alignRowIntoView(n, { instant: true });
+      if (mode === 'sim' || (focusIdx < 0 && isSim)) {
+        openSimElim();
+      } else {
+        openHistElim(focusIdx);
+      }
+    });
+    return true;
+  }
+
+  function flushPendingSharedFocus() {
+    const st = pendingSharedFocus
+      || (window.FocusSync && typeof window.FocusSync.get === 'function'
+        ? window.FocusSync.get()
+        : null);
+    if (!st || st.id == null) return false;
+    return !!applySharedFocusState(st, { seed: true, instant: true });
+  }
+
+  function initSharedFocusIdSync() {
+    if (!window.FocusSync || typeof window.FocusSync.init !== 'function') return;
+    window.FocusSync.init({
+      source: 'ticks',
+      apply: (state, meta) => {
+        applySharedFocusState(state, meta || {});
+      }
+    });
+  }
+
+  function showIdListPopup(kind) {
+    const isFull = kind === 'full';
+    const list = isFull ? fullTickList : zeroTickList;
+    modalTitle.textContent = isFull
+      ? '1/ Tick đủ mọi cột còn mở'
+      : '2/ Không tick cột nào';
+    modalSub.textContent = 'id > 20 · ' + list.length + ' kỳ · click id để đóng popup và nhảy tới hàng'
+      + (isFull ? ' · (en = số cột không bị disable)' : '');
+    hideModalRestPool();
+    modalTimeline.hidden = true;
+    modalTimeline.innerHTML = '';
+    resetPopupPoolTrack();
+    modalSum.hidden = true;
+    if (!list.length) {
+      modalBody.innerHTML = '<p class="none">Không có kỳ nào.</p>';
+    } else if (isFull) {
+      modalBody.innerHTML = '<div class="id-list">'
+        + list.map((x) => '<button type="button" data-jump-id="' + x.id + '">'
+          + x.id + ' <small>en=' + x.enabled + '</small></button>').join('')
+        + '</div>';
+    } else {
+      modalBody.innerHTML = '<div class="id-list">'
+        + list.map((id) => '<button type="button" data-jump-id="' + id + '">' + id + '</button>').join('')
+        + '</div>';
+    }
+    popupKind = 'stats';
+    statsPopupKind = isFull ? 'full' : 'zero';
+    modalBack.hidden = false;
+    document.body.classList.add('modal-open');
+  }
+
+  modalBody.addEventListener('click', (e) => {
+    const btn = e.target && e.target.closest ? e.target.closest('[data-jump-id]') : null;
+    if (!btn || popupKind !== 'stats') return;
+    e.preventDefault();
+    e.stopPropagation();
+    scrollToRowId(Number(btn.getAttribute('data-jump-id')));
+  });
+
+  function clearAllIdOn() {
+    simIdOn = false;
+    histIdOnIdx = null;
+    syncSimRowDom();
+    syncHistIdDom();
+  }
+
+  function hidePopup() {
+    const wasElim = popupKind === 'elim';
+    const closeId = wasElim
+      ? (simIdOn && simState
+        ? simState.focusId
+        : (histIdOnIdx != null && dataCtx ? dataCtx.ids[histIdOnIdx] : null))
+      : null;
+    modalBack.hidden = true;
+    document.body.classList.remove('modal-open');
+    if (wasElim) clearAllIdOn();
+    popupKind = null;
+    statsPopupKind = null;
+    resetPopupPoolTrack();
+    hideModalRestPool();
+    modalTimeline.hidden = true;
+    modalTimeline.innerHTML = '';
+    if (wasElim && closeId != null) {
+      publishSharedFocus(closeId, { popup: false, mode: null });
+    }
+  }
+
+  /** Popup đang mở: đổi threshold → cập nhật lại nội dung theo cột mới. */
+  function refreshOpenPopupAfterThreshold() {
+    if (modalBack.hidden || !popupKind) return;
+    if (popupKind === 'elim') {
+      if (simIdOn) openSimElim();
+      else if (histIdOnIdx != null) openHistElim(histIdOnIdx);
+      return;
+    }
+    if (popupKind === 'stats' && statsPopupKind) {
+      showIdListPopup(statsPopupKind);
+    }
+  }
+
+  modalClose.addEventListener('click', hidePopup);
+  modalBack.addEventListener('click', (e) => {
+    if (e.target === modalBack) hidePopup();
+  });
+  // Copy dãy rest / pool (a,b,c — không freq; pool theo threshold header hiện tại).
+  const onCopyNumsClick = (e) => {
+    const btn = e.target && e.target.closest ? e.target.closest('button.copy-nums-btn') : null;
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const text = btn.getAttribute('data-copy') || '';
+    copyTextToClipboard(text, btn);
+  };
+  if (modalRest) modalRest.addEventListener('click', onCopyNumsClick);
+  if (modalPool) modalPool.addEventListener('click', onCopyNumsClick);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !modalBack.hidden) hidePopup();
+  });
+  btnFullList.addEventListener('click', () => showIdListPopup('full'));
+  btnZeroList.addEventListener('click', () => showIdListPopup('zero'));
+
+  function syncSimRowDom() {
+    const tr = wrap.querySelector('tr.sim-row');
+    if (!tr || !simState) return;
+    tr.classList.toggle('is-locked', simIdOn);
+    const idTd = tr.querySelector('td.sim-id');
+    if (idTd) idTd.classList.toggle('is-on', simIdOn);
+    const active = new Set(activePairIndices());
+    tr.querySelectorAll('td.sim-cell').forEach((td) => {
+      const pi = Number(td.getAttribute('data-pi'));
+      if (!Number.isFinite(pi)) return;
+      const off = !active.has(pi);
+      if (simState.disabled[pi]) {
+        td.className = 'sim-cell nop' + (off ? ' col-off' : '');
+        td.setAttribute('data-pi', String(pi));
+        td.textContent = '';
+        td.title = 'Disable: không có derive[D]+peer[P] khác số cùng hàng W10';
+        return;
+      }
+      const on = !!simTicks[pi];
+      td.className = 'sim-cell' + (on ? ' ok' : '') + (off ? ' col-off' : '');
+      td.setAttribute('data-pi', String(pi));
+      td.textContent = on ? '✓' : '';
+      td.title = simIdOn
+        ? (on ? 'Giả lập đúng' : '')
+        : 'Click để giả lập tick đúng/sai';
+    });
+  }
+
+  function syncHistIdDom() {
+    wrap.querySelectorAll('td.hist-id').forEach((td) => {
+      const idx = Number(td.getAttribute('data-idx'));
+      td.classList.toggle('is-on', histIdOnIdx === idx);
+    });
+  }
+
+  function openHistElim(focusIdx) {
+    if (!dataCtx) return;
+    const focusId = dataCtx.ids[focusIdx];
+    const packed = detailsAtFocus(focusIdx, focusId);
+    if (!packed) return;
+    if (histIdOnIdx !== focusIdx) resetPopupPoolTrack();
+    const active = activePairIndices();
+    const activeSet = new Set(active);
+    const holdBase = dataCtx.holdMasks.get(focusIdx) || PAIRS.map(() => false);
+    const violBase = dataCtx.violateMasks.get(focusIdx) || PAIRS.map(() => false);
+    const mask = holdBase.map((on, pi) => !!(on && activeSet.has(pi)));
+    const violMask = violBase.map((on, pi) => !!(on && activeSet.has(pi)));
+    histIdOnIdx = focusIdx;
+    simIdOn = false;
+    syncSimRowDom();
+    syncHistIdDom();
+    showElimPopupFrom({
+      focusId,
+      focusIdx,
+      details: packed.details,
+      violDetails: packed.violDetails,
+      disabled: packed.disabled,
+      mask,
+      violMask,
+      poolNums: poolNumsArrForRow(focusIdx, active),
+      maxPoolNums: poolNumsArrForRow(focusIdx, maxPoolPairIndices()),
+      counts: windowCounts(dataCtx.rowNums, focusIdx),
+      answerSet: new Set(dataCtx.rowNums[focusIdx] || []),
+      showViolate: true,
+      timelineMode: 'hist',
+      modeLabel: 'Kỳ',
+      emptyHint: 'Kỳ này không có cột ✓ trong các cột thỏa threshold.'
+    });
+  }
+
+  function openSimElim() {
+    if (!simState) return;
+    if (!simIdOn) resetPopupPoolTrack();
+    const active = activePairIndices();
+    const activeSet = new Set(active);
+    const mask = simTicks.map((on, pi) => !!(on && activeSet.has(pi)));
+    // Cột không tick (còn mở): peer loại = số sẽ phá nếu vào đáp án.
+    const violMask = simTicks.map((on, pi) => !!(!on && activeSet.has(pi) && !simState.disabled[pi]));
+    const violDetails = simState.details.map((d) => ({
+      label: d.label,
+      D: d.D,
+      P: d.P,
+      disabled: d.disabled,
+      viol: (d.elim || []).slice(),
+      lines: d.lines || []
+    }));
+    const poolSet = new Set();
+    for (let ai = 0; ai < active.length; ai++) {
+      const pi = active[ai];
+      if (simState.disabled[pi]) continue;
+      const d = simState.details[pi];
+      if (!d || !d.elim) continue;
+      d.elim.forEach((x) => poolSet.add(x));
+    }
+    const maxPoolSet = new Set();
+    const maxActive = maxPoolPairIndices();
+    for (let ai = 0; ai < maxActive.length; ai++) {
+      const pi = maxActive[ai];
+      if (simState.disabled[pi]) continue;
+      const d = simState.details[pi];
+      if (!d || !d.elim) continue;
+      d.elim.forEach((x) => maxPoolSet.add(x));
+    }
+    histIdOnIdx = null;
+    simIdOn = true;
+    syncHistIdDom();
+    syncSimRowDom();
+    const simCounts = dataCtx
+      ? windowCounts(dataCtx.rowNums, simState.focusIdx)
+      : null;
+    showElimPopupFrom({
+      focusId: simState.focusId,
+      details: simState.details,
+      violDetails: violDetails,
+      disabled: simState.disabled,
+      mask,
+      violMask,
+      poolNums: sortedNumsFromSet(poolSet),
+      maxPoolNums: sortedNumsFromSet(maxPoolSet),
+      counts: simCounts,
+      showViolate: true,
+      timelineMode: 'sim',
+      modeLabel: 'Kỳ giả lập',
+      emptyHint: 'Chưa tick cột nào (trong các cột thỏa threshold).',
+      violSecTitle: 'Phá luật (cột không tick — nếu vào đáp án)',
+      violEmptyHint: 'Không còn cột mở nào ngoài các cột đã tick (hoặc không có peer).',
+      violLineSuffix: 'nếu đáp án có peer'
+    });
+  }
+
+  function bindSimRow() {
+    const tr = wrap.querySelector('tr.sim-row');
+    if (!tr) return;
+    const idTd = tr.querySelector('td.sim-id');
+    idTd.addEventListener('click', () => {
+      if (simIdOn) {
+        hidePopup();
+        return;
+      }
+      openSimElim();
+      if (simState) publishSharedFocus(simState.focusId, { popup: true, mode: 'sim' });
+    });
+    tr.querySelectorAll('td.sim-cell').forEach((td) => {
+      td.addEventListener('click', () => {
+        if (simIdOn) return;
+        if (td.classList.contains('col-off')) return;
+        const pi = Number(td.getAttribute('data-pi'));
+        if (!Number.isFinite(pi) || simState.disabled[pi]) return;
+        if (!activePairIndices().includes(pi)) return;
+        simTicks[pi] = !simTicks[pi];
+        syncSimRowDom();
+      });
+    });
+    syncSimRowDom();
+  }
+
+  function bindHistIds() {
+    wrap.querySelectorAll('td.hist-id').forEach((td) => {
+      td.addEventListener('click', () => {
+        const idx = Number(td.getAttribute('data-idx'));
+        if (!Number.isFinite(idx)) return;
+        if (histIdOnIdx === idx) {
+          hidePopup();
+          return;
+        }
+        openHistElim(idx);
+        if (dataCtx && dataCtx.ids) {
+          publishSharedFocus(dataCtx.ids[idx], { popup: true, mode: 'hist' });
+        }
+      });
+    });
+  }
+
+  function clampTh(n) {
+    const v = Math.round(Number(n));
+    if (!Number.isFinite(v)) return 1;
+    return Math.max(1, Math.min(100, v));
+  }
+
+  function loadThresholdPrefs() {
+    try {
+      const raw = localStorage.getItem(TH_LS_KEY);
+      if (!raw) return;
+      const o = JSON.parse(raw);
+      if (!o || typeof o !== 'object') return;
+      if (o.op === '=' || o.op === '<=' || o.op === '>=') thOp = o.op;
+      if (o.val != null) thVal = clampTh(o.val);
+    } catch (e) { /* ignore */ }
+  }
+
+  function saveThresholdPrefs() {
+    try {
+      localStorage.setItem(TH_LS_KEY, JSON.stringify({ op: thOp, val: thVal }));
+    } catch (e) { /* ignore */ }
+  }
+
+  function syncThOpDropdown() {
+    thOpBtn.classList.remove('op-ge', 'op-eq', 'op-le');
+    if (thOp === '<=') thOpBtn.classList.add('op-le');
+    else if (thOp === '=') thOpBtn.classList.add('op-eq');
+    else thOpBtn.classList.add('op-ge');
+    thOpBtn.textContent = OP_LABEL[thOp] || '>=';
+    thOpItems.forEach((item) => {
+      item.classList.toggle('is-on', item.getAttribute('data-op') === thOp);
+    });
+  }
+
+  function closeThOpMenu() {
+    thOpMenu.hidden = true;
+    thOpBtn.setAttribute('aria-expanded', 'false');
+  }
+
+  function openThOpMenu() {
+    thOpMenu.hidden = false;
+    thOpBtn.setAttribute('aria-expanded', 'true');
+  }
+
+  function applyThresholdToUi() {
+    thValEl.value = String(thVal);
+    syncThOpDropdown();
+  }
+
+  loadThresholdPrefs();
+  applyThresholdToUi();
+
+  function pctMeets(pctNum, op, x) {
+    if (!Number.isFinite(pctNum)) return false;
+    if (op === '>=') return pctNum >= x;
+    if (op === '<=') return pctNum <= x;
+    return Math.round(pctNum) === x;
+  }
+
+  function activePairIndices() {
+    if (!tableBundle) return [];
+    const out = [];
+    for (let pi = 0; pi < PAIRS.length; pi++) {
+      const st = tableBundle.stats[pi];
+      if (!st || !st.applicable) continue;
+      if (pctMeets(st.pctNum, thOp, thVal)) out.push(pi);
+    }
+    out.sort((a, b) => {
+      const Pa = PAIRS[a][1];
+      const Pb = PAIRS[b][1];
+      if (Pa !== Pb) return Pa - Pb;
+      return PAIRS[a][0] - PAIRS[b][0];
+    });
+    return out;
+  }
+
+  /** Mọi cột có mẫu (applicable>0), sắp P↑ D↑ — dựng 1 lần, threshold chỉ ẩn/hiện. */
+  function poolPairIndices() {
+    if (!tableBundle) return [];
+    const out = [];
+    for (let pi = 0; pi < PAIRS.length; pi++) {
+      const st = tableBundle.stats[pi];
+      if (st && st.applicable > 0) out.push(pi);
+    }
+    out.sort((a, b) => {
+      const Pa = PAIRS[a][1];
+      const Pb = PAIRS[b][1];
+      if (Pa !== Pb) return Pa - Pb;
+      return PAIRS[a][0] - PAIRS[b][0];
+    });
+    return out;
+  }
+
+  function updateSummaryForActive(active) {
+    if (!tableBundle) return;
+    const { displayIdx, ids, splits } = tableBundle;
+    fullTickList = [];
+    zeroTickList = [];
+    const fullIdx = new Set();
+    const zeroIdx = new Set();
+    for (let j = 0; j < displayIdx.length; j++) {
+      const i = displayIdx[j];
+      let en = 0;
+      let h = 0;
+      for (let ai = 0; ai < active.length; ai++) {
+        const pi = active[ai];
+        if (splits[pi].disabled.has(i)) continue;
+        en++;
+        if (splits[pi].hold.has(i)) h++;
+      }
+      if (en > 0 && h === en) {
+        fullTickList.push({ id: ids[i], enabled: en });
+        fullIdx.add(i);
+      }
+      if (h === 0) {
+        zeroTickList.push(ids[i]);
+        zeroIdx.add(i);
+      }
+    }
+    sumFullCount.textContent = String(fullTickList.length);
+    sumZeroCount.textContent = String(zeroTickList.length);
+
+    // % phá luật: mẫu = id cuối(có ĐA) − 21 + 1 · tử = mẫu − tick đủ · % = tử/mẫu
+    const lastAnsId = lastAnsweredIdForRate();
+    const mau = lastAnsId != null ? (lastAnsId - MIN_ID + 1) : 0;
+    const tu = mau > 0 ? (mau - fullTickList.length) : 0;
+    if (mau > 0) {
+      const pct = (100 * tu) / mau;
+      sumViolPct.textContent = pct.toFixed(1) + '%';
+      sumViolFrac.textContent = tu + '/' + mau;
+      chipViolRate.title =
+        'mẫu = ' + lastAnsId + ' − 21 + 1 = ' + mau
+        + ' · tử = ' + mau + ' − ' + fullTickList.length + ' = ' + tu
+        + ' · % = tử/mẫu (theo threshold hiện tại)';
+    } else {
+      sumViolPct.textContent = '—';
+      sumViolFrac.textContent = '';
+      chipViolRate.title = 'Chưa có kỳ có đáp án từ id 21';
+    }
+
+    updateRestRateDisplay(mau, lastAnsId);
+
+    summaryEl.hidden = false;
+    wrap.querySelectorAll('td.hist-id').forEach((td) => {
+      const idx = Number(td.getAttribute('data-idx'));
+      td.classList.toggle('tick-full', fullIdx.has(idx));
+      td.classList.toggle('tick-zero', zeroIdx.has(idx));
+    });
+  }
+
+  /** Số kỳ (id≥21 có ĐA) có đáp án ∩ rest ≠ ∅; rest theo pool tối đa. */
+  function countRestHitPeriods() {
+    if (!tableBundle || !dataCtx) return 0;
+    const maxPairs = maxPoolPairIndices();
+    const { displayIdx } = tableBundle;
+    let hit = 0;
+    for (let j = 0; j < displayIdx.length; j++) {
+      const i = displayIdx[j];
+      const poolMax = poolNumsArrForRow(i, maxPairs);
+      const counts = windowCounts(dataCtx.rowNums, i);
+      const restItems = buildRestItems(poolMax, counts);
+      if (!restItems.length) continue;
+      const restSet = new Set();
+      for (let r = 0; r < restItems.length; r++) restSet.add(restItems[r].num);
+      const answer = dataCtx.rowNums[i] || [];
+      for (let k = 0; k < answer.length; k++) {
+        if (restSet.has(answer[k])) {
+          hit++;
+          break;
+        }
+      }
+    }
+    return hit;
+  }
+
+  function updateRestRateDisplay(mau, lastAnsId) {
+    if (!sumRestPct || !sumRestFrac) return;
+    if (!(mau > 0)) {
+      sumRestPct.textContent = '—';
+      sumRestFrac.textContent = '';
+      if (chipRestRate) chipRestRate.title = 'Chưa có kỳ có đáp án từ id 21';
+      return;
+    }
+    if (restHitCache == null) restHitCache = countRestHitPeriods();
+    const hit = restHitCache;
+    sumRestPct.textContent = ((100 * hit) / mau).toFixed(1) + '%';
+    sumRestFrac.textContent = hit + '/' + mau;
+    if (chipRestRate) {
+      chipRestRate.title =
+        'mẫu = ' + lastAnsId + ' − 21 + 1 = ' + mau
+        + ' · tử = số kỳ đáp án giao rest = ' + hit
+        + ' · %rest = tử/mẫu (rest cố định theo pool tối đa)';
+    }
+  }
+
+  function updateStatusLine(activeLen) {
+    if (!tableBundle || !simState) return;
+    const { displayIdx, msHint } = tableBundle;
+    const simHint = ' · giả lập id ' + simState.focusId
+      + ' (derive cands: ' + (simState.cands.length ? simState.cands.join(',') : '—') + ')';
+    statusEl.textContent =
+      '✓ = đúng · ô đen = không derive[D]+peer[P] cùng hàng · cột thỏa threshold '
+      + thOp + ' ' + thVal + '%: ' + activeLen + '/' + PAIRS.length
+      + ' · click id = loại số · hàng cuối OFF=tick / ON=popup'
+      + ' · id ≥ ' + MIN_ID + ' · ' + displayIdx.length + ' kỳ'
+      + simHint + (msHint ? ' · ' + msHint : '');
+  }
+
+  function sortedNumsFromSet(set) {
+    return Array.from(set).sort((a, b) => a - b);
+  }
+
+  function formatPoolCell(arr) {
+    if (!arr.length) return '';
+    return 'pool[' + arr.length + '] {' + arr.join(',') + '}';
+  }
+
+  /** Hợp peer loại từ các cột threshold applicable (hold∪violate) tại kỳ i. */
+  function poolNumsArrForRow(i, active) {
+    if (!tableBundle) return [];
+    const { splits } = tableBundle;
+    const set = new Set();
+    for (let ai = 0; ai < active.length; ai++) {
+      const pi = active[ai];
+      const s = splits[pi];
+      if (!s || s.disabled.has(i)) continue;
+      if (!s.hold.has(i) && !s.violate.has(i)) continue;
+      const pn = s.poolNums && s.poolNums.get(i);
+      if (!pn) continue;
+      pn.forEach((x) => set.add(x));
+    }
+    return sortedNumsFromSet(set);
+  }
+
+  /** @param {boolean} [appendOrder] true = giữ thứ tự gặp (timeline), không sort */
+  function violNumsArrForRow(i, active, appendOrder) {
+    if (!tableBundle) return [];
+    const { splits } = tableBundle;
+    const set = new Set();
+    const out = [];
+    for (let ai = 0; ai < active.length; ai++) {
+      const pi = active[ai];
+      const s = splits[pi];
+      if (!s || !s.violate.has(i)) continue;
+      const vn = s.violNums && s.violNums.get(i);
+      if (!vn) continue;
+      vn.forEach((x) => {
+        if (set.has(x)) return;
+        set.add(x);
+        out.push(x);
+      });
+    }
+    if (appendOrder) return out;
+    return out.slice().sort((a, b) => a - b);
+  }
+
+  /** Đáp án ∩ rest (rest cố định theo pool tối đa); thứ tự theo đáp án; kèm freq. */
+  function restAnswerItemsForRow(i) {
+    if (!tableBundle || !dataCtx) return [];
+    const poolMax = poolNumsArrForRow(i, maxPoolPairIndices());
+    const counts = windowCounts(dataCtx.rowNums, i);
+    const restItems = buildRestItems(poolMax, counts);
+    if (!restItems.length) return [];
+    const freqByNum = new Map();
+    for (let r = 0; r < restItems.length; r++) {
+      freqByNum.set(restItems[r].num, restItems[r].freq);
+    }
+    const answer = dataCtx.rowNums[i] || [];
+    const out = [];
+    const seen = new Set();
+    for (let k = 0; k < answer.length; k++) {
+      const n = answer[k];
+      if (!freqByNum.has(n) || seen.has(n)) continue;
+      seen.add(n);
+      out.push({ num: n, freq: freqByNum.get(n) });
+    }
+    return out;
+  }
+
+  function formatRestAnsCell(items) {
+    if (!items.length) return '';
+    const parts = [];
+    for (let i = 0; i < items.length; i++) {
+      const it = items[i];
+      parts.push(String(it.num) + toSubscript(it.freq));
+    }
+    return parts.join(',');
+  }
+
+  function syncRestAnsCol() {
+    wrap.querySelectorAll('td.rest-ans[data-idx]').forEach((td) => {
+      const i = Number(td.getAttribute('data-idx'));
+      if (!Number.isFinite(i)) return;
+      const items = restAnswerItemsForRow(i);
+      const text = formatRestAnsCell(items);
+      td.textContent = text;
+      td.title = text
+        ? ('Đáp án ∩ rest: ' + text)
+        : 'Không có số đáp án thuộc rest';
+    });
+  }
+
+  function syncPoolViolCols(active) {
+    const act = active || activePairIndices();
+    wrap.querySelectorAll('td.pool-nums[data-idx]').forEach((td) => {
+      const i = Number(td.getAttribute('data-idx'));
+      if (!Number.isFinite(i)) return;
+      const arr = poolNumsArrForRow(i, act);
+      const text = formatPoolCell(arr);
+      td.textContent = text;
+      td.title = text
+        ? ('Pool peer theo cột threshold: ' + arr.join(', '))
+        : 'Không có peer từ cột threshold applicable';
+    });
+    wrap.querySelectorAll('td.viol-nums[data-idx]').forEach((td) => {
+      const i = Number(td.getAttribute('data-idx'));
+      if (!Number.isFinite(i)) return;
+      const arr = violNumsArrForRow(i, act);
+      const text = arr.join(',');
+      td.textContent = text;
+      td.title = text
+        ? ('Phá luật ⊆ pool (cột threshold): ' + text)
+        : 'Không phá luật cột nào trong threshold';
+    });
+    syncRestAnsCol();
+    syncSimPoolCol(act);
+  }
+
+  /** Kỳ giả lập: pool = hợp elim của cột threshold còn mở (chưa có đáp án → phá = —). */
+  function syncSimPoolCol(active) {
+    const td = wrap.querySelector('tr.sim-row td.pool-nums');
+    if (!td || !simState) return;
+    const act = active || activePairIndices();
+    const set = new Set();
+    for (let ai = 0; ai < act.length; ai++) {
+      const pi = act[ai];
+      if (simState.disabled[pi]) continue;
+      const d = simState.details[pi];
+      if (!d || !d.elim) continue;
+      d.elim.forEach((x) => set.add(x));
+    }
+    const arr = sortedNumsFromSet(set);
+    const text = formatPoolCell(arr);
+    td.textContent = text || '—';
+    td.title = text
+      ? ('Pool giả lập (peer loại nếu luật đúng): ' + arr.join(', '))
+      : 'Kỳ giả lập — chưa có peer từ cột threshold';
+  }
+
+  /** Chỉ toggle class — không đụng innerHTML → scroll không về 0. */
+  function applyThresholdColumns() {
+    const active = activePairIndices();
+    const activeSet = new Set(active);
+    wrap.querySelectorAll('table.dc-table [data-pi]').forEach((el) => {
+      const pi = Number(el.getAttribute('data-pi'));
+      if (!Number.isFinite(pi)) return;
+      el.classList.toggle('col-off', !activeSet.has(pi));
+    });
+    updateSummaryForActive(active);
+    syncPoolViolCols(active);
+    updateStatusLine(active.length);
+    syncSimRowDom();
+  }
+
+  function buildFullTable() {
+    if (!tableBundle || !simState) return;
+    const { displayIdx, ids, splits, stats, pairLabels } = tableBundle;
+    const pool = poolPairIndices();
+
+    let thead =
+      '<thead><tr class="pct"><th class="id pct">T%</th>'
+      + '<th class="pool-h pct" title="Hợp peer theo cột threshold">—</th>'
+      + '<th class="viol-h pct" title="Hợp số phá luật theo threshold">—</th>'
+      + '<th class="rest-h pct" title="Đáp án ∩ rest (rest cố định)">—</th>' +
+      pool.map((pi) => '<th class="pct" data-pi="' + pi + '">' + stats[pi].pct + '</th>').join('') +
+      '</tr><tr class="xy"><th class="id xy">x/y</th>'
+      + '<th class="pool-h xy">—</th><th class="viol-h xy">—</th><th class="rest-h xy">—</th>' +
+      pool.map((pi) => '<th class="xy" data-pi="' + pi + '" title="đúng / applicable">' + stats[pi].xy + '</th>').join('') +
+      '</tr><tr class="name"><th class="id name">id</th>'
+      + '<th class="pool-h name" title="pool[n] {peers} — hợp peer từ luật thỏa threshold; phá ⊆ pool">pool</th>'
+      + '<th class="viol-h name" title="Hợp số phá luật (các cột thỏa threshold)">phá</th>'
+      + '<th class="rest-h name" title="Số đáp án thuộc rest (rest = ngoài pool tối đa, có freq&gt;0)">rest</th>' +
+      pool.map((pi) => '<th class="name" data-pi="' + pi + '">' + pairLabels[pi] + '</th>').join('') +
+      '</tr></thead>';
+
+    let body = '<tbody>';
+    for (let j = 0; j < displayIdx.length; j++) {
+      const i = displayIdx[j];
+      body += '<tr><td class="id hist-id" data-idx="' + i + '" data-id="' + ids[i]
+        + '" title="Click ON để xem số bị loại theo các cột ✓">' + ids[i] + '</td>'
+        + '<td class="pool-nums" data-idx="' + i + '"></td>'
+        + '<td class="viol-nums" data-idx="' + i + '"></td>'
+        + '<td class="rest-ans" data-idx="' + i + '"></td>';
+      for (let ai = 0; ai < pool.length; ai++) {
+        const pi = pool[ai];
+        const s = splits[pi];
+        if (s.hold.has(i)) body += '<td class="ok" data-pi="' + pi + '">✓</td>';
+        else if (s.disabled.has(i)) {
+          body += '<td class="nop" data-pi="' + pi
+            + '" title="Disable: không có derive[D]+peer[P] khác số cùng hàng W10"></td>';
+        } else body += '<td data-pi="' + pi + '"></td>';
+      }
+      body += '</tr>';
+    }
+
+    body += '<tr class="sim-row"><td class="id sim-id" data-id="' + simState.focusId
+      + '" title="OFF = tick giả lập · ON = xem số bị loại">' + simState.focusId + '</td>'
+      + '<td class="pool-nums" title="Kỳ giả lập">—</td>'
+      + '<td class="viol-nums" title="Kỳ giả lập — chưa có đáp án">—</td>'
+      + '<td class="rest-ans" title="Kỳ giả lập — chưa có đáp án">—</td>';
+    for (let ai = 0; ai < pool.length; ai++) {
+      const pi = pool[ai];
+      if (simState.disabled[pi]) {
+        body += '<td class="sim-cell nop" data-pi="' + pi
+          + '" title="Disable: không có derive[D]+peer[P] khác số cùng hàng W10"></td>';
+      } else {
+        body += '<td class="sim-cell" data-pi="' + pi + '"></td>';
+      }
+    }
+    body += '</tr></tbody>';
+
+    wrap.innerHTML = '<table class="dc-table">' + thead + body + '</table>';
+    bindHistIds();
+    bindSimRow();
+  }
+
+  function paintTable(opts) {
+    if (!tableBundle || !simState) return;
+    const keepScroll = !!(opts && opts.keepScroll);
+    const hasTable = !!wrap.querySelector('table.dc-table');
+    // Đổi threshold: chỉ ẩn/hiện cột. Chỉ dựng lại bảng khi chưa có table.
+    if (!keepScroll || !hasTable) {
+      buildFullTable();
+    }
+    applyThresholdColumns();
+    syncSimRowDom();
+    syncHistIdDom();
+    if (pendingSharedFocus != null) flushPendingSharedFocus();
+  }
+
+  function render(rows) {
+    const t0 = performance.now();
+    statusEl.textContent = 'Đang tính…';
+    simTicks = PAIRS.map(() => false);
+    simIdOn = false;
+    histIdOnIdx = null;
+    restHitCache = null;
+
+    const n = rows.length;
+    const rowNums = new Array(n);
+    const ids = new Array(n);
+    for (let i = 0; i < n; i++) {
+      rowNums[i] = isEmptyResultRow(rows[i])
+        ? []
+        : parseMainNums(rows[i].result || rows[i].Result || '');
+      ids[i] = rowIdOf(rows[i], i);
+    }
+
+    const candsCache = buildCandsCache(rows, rowNums);
+    const splits = PAIRS.map(([d, p]) => splitFor(rows, rowNums, candsCache, d, p));
+
+    const displayIdx = [];
+    for (let i = 0; i < n; i++) {
+      if (ids[i] >= MIN_ID && rowNums[i].length) displayIdx.push(i);
+    }
+
+    const holdMasks = new Map();
+    const violateMasks = new Map();
+    for (let j = 0; j < displayIdx.length; j++) {
+      const i = displayIdx[j];
+      holdMasks.set(i, splits.map((s) => s.hold.has(i)));
+      violateMasks.set(i, splits.map((s) => s.violate.has(i)));
+    }
+
+    dataCtx = { rows, rowNums, ids, candsCache, holdMasks, violateMasks };
+
+    const stats = splits.map((s) => {
+      let h = 0;
+      let a = 0;
+      for (let j = 0; j < displayIdx.length; j++) {
+        const i = displayIdx[j];
+        if (s.hold.has(i)) {
+          h++;
+          a++;
+        } else if (s.violate.has(i)) {
+          a++;
+        }
+      }
+      const pctNum = a ? (100 * h) / a : NaN;
+      return {
+        hold: h,
+        applicable: a,
+        pctNum,
+        pct: a ? pctNum.toFixed(1) + '%' : '—',
+        xy: h + '/' + a
+      };
+    });
+
+    simState = buildSimState(rows, rowNums, ids);
+    const pairLabels = PAIRS.map(([d, p]) => '(' + d + ',' + p + ')');
+    const ms = Math.round(performance.now() - t0);
+    tableBundle = {
+      displayIdx,
+      ids,
+      splits,
+      stats,
+      pairLabels,
+      msHint: ms + 'ms'
+    };
+
+    paintTable({ keepScroll: false });
+    requestAnimationFrame(() => {
+      if (window.FocusSync && typeof window.FocusSync.seedFromUrlOrStorage === 'function') {
+        window.FocusSync.seedFromUrlOrStorage({ useStorage: true });
+      }
+      flushPendingSharedFocus();
+      if (histIdOnIdx == null && !simIdOn) {
+        wrap.scrollTop = wrap.scrollHeight;
+      }
+    });
+  }
+
+  function syncThresholdFromUi() {
+    thVal = clampTh(thValEl.value);
+    thValEl.value = String(thVal);
+    syncThOpDropdown();
+    saveThresholdPrefs();
+    if (tableBundle) {
+      applyThresholdColumns();
+      refreshOpenPopupAfterThreshold();
+    }
+  }
+
+  function setThresholdOp(op) {
+    thOp = op === '=' || op === '<=' ? op : '>=';
+    syncThOpDropdown();
+    closeThOpMenu();
+    saveThresholdPrefs();
+    if (tableBundle) {
+      applyThresholdColumns();
+      refreshOpenPopupAfterThreshold();
+    }
+  }
+
+  function stepThreshold(delta) {
+    thVal = clampTh(thVal + delta);
+    thValEl.value = String(thVal);
+    saveThresholdPrefs();
+    if (tableBundle) {
+      applyThresholdColumns();
+      refreshOpenPopupAfterThreshold();
+    }
+  }
+
+  function bindHoldStep(btn, dir) {
+    let delayTimer = null;
+    let repeatTimer = null;
+    const clear = () => {
+      if (delayTimer) clearTimeout(delayTimer);
+      if (repeatTimer) clearInterval(repeatTimer);
+      delayTimer = null;
+      repeatTimer = null;
+    };
+    const start = (e) => {
+      e.preventDefault();
+      stepThreshold(dir);
+      clear();
+      delayTimer = setTimeout(() => {
+        repeatTimer = setInterval(() => stepThreshold(dir), 45);
+      }, 280);
+    };
+    btn.addEventListener('mousedown', start);
+    btn.addEventListener('touchstart', start, { passive: false });
+    btn.addEventListener('mouseup', clear);
+    btn.addEventListener('mouseleave', clear);
+    btn.addEventListener('touchend', clear);
+    btn.addEventListener('touchcancel', clear);
+  }
+
+  thOpBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (thOpMenu.hidden) openThOpMenu();
+    else closeThOpMenu();
+  });
+  thOpItems.forEach((item) => {
+    item.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setThresholdOp(item.getAttribute('data-op'));
+    });
+  });
+  document.addEventListener('click', (e) => {
+    if (!thOpDd.contains(e.target)) closeThOpMenu();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !thOpMenu.hidden) closeThOpMenu();
+  });
+  thValEl.addEventListener('change', syncThresholdFromUi);
+  thValEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      syncThresholdFromUi();
+      thValEl.blur();
+    }
+  });
+  bindHoldStep(thDecEl, -1);
+  bindHoldStep(thIncEl, 1);
+
+  function showFetchError(msg) {
+    errEl.hidden = false;
+    errEl.textContent = msg;
+    summaryEl.hidden = true;
+    statusEl.textContent = 'Không tải được data.json.';
+  }
+
+  initSharedFocusIdSync();
+  // Giữ id từ URL sớm — apply khi bảng xong.
+  try {
+    const sp = new URLSearchParams(location.search);
+    const qid = Number(sp.get('id'));
+    if (Number.isFinite(qid) && qid > 0) {
+      pendingSharedFocus = { id: Math.floor(qid), popup: false, mode: null };
+    }
+  } catch (e) { /* ignore */ }
+
+  fetch('data.json', { cache: 'no-store' })
+    .then((r) => {
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      return r.json();
+    })
+    .then((data) => {
+      if (!Array.isArray(data)) throw new Error('data.json phải là mảng kỳ');
+      errEl.hidden = true;
+      render(data);
+    })
+    .catch(() => {
+      showFetchError(
+        'Không đọc được data.json cùng cấp. Mở trang qua http (Live Server / python -m http.server) trong thư mục có file HTML + data.json.'
+      );
+    });
+})();
+</script>
+</body>
+</html>

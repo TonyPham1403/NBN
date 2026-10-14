@@ -6406,6 +6406,34 @@
             display: none !important;
         }
 
+        button.filter-popup-open-ticks-btn {
+            display: inline-flex;
+            align-items: center;
+            align-self: center;
+            justify-content: center;
+            height: 24px;
+            min-height: 24px;
+            padding: 0 8px;
+            margin: 0;
+            font: 700 11px/1.2 Inter, Segoe UI, Arial, sans-serif;
+            color: #1e3a5f;
+            white-space: nowrap;
+            flex-shrink: 0;
+            cursor: pointer;
+            box-sizing: border-box;
+            border: 1px solid #93c5fd;
+            border-radius: 6px;
+            background: #eff6ff;
+        }
+
+        button.filter-popup-open-ticks-btn:hover {
+            background: #dbeafe;
+        }
+
+        button.filter-popup-open-ticks-btn[hidden] {
+            display: none !important;
+        }
+
         .filter-popup-title-label {
             display: inline-flex;
             align-items: center;
@@ -10272,6 +10300,9 @@
                         class="filter-popup-posnfreq-overlap-pct is-connection-pct-btn" hidden aria-pressed="false"
                         title="U/D = connection unique/duplicate. Nhấn: chỉ unique (xanh) → chỉ duplicate (đỏ) → hiện đủ. AND với nút F (follow)."
                         aria-label="Phần trăm connection unique">U 0%</button>
+                    <button type="button" id="filterPopupOpenTicksBtn" class="filter-popup-open-ticks-btn" hidden
+                        title="Mở ticks.html tab mới (mỗi lần click = thêm tab) · mang focus id hiện tại · sync giữa các tab"
+                        aria-label="Mở Ticks tab mới">Ticks ↗</button>
                     <button type="button" id="filterPopupDeriveChainTfPct"
                         class="filter-popup-posnfreq-overlap-pct is-derive-chain-tf-btn" hidden aria-pressed="false"
                         title="Normal: mẫu evaluable, viền xanh=T / đỏ=F, blur=không applicable. Theo hàng: ≥1 derive[D] ★ → đúng (peer[P] được pick); mọi derive miss + peer ★ → F. Nhấn: normal → chỉ T → chỉ F → normal. Nút luôn hiện T% (true/applicable)."
@@ -10467,6 +10498,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
     <script src="presence-config.js"></script>
+    <script src="focus-sync.js?v=20261015popup2"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
     <script src="right-pane-sheets.js?v=20261012p1rel"></script>
@@ -15387,16 +15419,96 @@ function getFilterNoteTRefMaxSelections(mode) {
 
         function syncFilterPopupDeriveChainTfPctUi() {
             const btn = el('filterPopupDeriveChainTfPct');
+            const ticksBtn = el('filterPopupOpenTicksBtn');
+            const show = periodFilterEnabled && isDeriveChainFilterMode(periodFilterMode)
+                && isPeriodFilterContextSheet();
+            if (ticksBtn) {
+                ticksBtn.hidden = !show;
+            }
             if (!btn) {
                 return;
             }
-            const show = periodFilterEnabled && isDeriveChainFilterMode(periodFilterMode)
-                && isPeriodFilterContextSheet();
             btn.hidden = !show;
             if (!show) {
                 return;
             }
             applyFilterPopupDeriveChainTfButtonUi(btn, filterDeriveChainPolarity, getDeriveChainTfStats());
+        }
+
+        function getCurrentSheetFocusIdNumber() {
+            const raw = typeof window.getSheetFocusRowId === 'function'
+                ? window.getSheetFocusRowId()
+                : (sheetManager ? String(sheetManager.comboFocusRowId || '').trim() : '');
+            const n = Number(raw);
+            return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
+        }
+
+        function openTicksHtmlNewTab() {
+            const id = getCurrentSheetFocusIdNumber();
+            let url = 'ticks.html';
+            if (id != null) {
+                url += '?id=' + encodeURIComponent(String(id));
+                if (window.FocusSync && typeof window.FocusSync.publish === 'function') {
+                    window.FocusSync.publish(id);
+                }
+            }
+            // Mỗi lần click = tab mới (khôngreuse window name).
+            window.open(url, '_blank', 'noopener');
+        }
+
+        function initFilterPopupOpenTicksBtn() {
+            const btn = el('filterPopupOpenTicksBtn');
+            if (!btn || btn.dataset.openTicksBound === '1') {
+                return;
+            }
+            btn.dataset.openTicksBound = '1';
+            const run = () => {
+                if (btn.hidden) {
+                    return;
+                }
+                openTicksHtmlNewTab();
+            };
+            btn.addEventListener('pointerdown', (event) => {
+                if (event.button !== 0) {
+                    return;
+                }
+                event.preventDefault();
+                event.stopPropagation();
+                run();
+            });
+            btn.addEventListener('click', (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                if (event.detail === 0) {
+                    run();
+                }
+            });
+        }
+
+        function publishSharedFocusIdFromSheet() {
+            if (!window.FocusSync || typeof window.FocusSync.publish !== 'function') {
+                return;
+            }
+            const id = getCurrentSheetFocusIdNumber();
+            if (id != null) {
+                // Đổi focus trên index → mọi tab ticks focus id đó và mở popup elim.
+                window.FocusSync.publish(id, { popup: true, mode: 'hist' });
+            }
+        }
+
+        function initSharedFocusIdSync() {
+            if (!window.FocusSync || typeof window.FocusSync.init !== 'function') {
+                return;
+            }
+            window.FocusSync.init({
+                source: 'index',
+                apply: (state) => {
+                    const id = state && state.id != null ? state.id : state;
+                    if (typeof window.focusSheetByRowId === 'function') {
+                        window.focusSheetByRowId(String(id));
+                    }
+                }
+            });
         }
 
         function getNextFilterPopupDeriveChainPolarity(current) {
@@ -34261,6 +34373,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             initFilterPopupTailCountControls();
             initFilterPopupDeriveChainControls();
             initFilterPopupDeriveChainTfPctToggle();
+            initFilterPopupOpenTicksBtn();
             initFilterPopupDeriveChainPropTooltip();
             initFilterPopupSoloFreqControls();
             initFilterPopupSoloFreqTfPctToggle();
@@ -34841,6 +34954,7 @@ function getFilterNoteTRefMaxSelections(mode) {
         };
 
         document.addEventListener('DOMContentLoaded', () => {
+            initSharedFocusIdSync();
             initParentSpaceSubmitShortcut();
             initSplitPaneKeyboardRouting();
             initRightPanePointerFocusRouting();
@@ -34953,6 +35067,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
                 if (detail.sheetName === 'sheet1' && typeof detail.focusRowIndex === 'number') {
                     mainSheet1FocusRowIndex = detail.focusRowIndex;
+                }
+                if (typeof detail.focusRowIndex === 'number') {
+                    publishSharedFocusIdFromSheet();
                 }
                 if (periodFilterEnabled && !fromFilterNav && typeof detail.focusRowIndex === 'number') {
                     syncFilterPopupFocusFromMainRow(detail.focusRowIndex);
