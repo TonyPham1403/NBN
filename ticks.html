@@ -138,6 +138,18 @@
   .banner .summary .chip strong {
     font-variant-numeric: tabular-nums; font-size: 14px;
   }
+  .banner .summary .chip select.pha-k-select {
+    height: 24px;
+    min-width: 3.2em;
+    padding: 0 4px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    background: #fff;
+    color: #111;
+    font: 700 12px/1.2 Inter, Segoe UI, Arial, sans-serif;
+    font-variant-numeric: tabular-nums;
+    cursor: pointer;
+  }
   .viol-rate,
   .rest-rate {
     display: inline-flex; align-items: baseline; gap: 6px;
@@ -746,6 +758,15 @@
       <strong id="sumDeriveRestCount">0</strong>
       <button type="button" id="btnDeriveRestList">Xem</button>
     </div>
+    <div class="chip" title="Kỳ có ≥1 số phá đúng k luật (theo cột thỏa threshold hiện tại)">
+      <span>5/ Có số phá</span>
+      <select id="phaKSelect" class="pha-k-select" aria-label="Số luật k" title="Chọn k">
+        <option value="1">1</option>
+      </select>
+      <span>luật</span>
+      <strong id="sumPhaKCount">0</strong>
+      <button type="button" id="btnPhaKList">Xem</button>
+    </div>
   </div>
   <p id="err" class="err" hidden></p>
 </div>
@@ -782,6 +803,8 @@
   const sumZeroCount = document.getElementById('sumZeroCount');
   const sumDerivePhaCount = document.getElementById('sumDerivePhaCount');
   const sumDeriveRestCount = document.getElementById('sumDeriveRestCount');
+  const sumPhaKCount = document.getElementById('sumPhaKCount');
+  const phaKSelect = document.getElementById('phaKSelect');
   const sumViolPct = document.getElementById('sumViolPct');
   const sumViolFrac = document.getElementById('sumViolFrac');
   const chipViolRate = document.getElementById('chipViolRate');
@@ -794,6 +817,7 @@
   const btnZeroList = document.getElementById('btnZeroList');
   const btnDerivePhaList = document.getElementById('btnDerivePhaList');
   const btnDeriveRestList = document.getElementById('btnDeriveRestList');
+  const btnPhaKList = document.getElementById('btnPhaKList');
   const modalBack = document.getElementById('modalBack');
   const modalEl = modalBack ? modalBack.querySelector('.modal') : null;
   const modalTitle = document.getElementById('modalTitle');
@@ -828,7 +852,7 @@
   let histIdOnIdx = null;
   /** @type {'elim'|'stats'|null} */
   let popupKind = null;
-  /** @type {'full'|'zero'|'derivePha'|'deriveRest'|null} */
+  /** @type {'full'|'zero'|'derivePha'|'deriveRest'|'phaK'|null} */
   let statsPopupKind = null;
   /** @type {{ rows: object[], rowNums: number[][], ids: number[], candsCache: object[][], holdMasks: Map<number, boolean[]>, violateMasks: Map<number, boolean[]> } | null} */
   let dataCtx = null;
@@ -840,6 +864,10 @@
   let derivePhaMaxList = [];
   /** @type {{ id: number, nums: number[] }[]} */
   let deriveRestList = [];
+  /** k → kỳ có ≥1 số x phá đúng k luật (threshold hiện tại) */
+  /** @type {Record<string, { id: number, nums: number[] }[]>} */
+  let phaKListsByK = {};
+  let selectedPhaK = 1;
   /** @type {null | { displayIdx: number[], ids: number[], splits: object[], stats: object[], pairLabels: string[], msHint: string }} */
   let tableBundle = null;
   const TH_LS_KEY = 'ticks.threshold';
@@ -2016,11 +2044,23 @@
             + x.id + ' <small>' + x.nums.join(',') + '</small></button>').join('')
           + '</div>')
         : '';
+    } else if (kind === 'phaK') {
+      const k = selectedPhaK;
+      const list = phaKListsByK[String(k)] || [];
+      title = '5/ Có số phá ' + k + ' luật';
+      subExtra = ' · ≥1 số phá đúng ' + k + ' luật (threshold hiện tại) · small = các số đó';
+      listLen = list.length;
+      listHtml = list.length
+        ? ('<div class="id-list">'
+          + list.map((x) => '<button type="button" data-jump-id="' + x.id + '">'
+            + x.id + ' <small>' + x.nums.join(',') + '</small></button>').join('')
+          + '</div>')
+        : '';
     } else {
       return;
     }
     modalTitle.textContent = title;
-    modalSub.textContent = 'id > 20 · ' + listLen + ' kỳ · click id để đóng popup và nhảy tới hàng' + subExtra;
+    modalSub.textContent = 'id > 20 · ' + listLen + ' kỳ · click id → nhảy tới hàng và mở popup kỳ đó' + subExtra;
     hideModalRestPool();
     modalTimeline.hidden = true;
     modalTimeline.innerHTML = '';
@@ -2039,7 +2079,22 @@
     if (!btn || popupKind !== 'stats') return;
     e.preventDefault();
     e.stopPropagation();
-    scrollToRowId(Number(btn.getAttribute('data-jump-id')));
+    const id = Number(btn.getAttribute('data-jump-id'));
+    if (!Number.isFinite(id)) return;
+    const focusIdx = findHistIdxById(id);
+    if (focusIdx >= 0) {
+      alignRowIntoView(id, { instant: false });
+      openHistElim(focusIdx);
+      publishSharedFocus(id, { popup: true, mode: 'hist', force: true });
+      return;
+    }
+    if (simState && simState.focusId === id) {
+      alignRowIntoView(id, { instant: false });
+      openSimElim();
+      publishSharedFocus(id, { popup: true, mode: 'sim', force: true });
+      return;
+    }
+    scrollToRowId(id);
   });
 
   function clearAllIdOn() {
@@ -2107,6 +2162,17 @@
   btnZeroList.addEventListener('click', () => showIdListPopup('zero'));
   if (btnDerivePhaList) btnDerivePhaList.addEventListener('click', () => showIdListPopup('derivePha'));
   if (btnDeriveRestList) btnDeriveRestList.addEventListener('click', () => showIdListPopup('deriveRest'));
+  if (btnPhaKList) btnPhaKList.addEventListener('click', () => showIdListPopup('phaK'));
+  if (phaKSelect) {
+    phaKSelect.addEventListener('change', () => {
+      const v = Math.max(1, Math.floor(Number(phaKSelect.value) || 1));
+      selectedPhaK = v;
+      syncPhaKCountUi();
+      if (!modalBack.hidden && statsPopupKind === 'phaK') {
+        showIdListPopup('phaK');
+      }
+    });
+  }
 
   function syncSimRowDom() {
     const tr = wrap.querySelector('tr.sim-row');
@@ -2422,6 +2488,7 @@
     }
 
     updateRestRateDisplay(mau, lastAnsId);
+    computePhaKLists(active);
 
     summaryEl.hidden = false;
     wrap.querySelectorAll('td.hist-id').forEach((td) => {
@@ -2429,6 +2496,74 @@
       td.classList.toggle('tick-full', fullIdx.has(idx));
       td.classList.toggle('tick-zero', zeroIdx.has(idx));
     });
+  }
+
+  function syncPhaKCountUi() {
+    const list = phaKListsByK[String(selectedPhaK)] || [];
+    if (sumPhaKCount) sumPhaKCount.textContent = String(list.length);
+  }
+
+  function syncPhaKSelectOptions(maxK) {
+    if (!phaKSelect) return;
+    const mk = Math.max(1, maxK | 0);
+    if (selectedPhaK > mk) selectedPhaK = mk;
+    let html = '';
+    for (let k = 1; k <= mk; k++) {
+      html += '<option value="' + k + '"'
+        + (k === selectedPhaK ? ' selected' : '') + '>' + k + '</option>';
+    }
+    phaKSelect.innerHTML = html;
+    phaKSelect.value = String(selectedPhaK);
+  }
+
+  /**
+   * Kỳ có ≥1 số x phá đúng k luật — theo cột active (threshold hiện tại).
+   * nums trên mỗi kỳ = các x phá đúng k luật.
+   */
+  function computePhaKLists(active) {
+    phaKListsByK = {};
+    if (!tableBundle || !active || !active.length) {
+      syncPhaKSelectOptions(1);
+      syncPhaKCountUi();
+      return;
+    }
+    const { displayIdx, ids, splits } = tableBundle;
+    let maxK = 0;
+    for (let j = 0; j < displayIdx.length; j++) {
+      const i = displayIdx[j];
+      const lawCountByNum = new Map();
+      for (let ai = 0; ai < active.length; ai++) {
+        const pi = active[ai];
+        const s = splits[pi];
+        if (!s || !s.violate.has(i)) continue;
+        const vn = s.violNums && s.violNums.get(i);
+        if (!vn) continue;
+        vn.forEach((x) => {
+          lawCountByNum.set(x, (lawCountByNum.get(x) || 0) + 1);
+        });
+      }
+      if (!lawCountByNum.size) continue;
+      /** @type {Record<string, number[]>} */
+      const numsByK = {};
+      lawCountByNum.forEach((c, x) => {
+        if (c > maxK) maxK = c;
+        const key = String(c);
+        if (!numsByK[key]) numsByK[key] = [];
+        numsByK[key].push(x);
+      });
+      Object.keys(numsByK).forEach((key) => {
+        if (!phaKListsByK[key]) phaKListsByK[key] = [];
+        phaKListsByK[key].push({
+          id: ids[i],
+          nums: numsByK[key].slice().sort((a, b) => a - b)
+        });
+      });
+    }
+    syncPhaKSelectOptions(maxK > 0 ? maxK : 1);
+    syncPhaKCountUi();
+    if (!modalBack.hidden && statsPopupKind === 'phaK') {
+      showIdListPopup('phaK');
+    }
   }
 
   /** Số kỳ (id≥21 có ĐA) có đáp án ∩ rest ≠ ∅; rest theo pool tối đa. */
@@ -2786,6 +2921,7 @@
     restHitCache = null;
     derivePhaMaxList = [];
     deriveRestList = [];
+    phaKListsByK = {};
 
     const n = rows.length;
     const rowNums = new Array(n);
