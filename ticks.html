@@ -762,7 +762,7 @@
     <div class="actions"><button type="button" id="modalClose">Đóng</button></div>
   </div>
 </div>
-<script src="focus-sync.js?v=20261015popup2"></script>
+<script src="focus-sync.js?v=20261015force"></script>
 <script>
 (function () {
   // Pool đủ (D,P) ∈ 0..9; thứ tự: P tăng dần, rồi D tăng dần.
@@ -1930,10 +1930,13 @@
       return true;
     }
 
-    // Mở popup elim trên mọi tab ticks.
+    // Mở popup elim trên mọi tab ticks (kể cả click lại cùng id / force từ index).
     requestAnimationFrame(() => {
       if (token !== sharedFocusApplyToken) return;
       alignRowIntoView(n, { instant: true });
+      const alreadyOpen = !modalBack.hidden && popupKind === 'elim'
+        && ((mode === 'sim' && simIdOn) || (mode !== 'sim' && histIdOnIdx === focusIdx));
+      if (alreadyOpen && !(meta && meta.force)) return;
       if (mode === 'sim' || (focusIdx < 0 && isSim)) {
         openSimElim();
       } else {

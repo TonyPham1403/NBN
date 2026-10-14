@@ -10498,7 +10498,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
     <script src="presence-config.js"></script>
-    <script src="focus-sync.js?v=20261015popup2"></script>
+    <script src="focus-sync.js?v=20261015force"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
     <script src="right-pane-sheets.js?v=20261012p1rel"></script>
@@ -15491,8 +15491,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             const id = getCurrentSheetFocusIdNumber();
             if (id != null) {
-                // Đổi focus trên index → mọi tab ticks focus id đó và mở popup elim.
-                window.FocusSync.publish(id, { popup: true, mode: 'hist' });
+                // force: click lại cùng id vẫn broadcast → ticks mở lại popup (kể cả vừa tắt).
+                window.FocusSync.publish(id, { popup: true, mode: 'hist', force: true });
             }
         }
 
@@ -15503,7 +15503,15 @@ function getFilterNoteTRefMaxSelections(mode) {
             window.FocusSync.init({
                 source: 'index',
                 apply: (state) => {
-                    const id = state && state.id != null ? state.id : state;
+                    const id = Number(state && state.id != null ? state.id : state);
+                    if (!Number.isFinite(id) || id <= 0) {
+                        return;
+                    }
+                    // Cùng id: không re-focus (tránh loop / nuốt publish khi ticks tắt popup).
+                    const cur = getCurrentSheetFocusIdNumber();
+                    if (cur === id) {
+                        return;
+                    }
                     if (typeof window.focusSheetByRowId === 'function') {
                         window.focusSheetByRowId(String(id));
                     }

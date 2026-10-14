@@ -89,16 +89,21 @@
 
   /**
    * @param {number|string|object} rawIdOrState
-   * @param {{ popup?: boolean, mode?: string|null }} [opts]
+   * @param {{ popup?: boolean, mode?: string|null, force?: boolean }} [opts]
    *   - không truyền popup → giữ popup/mode trước đó (đổi id từ index vẫn mở popup nếu đang mở)
    *   - popup:true/false → set rõ
+   *   - force:true → vẫn broadcast dù state trùng (click lại cùng id trên index → mở lại popup ticks)
    */
   function publish(rawIdOrState, opts) {
     if (applying) return;
     opts = opts || {};
+    var force = !!opts.force;
     var base = null;
     if (rawIdOrState && typeof rawIdOrState === 'object' && !Array.isArray(rawIdOrState)) {
       base = normalizeState(rawIdOrState);
+      if (rawIdOrState && Object.prototype.hasOwnProperty.call(rawIdOrState, 'force')) {
+        force = !!rawIdOrState.force || force;
+      }
     } else {
       var id = parseId(rawIdOrState);
       if (id == null) return;
@@ -114,7 +119,7 @@
       base = normalizeState({ id: id, popup: popup, mode: mode });
     }
     if (!base) return;
-    if (sameState(base, lastState)) return;
+    if (sameState(base, lastState) && !force) return;
     lastState = base;
     writeStored(base);
     if (bc) {
@@ -124,6 +129,7 @@
           id: base.id,
           popup: base.popup,
           mode: base.mode,
+          force: force,
           t: Date.now(),
           source: sourceName
         });
@@ -147,7 +153,7 @@
           if (!d || d.type !== 'focus') return;
           deliver(
             { id: d.id, popup: d.popup, mode: d.mode },
-            { remote: true, source: d.source }
+            { remote: true, source: d.source, force: !!d.force }
           );
         };
       } catch (e) {
