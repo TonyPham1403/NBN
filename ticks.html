@@ -1059,6 +1059,14 @@
   let simIdOn = false;
   /** @type {number|null} */
   let histIdOnIdx = null;
+  /**
+   * Hai id hist gần nhất đã click (khác rỗng cuối) — Ctrl+Z xoay vòng A↔B.
+   * focusUndoB = kỳ hiện tại · focusUndoA = kỳ trước đó.
+   * @type {number|null}
+   */
+  let focusUndoA = null;
+  /** @type {number|null} */
+  let focusUndoB = null;
   /** @type {'elim'|'stats'|null} */
   let popupKind = null;
   /** @type {'full'|'zero'|'derivePha'|'deriveRest'|'phaK'|'rest'|null} */
@@ -2351,23 +2359,22 @@
     const token = ++sharedFocusApplyToken;
 
     if (!wantPopup) {
-      // Đóng popup + bỏ ON — không publish lại.
+      // Đóng popup; giữ nền cam trên hist id (không áp dụng rỗng cuối/sim).
       modalBack.hidden = true;
       document.body.classList.remove('modal-open');
-      if (popupKind === 'elim') clearAllIdOn();
-      else {
-        simIdOn = false;
-        histIdOnIdx = null;
-        syncSimRowDom();
-        syncHistIdDom();
-      }
+      if (modalEl) modalEl.classList.remove('is-stats');
+      simIdOn = false;
+      if (focusIdx >= 0) histIdOnIdx = focusIdx;
+      syncSimRowDom();
+      syncHistIdDom();
       popupKind = null;
       statsPopupKind = null;
       resetPopupPoolTrack();
+      clearCopyNumsOkEffect();
+      hideDeltaTip();
       hideModalRestPool();
       modalTimeline.hidden = true;
       modalTimeline.innerHTML = '';
-      // Vẫn đánh dấu hàng focus (không bật ON).
       requestAnimationFrame(() => {
         if (token !== sharedFocusApplyToken) return;
         alignRowIntoView(n, { instant: instant });
@@ -2563,6 +2570,7 @@
     if (!Number.isFinite(id)) return;
     const focusIdx = findHistIdxById(id);
     if (focusIdx >= 0) {
+      rememberHistFocusClick(id);
       alignRowIntoView(id, { instant: false });
       openHistElim(focusIdx);
       publishSharedFocus(id, { popup: true, mode: 'hist', force: true });
@@ -2584,17 +2592,46 @@
     syncHistIdDom();
   }
 
+  /** Ghi nhận id hist vừa click (cho Ctrl+Z xoay vòng). */
+  function rememberHistFocusClick(id) {
+    const n = Number(id);
+    if (!Number.isFinite(n) || n <= 0) return;
+    if (focusUndoB === n) return;
+    focusUndoA = focusUndoB;
+    focusUndoB = n;
+  }
+
+  /** Ctrl+Z: xoay focus giữa hai kỳ hist vừa click. */
+  function cycleHistFocusUndo() {
+    if (focusUndoA == null || focusUndoB == null) return false;
+    if (focusUndoA === focusUndoB) return false;
+    const nextId = focusUndoA;
+    focusUndoA = focusUndoB;
+    focusUndoB = nextId;
+    const idx = findHistIdxById(nextId);
+    if (idx < 0) return false;
+    alignRowIntoView(nextId, { instant: false });
+    openHistElim(idx);
+    publishSharedFocus(nextId, { popup: true, mode: 'hist', force: true });
+    return true;
+  }
+
   function hidePopup() {
     const wasElim = popupKind === 'elim';
+    const closingSim = wasElim && simIdOn;
     const closeId = wasElim
-      ? (simIdOn && simState
+      ? (closingSim && simState
         ? simState.focusId
         : (histIdOnIdx != null && dataCtx ? dataCtx.ids[histIdOnIdx] : null))
       : null;
     modalBack.hidden = true;
     document.body.classList.remove('modal-open');
     if (modalEl) modalEl.classList.remove('is-stats');
-    if (wasElim) clearAllIdOn();
+    /* Hist: giữ nền cam. Sim (rỗng cuối): tắt ON như cũ. */
+    if (closingSim) {
+      simIdOn = false;
+      syncSimRowDom();
+    }
     popupKind = null;
     statsPopupKind = null;
     resetPopupPoolTrack();
@@ -2605,7 +2642,7 @@
     modalTimeline.hidden = true;
     modalTimeline.innerHTML = '';
     if (wasElim && closeId != null) {
-      publishSharedFocus(closeId, { popup: false, mode: null });
+      publishSharedFocus(closeId, { popup: false, mode: closingSim ? 'sim' : 'hist' });
     }
   }
 
@@ -2809,7 +2846,23 @@
     });
   }
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !modalBack.hidden) hidePopup();
+    if (e.key === 'Escape' && !modalBack.hidden) {
+      hidePopup();
+      return;
+    }
+    /* Ctrl+Z: xoay vòng focus giữa 2 kỳ hist vừa click (không đụng input). */
+    if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey
+      && (e.key === 'z' || e.key === 'Z')) {
+      const t = e.target;
+      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'
+        || t.tagName === 'SELECT' || (t.isContentEditable))) {
+        return;
+      }
+      if (cycleHistFocusUndo()) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }
   });
   btnFullList.addEventListener('click', () => showIdListPopup('full'));
   btnZeroList.addEventListener('click', () => showIdListPopup('zero'));
@@ -3025,13 +3078,16 @@
       td.addEventListener('click', () => {
         const idx = Number(td.getAttribute('data-idx'));
         if (!Number.isFinite(idx)) return;
-        if (histIdOnIdx === idx) {
+        const id = dataCtx && dataCtx.ids ? dataCtx.ids[idx] : null;
+        /* Cùng id + popup elim đang mở → đóng (giữ nền cam). */
+        if (histIdOnIdx === idx && !modalBack.hidden && popupKind === 'elim') {
           hidePopup();
           return;
         }
+        if (id != null) rememberHistFocusClick(id);
         openHistElim(idx);
-        if (dataCtx && dataCtx.ids) {
-          publishSharedFocus(dataCtx.ids[idx], { popup: true, mode: 'hist' });
+        if (id != null) {
+          publishSharedFocus(id, { popup: true, mode: 'hist' });
         }
       });
     });
@@ -3738,6 +3794,8 @@
     simTicks = PAIRS.map(() => false);
     simIdOn = false;
     histIdOnIdx = null;
+    focusUndoA = null;
+    focusUndoB = null;
     restHitCache = null;
     derivePhaMaxList = [];
     deriveRestList = [];
