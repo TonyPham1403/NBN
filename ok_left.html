@@ -1060,8 +1060,8 @@
             display: inline;
             cursor: pointer;
             user-select: none;
-            padding: 0 3px;
-            margin: 0 1px 0 0;
+            padding: 0 1px;
+            margin: 0;
             border-radius: 3px;
             border: 1px solid transparent;
             font-weight: 700;
@@ -1081,6 +1081,43 @@
             border-color: #c8b800;
             color: #222;
             box-shadow: 0 0 0 1px rgba(200, 180, 0, 0.35);
+        }
+
+        .reference-hint-tong-count {
+            font-variant-numeric: tabular-nums;
+            font-weight: 700;
+        }
+
+        .reference-hint-derive-copy {
+            display: inline;
+            margin: 0;
+            padding: 0;
+            border: none;
+            background: transparent;
+            color: #94a3b8;
+            cursor: pointer;
+            vertical-align: baseline;
+            line-height: 1;
+            font-size: inherit;
+            opacity: .7;
+        }
+
+        .reference-hint-derive-copy svg {
+            width: 0.85em;
+            height: 0.85em;
+            display: inline-block;
+            vertical-align: -0.1em;
+        }
+
+        .reference-hint-derive-copy:hover {
+            background: transparent;
+            color: #64748b;
+            opacity: 1;
+        }
+
+        .reference-hint-derive-copy.is-ok {
+            color: #16a34a;
+            opacity: 1;
         }
 
         /* Gộp Y→X: xếp ngang trong đúng bề ngang panel; hết chỗ mới xuống dòng */
@@ -2876,6 +2913,58 @@
             return out;
         }
 
+        const REFERENCE_HINT_COPY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+            + '<path fill="currentColor" d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/>'
+            + '</svg>';
+        const REFERENCE_HINT_COPY_OK_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+            + '<path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>'
+            + '</svg>';
+
+        function copyReferenceHintDeriveCsv(btn) {
+            const nums = Array.from(referenceHintDeriveYellowNums).sort((a, b) => a - b);
+            const text = nums.join(',');
+            const done = () => {
+                if (!btn) return;
+                btn.innerHTML = REFERENCE_HINT_COPY_OK_ICON;
+                btn.classList.add('is-ok');
+                setTimeout(() => {
+                    btn.innerHTML = REFERENCE_HINT_COPY_ICON;
+                    btn.classList.remove('is-ok');
+                }, 900);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(done).catch(() => { });
+                return;
+            }
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                done();
+            } catch (e) { /* ignore */ }
+        }
+
+        function buildReferenceHintDeriveCopyBtn() {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'reference-hint-derive-copy';
+            btn.title = 'Copy các số derive (tăng dần, dạng a,b,c)';
+            btn.setAttribute('aria-label', 'Copy derive tăng dần');
+            btn.innerHTML = REFERENCE_HINT_COPY_ICON;
+            btn.addEventListener('click', (ev) => {
+                ev.preventDefault();
+                ev.stopPropagation();
+                copyReferenceHintDeriveCsv(btn);
+            });
+            return btn;
+        }
+
         function syncReferenceHintTongToggleUi() {
             const btn = document.querySelector('#referenceHint .reference-hint-tong-toggle');
             if (!btn) {
@@ -3770,7 +3859,22 @@
                         toggleReferenceHintDeriveYellow();
                     });
                     foot.appendChild(tongBtn);
-                    foot.appendChild(document.createTextNode(footStr.replace(/^Tổng/, '')));
+                    // "Tổng: 5 số có thể…" → nút copy ngay sau số đếm.
+                    const tongTail = footStr.match(/^Tổng:\s*(\d+)([\s\S]*)$/);
+                    if (tongTail) {
+                        foot.appendChild(document.createTextNode(':'));
+                        const countEl = document.createElement('span');
+                        countEl.className = 'reference-hint-tong-count';
+                        countEl.textContent = tongTail[1];
+                        foot.appendChild(countEl);
+                        foot.appendChild(buildReferenceHintDeriveCopyBtn());
+                        const rest = String(tongTail[2] || '').replace(/^\s+/, '');
+                        if (rest) {
+                            foot.appendChild(document.createTextNode(' ' + rest));
+                        }
+                    } else {
+                        foot.appendChild(document.createTextNode(footStr.replace(/^Tổng/, '')));
+                    }
                 } else {
                     foot.textContent = footStr;
                 }

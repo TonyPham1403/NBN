@@ -161,6 +161,40 @@
   }
   .viol-rate .vr-label,
   .rest-rate .vr-label { opacity: .85; font-weight: 600; }
+  .rest-rate .vr-label-tog {
+    margin: 0; padding: 0 2px;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    font-weight: 600;
+    opacity: .9;
+    cursor: pointer;
+    line-height: 1.2;
+  }
+  .rest-rate .vr-label-tog:hover {
+    background: rgba(255, 255, 255, .12);
+    border-color: rgba(255, 255, 255, .28);
+  }
+  .rest-rate.is-skip-empty .vr-label-tog {
+    color: #86efac;
+    border-color: rgba(134, 239, 172, .45);
+    opacity: 1;
+  }
+  .rest-rate .vr-xem {
+    margin: 0 0 0 2px;
+    padding: 2px 7px;
+    border: 1px solid rgba(255, 255, 255, .35);
+    border-radius: 5px;
+    background: rgba(255, 255, 255, .1);
+    color: #fff;
+    font: 700 11px/1.2 inherit;
+    cursor: pointer;
+  }
+  .rest-rate .vr-xem:hover {
+    background: rgba(255, 255, 255, .2);
+  }
   .viol-rate .vr-pct { font-weight: 800; color: #ef4444; font-size: 14px; }
   .rest-rate .vr-pct { font-weight: 800; color: #4ade80; font-size: 14px; }
   .viol-rate .vr-frac,
@@ -168,6 +202,25 @@
   body.modal-open .viol-rate,
   body.modal-open .rest-rate {
     text-shadow: 0 1px 2px rgba(0, 0, 0, .45);
+  }
+  .modal .rest-tabs {
+    display: flex; flex-wrap: wrap; gap: 6px;
+    margin: 0 0 10px;
+  }
+  .modal .rest-tabs button {
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    padding: 4px 10px;
+    background: #fff;
+    color: #111;
+    font: 700 11px/1.2 inherit;
+    cursor: pointer;
+  }
+  .modal .rest-tabs button:hover { background: #f3f4f6; }
+  .modal .rest-tabs button.is-on {
+    background: #111827;
+    border-color: #111827;
+    color: #fff;
   }
   .banner .summary button {
     border: 1px solid #d1d5db; cursor: pointer; font-weight: 700; font-size: 11px;
@@ -359,6 +412,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  td.viol-nums .derive-mark {
+    text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 2px;
+    text-decoration-color: currentColor;
+  }
   tr:nth-child(even) td.viol-nums { background: #fef2f2; }
   tr:hover td.viol-nums { background: #fee2e2; }
   tr.sim-row td.viol-nums {
@@ -409,6 +468,12 @@
     overflow: hidden;
     text-overflow: ellipsis;
     border-right: 3px solid #111827;
+  }
+  td.rest-ans .derive-mark {
+    text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 2px;
+    text-decoration-color: currentColor;
   }
   tr:nth-child(even) td.rest-ans { background: #f0fdf4; }
   tr:hover td.rest-ans { background: #dcfce7; }
@@ -539,6 +604,23 @@
     box-sizing: border-box;
   }
   .modal h2 { margin: 0 0 6px; font-size: 16px; }
+  .modal h2 .stats-rate {
+    display: inline-block;
+    margin-left: 8px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    background: #fef08a;
+    color: #854d0e;
+    border: 1px solid #eab308;
+    font-weight: 800;
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .01em;
+    vertical-align: middle;
+    line-height: 1.25;
+    box-shadow: 0 1px 0 rgba(234, 179, 8, .35);
+    white-space: pre;
+  }
   .modal .sub { margin: 0 0 4px; font-size: 12px; color: #4b5563; }
   .modal .pool-sub {
     display: flex;
@@ -565,6 +647,22 @@
   }
   .modal .pool-sub .pool-sub-text {
     min-width: 0;
+  }
+  /* Số ∈ tập derive (cands kỳ) — gạch chân mọi chỗ trong popup elim */
+  .modal .derive-mark {
+    text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 2px;
+    text-decoration-color: currentColor;
+  }
+  .modal .pair-title .derive-mark,
+  .modal .pair-line .derive-mark,
+  .modal .elim-sum .derive-mark,
+  .modal .viol-sum .derive-mark,
+  .modal .th-tl-row .derive-mark {
+    text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 2px;
   }
   .modal .copy-nums-btn {
     display: inline-flex;
@@ -730,10 +828,12 @@
       <span class="vr-frac" id="sumViolFrac"></span>
     </div>
     <div class="rest-rate" id="chipRestRate"
-      title="mẫu = id cuối có đáp án − 21 + 1 · tử = số kỳ đáp án ∩ rest ≠ ∅ · rest cố định theo pool tối đa">
-      <span class="vr-label">%rest</span>
+      title="mẫu = id cuối có đáp án − 21 + 1 · tử = số kỳ đáp án ∩ rest ≠ ∅ · rest cố định theo pool tối đa · click %rest = bỏ/tính kỳ rest rỗng">
+      <button type="button" class="vr-label vr-label-tog" id="btnRestToggle"
+        title="Click: bỏ hoặc tính kỳ rest rỗng trong mẫu">%rest</button>
       <span class="vr-pct" id="sumRestPct">—</span>
       <span class="vr-frac" id="sumRestFrac"></span>
+      <button type="button" class="vr-xem" id="btnRestList">Xem</button>
     </div>
   </div>
   <p id="status">Đang tải data.json…</p>
@@ -748,13 +848,13 @@
       <strong id="sumZeroCount">0</strong>
       <button type="button" id="btnZeroList">Xem</button>
     </div>
-    <div class="chip" title="Cột derive (★∈đáp án) === tập phá max (hợp mọi cột) · bỏ cặp rỗng">
-      <span>3/ derive trùng tập phá max</span>
+    <div class="chip" title="Mọi số derive (★∈đáp án) thuộc tập phá max (hợp mọi cột) · derive ≠ ∅ · phá ≠ ∅">
+      <span>3/ derive ⊆ tập phá max</span>
       <strong id="sumDerivePhaCount">0</strong>
       <button type="button" id="btnDerivePhaList">Xem</button>
     </div>
-    <div class="chip" title="Cột derive (★∈đáp án) === tập rest (ngoài pool tối đa, freq&gt;0) · bỏ cặp rỗng">
-      <span>4/ derive trùng tập rest</span>
+    <div class="chip" title="Mọi số derive (★∈đáp án) thuộc tập rest (ngoài pool tối đa, freq&gt;0) · derive ≠ ∅ · rest ≠ ∅">
+      <span>4/ derive ⊆ rest</span>
       <strong id="sumDeriveRestCount">0</strong>
       <button type="button" id="btnDeriveRestList">Xem</button>
     </div>
@@ -811,8 +911,16 @@
   const sumRestPct = document.getElementById('sumRestPct');
   const sumRestFrac = document.getElementById('sumRestFrac');
   const chipRestRate = document.getElementById('chipRestRate');
+  const btnRestToggle = document.getElementById('btnRestToggle');
+  const btnRestList = document.getElementById('btnRestList');
   /** Cache: %rest không phụ thuộc threshold header. */
+  /** @type {null | { hitList: { id: number, nums: number[] }[], emptyList: number[], nonemptyCount: number, periodCount: number }} */
   let restHitCache = null;
+  /** false = tính cả rest rỗng (mặc định); true = mẫu chỉ kỳ rest ≠ ∅ */
+  let restSkipEmpty = false;
+  /** Tab trong popup Xem %rest */
+  let restPopupTab = 'hit';
+  const REST_SKIP_LS_KEY = 'ticks.restSkipEmpty';
   const btnFullList = document.getElementById('btnFullList');
   const btnZeroList = document.getElementById('btnZeroList');
   const btnDerivePhaList = document.getElementById('btnDerivePhaList');
@@ -852,7 +960,7 @@
   let histIdOnIdx = null;
   /** @type {'elim'|'stats'|null} */
   let popupKind = null;
-  /** @type {'full'|'zero'|'derivePha'|'deriveRest'|'phaK'|null} */
+  /** @type {'full'|'zero'|'derivePha'|'deriveRest'|'phaK'|'rest'|null} */
   let statsPopupKind = null;
   /** @type {{ rows: object[], rowNums: number[][], ids: number[], candsCache: object[][], holdMasks: Map<number, boolean[]>, violateMasks: Map<number, boolean[]> } | null} */
   let dataCtx = null;
@@ -1311,7 +1419,7 @@
     return ' ' + pct;
   }
 
-  function renderPairElimBlocks(details, disabled, mask) {
+  function renderPairElimBlocks(details, disabled, mask, deriveSet) {
     const chosen = [];
     const allElim = new Set();
     let html = '';
@@ -1323,15 +1431,15 @@
       d.elim.forEach((x) => allElim.add(x));
       html += '<div class="pair-block">';
       html += '<div class="pair-title">' + d.label + pairHoldPctText(pi) + ' → loại: '
-        + (d.elim.length ? d.elim.join(', ') : '(không)') + '</div>';
+        + (d.elim.length ? formatNumsDeriveHtml(d.elim, deriveSet, ', ') : '(không)') + '</div>';
       if (!d.lines.length) {
         html += '<div class="none">Không có chuỗi witness derive[D]+peer[P]</div>';
       } else {
         for (let li = 0; li < d.lines.length; li++) {
           const L = d.lines[li];
           html += '<div class="pair-line">chuỗi ' + L.chuoi
-            + ' (id ' + L.rowId + '): derive {' + L.derives.join(',')
-            + '} → loại {' + L.peers.join(',') + '}</div>';
+            + ' (id ' + L.rowId + '): derive {' + formatNumsDeriveHtml(L.derives, deriveSet, ',')
+            + '} → loại {' + formatNumsDeriveHtml(L.peers, deriveSet, ',') + '}</div>';
         }
       }
       html += '</div>';
@@ -1339,7 +1447,7 @@
     return { chosen, allElim, html };
   }
 
-  function renderPairViolBlocks(violDetails, disabled, violMask, lineSuffix) {
+  function renderPairViolBlocks(violDetails, disabled, violMask, lineSuffix, deriveSet) {
     const suffix = lineSuffix || 'đáp án có peer';
     const chosen = [];
     const allViol = new Set();
@@ -1352,12 +1460,12 @@
       d.viol.forEach((x) => allViol.add(x));
       html += '<div class="pair-block viol-block">';
       html += '<div class="pair-title viol">' + d.label + pairHoldPctText(pi) + ' → phá: '
-        + d.viol.join(', ') + '</div>';
+        + formatNumsDeriveHtml(d.viol, deriveSet, ', ') + '</div>';
       for (let li = 0; li < d.lines.length; li++) {
         const L = d.lines[li];
         html += '<div class="pair-line">chuỗi ' + L.chuoi
-          + ' (id ' + L.rowId + '): derive {' + L.derives.join(',')
-          + '} → ' + suffix + ' {' + L.peers.join(',') + '}</div>';
+          + ' (id ' + L.rowId + '): derive {' + formatNumsDeriveHtml(L.derives, deriveSet, ',')
+          + '} → ' + suffix + ' {' + formatNumsDeriveHtml(L.peers, deriveSet, ',') + '}</div>';
       }
       html += '</div>';
     }
@@ -1420,19 +1528,41 @@
     }
   }
 
-  function formatPoolSubHtml(arr, boldSet) {
+  function wrapDeriveMarkHtml(innerHtml, num, deriveSet) {
+    if (deriveSet && deriveSet.has(num)) {
+      return '<span class="derive-mark">' + innerHtml + '</span>';
+    }
+    return innerHtml;
+  }
+
+  /** Danh sách số, gạch chân phần tử ∈ derive. */
+  function formatNumsDeriveHtml(nums, deriveSet, sep) {
+    const list = nums || [];
+    const joiner = sep == null ? ',' : sep;
+    const parts = [];
+    for (let i = 0; i < list.length; i++) {
+      const n = list[i];
+      parts.push(wrapDeriveMarkHtml(String(n), n, deriveSet));
+    }
+    return parts.join(joiner);
+  }
+
+  function formatPoolSubHtml(arr, boldSet, deriveSet, label) {
     const nums = arr || [];
+    const tag = label || 'pool';
     let body;
     if (!nums.length) {
-      body = 'pool[0] {}';
+      body = tag + '[0] {}';
     } else {
       const parts = [];
       for (let i = 0; i < nums.length; i++) {
         const n = nums[i];
         const isBold = !!(boldSet && boldSet.has(n));
-        parts.push(isBold ? ('<b>' + n + '</b>') : String(n));
+        let bit = wrapDeriveMarkHtml(String(n), n, deriveSet);
+        if (isBold) bit = '<b>' + bit + '</b>';
+        parts.push(bit);
       }
-      body = 'pool[' + nums.length + '] {' + parts.join(',') + '}';
+      body = tag + '[' + nums.length + '] {' + parts.join(',') + '}';
     }
     return '<span class="pool-sub-text">' + body + '</span>' + copyNumsBtnHtml(nums);
   }
@@ -1474,7 +1604,7 @@
     return out;
   }
 
-  function formatRestSubHtml(restItems, answerSet) {
+  function formatRestSubHtml(restItems, answerSet, deriveSet) {
     const items = restItems || [];
     const nums = items.map((it) => it.num);
     let body;
@@ -1485,10 +1615,10 @@
       const parts = [];
       for (let i = 0; i < items.length; i++) {
         const it = items[i];
-        const bit = String(it.num) + '<span class="freq-sub">' + toSubscript(it.freq) + '</span>';
-        parts.push(ans && ans.has(it.num)
-          ? ('<span class="rest-hit">' + bit + '</span>')
-          : bit);
+        let bit = String(it.num) + '<span class="freq-sub">' + toSubscript(it.freq) + '</span>';
+        bit = wrapDeriveMarkHtml(bit, it.num, deriveSet);
+        if (ans && ans.has(it.num)) bit = '<span class="rest-hit">' + bit + '</span>';
+        parts.push(bit);
       }
       body = 'rest[' + items.length + '] {' + parts.join(',') + '}';
     }
@@ -1720,19 +1850,21 @@
     return milestones;
   }
 
-  function formatTimelinePoolHtml(poolArr, newlyIn) {
+  function formatTimelinePoolHtml(poolArr, newlyIn, deriveSet) {
     const nums = poolArr || [];
     const bold = new Set(newlyIn || []);
     const parts = [];
     for (let i = 0; i < nums.length; i++) {
       const n = nums[i];
-      parts.push(bold.has(n) ? ('<b>' + n + '</b>') : String(n));
+      let bit = wrapDeriveMarkHtml(String(n), n, deriveSet);
+      if (bold.has(n)) bit = '<b>' + bit + '</b>';
+      parts.push(bit);
     }
     const body = 'pool[' + nums.length + ']{' + parts.join(',') + '}';
     return '<span class="tl-pool-text">' + body + '</span>' + copyNumsBtnHtml(nums);
   }
 
-  function renderThresholdTimelineHtml(milestones, mode) {
+  function renderThresholdTimelineHtml(milestones, mode, deriveSet) {
     if (!milestones.length) {
       return '<div class="th-tl-title">Timeline threshold</div>'
         + '<div class="th-tl-row">(không có mốc)</div>';
@@ -1750,14 +1882,14 @@
       const m = milestones[i];
       const pháTxt = isSim
         ? '???'
-        : (m.phá.length ? m.phá.join(',') : '');
+        : (m.phá.length ? formatNumsDeriveHtml(m.phá, deriveSet, ',') : '');
       const rateTxt = Number.isFinite(m.violPct)
         ? (m.violPct.toFixed(1) + '%')
         : '—';
       html += '<div class="th-tl-row">'
         + '<span class="tl-t">' + m.t + '%</span>'
         + '<span class="tl-rate" title="% phá luật tại threshold này">' + rateTxt + '</span>'
-        + '<span class="tl-pool">' + formatTimelinePoolHtml(m.pool, m.newlyIn) + '</span>'
+        + '<span class="tl-pool">' + formatTimelinePoolHtml(m.pool, m.newlyIn, deriveSet) + '</span>'
         + '<span class="tl-phá">phá: ' + pháTxt + '</span>'
         + '</div>';
     }
@@ -1781,9 +1913,10 @@
     const poolArr = Array.isArray(opts.poolNums) ? opts.poolNums.slice() : [];
     const wCounts = opts.counts || null;
 
-    const elimPart = renderPairElimBlocks(details, disabled, mask);
+    const deriveSetEarly = opts.deriveSet instanceof Set ? opts.deriveSet : null;
+    const elimPart = renderPairElimBlocks(details, disabled, mask, deriveSetEarly);
     const violPart = showViolate
-      ? renderPairViolBlocks(violDetails, disabled, violMask, violLineSuffix)
+      ? renderPairViolBlocks(violDetails, disabled, violMask, violLineSuffix, deriveSetEarly)
       : { chosen: [], allViol: new Set(), html: '' };
 
     let html = '';
@@ -1810,6 +1943,8 @@
     if (violPart.chosen.length) colBits.push('phá ' + violPart.chosen.join(' '));
     modalSub.textContent = modeLabel + ' id ' + focusId
       + ' · ' + (colBits.length ? colBits.join(' · ') : '—');
+    const deriveSet = deriveSetEarly;
+    const poolMaxArr = Array.isArray(opts.maxPoolNums) ? opts.maxPoolNums : poolArr;
     let tlMilestones = null;
     if (showViolate) {
       const tlOpts = opts.timelineMode === 'sim'
@@ -1822,22 +1957,28 @@
     }
     if (wCounts) {
       const answerSet = opts.answerSet instanceof Set ? opts.answerSet : null;
-      const poolMaxArr = Array.isArray(opts.maxPoolNums) ? opts.maxPoolNums : poolArr;
-      modalRest.innerHTML = formatRestSubHtml(buildRestItems(poolMaxArr, wCounts), answerSet);
+      modalRest.innerHTML = formatRestSubHtml(
+        buildRestItems(poolMaxArr, wCounts),
+        answerSet,
+        deriveSet
+      );
       modalRest.hidden = false;
     } else {
       modalRest.hidden = true;
       modalRest.innerHTML = '';
     }
-    modalPool.innerHTML = formatPoolSubHtml(poolArr, popupPoolBold);
+    // Dòng pool cố định = pool max (cùng nguồn với rest); số ∈ derive → gạch chân.
+    modalPool.innerHTML = formatPoolSubHtml(poolMaxArr, null, deriveSet, 'pool max');
     modalPool.hidden = false;
     let sumHtml = elimArr.length
-      ? ('Loại (' + elimArr.length + ' số): ' + elimArr.join(', '))
+      ? ('Loại (' + elimArr.length + ' số): '
+        + formatNumsDeriveHtml(elimArr, deriveSet, ', '))
       : 'Loại (0 số): (không)';
     if (showViolate) {
       sumHtml += '<div class="viol-sum">'
         + (violArr.length
-          ? ('Phá luật (' + violArr.length + ' số): ' + violArr.join(', '))
+          ? ('Phá luật (' + violArr.length + ' số): '
+            + formatNumsDeriveHtml(violArr, deriveSet, ', '))
           : 'Phá luật (0 số): (không)')
         + '</div>';
     }
@@ -1846,7 +1987,8 @@
     if (showViolate && tlMilestones) {
       modalTimeline.innerHTML = renderThresholdTimelineHtml(
         tlMilestones,
-        opts.timelineMode === 'sim' ? 'sim' : 'hist'
+        opts.timelineMode === 'sim' ? 'sim' : 'hist',
+        deriveSet
       );
       modalTimeline.hidden = false;
     } else {
@@ -2001,65 +2143,136 @@
     });
   }
 
+  function statsSampleMau() {
+    const lastAnsId = lastAnsweredIdForRate();
+    return lastAnsId != null ? (lastAnsId - MIN_ID + 1) : 0;
+  }
+
+  /** Tiêu đề stats: nhãn + badge x/y z% nổi bật. */
+  function setStatsModalTitle(label, x, y) {
+    const den = y > 0 ? y : 0;
+    const pct = den > 0 ? ((100 * x) / den).toFixed(1) + '%' : '—';
+    // Đúng 4 ký tự khoảng trắng giữa x/y và z% (white-space:pre trên .stats-rate).
+    modalTitle.innerHTML = String(label)
+      + ' <span class="stats-rate">' + x + '/' + den + '\u0020\u0020\u0020\u0020' + pct + '</span>';
+  }
+
   function showIdListPopup(kind) {
-    let title = '';
+    let titleLabel = '';
+    let titleX = 0;
+    let useRateTitle = false;
     let subExtra = '';
     let listHtml = '';
     let listLen = 0;
+    const mau = statsSampleMau();
     if (kind === 'full') {
-      title = '1/ Tick đủ mọi cột còn mở';
-      subExtra = ' · (en = số cột không bị disable)';
-      listLen = fullTickList.length;
+      titleLabel = '1/ Tick đủ mọi cột còn mở';
+      titleX = fullTickList.length;
+      useRateTitle = true;
+      subExtra = ' · (en = số cột không bị disable) · mẫu = id cuối có ĐA − 21 + 1';
+      listLen = titleX;
       listHtml = fullTickList.length
         ? ('<div class="id-list">'
-          + fullTickList.map((x) => '<button type="button" data-jump-id="' + x.id + '">'
-            + x.id + ' <small>en=' + x.enabled + '</small></button>').join('')
+          + fullTickList.map((row) => '<button type="button" data-jump-id="' + row.id + '">'
+            + row.id + ' <small>en=' + row.enabled + '</small></button>').join('')
           + '</div>')
         : '';
     } else if (kind === 'zero') {
-      title = '2/ Không tick cột nào';
-      listLen = zeroTickList.length;
+      titleLabel = '2/ Không tick cột nào';
+      titleX = zeroTickList.length;
+      useRateTitle = true;
+      subExtra = ' · mẫu = id cuối có ĐA − 21 + 1';
+      listLen = titleX;
       listHtml = zeroTickList.length
         ? ('<div class="id-list">'
           + zeroTickList.map((id) => '<button type="button" data-jump-id="' + id + '">' + id + '</button>').join('')
           + '</div>')
         : '';
     } else if (kind === 'derivePha') {
-      title = '3/ derive trùng tập phá max';
-      subExtra = ' · derive (★∈đáp án) === phá max · bỏ cặp rỗng';
-      listLen = derivePhaMaxList.length;
+      titleLabel = '3/ derive ⊆ tập phá max';
+      titleX = derivePhaMaxList.length;
+      useRateTitle = true;
+      subExtra = ' · mọi số derive (★∈đáp án) ∈ phá max · bỏ cặp rỗng · small = derive'
+        + ' · mẫu = id cuối có ĐA − 21 + 1';
+      listLen = titleX;
       listHtml = derivePhaMaxList.length
         ? ('<div class="id-list">'
-          + derivePhaMaxList.map((x) => '<button type="button" data-jump-id="' + x.id + '">'
-            + x.id + ' <small>' + x.nums.join(',') + '</small></button>').join('')
+          + derivePhaMaxList.map((row) => '<button type="button" data-jump-id="' + row.id + '">'
+            + row.id + ' <small>' + row.nums.join(',') + '</small></button>').join('')
           + '</div>')
         : '';
     } else if (kind === 'deriveRest') {
-      title = '4/ derive trùng tập rest';
-      subExtra = ' · derive (★∈đáp án) === rest · bỏ cặp rỗng';
-      listLen = deriveRestList.length;
+      titleLabel = '4/ derive ⊆ rest';
+      titleX = deriveRestList.length;
+      useRateTitle = true;
+      subExtra = ' · mọi số derive (★∈đáp án) ∈ rest · bỏ cặp rỗng · small = derive'
+        + ' · mẫu = id cuối có ĐA − 21 + 1';
+      listLen = titleX;
       listHtml = deriveRestList.length
         ? ('<div class="id-list">'
-          + deriveRestList.map((x) => '<button type="button" data-jump-id="' + x.id + '">'
-            + x.id + ' <small>' + x.nums.join(',') + '</small></button>').join('')
+          + deriveRestList.map((row) => '<button type="button" data-jump-id="' + row.id + '">'
+            + row.id + ' <small>' + row.nums.join(',') + '</small></button>').join('')
           + '</div>')
         : '';
     } else if (kind === 'phaK') {
       const k = selectedPhaK;
       const list = phaKListsByK[String(k)] || [];
-      title = '5/ Có số phá ' + k + ' luật';
-      subExtra = ' · ≥1 số phá đúng ' + k + ' luật (threshold hiện tại) · small = các số đó';
-      listLen = list.length;
+      titleLabel = '5/ Có số phá ' + k + ' luật';
+      titleX = list.length;
+      useRateTitle = true;
+      subExtra = ' · ≥1 số phá đúng ' + k + ' luật (threshold hiện tại) · small = các số đó'
+        + ' · mẫu = id cuối có ĐA − 21 + 1';
+      listLen = titleX;
       listHtml = list.length
         ? ('<div class="id-list">'
-          + list.map((x) => '<button type="button" data-jump-id="' + x.id + '">'
-            + x.id + ' <small>' + x.nums.join(',') + '</small></button>').join('')
+          + list.map((row) => '<button type="button" data-jump-id="' + row.id + '">'
+            + row.id + ' <small>' + row.nums.join(',') + '</small></button>').join('')
           + '</div>')
         : '';
+    } else if (kind === 'rest') {
+      if (restHitCache == null) restHitCache = computeRestHitStats();
+      const cache = restHitCache || { hitList: [], emptyList: [], nonemptyCount: 0, periodCount: 0 };
+      const hitN = cache.hitList.length;
+      const emptyN = cache.emptyList.length;
+      const tab = restPopupTab === 'empty' ? 'empty' : 'hit';
+      const den = restSkipEmpty ? cache.nonemptyCount : mau;
+      titleLabel = '%rest · kết quả lọc';
+      titleX = hitN;
+      useRateTitle = true;
+      subExtra = restSkipEmpty
+        ? (' · mẫu bỏ rest rỗng (' + cache.nonemptyCount + ' kỳ rest≠∅)')
+        : (' · mẫu gồm rest rỗng (' + cache.periodCount + ' kỳ)');
+      const tabsHtml = '<div class="rest-tabs" role="tablist">'
+        + '<button type="button" data-rest-tab="hit"' + (tab === 'hit' ? ' class="is-on"' : '')
+        + '>Trúng (' + hitN + ')</button>'
+        + '<button type="button" data-rest-tab="empty"' + (tab === 'empty' ? ' class="is-on"' : '')
+        + '>Rest rỗng (' + emptyN + ')</button>'
+        + '</div>';
+      if (tab === 'empty') {
+        listLen = emptyN;
+        listHtml = tabsHtml + (emptyN
+          ? ('<div class="id-list">'
+            + cache.emptyList.map((id) => '<button type="button" data-jump-id="' + id + '">' + id + '</button>').join('')
+            + '</div>')
+          : '<p class="none">Không có kỳ rest rỗng.</p>');
+        setStatsModalTitle(titleLabel, emptyN, mau);
+        useRateTitle = false; // already set; avoid double with hit den
+      } else {
+        listLen = hitN;
+        listHtml = tabsHtml + (hitN
+          ? ('<div class="id-list">'
+            + cache.hitList.map((row) => '<button type="button" data-jump-id="' + row.id + '">'
+              + row.id + ' <small>' + row.nums.join(',') + '</small></button>').join('')
+            + '</div>')
+          : '<p class="none">Không có kỳ trúng rest.</p>');
+        subExtra += ' · small = đáp án ∩ rest';
+        setStatsModalTitle(titleLabel, hitN, den > 0 ? den : mau);
+        useRateTitle = false;
+      }
     } else {
       return;
     }
-    modalTitle.textContent = title;
+    if (useRateTitle) setStatsModalTitle(titleLabel, titleX, mau);
     modalSub.textContent = 'id > 20 · ' + listLen + ' kỳ · click id → nhảy tới hàng và mở popup kỳ đó' + subExtra;
     hideModalRestPool();
     modalTimeline.hidden = true;
@@ -2163,6 +2376,35 @@
   if (btnDerivePhaList) btnDerivePhaList.addEventListener('click', () => showIdListPopup('derivePha'));
   if (btnDeriveRestList) btnDeriveRestList.addEventListener('click', () => showIdListPopup('deriveRest'));
   if (btnPhaKList) btnPhaKList.addEventListener('click', () => showIdListPopup('phaK'));
+  if (btnRestList) btnRestList.addEventListener('click', () => showIdListPopup('rest'));
+  if (btnRestToggle) {
+    btnRestToggle.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      restSkipEmpty = !restSkipEmpty;
+      saveRestSkipEmpty();
+      syncRestSkipEmptyUi();
+      const lastAnsId = lastAnsweredIdForRate();
+      const mau = lastAnsId != null ? (lastAnsId - MIN_ID + 1) : 0;
+      updateRestRateDisplay(mau, lastAnsId);
+      if (!modalBack.hidden && statsPopupKind === 'rest') {
+        showIdListPopup('rest');
+      }
+    });
+  }
+  if (modalBody) {
+    modalBody.addEventListener('click', (e) => {
+      const tabBtn = e.target && e.target.closest ? e.target.closest('[data-rest-tab]') : null;
+      if (!tabBtn || popupKind !== 'stats' || statsPopupKind !== 'rest') return;
+      e.preventDefault();
+      e.stopPropagation();
+      const tab = tabBtn.getAttribute('data-rest-tab');
+      if (tab !== 'hit' && tab !== 'empty') return;
+      if (restPopupTab === tab) return;
+      restPopupTab = tab;
+      showIdListPopup('rest');
+    });
+  }
   if (phaKSelect) {
     phaKSelect.addEventListener('change', () => {
       const v = Math.max(1, Math.floor(Number(phaKSelect.value) || 1));
@@ -2225,6 +2467,11 @@
     simIdOn = false;
     syncSimRowDom();
     syncHistIdDom();
+    const deriveSet = new Set();
+    const cands = dataCtx.candsCache[focusIdx] || [];
+    for (let ci = 0; ci < cands.length; ci++) {
+      if (cands[ci]) deriveSet.add(cands[ci].num);
+    }
     showElimPopupFrom({
       focusId,
       focusIdx,
@@ -2237,6 +2484,7 @@
       maxPoolNums: poolNumsArrForRow(focusIdx, maxPoolPairIndices()),
       counts: windowCounts(dataCtx.rowNums, focusIdx),
       answerSet: new Set(dataCtx.rowNums[focusIdx] || []),
+      deriveSet: deriveSet,
       showViolate: true,
       timelineMode: 'hist',
       modeLabel: 'Kỳ',
@@ -2294,6 +2542,7 @@
       poolNums: sortedNumsFromSet(poolSet),
       maxPoolNums: sortedNumsFromSet(maxPoolSet),
       counts: simCounts,
+      deriveSet: new Set(simState.cands || []),
       showViolate: true,
       timelineMode: 'sim',
       modeLabel: 'Kỳ giả lập',
@@ -2566,30 +2815,76 @@
     }
   }
 
-  /** Số kỳ (id≥21 có ĐA) có đáp án ∩ rest ≠ ∅; rest theo pool tối đa. */
-  function countRestHitPeriods() {
-    if (!tableBundle || !dataCtx) return 0;
+  /**
+   * Thống kê %rest (pool tối đa): kỳ trúng (ĐA ∩ rest), kỳ rest rỗng.
+   * @returns {{ hitList: { id: number, nums: number[] }[], emptyList: number[], nonemptyCount: number, periodCount: number }}
+   */
+  function computeRestHitStats() {
+    const empty = { hitList: [], emptyList: [], nonemptyCount: 0, periodCount: 0 };
+    if (!tableBundle || !dataCtx) return empty;
     const maxPairs = maxPoolPairIndices();
-    const { displayIdx } = tableBundle;
-    let hit = 0;
+    const { displayIdx, ids } = tableBundle;
+    const hitList = [];
+    const emptyList = [];
+    let nonemptyCount = 0;
     for (let j = 0; j < displayIdx.length; j++) {
       const i = displayIdx[j];
+      const id = ids[i];
       const poolMax = poolNumsArrForRow(i, maxPairs);
       const counts = windowCounts(dataCtx.rowNums, i);
       const restItems = buildRestItems(poolMax, counts);
-      if (!restItems.length) continue;
+      if (!restItems.length) {
+        emptyList.push(id);
+        continue;
+      }
+      nonemptyCount++;
       const restSet = new Set();
       for (let r = 0; r < restItems.length; r++) restSet.add(restItems[r].num);
       const answer = dataCtx.rowNums[i] || [];
+      const hitNums = [];
       for (let k = 0; k < answer.length; k++) {
-        if (restSet.has(answer[k])) {
-          hit++;
-          break;
-        }
+        if (restSet.has(answer[k])) hitNums.push(answer[k]);
+      }
+      if (hitNums.length) {
+        hitList.push({ id: id, nums: hitNums.slice().sort((a, b) => a - b) });
       }
     }
-    return hit;
+    return {
+      hitList: hitList,
+      emptyList: emptyList,
+      nonemptyCount: nonemptyCount,
+      periodCount: displayIdx.length
+    };
   }
+
+  function loadRestSkipEmpty() {
+    try {
+      restSkipEmpty = localStorage.getItem(REST_SKIP_LS_KEY) === '1';
+    } catch (e) {
+      restSkipEmpty = false;
+    }
+  }
+
+  function saveRestSkipEmpty() {
+    try {
+      localStorage.setItem(REST_SKIP_LS_KEY, restSkipEmpty ? '1' : '0');
+    } catch (e) { /* ignore */ }
+  }
+
+  function syncRestSkipEmptyUi() {
+    if (chipRestRate) {
+      chipRestRate.classList.toggle('is-skip-empty', !!restSkipEmpty);
+    }
+    if (btnRestToggle) {
+      btnRestToggle.textContent = restSkipEmpty ? '%rest≠∅' : '%rest';
+      btnRestToggle.title = restSkipEmpty
+        ? 'Đang bỏ kỳ rest rỗng khỏi mẫu · click để tính cả rest rỗng'
+        : 'Đang tính cả kỳ rest rỗng trong mẫu · click để bỏ rest rỗng';
+    }
+  }
+
+  loadRestSkipEmpty();
+  syncRestSkipEmptyUi();
 
   function updateRestRateDisplay(mau, lastAnsId) {
     if (!sumRestPct || !sumRestFrac) return;
@@ -2599,15 +2894,32 @@
       if (chipRestRate) chipRestRate.title = 'Chưa có kỳ có đáp án từ id 21';
       return;
     }
-    if (restHitCache == null) restHitCache = countRestHitPeriods();
-    const hit = restHitCache;
-    sumRestPct.textContent = ((100 * hit) / mau).toFixed(1) + '%';
-    sumRestFrac.textContent = hit + '/' + mau;
+    if (restHitCache == null) restHitCache = computeRestHitStats();
+    const cache = restHitCache;
+    const hit = cache.hitList.length;
+    const den = restSkipEmpty ? cache.nonemptyCount : mau;
+    if (!(den > 0)) {
+      sumRestPct.textContent = '—';
+      sumRestFrac.textContent = hit + '/0';
+      if (chipRestRate) {
+        chipRestRate.title = restSkipEmpty
+          ? 'Không có kỳ rest ≠ ∅'
+          : 'Chưa có kỳ có đáp án từ id 21';
+      }
+      return;
+    }
+    sumRestPct.textContent = ((100 * hit) / den).toFixed(1) + '%';
+    sumRestFrac.textContent = hit + '/' + den;
     if (chipRestRate) {
-      chipRestRate.title =
-        'mẫu = ' + lastAnsId + ' − 21 + 1 = ' + mau
-        + ' · tử = số kỳ đáp án giao rest = ' + hit
-        + ' · %rest = tử/mẫu (rest cố định theo pool tối đa)';
+      chipRestRate.title = restSkipEmpty
+        ? ('mẫu = kỳ rest ≠ ∅ = ' + den
+          + ' · tử = ĐA ∩ rest ≠ ∅ = ' + hit
+          + ' · bỏ ' + cache.emptyList.length + ' kỳ rest rỗng'
+          + ' · %rest = tử/mẫu (pool tối đa)')
+        : ('mẫu = ' + lastAnsId + ' − 21 + 1 = ' + mau
+          + ' · tử = ĐA ∩ rest ≠ ∅ = ' + hit
+          + ' · rest rỗng = ' + cache.emptyList.length + ' kỳ (vẫn trong mẫu)'
+          + ' · %rest = tử/mẫu (pool tối đa) · click %rest để bỏ rest rỗng');
     }
   }
 
@@ -2628,8 +2940,9 @@
     return Array.from(set).sort((a, b) => a - b);
   }
 
-  function setsEqual(a, b) {
-    if (!a || !b || a.size !== b.size) return false;
+  /** true nếu mọi phần tử của a đều thuộc b (a ⊆ b). */
+  function isSubset(a, b) {
+    if (!a || !b || !a.size || !b.size) return false;
     let ok = true;
     a.forEach((x) => {
       if (!b.has(x)) ok = false;
@@ -2638,7 +2951,7 @@
   }
 
   /**
-   * 3/ derive (★∈đáp án) === phá max · 4/ derive === rest
+   * 3/ derive ⊆ tập phá max · 4/ derive ⊆ rest
    * Cố định theo pool tối đa — không đổi theo threshold header.
    */
   function computeDeriveOverlapLists() {
@@ -2673,10 +2986,10 @@
       const rest = new Set();
       for (let r = 0; r < restItems.length; r++) rest.add(restItems[r].num);
       const nums = sortedNumsFromSet(derive);
-      if (pha.size > 0 && setsEqual(derive, pha)) {
+      if (isSubset(derive, pha)) {
         derivePhaMaxList.push({ id: ids[i], nums: nums });
       }
-      if (rest.size > 0 && setsEqual(derive, rest)) {
+      if (isSubset(derive, rest)) {
         deriveRestList.push({ id: ids[i], nums: nums });
       }
     }
@@ -2687,6 +3000,18 @@
   function formatPoolCell(arr) {
     if (!arr.length) return '';
     return 'pool[' + arr.length + '] {' + arr.join(',') + '}';
+  }
+
+  /** Tập derive (cands) của kỳ i — dùng gạch chân cột phá ngoài popup. */
+  function deriveSetForRow(i) {
+    if (!dataCtx || !dataCtx.candsCache) return null;
+    const cands = dataCtx.candsCache[i] || [];
+    if (!cands.length) return null;
+    const set = new Set();
+    for (let ci = 0; ci < cands.length; ci++) {
+      if (cands[ci]) set.add(cands[ci].num);
+    }
+    return set;
   }
 
   /** Hợp peer loại từ các cột threshold applicable (hold∪violate) tại kỳ i. */
@@ -2751,12 +3076,13 @@
     return out;
   }
 
-  function formatRestAnsCell(items) {
+  function formatRestAnsCell(items, deriveSet) {
     if (!items.length) return '';
     const parts = [];
     for (let i = 0; i < items.length; i++) {
       const it = items[i];
-      parts.push(String(it.num) + toSubscript(it.freq));
+      const bit = String(it.num) + toSubscript(it.freq);
+      parts.push(wrapDeriveMarkHtml(bit, it.num, deriveSet));
     }
     return parts.join(',');
   }
@@ -2766,10 +3092,14 @@
       const i = Number(td.getAttribute('data-idx'));
       if (!Number.isFinite(i)) return;
       const items = restAnswerItemsForRow(i);
-      const text = formatRestAnsCell(items);
-      td.textContent = text;
-      td.title = text
-        ? ('Đáp án ∩ rest: ' + text)
+      const plain = items.length
+        ? items.map((it) => String(it.num) + toSubscript(it.freq)).join(',')
+        : '';
+      td.innerHTML = items.length
+        ? formatRestAnsCell(items, deriveSetForRow(i))
+        : '';
+      td.title = plain
+        ? ('Đáp án ∩ rest: ' + plain)
         : 'Không có số đáp án thuộc rest';
     });
   }
@@ -2791,7 +3121,9 @@
       if (!Number.isFinite(i)) return;
       const arr = violNumsArrForRow(i, act);
       const text = arr.join(',');
-      td.textContent = text;
+      td.innerHTML = arr.length
+        ? formatNumsDeriveHtml(arr, deriveSetForRow(i), ',')
+        : '';
       td.title = text
         ? ('Phá luật ⊆ pool (cột threshold): ' + text)
         : 'Không phá luật cột nào trong threshold';
