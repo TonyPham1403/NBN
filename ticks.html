@@ -790,6 +790,37 @@
     width: 9px;
     height: 9px;
   }
+  /* Tooltip Δ — góc phải trên = con trỏ; chỉ hiện chuỗi */
+  .delta-tip {
+    position: fixed;
+    z-index: 10050;
+    pointer-events: none;
+    max-width: min(440px, calc(100vw - 20px));
+    padding: 6px 9px;
+    background: #0f172a;
+    color: #f8fafc;
+    border-radius: 6px;
+    border: 1px solid #134e4a;
+    box-shadow:
+      0 0 0 1px rgba(15, 118, 110, .35),
+      0 10px 28px rgba(15, 23, 42, .38);
+    opacity: 0;
+    visibility: hidden;
+    margin: 0;
+    font: 700 13px/1.35 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .03em;
+    word-break: break-word;
+  }
+  .delta-tip.is-on {
+    opacity: 1;
+    visibility: visible;
+  }
+  .delta-tip.is-empty {
+    color: #94a3b8;
+    font-weight: 600;
+    font-style: italic;
+  }
   .modal .th-tl-row .tl-pool {
     display: inline-flex;
     align-items: center;
@@ -802,6 +833,52 @@
     color: #b91c1c; font-weight: 700; white-space: nowrap;
     text-align: right;
     justify-self: end;
+  }
+  .modal .affect-by-law {
+    margin: 0 0 10px;
+    padding: 6px 0 2px;
+    border-top: 1px solid #e5e7eb;
+    font-size: 12px;
+    line-height: 1.45;
+    color: #374151;
+  }
+  .modal .affect-by-law .affect-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 6px;
+    margin: 2px 0;
+    padding: 2px 4px;
+    border: 3px solid transparent;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+  .modal .affect-by-law .affect-line.is-hl {
+    border-color: #b91c1c;
+  }
+  .modal .affect-by-law .affect-label {
+    font-weight: 700;
+    color: #111;
+    white-space: nowrap;
+  }
+  .modal .affect-by-law .affect-nums {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+  /* Số ∈ tập phá (đã có đáp án) — cùng màu chữ cột/phần phá */
+  .modal .affect-by-law .pha-mark {
+    color: #b91c1c;
+    font-weight: 800;
+  }
+  .modal .tl-num {
+    cursor: default;
+  }
+  /* outline không chiếm layout → số vẫn sát nhau như khi không hl */
+  .modal .tl-num.is-hl,
+  .modal .tl-num.is-hl-pha {
+    outline: 3px solid #b91c1c;
+    outline-offset: 0;
+    border-radius: 2px;
   }
   .modal .sec-title {
     margin: 14px 0 6px; font-size: 13px; font-weight: 800;
@@ -1551,13 +1628,13 @@
       + COPY_ICON_SVG + '</button>';
   }
 
-  /** Nút Δ — copy hiệu pool(dòng này) \ pool(mốc trên). */
+  /** Nút Δ — copy hiệu pool(dòng này) \ pool(mốc trên). Tooltip custom (không title). */
   function copyDeltaBtnHtml(nums) {
     const csv = (nums || []).join(',');
     return '<button type="button" class="copy-nums-btn copy-delta-btn" data-copy="'
       + escapeAttr(csv)
-      + '" data-copy-icon="delta" title="Copy hiệu pool vs mốc trên'
-      + (csv ? ': ' + csv : ' (rỗng)') + '" aria-label="Copy hiệu pool">Δ</button>';
+      + '" data-copy-icon="delta" aria-label="Copy hiệu pool Δ: '
+      + escapeAttr(csv || '(rỗng)') + '">Δ</button>';
   }
 
   /** poolCurr \ poolPrev — giữ thứ tự trong poolCurr. */
@@ -1611,14 +1688,27 @@
     return innerHtml;
   }
 
-  /** Danh sách số, gạch chân phần tử ∈ derive. */
-  function formatNumsDeriveHtml(nums, deriveSet, sep) {
+  /**
+   * Danh sách số; gạch chân ∈ derive; phaSet = tô màu phá (khi đã có ĐA).
+   * hoverMode: 'tl' | 'tl-pha' = data-hl-num (timeline pool/phá) · 'affect' = data-affect-num.
+   */
+  function formatNumsDeriveHtml(nums, deriveSet, sep, phaSet, hoverMode) {
     const list = nums || [];
     const joiner = sep == null ? ',' : sep;
     const parts = [];
     for (let i = 0; i < list.length; i++) {
       const n = list[i];
-      parts.push(wrapDeriveMarkHtml(String(n), n, deriveSet));
+      let bit = wrapDeriveMarkHtml(String(n), n, deriveSet);
+      if (phaSet && phaSet.has(n)) {
+        bit = '<span class="pha-mark">' + bit + '</span>';
+      }
+      if (hoverMode === 'tl' || hoverMode === 'tl-pha') {
+        const col = hoverMode === 'tl-pha' ? 'pha' : 'pool';
+        bit = '<span class="tl-num" data-hl-num="' + n + '" data-hl-col="' + col + '">' + bit + '</span>';
+      } else if (hoverMode === 'affect') {
+        bit = '<span class="affect-num" data-affect-num="' + n + '">' + bit + '</span>';
+      }
+      parts.push(bit);
     }
     return parts.join(joiner);
   }
@@ -1937,8 +2027,11 @@
     const parts = [];
     for (let i = 0; i < nums.length; i++) {
       const n = nums[i];
+      const isBold = bold.has(n);
       let bit = wrapDeriveMarkHtml(String(n), n, deriveSet);
-      if (bold.has(n)) bit = '<b>' + bit + '</b>';
+      if (isBold) bit = '<b>' + bit + '</b>';
+      bit = '<span class="tl-num" data-hl-num="' + n + '" data-hl-col="pool"'
+        + (isBold ? ' data-hl-bold="1"' : '') + '>' + bit + '</span>';
       parts.push(bit);
     }
     const body = 'pool[' + nums.length + ']{' + parts.join(',') + '}';
@@ -1950,6 +2043,76 @@
     return deltaBtn
       + '<span class="tl-pool-text">' + body + '</span>'
       + copyNumsBtnHtml(nums);
+  }
+
+  /**
+   * Đếm mỗi số peer thuộc bao nhiêu luật (cột threshold applicable: hold∪violate).
+   * Trả HTML các dòng "Ảnh hưởng k luật: a,b,c".
+   * phaSet: số ∈ tập phá (chỉ khi đã có ĐA) → tô màu như phần phá.
+   */
+  function buildAffectByLawHtml(opts, deriveSet, phaSet) {
+    const countByNum = new Map();
+    const focusIdx = opts.focusIdx;
+    if (opts.timelineMode === 'hist' && Number.isFinite(focusIdx) && tableBundle) {
+      const active = activePairIndices();
+      const { splits } = tableBundle;
+      for (let ai = 0; ai < active.length; ai++) {
+        const pi = active[ai];
+        const s = splits[pi];
+        if (!s || s.disabled.has(focusIdx)) continue;
+        if (!s.hold.has(focusIdx) && !s.violate.has(focusIdx)) continue;
+        const pn = s.poolNums && s.poolNums.get(focusIdx);
+        if (!pn) continue;
+        pn.forEach((x) => {
+          countByNum.set(x, (countByNum.get(x) || 0) + 1);
+        });
+      }
+    } else {
+      const active = activePairIndices();
+      const details = opts.details || [];
+      const disabled = opts.disabled || [];
+      for (let ai = 0; ai < active.length; ai++) {
+        const pi = active[ai];
+        if (disabled[pi]) continue;
+        const d = details[pi];
+        if (!d || !d.elim || !d.elim.length) continue;
+        for (let ei = 0; ei < d.elim.length; ei++) {
+          const x = d.elim[ei];
+          countByNum.set(x, (countByNum.get(x) || 0) + 1);
+        }
+      }
+    }
+    if (!countByNum.size) return '';
+    // Chỉ tô màu phá khi đã có đáp án thật (hist + answerSet).
+    const phaMark = (opts.timelineMode === 'hist'
+      && opts.answerSet instanceof Set
+      && opts.answerSet.size
+      && phaSet instanceof Set
+      && phaSet.size)
+      ? phaSet
+      : null;
+    /** @type {Map<number, number[]>} */
+    const byK = new Map();
+    countByNum.forEach((k, num) => {
+      if (!byK.has(k)) byK.set(k, []);
+      byK.get(k).push(num);
+    });
+    const ks = Array.from(byK.keys()).sort((a, b) => a - b);
+    let html = '<div class="affect-by-law">';
+    for (let i = 0; i < ks.length; i++) {
+      const k = ks[i];
+      const nums = byK.get(k).slice().sort((a, b) => a - b);
+      html += '<div class="affect-line" data-affect-nums="'
+        + escapeAttr(nums.join(',')) + '">'
+        + '<span class="affect-label">Ảnh hưởng ' + k + ' luật [' + nums.length + ']:</span>'
+        + '<span class="affect-nums">'
+        + formatNumsDeriveHtml(nums, deriveSet, ',', phaMark, 'affect')
+        + '</span>'
+        + copyNumsBtnHtml(nums)
+        + '</div>';
+    }
+    html += '</div>';
+    return html;
   }
 
   function renderThresholdTimelineHtml(milestones, mode, deriveSet) {
@@ -1971,7 +2134,9 @@
       const prevPool = i > 0 ? milestones[i - 1].pool : null;
       const pháTxt = isSim
         ? '???'
-        : (m.phá.length ? formatNumsDeriveHtml(m.phá, deriveSet, ',') : '');
+        : (m.phá.length
+          ? formatNumsDeriveHtml(m.phá, deriveSet, ',', null, 'tl-pha')
+          : '');
       const rateTxt = Number.isFinite(m.violPct)
         ? (m.violPct.toFixed(1) + '%')
         : '—';
@@ -2093,7 +2258,11 @@
       modalTimeline.hidden = true;
       modalTimeline.innerHTML = '';
     }
-    modalBody.innerHTML = html;
+    // Dưới timeline, trên "Loại (cột ✓)": nhóm số theo số luật ảnh hưởng.
+    const affectHtml = showViolate
+      ? buildAffectByLawHtml(opts, deriveSet, violPart.allViol)
+      : '';
+    modalBody.innerHTML = affectHtml + html;
     popupKind = 'elim';
     statsPopupKind = null;
     if (modalEl) modalEl.classList.remove('is-stats');
@@ -2430,6 +2599,8 @@
     statsPopupKind = null;
     resetPopupPoolTrack();
     clearCopyNumsOkEffect();
+    clearAffectNumHl();
+    hideDeltaTip();
     hideModalRestPool();
     modalTimeline.hidden = true;
     modalTimeline.innerHTML = '';
@@ -2467,6 +2638,176 @@
   if (modalRest) modalRest.addEventListener('click', onCopyNumsClick);
   if (modalPool) modalPool.addEventListener('click', onCopyNumsClick);
   if (modalTimeline) modalTimeline.addEventListener('click', onCopyNumsClick);
+  if (modalBody) modalBody.addEventListener('click', onCopyNumsClick);
+
+  /** Tooltip Δ — góc phải trên sát con trỏ; chỉ chuỗi. */
+  const deltaTip = document.createElement('div');
+  deltaTip.className = 'delta-tip';
+  deltaTip.setAttribute('role', 'tooltip');
+  deltaTip.hidden = true;
+  document.body.appendChild(deltaTip);
+  let deltaTipBtn = null;
+  let deltaTipX = 0;
+  let deltaTipY = 0;
+
+  function hideDeltaTip() {
+    deltaTipBtn = null;
+    deltaTip.classList.remove('is-on', 'is-empty');
+    deltaTip.hidden = true;
+    deltaTip.textContent = '';
+  }
+
+  /** Con trỏ = góc phải trên của tip → tip nằm bên trái dưới con trỏ. */
+  function positionDeltaTipAt(clientX, clientY) {
+    deltaTipX = clientX;
+    deltaTipY = clientY;
+    const tipW = deltaTip.offsetWidth || 40;
+    const tipH = deltaTip.offsetHeight || 24;
+    let left = clientX - tipW;
+    let top = clientY;
+    if (left < 4) left = 4;
+    if (top + tipH > window.innerHeight - 4) {
+      top = Math.max(4, window.innerHeight - tipH - 4);
+    }
+    if (top < 4) top = 4;
+    deltaTip.style.left = Math.round(left) + 'px';
+    deltaTip.style.top = Math.round(top) + 'px';
+  }
+
+  function showDeltaTip(btn, clientX, clientY) {
+    if (!btn) return;
+    const csv = btn.getAttribute('data-copy') || '';
+    const empty = !csv;
+    deltaTipBtn = btn;
+    deltaTip.textContent = empty ? '(rỗng)' : csv;
+    deltaTip.classList.toggle('is-empty', empty);
+    deltaTip.hidden = false;
+    deltaTip.classList.add('is-on');
+    const x = clientX != null ? clientX : deltaTipX;
+    const y = clientY != null ? clientY : deltaTipY;
+    positionDeltaTipAt(x, y);
+    requestAnimationFrame(() => {
+      if (deltaTipBtn === btn) positionDeltaTipAt(x, y);
+    });
+  }
+
+  if (modalTimeline) {
+    modalTimeline.addEventListener('mouseover', (e) => {
+      const btn = e.target && e.target.closest
+        ? e.target.closest('button.copy-delta-btn')
+        : null;
+      if (!btn || !modalTimeline.contains(btn)) return;
+      if (deltaTipBtn === btn) return;
+      showDeltaTip(btn, e.clientX, e.clientY);
+    });
+    modalTimeline.addEventListener('mousemove', (e) => {
+      if (!deltaTipBtn) return;
+      const btn = e.target && e.target.closest
+        ? e.target.closest('button.copy-delta-btn')
+        : null;
+      if (btn !== deltaTipBtn) return;
+      positionDeltaTipAt(e.clientX, e.clientY);
+    });
+    modalTimeline.addEventListener('mouseout', (e) => {
+      const btn = e.target && e.target.closest
+        ? e.target.closest('button.copy-delta-btn')
+        : null;
+      if (!btn || !modalTimeline.contains(btn)) return;
+      const to = e.relatedTarget;
+      if (to && typeof to.closest === 'function') {
+        if (btn.contains(to)) return;
+        const next = to.closest('button.copy-delta-btn');
+        if (next && modalTimeline.contains(next)) {
+          showDeltaTip(next, e.clientX, e.clientY);
+          return;
+        }
+      }
+      hideDeltaTip();
+    });
+    modalTimeline.addEventListener('scroll', hideDeltaTip, true);
+  }
+  window.addEventListener('scroll', () => {
+    if (deltaTipBtn) hideDeltaTip();
+  }, true);
+  window.addEventListener('resize', hideDeltaTip);
+
+  /**
+   * Rê số trên timeline →
+   * (1) viền đỏ dày cả dòng "Ảnh hưởng k luật" chứa số đó
+   * (2) luôn viền các chỗ số in đậm trên cột pool
+   * (3) rê cột phá: thêm đúng 1 viền tại ô đang rê (không lan sang phá khác)
+   */
+  let affectHlKey = null;
+  let affectHlEl = null;
+  function clearAffectNumHl() {
+    if (!modalBody) return;
+    modalBody.querySelectorAll('.affect-line.is-hl').forEach((el) => {
+      el.classList.remove('is-hl');
+    });
+    if (modalTimeline) {
+      modalTimeline.querySelectorAll('.tl-num.is-hl, .tl-num.is-hl-pha').forEach((el) => {
+        el.classList.remove('is-hl', 'is-hl-pha');
+      });
+    }
+    affectHlKey = null;
+    affectHlEl = null;
+  }
+  function setAffectNumHl(numStr, col, sourceEl) {
+    const key = (col || 'pool') + ':' + numStr;
+    if (col === 'pha') {
+      if (affectHlKey === key && affectHlEl === sourceEl) return;
+    } else if (affectHlKey === key) {
+      return;
+    }
+    clearAffectNumHl();
+    if (numStr == null || numStr === '') return;
+    affectHlKey = key;
+    affectHlEl = sourceEl || null;
+    if (!modalBody) return;
+    const n = Number(numStr);
+    modalBody.querySelectorAll('.affect-line[data-affect-nums]').forEach((line) => {
+      const raw = line.getAttribute('data-affect-nums') || '';
+      const parts = raw.split(',');
+      for (let i = 0; i < parts.length; i++) {
+        if (Number(parts[i]) === n) {
+          line.classList.add('is-hl');
+          break;
+        }
+      }
+    });
+    if (!modalTimeline) return;
+    /* Pool in đậm — cả khi rê pool lẫn rê phá */
+    modalTimeline.querySelectorAll('.tl-num[data-hl-col="pool"][data-hl-bold][data-hl-num]').forEach((el) => {
+      if (Number(el.getAttribute('data-hl-num')) === n) {
+        el.classList.add('is-hl');
+      }
+    });
+    /* Phá: chỉ đúng ô đang rê */
+    if (col === 'pha' && sourceEl) {
+      sourceEl.classList.add('is-hl-pha');
+    }
+  }
+  if (modalTimeline) {
+    modalTimeline.addEventListener('mouseover', (e) => {
+      const el = e.target && e.target.closest ? e.target.closest('[data-hl-num]') : null;
+      if (!el || !modalTimeline.contains(el)) return;
+      setAffectNumHl(
+        el.getAttribute('data-hl-num'),
+        el.getAttribute('data-hl-col') || 'pool',
+        el
+      );
+    });
+    modalTimeline.addEventListener('mouseout', (e) => {
+      const el = e.target && e.target.closest ? e.target.closest('[data-hl-num]') : null;
+      if (!el || !modalTimeline.contains(el)) return;
+      const to = e.relatedTarget;
+      if (to && typeof to.closest === 'function') {
+        if (el.contains(to)) return;
+        if (to.closest('[data-hl-num]') && modalTimeline.contains(to)) return;
+      }
+      clearAffectNumHl();
+    });
+  }
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && !modalBack.hidden) hidePopup();
   });
@@ -2633,6 +2974,7 @@
       : null;
     showElimPopupFrom({
       focusId: simState.focusId,
+      focusIdx: simState.focusIdx,
       details: simState.details,
       violDetails: violDetails,
       disabled: simState.disabled,
