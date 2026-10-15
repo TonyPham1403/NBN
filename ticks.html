@@ -1504,6 +1504,18 @@
     + '<path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>'
     + '</svg>';
 
+  /** Nút copy đang giữ hiệu ứng is-ok — tắt khi click nút copy khác. */
+  let copyNumsOkBtn = null;
+
+  function clearCopyNumsOkEffect() {
+    if (!copyNumsOkBtn) return;
+    if (copyNumsOkBtn.isConnected) {
+      copyNumsOkBtn.innerHTML = COPY_ICON_SVG;
+      copyNumsOkBtn.classList.remove('is-ok');
+    }
+    copyNumsOkBtn = null;
+  }
+
   /** Nút copy dãy a,b,c thuần (không freq, không style). */
   function copyNumsBtnHtml(nums) {
     const csv = (nums || []).join(',');
@@ -1516,12 +1528,10 @@
   function copyTextToClipboard(text, btn) {
     const done = () => {
       if (!btn) return;
+      if (copyNumsOkBtn && copyNumsOkBtn !== btn) clearCopyNumsOkEffect();
       btn.innerHTML = COPY_OK_ICON_SVG;
       btn.classList.add('is-ok');
-      setTimeout(() => {
-        btn.innerHTML = COPY_ICON_SVG;
-        btn.classList.remove('is-ok');
-      }, 900);
+      copyNumsOkBtn = btn;
     };
     const fail = () => {
       if (btn) btn.title = 'Copy thất bại';
@@ -2362,6 +2372,7 @@
     popupKind = null;
     statsPopupKind = null;
     resetPopupPoolTrack();
+    clearCopyNumsOkEffect();
     hideModalRestPool();
     modalTimeline.hidden = true;
     modalTimeline.innerHTML = '';
