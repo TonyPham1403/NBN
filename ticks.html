@@ -671,24 +671,25 @@
     align-items: center;
     justify-content: center;
     flex: 0 0 auto;
-    width: 16px;
-    height: 16px;
+    width: 12px;
+    height: 12px;
+    margin: 0;
     padding: 0;
     border: none;
-    border-radius: 3px;
+    border-radius: 2px;
     background: transparent;
     color: #94a3b8;
     cursor: pointer;
     line-height: 0;
-    opacity: .75;
+    opacity: .7;
   }
   .modal .copy-nums-btn svg {
-    width: 11px;
-    height: 11px;
+    width: 9px;
+    height: 9px;
     display: block;
   }
   .modal .copy-nums-btn:hover {
-    background: #f1f5f9;
+    background: transparent;
     color: #64748b;
     opacity: 1;
   }
@@ -768,10 +769,31 @@
   .modal .th-tl-row .tl-rate {
     font-weight: 800; color: #ef4444; text-align: right; white-space: nowrap;
   }
+  .modal .copy-nums-btn.copy-delta-btn {
+    width: 12px;
+    height: 12px;
+    margin: 0 1px 0 0;
+    font: 700 10px/1 "Segoe UI", system-ui, sans-serif;
+    color: #0f766e;
+    opacity: .75;
+  }
+  .modal .copy-nums-btn.copy-delta-btn:hover {
+    color: #0f766e;
+    background: transparent;
+    opacity: 1;
+  }
+  .modal .copy-nums-btn.copy-delta-btn.is-ok {
+    color: #16a34a;
+    opacity: 1;
+  }
+  .modal .copy-nums-btn.copy-delta-btn.is-ok svg {
+    width: 9px;
+    height: 9px;
+  }
   .modal .th-tl-row .tl-pool {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 3px;
     white-space: nowrap;
   }
   .modal .th-tl-row .tl-pool-text { min-width: 0; }
@@ -1510,7 +1532,11 @@
   function clearCopyNumsOkEffect() {
     if (!copyNumsOkBtn) return;
     if (copyNumsOkBtn.isConnected) {
-      copyNumsOkBtn.innerHTML = COPY_ICON_SVG;
+      if (copyNumsOkBtn.getAttribute('data-copy-icon') === 'delta') {
+        copyNumsOkBtn.textContent = 'Δ';
+      } else {
+        copyNumsOkBtn.innerHTML = COPY_ICON_SVG;
+      }
       copyNumsOkBtn.classList.remove('is-ok');
     }
     copyNumsOkBtn = null;
@@ -1523,6 +1549,27 @@
       + escapeAttr(csv)
       + '" title="Copy ' + (csv ? csv : '(rỗng)') + '" aria-label="Copy dãy số">'
       + COPY_ICON_SVG + '</button>';
+  }
+
+  /** Nút Δ — copy hiệu pool(dòng này) \ pool(mốc trên). */
+  function copyDeltaBtnHtml(nums) {
+    const csv = (nums || []).join(',');
+    return '<button type="button" class="copy-nums-btn copy-delta-btn" data-copy="'
+      + escapeAttr(csv)
+      + '" data-copy-icon="delta" title="Copy hiệu pool vs mốc trên'
+      + (csv ? ': ' + csv : ' (rỗng)') + '" aria-label="Copy hiệu pool">Δ</button>';
+  }
+
+  /** poolCurr \ poolPrev — giữ thứ tự trong poolCurr. */
+  function poolDiffFromPrev(poolCurr, poolPrev) {
+    const prevSet = new Set(poolPrev || []);
+    const out = [];
+    const curr = poolCurr || [];
+    for (let i = 0; i < curr.length; i++) {
+      const n = curr[i];
+      if (!prevSet.has(n)) out.push(n);
+    }
+    return out;
   }
 
   function copyTextToClipboard(text, btn) {
@@ -1884,7 +1931,7 @@
     return milestones;
   }
 
-  function formatTimelinePoolHtml(poolArr, newlyIn, deriveSet) {
+  function formatTimelinePoolHtml(poolArr, newlyIn, deriveSet, prevPool) {
     const nums = poolArr || [];
     const bold = new Set(newlyIn || []);
     const parts = [];
@@ -1895,7 +1942,14 @@
       parts.push(bit);
     }
     const body = 'pool[' + nums.length + ']{' + parts.join(',') + '}';
-    return '<span class="tl-pool-text">' + body + '</span>' + copyNumsBtnHtml(nums);
+    let deltaBtn = '';
+    if (prevPool) {
+      const diff = poolDiffFromPrev(nums, prevPool);
+      if (diff.length) deltaBtn = copyDeltaBtnHtml(diff);
+    }
+    return deltaBtn
+      + '<span class="tl-pool-text">' + body + '</span>'
+      + copyNumsBtnHtml(nums);
   }
 
   function renderThresholdTimelineHtml(milestones, mode, deriveSet) {
@@ -1910,10 +1964,11 @@
         ? ('<= 1% → ' + thVal + '%')
         : ('= ' + thVal + '%'));
     let html = '<div class="th-tl-title">Timeline threshold (' + dir
-      + ') · mốc khi |pool| đổi hoặc có số phá mới</div>';
+      + ') · mốc khi |pool| đổi hoặc có số phá mới · Δ = copy hiệu pool vs mốc trên</div>';
     if (milestones.length > 1) html += '<div class="th-tl-flow" aria-hidden="true"></div>';
     for (let i = 0; i < milestones.length; i++) {
       const m = milestones[i];
+      const prevPool = i > 0 ? milestones[i - 1].pool : null;
       const pháTxt = isSim
         ? '???'
         : (m.phá.length ? formatNumsDeriveHtml(m.phá, deriveSet, ',') : '');
@@ -1923,7 +1978,9 @@
       html += '<div class="th-tl-row">'
         + '<span class="tl-t">' + m.t + '%</span>'
         + '<span class="tl-rate" title="% phá luật tại threshold này">' + rateTxt + '</span>'
-        + '<span class="tl-pool">' + formatTimelinePoolHtml(m.pool, m.newlyIn, deriveSet) + '</span>'
+        + '<span class="tl-pool">'
+        + formatTimelinePoolHtml(m.pool, m.newlyIn, deriveSet, prevPool)
+        + '</span>'
         + '<span class="tl-phá">phá: ' + pháTxt + '</span>'
         + '</div>';
     }
