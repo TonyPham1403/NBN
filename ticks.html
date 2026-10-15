@@ -305,7 +305,11 @@
     font-weight: 600;
     height: 30px; box-sizing: border-box;
   }
-  /* Freeze pane ngang: id(72) | pool(148) | phá(88) | rest(88) — width cố định = left */
+  /* Freeze pane ngang: id(72) | pool(148) | phá(--viol-w) | rest(--rest-w) */
+  table.dc-table {
+    --viol-w: 48px;
+    --rest-w: 48px;
+  }
   thead th.id.pct {
     position: sticky; top: 0; left: 0; z-index: 8;
     background: #0f766e; text-align: left;
@@ -381,21 +385,21 @@
     background: #0f766e; color: #ecfdf5;
     font-weight: 700;
     box-sizing: border-box;
-    min-width: 88px; width: 88px; max-width: 88px;
+    min-width: var(--viol-w); width: var(--viol-w); max-width: var(--viol-w);
   }
   thead th.viol-h.xy {
     position: sticky; top: 28px; left: 220px; z-index: 7;
     background: #115e59; color: #ccfbf1;
     font-weight: 600;
     box-sizing: border-box;
-    min-width: 88px; width: 88px; max-width: 88px;
+    min-width: var(--viol-w); width: var(--viol-w); max-width: var(--viol-w);
   }
   thead th.viol-h.name {
     position: sticky; top: 56px; left: 220px; z-index: 7;
     background: #7f1d1d; color: #fecaca;
     font-weight: 700;
     box-sizing: border-box;
-    min-width: 88px; width: 88px; max-width: 88px;
+    min-width: var(--viol-w); width: var(--viol-w); max-width: var(--viol-w);
     border-bottom: 3px solid #111827;
   }
   td.viol-nums {
@@ -407,10 +411,9 @@
     color: #b91c1c;
     background: #fff;
     box-sizing: border-box;
-    min-width: 88px; width: 88px; max-width: 88px;
+    min-width: var(--viol-w); width: var(--viol-w); max-width: var(--viol-w);
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible;
   }
   td.viol-nums .derive-mark {
     text-decoration: underline;
@@ -426,27 +429,27 @@
     font-weight: 600;
   }
   thead th.rest-h.pct {
-    position: sticky; top: 0; left: 308px; z-index: 7;
+    position: sticky; top: 0; left: calc(220px + var(--viol-w)); z-index: 7;
     background: #0f766e; color: #ecfdf5;
     font-weight: 700;
     box-sizing: border-box;
-    min-width: 88px; width: 88px; max-width: 88px;
+    min-width: var(--rest-w); width: var(--rest-w); max-width: var(--rest-w);
     border-right: 3px solid #111827;
   }
   thead th.rest-h.xy {
-    position: sticky; top: 28px; left: 308px; z-index: 7;
+    position: sticky; top: 28px; left: calc(220px + var(--viol-w)); z-index: 7;
     background: #115e59; color: #ccfbf1;
     font-weight: 600;
     box-sizing: border-box;
-    min-width: 88px; width: 88px; max-width: 88px;
+    min-width: var(--rest-w); width: var(--rest-w); max-width: var(--rest-w);
     border-right: 3px solid #111827;
   }
   thead th.rest-h.name {
-    position: sticky; top: 56px; left: 308px; z-index: 7;
+    position: sticky; top: 56px; left: calc(220px + var(--viol-w)); z-index: 7;
     background: #14532d; color: #bbf7d0;
     font-weight: 700;
     box-sizing: border-box;
-    min-width: 88px; width: 88px; max-width: 88px;
+    min-width: var(--rest-w); width: var(--rest-w); max-width: var(--rest-w);
     border-right: 3px solid #111827;
     border-bottom: 3px solid #111827;
   }
@@ -455,7 +458,7 @@
     border-bottom: 3px solid #111827;
   }
   td.rest-ans {
-    position: sticky; left: 308px; z-index: 4;
+    position: sticky; left: calc(220px + var(--viol-w)); z-index: 4;
     text-align: left;
     font-variant-numeric: tabular-nums;
     font-size: 11px;
@@ -463,10 +466,9 @@
     color: #005000;
     background: #fff;
     box-sizing: border-box;
-    min-width: 88px; width: 88px; max-width: 88px;
+    min-width: var(--rest-w); width: var(--rest-w); max-width: var(--rest-w);
     white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+    overflow: visible;
     border-right: 3px solid #111827;
   }
   td.rest-ans .derive-mark {
@@ -1419,7 +1421,11 @@
     return ' ' + pct;
   }
 
-  function renderPairElimBlocks(details, disabled, mask, deriveSet) {
+  /**
+   * Loại (cột ✓). excludePhá: số đã ∈ tập phá (luật khác) → không đưa vào loại.
+   */
+  function renderPairElimBlocks(details, disabled, mask, deriveSet, excludePhá) {
+    const skip = excludePhá instanceof Set ? excludePhá : null;
     const chosen = [];
     const allElim = new Set();
     let html = '';
@@ -1428,18 +1434,30 @@
       const d = details[pi];
       if (!d) continue;
       chosen.push(d.label);
-      d.elim.forEach((x) => allElim.add(x));
+      const elimShow = [];
+      for (let ei = 0; ei < d.elim.length; ei++) {
+        const x = d.elim[ei];
+        if (skip && skip.has(x)) continue;
+        elimShow.push(x);
+        allElim.add(x);
+      }
       html += '<div class="pair-block">';
       html += '<div class="pair-title">' + d.label + pairHoldPctText(pi) + ' → loại: '
-        + (d.elim.length ? formatNumsDeriveHtml(d.elim, deriveSet, ', ') : '(không)') + '</div>';
+        + (elimShow.length ? formatNumsDeriveHtml(elimShow, deriveSet, ', ') : '(không)') + '</div>';
       if (!d.lines.length) {
         html += '<div class="none">Không có chuỗi witness derive[D]+peer[P]</div>';
       } else {
         for (let li = 0; li < d.lines.length; li++) {
           const L = d.lines[li];
+          const peersShow = [];
+          for (let pi2 = 0; pi2 < L.peers.length; pi2++) {
+            const p = L.peers[pi2];
+            if (skip && skip.has(p)) continue;
+            peersShow.push(p);
+          }
           html += '<div class="pair-line">chuỗi ' + L.chuoi
             + ' (id ' + L.rowId + '): derive {' + formatNumsDeriveHtml(L.derives, deriveSet, ',')
-            + '} → loại {' + formatNumsDeriveHtml(L.peers, deriveSet, ',') + '}</div>';
+            + '} → loại {' + formatNumsDeriveHtml(peersShow, deriveSet, ',') + '}</div>';
         }
       }
       html += '</div>';
@@ -1486,7 +1504,7 @@
     + '<path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>'
     + '</svg>';
 
-  /** Nút copy dãy a,b,c (không freq) — icon clipboard. */
+  /** Nút copy dãy a,b,c thuần (không freq, không style). */
   function copyNumsBtnHtml(nums) {
     const csv = (nums || []).join(',');
     return '<button type="button" class="copy-nums-btn" data-copy="'
@@ -1508,13 +1526,14 @@
     const fail = () => {
       if (btn) btn.title = 'Copy thất bại';
     };
+    const plain = text || '';
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(done).catch(fail);
+      navigator.clipboard.writeText(plain).then(done).catch(fail);
       return;
     }
     try {
       const ta = document.createElement('textarea');
-      ta.value = text;
+      ta.value = plain;
       ta.setAttribute('readonly', '');
       ta.style.position = 'fixed';
       ta.style.left = '-9999px';
@@ -1779,7 +1798,9 @@
   }
 
   /**
-   * Timeline từ đầu thang về ngưỡng hiện tại; chỉ ghi mốc khi |pool| đổi.
+   * Timeline từ đầu thang về ngưỡng hiện tại.
+   * Ghi mốc khi |pool| đổi HOẶC có số phá mới (append) — vd 7 đã có trong pool
+   * từ cột hold nhưng mới vào phá khi cột violate bật: vẫn phải append vào cột phá.
    * >= : 100→thVal · <= : 1→thVal · = : một mốc.
    * boldNums: mọi peer của luật MỚI (so với mốc trước) — kể cả số đã có trong pool.
    */
@@ -1815,7 +1836,16 @@
         poolArr = packed.pool;
         pháArr = packed.phá;
       }
-      if (prevSize !== null && poolArr.length === prevSize) continue;
+      let pháGrew = false;
+      for (let i = 0; i < pháArr.length; i++) {
+        const n = pháArr[i];
+        if (pháSeen.has(n)) continue;
+        pháSeen.add(n);
+        pháChain.push(n);
+        pháGrew = true;
+      }
+      const poolChanged = prevSize === null || poolArr.length !== prevSize;
+      if (!poolChanged && !pháGrew) continue;
       const newPairs = [];
       for (let ai = 0; ai < active.length; ai++) {
         const pi = active[ai];
@@ -1829,12 +1859,6 @@
       for (let i = 0; i < related.length; i++) {
         const n = related[i];
         if (poolSet.has(n)) boldNums.push(n);
-      }
-      for (let i = 0; i < pháArr.length; i++) {
-        const n = pháArr[i];
-        if (pháSeen.has(n)) continue;
-        pháSeen.add(n);
-        pháChain.push(n);
       }
       const rate = violPctAtActive(active);
       milestones.push({
@@ -1876,7 +1900,7 @@
         ? ('<= 1% → ' + thVal + '%')
         : ('= ' + thVal + '%'));
     let html = '<div class="th-tl-title">Timeline threshold (' + dir
-      + ') · mốc khi |pool| đổi</div>';
+      + ') · mốc khi |pool| đổi hoặc có số phá mới</div>';
     if (milestones.length > 1) html += '<div class="th-tl-flow" aria-hidden="true"></div>';
     for (let i = 0; i < milestones.length; i++) {
       const m = milestones[i];
@@ -1914,10 +1938,17 @@
     const wCounts = opts.counts || null;
 
     const deriveSetEarly = opts.deriveSet instanceof Set ? opts.deriveSet : null;
-    const elimPart = renderPairElimBlocks(details, disabled, mask, deriveSetEarly);
+    // Phá trước — số ∈ phá không được tính/hiện trong Loại (vd 920: 7 phá (3,2) → không còn ở loại (4,2)).
     const violPart = showViolate
       ? renderPairViolBlocks(violDetails, disabled, violMask, violLineSuffix, deriveSetEarly)
       : { chosen: [], allViol: new Set(), html: '' };
+    const elimPart = renderPairElimBlocks(
+      details,
+      disabled,
+      mask,
+      deriveSetEarly,
+      showViolate ? violPart.allViol : null
+    );
 
     let html = '';
     if (showViolate) {
@@ -3102,6 +3133,7 @@
         ? ('Đáp án ∩ rest: ' + plain)
         : 'Không có số đáp án thuộc rest';
     });
+    syncRestColWidth();
   }
 
   function syncPoolViolCols(active) {
@@ -3128,8 +3160,54 @@
         ? ('Phá luật ⊆ pool (cột threshold): ' + text)
         : 'Không phá luật cột nào trong threshold';
     });
+    syncViolColWidth();
     syncRestAnsCol();
     syncSimPoolCol(act);
+  }
+
+  /** Đo cột sticky theo scrollWidth lớn nhất (một dòng, đủ chuỗi dài nhất). */
+  function syncStickyColWidth(cssVar, cellSel, dataSel, nameSel) {
+    const table = wrap.querySelector('table.dc-table');
+    if (!table) return;
+    const allCells = table.querySelectorAll(cellSel);
+    table.style.setProperty(cssVar, '0px');
+    allCells.forEach((el) => {
+      el.style.minWidth = '0';
+      el.style.width = 'max-content';
+      el.style.maxWidth = 'none';
+    });
+    let maxW = 0;
+    table.querySelectorAll(dataSel).forEach((td) => {
+      maxW = Math.max(maxW, td.scrollWidth);
+    });
+    const nameTh = table.querySelector(nameSel);
+    if (nameTh) maxW = Math.max(maxW, nameTh.scrollWidth);
+    maxW = Math.max(36, Math.ceil(maxW));
+    const px = maxW + 'px';
+    allCells.forEach((el) => {
+      el.style.minWidth = '';
+      el.style.width = '';
+      el.style.maxWidth = '';
+    });
+    table.style.setProperty(cssVar, px);
+  }
+
+  function syncViolColWidth() {
+    syncStickyColWidth(
+      '--viol-w',
+      'td.viol-nums, thead th.viol-h',
+      'td.viol-nums[data-idx]',
+      'thead th.viol-h.name'
+    );
+  }
+
+  function syncRestColWidth() {
+    syncStickyColWidth(
+      '--rest-w',
+      'td.rest-ans, thead th.rest-h',
+      'td.rest-ans[data-idx]',
+      'thead th.rest-h.name'
+    );
   }
 
   /** Kỳ giả lập: pool = hợp elim của cột threshold còn mở (chưa có đáp án → phá = —). */
