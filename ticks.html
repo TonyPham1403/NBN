@@ -124,6 +124,36 @@
   .threshold .step.inc:hover { filter: brightness(1.12); }
   .threshold .step.inc:active { filter: brightness(0.9); }
   .threshold .unit { color: #6b7280; font-weight: 600; }
+  /* Mã phòng sync click phá (sim) — bên phải threshold */
+  .sim-room-tag {
+    position: relative;
+    z-index: 60;
+    width: 3.25em;
+    height: 28px;
+    margin: 0;
+    padding: 0 6px;
+    box-sizing: border-box;
+    border: 1px solid #d1d5db;
+    border-radius: 5px;
+    background: #fff;
+    color: #111;
+    font: 700 12px/1 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+    text-align: center;
+  }
+  body.modal-open .sim-room-tag {
+    box-shadow: 0 0 0 2px #fff, 0 8px 24px rgba(0, 0, 0, .35);
+  }
+  .sim-room-tag:focus {
+    outline: 2px solid #0f766e;
+    outline-offset: 1px;
+    border-color: #0f766e;
+  }
+  .sim-room-tag:not(:placeholder-shown) {
+    border-color: #0f766e;
+    color: #0f766e;
+  }
   .banner .err { color: #fecaca; margin-top: 8px; }
   .banner .summary {
     display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
@@ -829,10 +859,33 @@
   }
   .modal .th-tl-row .tl-pool-text { min-width: 0; }
   .modal .th-tl-row .tl-pool b { font-weight: 800; color: #111; }
+  /* Sim (kỳ rỗng cuối): số đậm click → append phá từ mốc lần đầu tô đen */
+  .modal .th-tl-row .tl-num.tl-pick {
+    cursor: pointer;
+  }
+  .modal .th-tl-row .tl-num.tl-pick:hover {
+    outline: 2px solid #0f766e;
+    outline-offset: 1px;
+    border-radius: 2px;
+  }
+  .modal .th-tl-row .tl-num.tl-pick.is-picked,
+  .modal .th-tl-row .tl-num.tl-pick.is-picked.is-hl {
+    outline: 2px solid #0f766e;
+    outline-offset: 1px;
+    border-radius: 2px;
+  }
   .modal .th-tl-row .tl-phá {
     color: #b91c1c; font-weight: 700; white-space: nowrap;
     text-align: right;
     justify-self: end;
+  }
+  .modal .th-tl-row .tl-num.tl-pha-rm {
+    cursor: pointer;
+  }
+  .modal .th-tl-row .tl-num.tl-pha-rm:hover {
+    outline: 2px solid #b91c1c;
+    outline-offset: 1px;
+    border-radius: 2px;
   }
   .modal .affect-by-law {
     margin: 0 0 10px;
@@ -922,6 +975,10 @@
       <button type="button" class="step inc" id="thInc" aria-label="tăng"><span>+</span></button>
       <span class="unit">%</span>
     </div>
+    <input id="simRoomTag" class="sim-room-tag" type="text" maxlength="3"
+      inputmode="text" autocomplete="off" spellcheck="false" placeholder="···"
+      title="Mã định danh tab (tối đa 3 chữ/số) · cùng mã = sync click số phá kỳ rỗng cuối · trống = không sync"
+      aria-label="Mã định danh tab sync phá sim"/>
     <div class="viol-rate" id="chipViolRate"
       title="mẫu = id cuối có đáp án − 21 + 1 · tử = mẫu − (1/ tick đủ) · % = tử / mẫu">
       <span class="vr-label">% phá luật</span>
@@ -1698,7 +1755,7 @@
 
   /**
    * Danh sách số; gạch chân ∈ derive; phaSet = tô màu phá (khi đã có ĐA).
-   * hoverMode: 'tl' | 'tl-pha' = data-hl-num (timeline pool/phá) · 'affect' = data-affect-num.
+   * hoverMode: 'tl' | 'tl-pha' | 'tl-pha-rm' (sim: click bỏ phá) | 'affect'
    */
   function formatNumsDeriveHtml(nums, deriveSet, sep, phaSet, hoverMode) {
     const list = nums || [];
@@ -1710,7 +1767,11 @@
       if (phaSet && phaSet.has(n)) {
         bit = '<span class="pha-mark">' + bit + '</span>';
       }
-      if (hoverMode === 'tl' || hoverMode === 'tl-pha') {
+      if (hoverMode === 'tl-pha-rm') {
+        bit = '<span class="tl-num tl-pha-rm" data-hl-num="' + n
+          + '" data-hl-col="pha" data-tl-pha-rm="' + n
+          + '" title="Click: bỏ khỏi phá">' + bit + '</span>';
+      } else if (hoverMode === 'tl' || hoverMode === 'tl-pha') {
         const col = hoverMode === 'tl-pha' ? 'pha' : 'pool';
         bit = '<span class="tl-num" data-hl-num="' + n + '" data-hl-col="' + col + '">' + bit + '</span>';
       } else if (hoverMode === 'affect') {
@@ -1813,6 +1874,373 @@
   function resetPopupPoolTrack() {
     popupPoolPrev = null;
     popupPoolBold = new Set();
+  }
+
+  /**
+   * Sim timeline: số user click (từ pool đậm) → hiện trên cột phá
+   * từ mốc lần đầu số đó ∈ newlyIn, bất kể click ở hàng nào.
+   * @type {number[]}
+   */
+  let simTlPháPicks = [];
+  /** @type {object[]|null} */
+  let simTlMilestonesCache = null;
+  /** @type {Set<number>|null} */
+  let simTlDeriveSetCache = null;
+
+  function clearSimTlPháCache() {
+    simTlMilestonesCache = null;
+    simTlDeriveSetCache = null;
+  }
+
+  function clearSimTlPháPicks() {
+    simTlPháPicks = [];
+    clearSimTlPháCache();
+  }
+
+  /** milestone index đầu tiên số n được tô đậm (newlyIn). */
+  function firstBoldMilestoneIndex(milestones, num) {
+    const n = Number(num);
+    if (!milestones || !milestones.length || !Number.isFinite(n)) return -1;
+    for (let i = 0; i < milestones.length; i++) {
+      const neu = milestones[i].newlyIn || [];
+      for (let j = 0; j < neu.length; j++) {
+        if (Number(neu[j]) === n) return i;
+      }
+    }
+    return -1;
+  }
+
+  /** Map num → first bold milestone index. */
+  function buildFirstBoldIndexMap(milestones) {
+    const map = new Map();
+    if (!milestones) return map;
+    for (let i = 0; i < milestones.length; i++) {
+      const neu = milestones[i].newlyIn || [];
+      for (let j = 0; j < neu.length; j++) {
+        const n = Number(neu[j]);
+        if (!map.has(n)) map.set(n, i);
+      }
+    }
+    return map;
+  }
+
+  /**
+   * Chuỗi phá sim tại mốc mi: các pick có firstBold ≤ mi,
+   * sắp theo firstBold rồi theo thứ tự click.
+   */
+  function simPháPicksAtMilestone(milestones, picks, mi, firstBoldMap) {
+    const items = [];
+    const fb = firstBoldMap || buildFirstBoldIndexMap(milestones);
+    for (let p = 0; p < (picks || []).length; p++) {
+      const n = Number(picks[p]);
+      if (!Number.isFinite(n)) continue;
+      const fi = fb.has(n) ? fb.get(n) : -1;
+      if (fi < 0 || fi > mi) continue;
+      items.push({ n: n, fi: fi, ord: p });
+    }
+    items.sort((a, b) => (a.fi - b.fi) || (a.ord - b.ord));
+    const out = [];
+    const seen = new Set();
+    for (let i = 0; i < items.length; i++) {
+      if (seen.has(items[i].n)) continue;
+      seen.add(items[i].n);
+      out.push(items[i].n);
+    }
+    return out;
+  }
+
+  const SIM_PHA_PICK_MAX = 5;
+
+  function toggleSimTlPháPick(num) {
+    const n = Number(num);
+    if (!Number.isFinite(n)) return false;
+    if (!simTlMilestonesCache || !simTlMilestonesCache.length) return false;
+    if (firstBoldMilestoneIndex(simTlMilestonesCache, n) < 0) return false;
+    const ix = simTlPháPicks.indexOf(n);
+    if (ix >= 0) {
+      simTlPháPicks.splice(ix, 1);
+      return true;
+    }
+    /* Cột phá tối đa 5 số — chặn pick thêm. */
+    if (simTlPháPicks.length >= SIM_PHA_PICK_MAX) return false;
+    simTlPháPicks.push(n);
+    return true;
+  }
+
+  /** Bỏ số khỏi cột phá sim (click trên cột phá). */
+  function removeSimTlPháPick(num) {
+    const n = Number(num);
+    if (!Number.isFinite(n)) return false;
+    const ix = simTlPháPicks.indexOf(n);
+    if (ix < 0) return false;
+    simTlPháPicks.splice(ix, 1);
+    return true;
+  }
+
+  /** Tô đỏ số đã pick trên các dòng "Ảnh hưởng k luật". */
+  function syncSimAffectPhaMarks() {
+    if (!modalBody) return;
+    const picked = new Set();
+    for (let i = 0; i < simTlPháPicks.length; i++) {
+      picked.add(Number(simTlPháPicks[i]));
+    }
+    modalBody.querySelectorAll('.affect-num[data-affect-num]').forEach((el) => {
+      const n = Number(el.getAttribute('data-affect-num'));
+      const on = Number.isFinite(n) && picked.has(n);
+      let mark = null;
+      for (let c = el.firstChild; c; c = c.nextSibling) {
+        if (c.nodeType === 1 && c.classList && c.classList.contains('pha-mark')) {
+          mark = c;
+          break;
+        }
+      }
+      if (on && !mark) {
+        mark = document.createElement('span');
+        mark.className = 'pha-mark';
+        while (el.firstChild) mark.appendChild(el.firstChild);
+        el.appendChild(mark);
+      } else if (!on && mark) {
+        while (mark.firstChild) el.insertBefore(mark.firstChild, mark);
+        el.removeChild(mark);
+      }
+    });
+  }
+
+  function refreshSimTimelinePháDom() {
+    if (!modalTimeline || !simTlMilestonesCache) return;
+    modalTimeline.innerHTML = renderThresholdTimelineHtml(
+      simTlMilestonesCache,
+      'sim',
+      simTlDeriveSetCache,
+      simTlPháPicks
+    );
+    syncSimAffectPhaMarks();
+  }
+
+  /* —— Sync click phá sim giữa tab cùng mã định danh (trống = không sync) —— */
+  const SIM_ROOM_TAG_SS = 'ticks.simRoomTag';
+  const SIM_TAB_ID_SS = 'ticks.simTabId';
+  const SIM_PHA_BC_NAME = 'sua-sim-pha-picks';
+  const SIM_PHA_LS_PREFIX = 'sua:simPhaPicks:';
+  let simRoomTag = '';
+  let simTabId = '';
+  let simPhaSyncApplying = false;
+  let simPhaLastAppliedT = 0;
+  /** @type {BroadcastChannel|null} */
+  let simPhaBc = null;
+  const simRoomTagEl = document.getElementById('simRoomTag');
+
+  function ensureSimTabId() {
+    if (simTabId) return simTabId;
+    try {
+      let id = sessionStorage.getItem(SIM_TAB_ID_SS);
+      if (!id) {
+        id = 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+        sessionStorage.setItem(SIM_TAB_ID_SS, id);
+      }
+      simTabId = id;
+    } catch (e) {
+      simTabId = 't' + Math.random().toString(36).slice(2, 9);
+    }
+    return simTabId;
+  }
+
+  function normalizeSimRoomTag(raw) {
+    return String(raw == null ? '' : raw)
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .slice(0, 3)
+      .toUpperCase();
+  }
+
+  function simPhaStorageKey(tag) {
+    return SIM_PHA_LS_PREFIX + tag;
+  }
+
+  function readStoredSimPhaPicks(tag) {
+    if (!tag) return { picks: [], t: 0 };
+    try {
+      const raw = localStorage.getItem(simPhaStorageKey(tag));
+      if (!raw) return { picks: [], t: 0 };
+      const o = JSON.parse(raw);
+      if (!o || !Array.isArray(o.picks)) return { picks: [], t: 0 };
+      return { picks: o.picks, t: Number(o.t) || 0 };
+    } catch (e) {
+      return { picks: [], t: 0 };
+    }
+  }
+
+  function publishSimTlPháPicks() {
+    if (simPhaSyncApplying) return;
+    const tag = simRoomTag;
+    if (!tag) return;
+    const payload = {
+      type: 'sim-pha-picks',
+      tag: tag,
+      picks: simTlPháPicks.slice(),
+      t: Date.now(),
+      from: ensureSimTabId()
+    };
+    try {
+      if (simPhaBc) simPhaBc.postMessage(payload);
+    } catch (e) { /* ignore */ }
+    try {
+      localStorage.setItem(simPhaStorageKey(tag), JSON.stringify({
+        picks: payload.picks,
+        t: payload.t,
+        from: payload.from
+      }));
+    } catch (e) { /* ignore */ }
+  }
+
+  function applyRemoteSimTlPháPicks(picks, meta) {
+    const metaT = meta && meta.t != null ? Number(meta.t) : 0;
+    if (metaT && simPhaLastAppliedT && metaT < simPhaLastAppliedT
+      && !(meta && meta.force)) {
+      return;
+    }
+    const next = [];
+    const seen = new Set();
+    const raw = picks || [];
+    for (let i = 0; i < raw.length; i++) {
+      if (next.length >= SIM_PHA_PICK_MAX) break;
+      const n = Number(raw[i]);
+      if (!Number.isFinite(n) || seen.has(n)) continue;
+      seen.add(n);
+      next.push(n);
+    }
+    const same = next.length === simTlPháPicks.length
+      && next.every((n, i) => n === simTlPháPicks[i]);
+    if (same && !(meta && meta.force)) {
+      if (metaT > simPhaLastAppliedT) simPhaLastAppliedT = metaT;
+      return;
+    }
+    simPhaSyncApplying = true;
+    try {
+      if (metaT) simPhaLastAppliedT = metaT;
+      simTlPháPicks = next;
+      if (simIdOn && popupKind === 'elim' && simTlMilestonesCache) {
+        const fb = buildFirstBoldIndexMap(simTlMilestonesCache);
+        simTlPháPicks = simTlPháPicks.filter((n) => fb.has(Number(n)));
+        refreshSimTimelinePháDom();
+      } else if (simIdOn && popupKind === 'elim') {
+        syncSimAffectPhaMarks();
+      }
+    } finally {
+      requestAnimationFrame(() => { simPhaSyncApplying = false; });
+    }
+  }
+
+  /**
+   * Tab sau đặt mã đã có → ăn theo toàn bộ trạng thái phòng
+   * (localStorage ngay + xin tab đang giữ mã trả lời live).
+   * Không publish đè phòng khi join — chỉ seed nếu mã chưa từng có bản ghi.
+   */
+  function joinSimRoom(tag) {
+    if (!tag) return;
+    let hasKey = false;
+    try {
+      hasKey = localStorage.getItem(simPhaStorageKey(tag)) != null;
+    } catch (e) { /* ignore */ }
+    const stored = readStoredSimPhaPicks(tag);
+    applyRemoteSimTlPháPicks(stored.picks, {
+      force: true,
+      t: stored.t || Date.now()
+    });
+    if (!hasKey) {
+      requestAnimationFrame(() => {
+        if (simRoomTag === tag) publishSimTlPháPicks();
+      });
+    }
+    try {
+      if (simPhaBc) {
+        simPhaBc.postMessage({
+          type: 'sim-pha-join',
+          tag: tag,
+          from: ensureSimTabId(),
+          t: Date.now()
+        });
+      }
+    } catch (e) { /* ignore */ }
+  }
+
+  function loadSimPhaPicksForTag(tag) {
+    if (!tag) return;
+    const stored = readStoredSimPhaPicks(tag);
+    applyRemoteSimTlPháPicks(stored.picks, { force: true, t: stored.t });
+  }
+
+  function setSimRoomTag(raw, opts) {
+    const next = normalizeSimRoomTag(raw);
+    const prev = simRoomTag;
+    simRoomTag = next;
+    if (simRoomTagEl && simRoomTagEl.value !== next) simRoomTagEl.value = next;
+    try {
+      sessionStorage.setItem(SIM_ROOM_TAG_SS, next);
+    } catch (e) { /* ignore */ }
+    if (next && next !== prev) {
+      /* Vào phòng có sẵn → cập nhật toàn bộ theo tab/mã trước. */
+      joinSimRoom(next);
+    }
+    if (!next && prev) {
+      /* Rời phòng — giữ picks local của tab này. */
+    }
+    if (opts && opts.publish && next) publishSimTlPháPicks();
+  }
+
+  function initSimRoomTagSync() {
+    ensureSimTabId();
+    try {
+      if (typeof BroadcastChannel === 'function') {
+        simPhaBc = new BroadcastChannel(SIM_PHA_BC_NAME);
+        simPhaBc.onmessage = (ev) => {
+          const msg = ev && ev.data;
+          if (!msg || !msg.type) return;
+          const tag = normalizeSimRoomTag(msg.tag);
+          if (!tag || !simRoomTag || tag !== simRoomTag) return;
+          if (msg.from && msg.from === ensureSimTabId()) return;
+          if (msg.type === 'sim-pha-join') {
+            /* Tab đang giữ mã → trả toàn bộ picks hiện tại cho tab mới vào. */
+            publishSimTlPháPicks();
+            return;
+          }
+          if (msg.type === 'sim-pha-picks') {
+            applyRemoteSimTlPháPicks(msg.picks, {
+              force: true,
+              t: Number(msg.t) || Date.now()
+            });
+          }
+        };
+      }
+    } catch (e) { /* ignore */ }
+    window.addEventListener('storage', (e) => {
+      if (!e || !simRoomTag) return;
+      if (e.key !== simPhaStorageKey(simRoomTag)) return;
+      if (!e.newValue) return;
+      try {
+        const o = JSON.parse(e.newValue);
+        if (o && Array.isArray(o.picks)) {
+          applyRemoteSimTlPháPicks(o.picks, {
+            force: true,
+            t: Number(o.t) || Date.now()
+          });
+        }
+      } catch (err) { /* ignore */ }
+    });
+    try {
+      const saved = sessionStorage.getItem(SIM_ROOM_TAG_SS);
+      if (saved) setSimRoomTag(saved);
+    } catch (e) { /* ignore */ }
+    if (simRoomTagEl) {
+      simRoomTagEl.addEventListener('input', () => {
+        const cur = simRoomTagEl.value;
+        const norm = normalizeSimRoomTag(cur);
+        if (cur !== norm) simRoomTagEl.value = norm;
+        setSimRoomTag(norm);
+      });
+      simRoomTagEl.addEventListener('blur', () => {
+        setSimRoomTag(simRoomTagEl.value);
+      });
+    }
   }
 
   function syncPopupPoolBold(poolArr) {
@@ -2029,17 +2457,34 @@
     return milestones;
   }
 
-  function formatTimelinePoolHtml(poolArr, newlyIn, deriveSet, prevPool) {
+  /**
+   * @param {object} [pickOpts] sim only: { pickable: true, pickedSet: Set }
+   */
+  function formatTimelinePoolHtml(poolArr, newlyIn, deriveSet, prevPool, pickOpts) {
     const nums = poolArr || [];
     const bold = new Set(newlyIn || []);
+    const pickable = !!(pickOpts && pickOpts.pickable);
+    const pickedSet = (pickOpts && pickOpts.pickedSet instanceof Set)
+      ? pickOpts.pickedSet
+      : null;
     const parts = [];
     for (let i = 0; i < nums.length; i++) {
       const n = nums[i];
       const isBold = bold.has(n);
       let bit = wrapDeriveMarkHtml(String(n), n, deriveSet);
       if (isBold) bit = '<b>' + bit + '</b>';
-      bit = '<span class="tl-num" data-hl-num="' + n + '" data-hl-col="pool"'
-        + (isBold ? ' data-hl-bold="1"' : '') + '>' + bit + '</span>';
+      const canPick = pickable && isBold;
+      const isPicked = !!(pickedSet && pickedSet.has(n));
+      let cls = 'tl-num';
+      if (canPick) cls += ' tl-pick';
+      if (canPick && isPicked) cls += ' is-picked';
+      bit = '<span class="' + cls + '" data-hl-num="' + n + '" data-hl-col="pool"'
+        + (isBold ? ' data-hl-bold="1"' : '')
+        + (canPick
+          ? ' data-tl-pick="' + n
+            + '" title="Click: append/gỡ khỏi phá (tối đa 5) từ mốc lần đầu tô đen"'
+          : '')
+        + '>' + bit + '</span>';
       parts.push(bit);
     }
     const body = 'pool[' + nums.length + ']{' + parts.join(',') + '}';
@@ -2091,14 +2536,17 @@
       }
     }
     if (!countByNum.size) return '';
-    // Chỉ tô màu phá khi đã có đáp án thật (hist + answerSet).
-    const phaMark = (opts.timelineMode === 'hist'
-      && opts.answerSet instanceof Set
-      && opts.answerSet.size
-      && phaSet instanceof Set
-      && phaSet.size)
-      ? phaSet
-      : null;
+    // Hist: tô đỏ số ∈ tập phá (có ĐA). Sim: tô đỏ số user đã click vào phá.
+    const phaMark = (
+      (opts.timelineMode === 'hist'
+        && opts.answerSet instanceof Set
+        && opts.answerSet.size
+        && phaSet instanceof Set
+        && phaSet.size)
+      || (opts.timelineMode === 'sim'
+        && phaSet instanceof Set
+        && phaSet.size)
+    ) ? phaSet : null;
     /** @type {Map<number, number[]>} */
     const byK = new Map();
     countByNum.forEach((k, num) => {
@@ -2123,28 +2571,45 @@
     return html;
   }
 
-  function renderThresholdTimelineHtml(milestones, mode, deriveSet) {
+  /**
+   * @param {number[]} [simPicks] chỉ mode sim — số đã click để append phá
+   */
+  function renderThresholdTimelineHtml(milestones, mode, deriveSet, simPicks) {
     if (!milestones.length) {
       return '<div class="th-tl-title">Timeline threshold</div>'
         + '<div class="th-tl-row">(không có mốc)</div>';
     }
     const isSim = mode === 'sim';
+    const picks = isSim ? (simPicks || []) : [];
+    const pickedSet = isSim ? new Set(picks) : null;
+    const firstBoldMap = isSim ? buildFirstBoldIndexMap(milestones) : null;
+    const pickOpts = isSim ? { pickable: true, pickedSet: pickedSet } : null;
     const dir = thOp === '>='
       ? ('>= 100% → ' + thVal + '%')
       : (thOp === '<='
         ? ('<= 1% → ' + thVal + '%')
         : ('= ' + thVal + '%'));
     let html = '<div class="th-tl-title">Timeline threshold (' + dir
-      + ') · mốc khi |pool| đổi hoặc có số phá mới · Δ = copy hiệu pool vs mốc trên</div>';
+      + ') · mốc khi |pool| đổi hoặc có số phá mới · Δ = copy hiệu pool vs mốc trên'
+      + (isSim
+        ? ' · click số <b>đậm</b> → append phá từ mốc lần đầu tô đen (tối đa 5 · click lại = gỡ)'
+        : '')
+      + '</div>';
     if (milestones.length > 1) html += '<div class="th-tl-flow" aria-hidden="true"></div>';
     for (let i = 0; i < milestones.length; i++) {
       const m = milestones[i];
       const prevPool = i > 0 ? milestones[i - 1].pool : null;
-      const pháTxt = isSim
-        ? '???'
-        : (m.phá.length
+      let pháTxt;
+      if (isSim) {
+        const phaArr = simPháPicksAtMilestone(milestones, picks, i, firstBoldMap);
+        pháTxt = phaArr.length
+          ? formatNumsDeriveHtml(phaArr, deriveSet, ',', null, 'tl-pha-rm')
+          : '';
+      } else {
+        pháTxt = m.phá.length
           ? formatNumsDeriveHtml(m.phá, deriveSet, ',', null, 'tl-pha')
-          : '');
+          : '';
+      }
       const rateTxt = Number.isFinite(m.violPct)
         ? (m.violPct.toFixed(1) + '%')
         : '—';
@@ -2152,7 +2617,7 @@
         + '<span class="tl-t">' + m.t + '%</span>'
         + '<span class="tl-rate" title="% phá luật tại threshold này">' + rateTxt + '</span>'
         + '<span class="tl-pool">'
-        + formatTimelinePoolHtml(m.pool, m.newlyIn, deriveSet, prevPool)
+        + formatTimelinePoolHtml(m.pool, m.newlyIn, deriveSet, prevPool, pickOpts)
         + '</span>'
         + '<span class="tl-phá">phá: ' + pháTxt + '</span>'
         + '</div>';
@@ -2256,19 +2721,36 @@
     modalSum.innerHTML = sumHtml;
     modalSum.hidden = false;
     if (showViolate && tlMilestones) {
+      const isSimTl = opts.timelineMode === 'sim';
+      if (isSimTl) {
+        simTlMilestonesCache = tlMilestones;
+        simTlDeriveSetCache = deriveSet instanceof Set ? deriveSet : null;
+        /* Giữ picks còn hợp lệ (vẫn từng tô đậm trên timeline mới). */
+        if (simTlPháPicks.length) {
+          const fb = buildFirstBoldIndexMap(tlMilestones);
+          simTlPháPicks = simTlPháPicks.filter((n) => fb.has(Number(n)));
+        }
+      } else {
+        clearSimTlPháPicks();
+      }
       modalTimeline.innerHTML = renderThresholdTimelineHtml(
         tlMilestones,
-        opts.timelineMode === 'sim' ? 'sim' : 'hist',
-        deriveSet
+        isSimTl ? 'sim' : 'hist',
+        deriveSet,
+        isSimTl ? simTlPháPicks : null
       );
       modalTimeline.hidden = false;
     } else {
+      clearSimTlPháPicks();
       modalTimeline.hidden = true;
       modalTimeline.innerHTML = '';
     }
     // Dưới timeline, trên "Loại (cột ✓)": nhóm số theo số luật ảnh hưởng.
+    const affectPhaSet = opts.timelineMode === 'sim'
+      ? new Set(simTlPháPicks)
+      : violPart.allViol;
     const affectHtml = showViolate
-      ? buildAffectByLawHtml(opts, deriveSet, violPart.allViol)
+      ? buildAffectByLawHtml(opts, deriveSet, affectPhaSet)
       : '';
     modalBody.innerHTML = affectHtml + html;
     popupKind = 'elim';
@@ -2638,6 +3120,11 @@
     clearCopyNumsOkEffect();
     clearAffectNumHl();
     hideDeltaTip();
+    if (closingSim) {
+      /* Có mã phòng: giữ picks để sync / mở lại; không mã: xóa như cũ. */
+      if (simRoomTag) clearSimTlPháCache();
+      else clearSimTlPháPicks();
+    }
     hideModalRestPool();
     modalTimeline.hidden = true;
     modalTimeline.innerHTML = '';
@@ -2674,7 +3161,40 @@
   };
   if (modalRest) modalRest.addEventListener('click', onCopyNumsClick);
   if (modalPool) modalPool.addEventListener('click', onCopyNumsClick);
-  if (modalTimeline) modalTimeline.addEventListener('click', onCopyNumsClick);
+  if (modalTimeline) {
+    modalTimeline.addEventListener('click', (e) => {
+      if (!(simIdOn && popupKind === 'elim')) {
+        onCopyNumsClick(e);
+        return;
+      }
+      const rmEl = e.target && e.target.closest
+        ? e.target.closest('[data-tl-pha-rm]')
+        : null;
+      if (rmEl && modalTimeline.contains(rmEl)) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (removeSimTlPháPick(rmEl.getAttribute('data-tl-pha-rm'))) {
+          refreshSimTimelinePháDom();
+          publishSimTlPháPicks();
+        }
+        return;
+      }
+      /* Click số đậm pool → toggle pick phá (append từ mốc first-bold). */
+      const pickEl = e.target && e.target.closest
+        ? e.target.closest('[data-tl-pick]')
+        : null;
+      if (pickEl && modalTimeline.contains(pickEl)) {
+        e.preventDefault();
+        e.stopPropagation();
+        if (toggleSimTlPháPick(pickEl.getAttribute('data-tl-pick'))) {
+          refreshSimTimelinePháDom();
+          publishSimTlPháPicks();
+        }
+        return;
+      }
+      onCopyNumsClick(e);
+    });
+  }
   if (modalBody) modalBody.addEventListener('click', onCopyNumsClick);
 
   /** Tooltip Δ — góc phải trên sát con trỏ; chỉ chuỗi. */
@@ -2987,7 +3507,10 @@
 
   function openSimElim() {
     if (!simState) return;
-    if (!simIdOn) resetPopupPoolTrack();
+    if (!simIdOn) {
+      resetPopupPoolTrack();
+      if (simRoomTag) loadSimPhaPicksForTag(simRoomTag);
+    }
     const active = activePairIndices();
     const activeSet = new Set(active);
     const mask = simTicks.map((on, pi) => !!(on && activeSet.has(pi)));
@@ -3796,6 +4319,7 @@
     histIdOnIdx = null;
     focusUndoA = null;
     focusUndoB = null;
+    clearSimTlPháPicks();
     restHitCache = null;
     derivePhaMaxList = [];
     deriveRestList = [];
@@ -3969,6 +4493,7 @@
   }
 
   initSharedFocusIdSync();
+  initSimRoomTagSync();
   // Giữ id từ URL sớm — apply khi bảng xong.
   try {
     const sp = new URLSearchParams(location.search);
