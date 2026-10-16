@@ -585,9 +585,11 @@
     margin-left: 4px;
   }
   tr.sim-row td.id.sim-id.is-on::after { content: " ON"; }
+  /* Không tick cột luật nữa — giả lập phá bằng click pool trong popup */
   tr.sim-row td.sim-cell:not(.nop) {
-    cursor: pointer;
+    cursor: default;
     min-width: 36px;
+    pointer-events: none;
   }
   tr.sim-row.is-locked td.sim-cell:not(.nop) {
     cursor: default;
@@ -597,9 +599,6 @@
     line-height: 20px;
     outline: 2px solid #15803d;
     outline-offset: -2px;
-  }
-  tr.sim-row:not(.is-locked) td.sim-cell:not(.nop):hover {
-    background: #fde68a !important;
   }
   tr.sim-row:hover td.nop {
     background: #111827 !important;
@@ -1886,10 +1885,13 @@
   let simTlMilestonesCache = null;
   /** @type {Set<number>|null} */
   let simTlDeriveSetCache = null;
+  /** @type {number[]} pool max — Loại sim = poolMax \ picks */
+  let simTlPoolMaxCache = [];
 
   function clearSimTlPháCache() {
     simTlMilestonesCache = null;
     simTlDeriveSetCache = null;
+    simTlPoolMaxCache = [];
   }
 
   function clearSimTlPháPicks() {
@@ -2006,6 +2008,78 @@
     });
   }
 
+  /**
+   * Loại sim: pool max trừ các peer thuộc luật dính pick.
+   * Pick số x → mọi luật (pool max) có x trong elim đều bị coi là phá
+   * → toàn bộ elim của luật đó ra khỏi Loại (không chỉ x).
+   */
+  function buildSimLoạiArr(poolMaxArr, picks) {
+    const poolMax = Array.isArray(poolMaxArr) ? poolMaxArr : [];
+    const picked = new Set();
+    for (let i = 0; i < (picks || []).length; i++) {
+      const n = Number(picks[i]);
+      if (Number.isFinite(n)) picked.add(n);
+    }
+    if (!picked.size) return poolMax.slice();
+    const ban = new Set(picked);
+    if (simState && simState.details) {
+      const pairs = maxPoolPairIndices();
+      for (let ai = 0; ai < pairs.length; ai++) {
+        const pi = pairs[ai];
+        if (simState.disabled && simState.disabled[pi]) continue;
+        const d = simState.details[pi];
+        if (!d || !d.elim || !d.elim.length) continue;
+        let hit = false;
+        for (let ei = 0; ei < d.elim.length; ei++) {
+          if (picked.has(Number(d.elim[ei]))) {
+            hit = true;
+            break;
+          }
+        }
+        if (!hit) continue;
+        for (let ei = 0; ei < d.elim.length; ei++) {
+          const x = Number(d.elim[ei]);
+          if (Number.isFinite(x)) ban.add(x);
+        }
+      }
+    }
+    const out = [];
+    for (let i = 0; i < poolMax.length; i++) {
+      const n = Number(poolMax[i]);
+      if (!Number.isFinite(n) || ban.has(n)) continue;
+      out.push(n);
+    }
+    return out;
+  }
+
+  /**
+   * Tóm tắt Loại/Phá luật trên popup sim:
+   * - Loại = pool max \ (peer mọi luật dính pick)
+   * - Phá luật = các số đã click
+   */
+  function formatSimPickSumHtml(deriveSet, poolMaxArr) {
+    const poolMax = Array.isArray(poolMaxArr) ? poolMaxArr : simTlPoolMaxCache;
+    const elimArr = buildSimLoạiArr(poolMax, simTlPháPicks);
+    const picksSorted = simTlPháPicks.slice().sort((a, b) => a - b);
+    let sumHtml = elimArr.length
+      ? ('Loại (' + elimArr.length + ' số): '
+        + formatNumsDeriveHtml(elimArr, deriveSet, ', '))
+      : 'Loại (0 số): (không)';
+    sumHtml += '<div class="viol-sum">'
+      + (picksSorted.length
+        ? ('Phá luật (' + picksSorted.length + ' số): '
+          + formatNumsDeriveHtml(picksSorted, deriveSet, ', '))
+        : 'Phá luật (0 số): (không)')
+      + '</div>';
+    return sumHtml;
+  }
+
+  function refreshSimPickSumDom() {
+    if (!modalSum || !simIdOn || popupKind !== 'elim') return;
+    modalSum.innerHTML = formatSimPickSumHtml(simTlDeriveSetCache, simTlPoolMaxCache);
+    modalSum.hidden = false;
+  }
+
   function refreshSimTimelinePháDom() {
     if (!modalTimeline || !simTlMilestonesCache) return;
     modalTimeline.innerHTML = renderThresholdTimelineHtml(
@@ -2015,6 +2089,7 @@
       simTlPháPicks
     );
     syncSimAffectPhaMarks();
+    refreshSimPickSumDom();
   }
 
   /* —— Sync click phá sim giữa tab cùng mã định danh (trống = không sync) —— */
@@ -2124,6 +2199,7 @@
         refreshSimTimelinePháDom();
       } else if (simIdOn && popupKind === 'elim') {
         syncSimAffectPhaMarks();
+        refreshSimPickSumDom();
       }
     } finally {
       requestAnimationFrame(() => { simPhaSyncApplying = false; });
@@ -2706,17 +2782,23 @@
     // Dòng pool cố định = pool max (cùng nguồn với rest); số ∈ derive → gạch chân.
     modalPool.innerHTML = formatPoolSubHtml(poolMaxArr, null, deriveSet, 'pool max');
     modalPool.hidden = false;
-    let sumHtml = elimArr.length
-      ? ('Loại (' + elimArr.length + ' số): '
-        + formatNumsDeriveHtml(elimArr, deriveSet, ', '))
-      : 'Loại (0 số): (không)';
-    if (showViolate) {
-      sumHtml += '<div class="viol-sum">'
-        + (violArr.length
-          ? ('Phá luật (' + violArr.length + ' số): '
-            + formatNumsDeriveHtml(violArr, deriveSet, ', '))
-          : 'Phá luật (0 số): (không)')
-        + '</div>';
+    let sumHtml;
+    if (opts.timelineMode === 'sim') {
+      /* Loại = pool max \ picks · Phá = picks. */
+      sumHtml = formatSimPickSumHtml(deriveSet, poolMaxArr);
+    } else {
+      sumHtml = elimArr.length
+        ? ('Loại (' + elimArr.length + ' số): '
+          + formatNumsDeriveHtml(elimArr, deriveSet, ', '))
+        : 'Loại (0 số): (không)';
+      if (showViolate) {
+        sumHtml += '<div class="viol-sum">'
+          + (violArr.length
+            ? ('Phá luật (' + violArr.length + ' số): '
+              + formatNumsDeriveHtml(violArr, deriveSet, ', '))
+            : 'Phá luật (0 số): (không)')
+          + '</div>';
+      }
     }
     modalSum.innerHTML = sumHtml;
     modalSum.hidden = false;
@@ -2725,11 +2807,14 @@
       if (isSimTl) {
         simTlMilestonesCache = tlMilestones;
         simTlDeriveSetCache = deriveSet instanceof Set ? deriveSet : null;
+        simTlPoolMaxCache = poolMaxArr.slice();
         /* Giữ picks còn hợp lệ (vẫn từng tô đậm trên timeline mới). */
         if (simTlPháPicks.length) {
           const fb = buildFirstBoldIndexMap(tlMilestones);
           simTlPháPicks = simTlPháPicks.filter((n) => fb.has(Number(n)));
         }
+        /* Sum sau khi lọc picks (Loại = poolMax \ picks). */
+        modalSum.innerHTML = formatSimPickSumHtml(deriveSet, simTlPoolMaxCache);
       } else {
         clearSimTlPháPicks();
       }
@@ -3434,7 +3519,12 @@
     if (!tr || !simState) return;
     tr.classList.toggle('is-locked', simIdOn);
     const idTd = tr.querySelector('td.sim-id');
-    if (idTd) idTd.classList.toggle('is-on', simIdOn);
+    if (idTd) {
+      idTd.classList.toggle('is-on', simIdOn);
+      idTd.title = simIdOn
+        ? 'ON — đóng popup'
+        : 'Click: mở popup giả lập phá (click số đậm trên pool)';
+    }
     const active = new Set(activePairIndices());
     tr.querySelectorAll('td.sim-cell').forEach((td) => {
       const pi = Number(td.getAttribute('data-pi'));
@@ -3447,13 +3537,11 @@
         td.title = 'Disable: không có derive[D]+peer[P] khác số cùng hàng W10';
         return;
       }
-      const on = !!simTicks[pi];
-      td.className = 'sim-cell' + (on ? ' ok' : '') + (off ? ' col-off' : '');
+      /* Không tick cột — giả lập chỉ trong popup. */
+      td.className = 'sim-cell' + (off ? ' col-off' : '');
       td.setAttribute('data-pi', String(pi));
-      td.textContent = on ? '✓' : '';
-      td.title = simIdOn
-        ? (on ? 'Giả lập đúng' : '')
-        : 'Click để giả lập tick đúng/sai';
+      td.textContent = '';
+      td.title = 'Giả lập phá: mở popup id kỳ rỗng → click số đậm trên pool';
     });
   }
 
@@ -3512,10 +3600,9 @@
       if (simRoomTag) loadSimPhaPicksForTag(simRoomTag);
     }
     const active = activePairIndices();
-    const activeSet = new Set(active);
-    const mask = simTicks.map((on, pi) => !!(on && activeSet.has(pi)));
-    // Cột không tick (còn mở): peer loại = số sẽ phá nếu vào đáp án.
-    const violMask = simTicks.map((on, pi) => !!(!on && activeSet.has(pi) && !simState.disabled[pi]));
+    /* Không giả lập tick cột — mask/violMask tắt; phá = click pool. */
+    const mask = PAIRS.map(() => false);
+    const violMask = PAIRS.map(() => false);
     const violDetails = simState.details.map((d) => ({
       label: d.label,
       D: d.D,
@@ -3563,9 +3650,9 @@
       showViolate: true,
       timelineMode: 'sim',
       modeLabel: 'Kỳ giả lập',
-      emptyHint: 'Chưa tick cột nào (trong các cột thỏa threshold).',
-      violSecTitle: 'Phá luật (cột không tick — nếu vào đáp án)',
-      violEmptyHint: 'Không còn cột mở nào ngoài các cột đã tick (hoặc không có peer).',
+      emptyHint: 'Loại ban đầu = pool max; click số đậm → Phá + gỡ cả peer luật liên quan khỏi Loại.',
+      violSecTitle: 'Phá luật (theo click số đậm trên pool)',
+      violEmptyHint: 'Chi tiết theo cột tắt — xem tóm tắt Loại/Phá phía trên / cột phá timeline.',
       violLineSuffix: 'nếu đáp án có peer'
     });
   }
@@ -3582,17 +3669,7 @@
       openSimElim();
       if (simState) publishSharedFocus(simState.focusId, { popup: true, mode: 'sim' });
     });
-    tr.querySelectorAll('td.sim-cell').forEach((td) => {
-      td.addEventListener('click', () => {
-        if (simIdOn) return;
-        if (td.classList.contains('col-off')) return;
-        const pi = Number(td.getAttribute('data-pi'));
-        if (!Number.isFinite(pi) || simState.disabled[pi]) return;
-        if (!activePairIndices().includes(pi)) return;
-        simTicks[pi] = !simTicks[pi];
-        syncSimRowDom();
-      });
-    });
+    /* Không bind click tick cột luật. */
     syncSimRowDom();
   }
 
@@ -4277,7 +4354,7 @@
     }
 
     body += '<tr class="sim-row"><td class="id sim-id" data-id="' + simState.focusId
-      + '" title="OFF = tick giả lập · ON = xem số bị loại">' + simState.focusId + '</td>'
+      + '" title="Click: mở popup giả lập phá (click số đậm trên pool)">' + simState.focusId + '</td>'
       + '<td class="pool-nums" title="Kỳ giả lập">—</td>'
       + '<td class="viol-nums" title="Kỳ giả lập — chưa có đáp án">—</td>'
       + '<td class="rest-ans" title="Kỳ giả lập — chưa có đáp án">—</td>';
