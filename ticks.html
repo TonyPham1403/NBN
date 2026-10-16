@@ -951,14 +951,23 @@
     color: #f8fafc;
     background: rgba(248, 250, 252, .12);
   }
-  /* Calculate popup — tập A/B; z trên mọi pin tooltip (Δ ~10050+, cal-pin ~10070+) */
+  /* Calculate popup — dưới khối tooltip (Δ ~10050+, cal-pin ~10080+) */
   .cal-back {
-    position: fixed; inset: 0; z-index: 11000;
+    position: fixed; inset: 0; z-index: 9000;
     background: rgba(15, 23, 42, .45);
     display: flex; align-items: center; justify-content: center;
     padding: 16px;
   }
-  .cal-back[hidden] { display: none; }
+  .cal-back.is-placed {
+    display: block;
+    padding: 0;
+  }
+  .cal-back.is-placed .cal-modal {
+    position: absolute;
+    margin: 0;
+  }
+  /* Phải sau .is-placed — không để display:block đè mất [hidden]. */
+  .cal-back[hidden] { display: none !important; }
   .cal-modal {
     background: #fff;
     color: #111;
@@ -970,10 +979,16 @@
     box-shadow: 0 20px 50px rgba(0,0,0,.35);
     padding: 14px 16px 16px;
   }
-  .cal-modal h2 {
+  .cal-modal-head {
     margin: 0 0 10px;
     font-size: 16px;
     font-weight: 800;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+  }
+  .cal-modal-head.is-dragging {
+    cursor: grabbing;
   }
   .cal-modal .cal-fields {
     display: grid;
@@ -1373,7 +1388,7 @@
 </div>
 <div class="cal-back" id="calBack" hidden>
   <div class="cal-modal" role="dialog" aria-modal="true" aria-labelledby="calTitle">
-    <h2 id="calTitle">Calculate · tập A / B</h2>
+    <h2 id="calTitle" class="cal-modal-head" title="Kéo để di chuyển">Calculate · tập A / B</h2>
     <div class="cal-fields">
       <label>
         <span class="cal-field-head">
@@ -1398,9 +1413,9 @@
       <button type="button" data-cal-op="symDiff" title="(A∪B) \ (A∩B)">A Δ B</button>
     </div>
     <div class="cal-result" id="calResult">KQ[0]{}</div>
-    <p class="cal-result-meta" id="calResultMeta">Chọn phép · RMB nút Copy = pin + đóng</p>
+    <p class="cal-result-meta" id="calResultMeta">Chọn phép · RMB nút Copy = pin KQ</p>
     <div class="cal-actions">
-      <button type="button" id="calCopy" class="cal-copy" title="Click: copy · Chuột phải: pin kết quả + đóng">Copy</button>
+      <button type="button" id="calCopy" class="cal-copy" title="Click: copy · Chuột phải: pin kết quả (giữ cal mở)">Copy</button>
       <button type="button" id="calClose">Đóng</button>
     </div>
   </div>
@@ -5092,7 +5107,48 @@
     symDiff: 1
   };
 
-  /** Sync A/B/op giữa tab cùng mã — không sync mở/đóng (C chỉ tab focus). */
+  /** null = giữa màn (mặc định mỗi lần vào ticks); có giá trị = đã kéo trong phiên. */
+  /** @type {{ left: number, top: number }|null} */
+  let calPopupPos = null;
+
+  function resetCalPopupToCenter() {
+    calPopupPos = null;
+    if (calBack) calBack.classList.remove('is-placed');
+    if (calModal) {
+      calModal.style.left = '';
+      calModal.style.top = '';
+    }
+  }
+
+  function clampCalPopupPos(left, top) {
+    if (!calModal) return { left: 8, top: 8 };
+    const pad = 8;
+    const w = calModal.offsetWidth || 420;
+    const h = calModal.offsetHeight || 200;
+    const maxL = Math.max(pad, window.innerWidth - w - pad);
+    const maxT = Math.max(pad, window.innerHeight - h - pad);
+    let l = Number(left);
+    let t = Number(top);
+    if (!Number.isFinite(l)) l = pad;
+    if (!Number.isFinite(t)) t = pad;
+    if (l < pad) l = pad;
+    if (t < pad) t = pad;
+    if (l > maxL) l = maxL;
+    if (t > maxT) t = maxT;
+    return { left: Math.round(l), top: Math.round(t) };
+  }
+
+  function applyCalPopupPos(left, top, opts) {
+    if (!calBack || !calModal) return;
+    const c = clampCalPopupPos(left, top);
+    calPopupPos = c;
+    calBack.classList.add('is-placed');
+    calModal.style.left = c.left + 'px';
+    calModal.style.top = c.top + 'px';
+    if (!(opts && opts.silent)) schedulePublishCalState();
+  }
+
+  /** Sync A/B/op (+ vị trí live qua BC) — không sync mở/đóng; không lưu vị trí ra disk. */
   function publishCalState() {
     if (calStateSyncApplying) return;
     const tag = simRoomTag;
@@ -5106,11 +5162,16 @@
       t: Date.now(),
       from: ensureSimTabId()
     };
+    /* localStorage: chỉ A/B/op — mỗi lần vào ticks vị trí luôn giữa. */
     try {
       localStorage.setItem(calStateStorageKey(tag), JSON.stringify(payload));
     } catch (e) { /* ignore */ }
+    const bcPayload = Object.assign({}, payload);
+    if (calPopupPos) {
+      bcPayload.pos = { left: calPopupPos.left, top: calPopupPos.top };
+    }
     try {
-      if (simPhaBc) simPhaBc.postMessage(payload);
+      if (simPhaBc) simPhaBc.postMessage(bcPayload);
     } catch (e2) { /* ignore */ }
   }
 
@@ -5142,12 +5203,29 @@
     const sameA = calSetA && calSetA.value === a;
     const sameB = calSetB && calSetB.value === b;
     const sameOp = calOp === op;
-    if (sameA && sameB && sameOp) return;
+    let remotePos = null;
+    if (msg.pos && typeof msg.pos === 'object'
+      && Number.isFinite(Number(msg.pos.left))
+      && Number.isFinite(Number(msg.pos.top))) {
+      remotePos = {
+        left: Number(msg.pos.left),
+        top: Number(msg.pos.top)
+      };
+    }
+    const posChanged = !!(remotePos && (
+      !calPopupPos
+      || calPopupPos.left !== remotePos.left
+      || calPopupPos.top !== remotePos.top
+    ));
+    if (sameA && sameB && sameOp && !posChanged) return;
     calStateSyncApplying = true;
     try {
       if (calSetA && !sameA) calSetA.value = a;
       if (calSetB && !sameB) calSetB.value = b;
       if (!sameOp) calOp = op;
+      if (posChanged && remotePos) {
+        applyCalPopupPos(remotePos.left, remotePos.top, { silent: true });
+      }
       refreshCalResult();
     } finally {
       requestAnimationFrame(() => { calStateSyncApplying = false; });
@@ -5161,8 +5239,53 @@
       if (!raw) return;
       const o = JSON.parse(raw);
       if (!o) return;
+      /* Không khôi phục vị trí từ disk. */
+      if (o.pos) delete o.pos;
       applyRemoteCalState(o, { force: true, t: Number(o.t) || Date.now() });
     } catch (e) { /* ignore */ }
+  }
+
+  function bindCalModalDrag() {
+    const head = document.getElementById('calTitle');
+    if (!head || !calModal || !calBack) return;
+    let dragging = false;
+    let offX = 0;
+    let offY = 0;
+    head.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = calModal.getBoundingClientRect();
+      if (!calPopupPos) {
+        applyCalPopupPos(rect.left, rect.top, { silent: true });
+      }
+      const cur = calModal.getBoundingClientRect();
+      offX = e.clientX - cur.left;
+      offY = e.clientY - cur.top;
+      dragging = true;
+      head.classList.add('is-dragging');
+      try { head.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ }
+    });
+    head.addEventListener('pointermove', (e) => {
+      if (!dragging) return;
+      applyCalPopupPos(e.clientX - offX, e.clientY - offY, { silent: true });
+      schedulePublishCalState();
+    });
+    function endDrag(e) {
+      if (!dragging) return;
+      dragging = false;
+      head.classList.remove('is-dragging');
+      try {
+        if (e && e.pointerId != null) head.releasePointerCapture(e.pointerId);
+      } catch (err) { /* ignore */ }
+      schedulePublishCalState();
+    }
+    head.addEventListener('pointerup', endDrag);
+    head.addEventListener('pointercancel', endDrag);
+    window.addEventListener('resize', () => {
+      if (!calPopupPos) return;
+      applyCalPopupPos(calPopupPos.left, calPopupPos.top, { silent: true });
+    });
   }
 
   function refreshCalResult() {
@@ -5176,7 +5299,7 @@
       calResultMeta.textContent = calOpLabel(calOp)
         + ' · |A|=' + a.length + ' · |B|=' + b.length
         + ' · |KQ|=' + calResultNums.length
-        + ' · RMB Copy = pin + đóng';
+        + ' · RMB Copy = pin KQ';
     }
     if (calOps) {
       calOps.querySelectorAll('[data-cal-op]').forEach((btn) => {
@@ -5300,8 +5423,16 @@
   function openCalPopup() {
     if (!calBack) return;
     calBack.hidden = false;
+    if (calPopupPos) {
+      applyCalPopupPos(calPopupPos.left, calPopupPos.top, { silent: true });
+    } else {
+      resetCalPopupToCenter();
+    }
     refreshCalResult();
     requestAnimationFrame(() => {
+      if (calPopupPos) {
+        applyCalPopupPos(calPopupPos.left, calPopupPos.top, { silent: true });
+      }
       if (calSetA) calSetA.focus();
     });
   }
@@ -5451,6 +5582,8 @@
 
   bindCalSetField(calSetA);
   bindCalSetField(calSetB);
+  bindCalModalDrag();
+  resetCalPopupToCenter();
 
   if (calCopyBtn) {
     calCopyBtn.addEventListener('click', () => {
@@ -5485,10 +5618,7 @@
       e.preventDefault();
       e.stopPropagation();
       refreshCalResult();
-      const x = e.clientX;
-      const y = e.clientY;
-      hideCalPopup();
-      pinCalResultTip(x, y);
+      pinCalResultTip(e.clientX, e.clientY);
     });
   }
   if (calCloseBtn) {
