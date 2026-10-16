@@ -916,9 +916,11 @@
     cursor: grab;
     user-select: none;
     touch-action: none;
+    -webkit-user-drag: element;
   }
   .delta-tip.delta-tip-pin.is-dragging {
     cursor: grabbing;
+    opacity: 0.35;
   }
   .delta-tip.delta-tip-pin.is-copy-ok {
     outline: 2px solid #16a34a;
@@ -1119,13 +1121,14 @@
     cursor: grab;
     user-select: none;
     touch-action: none;
+    -webkit-user-drag: element;
   }
   .cal-tip.cal-tip-pin.is-empty {
     color: #94a3b8;
     font-weight: 600;
     font-style: italic;
   }
-  .cal-tip.cal-tip-pin.is-dragging { cursor: grabbing; }
+  .cal-tip.cal-tip-pin.is-dragging { cursor: grabbing; opacity: 0.35; }
   .cal-tip.cal-tip-pin.is-copy-ok {
     outline: 2px solid #16a34a;
     outline-offset: 1px;
@@ -2631,6 +2634,7 @@
   const STUDY_MODE_LS_PREFIX = 'sua:studyMode:';
   const STUDY_PICKS_LS_PREFIX = 'sua:studyPicks:';
   const ROOM_SCROLL_LS_PREFIX = 'sua:roomScroll:';
+  const CAL_STATE_LS_PREFIX = 'sua:calState:';
   /** Bridge → mọi tab index.html (kỳ rỗng cuối). */
   const SIM_PHA_INDEX_LS = 'sua:simPhaPicks:index';
   let simRoomTag = '';
@@ -2644,6 +2648,9 @@
   let scrollSyncApplying = false;
   let roomScrollLastT = 0;
   let scrollPublishTimer = null;
+  let calStateSyncApplying = false;
+  let calStateLastT = 0;
+  let calStatePublishTimer = null;
   /** @type {{ top: number, left: number }|null} modal scroll chờ khi popup chưa mở */
   let pendingModalScroll = null;
   /** @type {BroadcastChannel|null} */
@@ -2679,6 +2686,10 @@
 
   function roomScrollStorageKey(tag) {
     return ROOM_SCROLL_LS_PREFIX + tag;
+  }
+
+  function calStateStorageKey(tag) {
+    return CAL_STATE_LS_PREFIX + tag;
   }
 
   function readScrollPos(el) {
@@ -3071,10 +3082,11 @@
       force: true,
       t: stored.t || Date.now()
     });
-    /* Cùng mã → ăn theo trạng thái học tập + pick học tập + scroll phòng (nếu có). */
+    /* Cùng mã → ăn theo trạng thái học tập + pick học tập + scroll phòng + cal (nếu có). */
     loadStudyModeForTag(tag);
     loadStudyPicksForTag(tag);
     loadRoomScrollForTag(tag);
+    loadCalStateForTag(tag);
     if (!hasKey) {
       requestAnimationFrame(() => {
         if (simRoomTag === tag) publishSimTlPháPicks();
@@ -3095,10 +3107,11 @@
         window.FocusSync.publishSimPhaJoin(tag);
       }
     } catch (eFs) { /* ignore */ }
-    /* Tab đang học → báo mode + picks + scroll cho tab mới vào. */
+    /* Tab đang học → báo mode + picks + scroll + cal cho tab mới vào. */
     if (studyMode) publishStudyMode();
     if (studyPicksForId != null) publishStudyPicks();
     publishRoomScroll();
+    publishCalState();
   }
 
   function loadSimPhaPicksForTag(tag) {
@@ -3137,11 +3150,19 @@
           if (!tag || !simRoomTag || tag !== simRoomTag) return;
           if (msg.from && msg.from === ensureSimTabId()) return;
           if (msg.type === 'sim-pha-join') {
-            /* Tab đang giữ mã → trả toàn bộ picks + học tập + scroll cho tab mới vào. */
+            /* Tab đang giữ mã → trả toàn bộ picks + học tập + scroll + cal cho tab mới vào. */
             publishSimTlPháPicks();
             if (studyMode) publishStudyMode();
             if (studyPicksForId != null) publishStudyPicks();
             publishRoomScroll();
+            publishCalState();
+            return;
+          }
+          if (msg.type === 'cal-state') {
+            applyRemoteCalState(msg, {
+              force: true,
+              t: Number(msg.t) || Date.now()
+            });
             return;
           }
           if (msg.type === 'study-mode') {
@@ -3247,6 +3268,18 @@
             });
           }
         } catch (errSc) { /* ignore */ }
+        return;
+      }
+      if (e.key === calStateStorageKey(simRoomTag)) {
+        try {
+          const o = JSON.parse(e.newValue);
+          if (o) {
+            applyRemoteCalState(o, {
+              force: true,
+              t: Number(o.t) || Date.now()
+            });
+          }
+        } catch (errCal) { /* ignore */ }
         return;
       }
       if (e.key !== simPhaStorageKey(simRoomTag)) return;
@@ -4426,6 +4459,208 @@
   }
   if (modalBody) modalBody.addEventListener('click', onCopyNumsClick);
 
+  /** Kéo pin tip sang tab khác (cùng origin) — HTML5 DnD + BroadcastChannel. */
+  const TIP_PIN_MIME = 'application/x-sua-ticks-tip-pin+json';
+  const TIP_PIN_BC_NAME = 'sua-ticks-tip-pin-xfer-v1';
+  const TIP_PIN_TEXT_PREFIX = 'sua-tip-pin:';
+  /** @type {BroadcastChannel|null} */
+  let tipPinXferBc = null;
+  try {
+    if (typeof BroadcastChannel === 'function') {
+      tipPinXferBc = new BroadcastChannel(TIP_PIN_BC_NAME);
+    }
+  } catch (err) { tipPinXferBc = null; }
+  /** @type {{ pin: HTMLElement, xferId: string, kind: string }|null} */
+  let tipPinLocalDrag = null;
+
+  function newTipPinXferId() {
+    return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+  }
+
+  function clampTipPinPos(el, left, top) {
+    const tipW = el.offsetWidth || 40;
+    const tipH = el.offsetHeight || 24;
+    let l = left;
+    let t = top;
+    if (l < 4) l = 4;
+    if (t < 4) t = 4;
+    if (l + tipW > window.innerWidth - 4) {
+      l = Math.max(4, window.innerWidth - tipW - 4);
+    }
+    if (t + tipH > window.innerHeight - 4) {
+      t = Math.max(4, window.innerHeight - tipH - 4);
+    }
+    el.style.left = Math.round(l) + 'px';
+    el.style.top = Math.round(t) + 'px';
+  }
+
+  function parseTipPinPayload(raw) {
+    try {
+      const o = typeof raw === 'string' ? JSON.parse(raw) : raw;
+      if (!o || o.v !== 1) return null;
+      if (o.kind !== 'delta' && o.kind !== 'cal') return null;
+      if (!o.xferId || !o.fromTab) return null;
+      return o;
+    } catch (err) { return null; }
+  }
+
+  function readTipPinFromDataTransfer(dt) {
+    if (!dt) return null;
+    let raw = '';
+    try { raw = dt.getData(TIP_PIN_MIME) || ''; } catch (err) { raw = ''; }
+    if (!raw) {
+      try {
+        const t = dt.getData('text/plain') || '';
+        if (t.indexOf(TIP_PIN_TEXT_PREFIX) === 0) {
+          raw = t.slice(TIP_PIN_TEXT_PREFIX.length);
+        }
+      } catch (err) { raw = ''; }
+    }
+    return parseTipPinPayload(raw);
+  }
+
+  function dtHasTipPin(dt) {
+    if (!dt || !dt.types) return false;
+    if (tipPinLocalDrag) return true;
+    const types = Array.from(dt.types);
+    return types.indexOf(TIP_PIN_MIME) >= 0
+      || types.indexOf('text/x-sua-tip-pin') >= 0;
+  }
+
+  function notifyTipPinTaken(payload) {
+    if (!tipPinXferBc || !payload) return;
+    try {
+      tipPinXferBc.postMessage({
+        type: 'tip-taken',
+        xferId: payload.xferId,
+        fromTab: payload.fromTab
+      });
+    } catch (err) { /* ignore */ }
+  }
+
+  function removeTipPinByXferId(xferId) {
+    if (!xferId) return;
+    document.querySelectorAll('[data-tip-xfer="' + xferId + '"]').forEach((el) => {
+      el.remove();
+    });
+    if (tipPinLocalDrag && tipPinLocalDrag.xferId === xferId) {
+      tipPinLocalDrag = null;
+    }
+  }
+
+  if (tipPinXferBc) {
+    tipPinXferBc.addEventListener('message', (ev) => {
+      const m = ev && ev.data;
+      if (!m || m.type !== 'tip-taken') return;
+      if (m.fromTab !== ensureSimTabId()) return;
+      removeTipPinByXferId(m.xferId);
+    });
+  }
+
+  function bindTipPinHtml5Drag(pin, kind, buildPayload) {
+    pin.draggable = true;
+    pin.addEventListener('dragstart', (e) => {
+      if (e.target && e.target.closest
+        && e.target.closest('.delta-tip-pin-x, .cal-tip-pin-x')) {
+        e.preventDefault();
+        return;
+      }
+      const rect = pin.getBoundingClientRect();
+      const offX = e.clientX - rect.left;
+      const offY = e.clientY - rect.top;
+      let xferId = pin.getAttribute('data-tip-xfer');
+      if (!xferId) {
+        xferId = newTipPinXferId();
+        pin.setAttribute('data-tip-xfer', xferId);
+      }
+      const payload = buildPayload(xferId, offX, offY);
+      const raw = JSON.stringify(payload);
+      try {
+        e.dataTransfer.setData(TIP_PIN_MIME, raw);
+        e.dataTransfer.setData('text/x-sua-tip-pin', '1');
+        e.dataTransfer.setData('text/plain', TIP_PIN_TEXT_PREFIX + raw);
+        e.dataTransfer.effectAllowed = 'move';
+      } catch (err) { /* ignore */ }
+      try {
+        e.dataTransfer.setDragImage(pin, Math.round(offX), Math.round(offY));
+      } catch (err) { /* ignore */ }
+      pin._tipDropLocal = false;
+      tipPinLocalDrag = { pin: pin, xferId: xferId, kind: kind };
+      pin.classList.add('is-dragging');
+      if (kind === 'delta') bringDeltaTipPinToFront(pin);
+      else bringCalTipPinToFront(pin);
+    });
+    pin.addEventListener('dragend', (e) => {
+      pin.classList.remove('is-dragging');
+      const local = tipPinLocalDrag && tipPinLocalDrag.pin === pin;
+      if (local) tipPinLocalDrag = null;
+      /* dropEffect=move + không drop tại tab này → đã sang tab kia. */
+      if (!pin._tipDropLocal && e.dropEffect === 'move') {
+        pin.remove();
+      }
+      pin._tipDropLocal = false;
+    });
+  }
+
+  function mountTipPinFromPayload(payload, clientX, clientY) {
+    if (!payload) return null;
+    const left = (clientX != null ? clientX : 40) - (payload.offX || 20);
+    const top = (clientY != null ? clientY : 40) - (payload.offY || 16);
+    if (payload.kind === 'delta') {
+      return createDeltaTipPin({
+        bodyHtml: payload.bodyHtml || '',
+        empty: !!payload.empty,
+        left: left,
+        top: top,
+        xferId: payload.xferId
+      });
+    }
+    if (payload.kind === 'cal') {
+      return createCalTipPin({
+        nums: Array.isArray(payload.nums) ? payload.nums.slice() : [],
+        empty: !!payload.empty,
+        bodyHtml: payload.bodyHtml || '',
+        left: left,
+        top: top,
+        xferId: payload.xferId
+      });
+    }
+    return null;
+  }
+
+  document.addEventListener('dragover', (e) => {
+    if (!dtHasTipPin(e.dataTransfer)) return;
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'move'; } catch (err) { /* ignore */ }
+  });
+
+  document.addEventListener('drop', (e) => {
+    const payload = readTipPinFromDataTransfer(e.dataTransfer);
+    if (!payload) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const offX = payload.offX != null ? payload.offX : 20;
+    const offY = payload.offY != null ? payload.offY : 16;
+    const left = e.clientX - offX;
+    const top = e.clientY - offY;
+    /* Cùng tab: chỉ dịch chuyển pin nguồn. */
+    if (tipPinLocalDrag && tipPinLocalDrag.xferId === payload.xferId && tipPinLocalDrag.pin) {
+      const pin = tipPinLocalDrag.pin;
+      pin._tipDropLocal = true;
+      if (payload.kind === 'delta') {
+        bringDeltaTipPinToFront(pin);
+        clampTipPinPos(pin, left, top);
+      } else {
+        bringCalTipPinToFront(pin);
+        clampTipPinPos(pin, left, top);
+      }
+      return;
+    }
+    /* Tab khác: tạo pin mới + báo tab nguồn xóa. */
+    mountTipPinFromPayload(payload, e.clientX, e.clientY);
+    notifyTipPinTaken(payload);
+  });
+
   /** Tooltip Δ — góc phải trên sát con trỏ; chuột phải → gắn bản sao kéo được. */
   const deltaTip = document.createElement('div');
   deltaTip.className = 'delta-tip';
@@ -4435,10 +4670,6 @@
   let deltaTipBtn = null;
   let deltaTipX = 0;
   let deltaTipY = 0;
-  /** @type {HTMLElement|null} */
-  let deltaTipDragEl = null;
-  let deltaTipDragOffX = 0;
-  let deltaTipDragOffY = 0;
   /** z-index khối pin — khối vừa nắm kéo gần nhất nằm trên. */
   let deltaTipPinZ = 10060;
 
@@ -4459,39 +4690,23 @@
     document.querySelectorAll('.delta-tip-pin').forEach((el) => {
       el.remove();
     });
-    deltaTipDragEl = null;
     deltaTipPinZ = 10060;
   }
 
   function clampDeltaTipPinPos(el, left, top) {
-    const tipW = el.offsetWidth || 40;
-    const tipH = el.offsetHeight || 24;
-    let l = left;
-    let t = top;
-    if (l < 4) l = 4;
-    if (t < 4) t = 4;
-    if (l + tipW > window.innerWidth - 4) {
-      l = Math.max(4, window.innerWidth - tipW - 4);
-    }
-    if (t + tipH > window.innerHeight - 4) {
-      t = Math.max(4, window.innerHeight - tipH - 4);
-    }
-    el.style.left = Math.round(l) + 'px';
-    el.style.top = Math.round(t) + 'px';
+    clampTipPinPos(el, left, top);
   }
 
-  /** Chuột phải trên tip / nút Δ → gắn bản sao (kéo + nút ×). */
-  function pinDeltaTipClone(clientX, clientY) {
-    if (deltaTip.hidden || !deltaTip.classList.contains('is-on')) return false;
-    if (modalBack.hidden || popupKind !== 'elim') return false;
-    const bodyHtml = deltaTip.innerHTML;
-    if (!bodyHtml) return false;
-    const empty = deltaTip.classList.contains('is-empty');
+  function createDeltaTipPin(opts) {
+    const bodyHtml = opts && opts.bodyHtml != null ? opts.bodyHtml : '';
+    if (!bodyHtml && !(opts && opts.empty)) return null;
+    const empty = !!(opts && opts.empty);
     const pin = document.createElement('div');
-    pin.className = 'delta-tip delta-tip-pin is-on'
-      + (empty ? ' is-empty' : '');
+    pin.className = 'delta-tip delta-tip-pin is-on' + (empty ? ' is-empty' : '');
     pin.setAttribute('role', 'dialog');
-    pin.setAttribute('aria-label', 'Δ đã gắn — kéo để di chuyển');
+    pin.setAttribute('aria-label', 'Δ đã gắn — kéo sang tab khác được');
+    const xferId = (opts && opts.xferId) || newTipPinXferId();
+    pin.setAttribute('data-tip-xfer', xferId);
     const body = document.createElement('div');
     body.className = 'delta-tip-pin-body';
     body.innerHTML = bodyHtml;
@@ -4499,21 +4714,18 @@
     xBtn.type = 'button';
     xBtn.className = 'delta-tip-pin-x';
     xBtn.setAttribute('aria-label', 'Xóa');
+    xBtn.draggable = false;
     xBtn.textContent = '×';
     pin.appendChild(body);
     pin.appendChild(xBtn);
     document.body.appendChild(pin);
     bringDeltaTipPinToFront(pin);
-    const srcLeft = parseFloat(deltaTip.style.left) || (clientX - 40);
-    const srcTop = parseFloat(deltaTip.style.top) || (clientY - 24);
-    clampDeltaTipPinPos(pin, srcLeft, srcTop);
-    requestAnimationFrame(() => {
-      clampDeltaTipPinPos(pin, srcLeft + 10, srcTop + 10);
-    });
+    const left = opts && opts.left != null ? opts.left : 40;
+    const top = opts && opts.top != null ? opts.top : 40;
+    clampTipPinPos(pin, left, top);
     xBtn.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      if (deltaTipDragEl === pin) deltaTipDragEl = null;
       pin.remove();
     });
     function flashPinCopyOk() {
@@ -4553,38 +4765,39 @@
       e.stopPropagation();
       copyPinBodyText();
     });
-    pin.addEventListener('pointerdown', (e) => {
-      if (e.button !== 0) return;
-      if (e.target && e.target.closest && e.target.closest('.delta-tip-pin-x')) return;
-      e.preventDefault();
-      bringDeltaTipPinToFront(pin);
-      const rect = pin.getBoundingClientRect();
-      deltaTipDragEl = pin;
-      deltaTipDragOffX = e.clientX - rect.left;
-      deltaTipDragOffY = e.clientY - rect.top;
-      pin.classList.add('is-dragging');
-      try {
-        pin.setPointerCapture(e.pointerId);
-      } catch (err) { /* ignore */ }
+    bindTipPinHtml5Drag(pin, 'delta', (id, offX, offY) => ({
+      v: 1,
+      kind: 'delta',
+      xferId: id,
+      fromTab: ensureSimTabId(),
+      empty: empty,
+      bodyHtml: body.innerHTML,
+      plain: String(body.textContent || '').replace(/\s+/g, '').trim(),
+      offX: offX,
+      offY: offY
+    }));
+    return pin;
+  }
+
+  /** Chuột phải trên tip / nút Δ → gắn bản sao (kéo + nút ×). */
+  function pinDeltaTipClone(clientX, clientY) {
+    if (deltaTip.hidden || !deltaTip.classList.contains('is-on')) return false;
+    if (modalBack.hidden || popupKind !== 'elim') return false;
+    const bodyHtml = deltaTip.innerHTML;
+    if (!bodyHtml) return false;
+    const empty = deltaTip.classList.contains('is-empty');
+    const srcLeft = parseFloat(deltaTip.style.left) || (clientX - 40);
+    const srcTop = parseFloat(deltaTip.style.top) || (clientY - 24);
+    const pin = createDeltaTipPin({
+      bodyHtml: bodyHtml,
+      empty: empty,
+      left: srcLeft,
+      top: srcTop
     });
-    pin.addEventListener('pointermove', (e) => {
-      if (deltaTipDragEl !== pin) return;
-      clampDeltaTipPinPos(
-        pin,
-        e.clientX - deltaTipDragOffX,
-        e.clientY - deltaTipDragOffY
-      );
+    if (!pin) return false;
+    requestAnimationFrame(() => {
+      clampTipPinPos(pin, srcLeft + 10, srcTop + 10);
     });
-    function endPinDrag(e) {
-      if (deltaTipDragEl !== pin) return;
-      deltaTipDragEl = null;
-      pin.classList.remove('is-dragging');
-      try {
-        if (e && e.pointerId != null) pin.releasePointerCapture(e.pointerId);
-      } catch (err) { /* ignore */ }
-    }
-    pin.addEventListener('pointerup', endPinDrag);
-    pin.addEventListener('pointercancel', endPinDrag);
     return true;
   }
 
@@ -4811,10 +5024,6 @@
   let calOp = 'intersect';
   /** @type {number[]} */
   let calResultNums = [];
-  /** @type {HTMLElement|null} */
-  let calTipDragEl = null;
-  let calTipDragOffX = 0;
-  let calTipDragOffY = 0;
   let calTipPinZ = 10080;
 
   function isCalOpen() {
@@ -4875,6 +5084,87 @@
     return 'KQ[' + n + ']{' + nums.join(',') + '}';
   }
 
+  const CAL_OPS_OK = {
+    intersect: 1,
+    union: 1,
+    aMinusB: 1,
+    bMinusA: 1,
+    symDiff: 1
+  };
+
+  /** Sync A/B/op giữa tab cùng mã — không sync mở/đóng (C chỉ tab focus). */
+  function publishCalState() {
+    if (calStateSyncApplying) return;
+    const tag = simRoomTag;
+    if (!tag) return;
+    const payload = {
+      type: 'cal-state',
+      tag: tag,
+      a: calSetA ? String(calSetA.value || '') : '',
+      b: calSetB ? String(calSetB.value || '') : '',
+      op: CAL_OPS_OK[calOp] ? calOp : 'intersect',
+      t: Date.now(),
+      from: ensureSimTabId()
+    };
+    try {
+      localStorage.setItem(calStateStorageKey(tag), JSON.stringify(payload));
+    } catch (e) { /* ignore */ }
+    try {
+      if (simPhaBc) simPhaBc.postMessage(payload);
+    } catch (e2) { /* ignore */ }
+  }
+
+  function schedulePublishCalState() {
+    if (calStateSyncApplying || !simRoomTag) return;
+    if (calStatePublishTimer) clearTimeout(calStatePublishTimer);
+    calStatePublishTimer = setTimeout(() => {
+      calStatePublishTimer = null;
+      publishCalState();
+    }, 80);
+  }
+
+  function applyRemoteCalState(msg, meta) {
+    if (!msg) return;
+    const t = meta && meta.t != null
+      ? Number(meta.t)
+      : (msg.t != null ? Number(msg.t) : 0);
+    if (t && calStateLastT && t < calStateLastT && !(meta && meta.force)) return;
+    if (t) calStateLastT = t;
+    const aRaw = msg.a != null ? String(msg.a) : '';
+    const bRaw = msg.b != null ? String(msg.b) : '';
+    const a = typeof sanitizeCalSetText === 'function'
+      ? sanitizeCalSetText(aRaw)
+      : aRaw.replace(/[^0-9,\s]/g, '');
+    const b = typeof sanitizeCalSetText === 'function'
+      ? sanitizeCalSetText(bRaw)
+      : bRaw.replace(/[^0-9,\s]/g, '');
+    const op = CAL_OPS_OK[msg.op] ? msg.op : 'intersect';
+    const sameA = calSetA && calSetA.value === a;
+    const sameB = calSetB && calSetB.value === b;
+    const sameOp = calOp === op;
+    if (sameA && sameB && sameOp) return;
+    calStateSyncApplying = true;
+    try {
+      if (calSetA && !sameA) calSetA.value = a;
+      if (calSetB && !sameB) calSetB.value = b;
+      if (!sameOp) calOp = op;
+      refreshCalResult();
+    } finally {
+      requestAnimationFrame(() => { calStateSyncApplying = false; });
+    }
+  }
+
+  function loadCalStateForTag(tag) {
+    if (!tag) return;
+    try {
+      const raw = localStorage.getItem(calStateStorageKey(tag));
+      if (!raw) return;
+      const o = JSON.parse(raw);
+      if (!o) return;
+      applyRemoteCalState(o, { force: true, t: Number(o.t) || Date.now() });
+    } catch (e) { /* ignore */ }
+  }
+
   function refreshCalResult() {
     const a = parseCalSet(calSetA ? calSetA.value : '');
     const b = parseCalSet(calSetB ? calSetB.value : '');
@@ -4893,11 +5183,11 @@
         btn.classList.toggle('is-on', btn.getAttribute('data-cal-op') === calOp);
       });
     }
+    schedulePublishCalState();
   }
 
   function clearCalTipPins() {
     document.querySelectorAll('.cal-tip-pin').forEach((el) => el.remove());
-    calTipDragEl = null;
     calTipPinZ = 10080;
   }
 
@@ -4908,33 +5198,23 @@
   }
 
   function clampCalTipPinPos(el, left, top) {
-    const tipW = el.offsetWidth || 40;
-    const tipH = el.offsetHeight || 24;
-    let l = left;
-    let t = top;
-    if (l < 4) l = 4;
-    if (t < 4) t = 4;
-    if (l + tipW > window.innerWidth - 4) {
-      l = Math.max(4, window.innerWidth - tipW - 4);
-    }
-    if (t + tipH > window.innerHeight - 4) {
-      t = Math.max(4, window.innerHeight - tipH - 4);
-    }
-    el.style.left = Math.round(l) + 'px';
-    el.style.top = Math.round(t) + 'px';
+    clampTipPinPos(el, left, top);
   }
 
-  function pinCalResultTip(clientX, clientY) {
-    const nums = calResultNums.slice();
-    const empty = !nums.length;
+  function createCalTipPin(opts) {
+    const nums = opts && Array.isArray(opts.nums) ? opts.nums.slice() : [];
+    const empty = opts && opts.empty != null ? !!opts.empty : !nums.length;
     const pin = document.createElement('div');
     pin.className = 'cal-tip cal-tip-pin' + (empty ? ' is-empty' : '');
     pin.setAttribute('role', 'dialog');
-    pin.setAttribute('aria-label', 'KQ calculate — kéo để di chuyển');
+    pin.setAttribute('aria-label', 'KQ calculate — kéo sang tab khác được');
+    const xferId = (opts && opts.xferId) || newTipPinXferId();
+    pin.setAttribute('data-tip-xfer', xferId);
     const body = document.createElement('div');
     body.className = 'cal-tip-pin-body';
-    /* Giống delta tip: chuỗi số / (rỗng), gạch chân ∈ derive nếu đang mở kỳ. */
-    if (empty) {
+    if (opts && opts.bodyHtml) {
+      body.innerHTML = opts.bodyHtml;
+    } else if (empty) {
       body.textContent = '(rỗng)';
     } else {
       body.innerHTML = formatNumsDeriveHtml(nums, popupTimelineDeriveSet, ',');
@@ -4943,18 +5223,18 @@
     xBtn.type = 'button';
     xBtn.className = 'cal-tip-pin-x';
     xBtn.setAttribute('aria-label', 'Xóa');
+    xBtn.draggable = false;
     xBtn.textContent = '×';
     pin.appendChild(body);
     pin.appendChild(xBtn);
     document.body.appendChild(pin);
     bringCalTipPinToFront(pin);
-    const left = (clientX != null ? clientX : 80) - 20;
-    const top = (clientY != null ? clientY : 80) - 16;
-    clampCalTipPinPos(pin, left, top);
+    const left = opts && opts.left != null ? opts.left : 60;
+    const top = opts && opts.top != null ? opts.top : 60;
+    clampTipPinPos(pin, left, top);
     xBtn.addEventListener('click', (ev) => {
       ev.preventDefault();
       ev.stopPropagation();
-      if (calTipDragEl === pin) calTipDragEl = null;
       pin.remove();
     });
     function flashOk() {
@@ -4991,32 +5271,30 @@
       ev.stopPropagation();
       copyBody();
     });
-    pin.addEventListener('pointerdown', (ev) => {
-      if (ev.button !== 0) return;
-      if (ev.target && ev.target.closest && ev.target.closest('.cal-tip-pin-x')) return;
-      ev.preventDefault();
-      bringCalTipPinToFront(pin);
-      const rect = pin.getBoundingClientRect();
-      calTipDragEl = pin;
-      calTipDragOffX = ev.clientX - rect.left;
-      calTipDragOffY = ev.clientY - rect.top;
-      pin.classList.add('is-dragging');
-      try { pin.setPointerCapture(ev.pointerId); } catch (err) { /* ignore */ }
+    bindTipPinHtml5Drag(pin, 'cal', (id, offX, offY) => ({
+      v: 1,
+      kind: 'cal',
+      xferId: id,
+      fromTab: ensureSimTabId(),
+      empty: empty,
+      nums: nums.slice(),
+      bodyHtml: body.innerHTML,
+      plain: nums.join(','),
+      offX: offX,
+      offY: offY
+    }));
+    return pin;
+  }
+
+  function pinCalResultTip(clientX, clientY) {
+    const nums = calResultNums.slice();
+    const empty = !nums.length;
+    createCalTipPin({
+      nums: nums,
+      empty: empty,
+      left: (clientX != null ? clientX : 80) - 20,
+      top: (clientY != null ? clientY : 80) - 16
     });
-    pin.addEventListener('pointermove', (ev) => {
-      if (calTipDragEl !== pin) return;
-      clampCalTipPinPos(pin, ev.clientX - calTipDragOffX, ev.clientY - calTipDragOffY);
-    });
-    function endDrag(ev) {
-      if (calTipDragEl !== pin) return;
-      calTipDragEl = null;
-      pin.classList.remove('is-dragging');
-      try {
-        if (ev && ev.pointerId != null) pin.releasePointerCapture(ev.pointerId);
-      } catch (err) { /* ignore */ }
-    }
-    pin.addEventListener('pointerup', endDrag);
-    pin.addEventListener('pointercancel', endDrag);
   }
 
   function openCalPopup() {
