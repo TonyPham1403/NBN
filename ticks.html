@@ -3228,17 +3228,14 @@
 
   /**
    * @param {object} [pickOpts] sim/học: { pickable, pickedSet }
-   * @param {Set|null} [phaNewInPool] hist có ĐA: số mới vào phá tại mốc → viền xanh trên pool
+   * @param {Set|null} [poolGreenSet] viền xanh pool — chỉ tại mốc in đậm đầu tiên
    * @param {boolean} [sizeChg] |pool| khác mốc kề → nổi số trong pool[N]
    */
-  function formatTimelinePoolHtml(poolArr, newlyIn, deriveSet, prevPool, pickOpts, phaNewInPool, sizeChg) {
+  function formatTimelinePoolHtml(poolArr, newlyIn, deriveSet, prevPool, pickOpts, poolGreenSet, sizeChg) {
     const nums = poolArr || [];
     const bold = new Set(newlyIn || []);
     const pickable = !!(pickOpts && pickOpts.pickable);
-    const pickedSet = (pickOpts && pickOpts.pickedSet instanceof Set)
-      ? pickOpts.pickedSet
-      : null;
-    const phaNew = (phaNewInPool instanceof Set) ? phaNewInPool : null;
+    const poolGreen = (poolGreenSet instanceof Set) ? poolGreenSet : null;
     const parts = [];
     for (let i = 0; i < nums.length; i++) {
       const n = nums[i];
@@ -3246,12 +3243,11 @@
       let bit = wrapDeriveMarkHtml(String(n), n, deriveSet);
       if (isBold) bit = '<b>' + bit + '</b>';
       const canPick = pickable && isBold;
-      const isPicked = !!(pickedSet && pickedSet.has(n));
-      const isPhaNew = !!(phaNew && phaNew.has(n));
+      /* Viền xanh chỉ ở first-bold (poolGreenSet), không lặp mỗi lần in đậm. */
+      const isPoolGreen = !!(poolGreen && poolGreen.has(n));
       let cls = 'tl-num';
       if (canPick) cls += ' tl-pick';
-      if (canPick && isPicked) cls += ' is-picked';
-      if (isPhaNew) cls += ' is-pha-new';
+      if (isPoolGreen) cls += pickable ? ' is-picked' : ' is-pha-new';
       bit = '<span class="' + cls + '" data-hl-num="' + n + '" data-hl-col="pool"'
         + (isBold ? ' data-hl-bold="1"' : '')
         + (canPick
@@ -3371,8 +3367,22 @@
     const pickMode = isSim || studyPick;
     const picks = pickMode ? (simPicks || []) : [];
     const pickedSet = pickMode ? new Set(picks) : null;
-    const firstBoldMap = pickMode ? buildFirstBoldIndexMap(milestones) : null;
+    const firstBoldMap = buildFirstBoldIndexMap(milestones);
     const pickOpts = pickMode ? { pickable: true, pickedSet: pickedSet } : null;
+    /* Hist: mọi số từng mới vào phá — viền xanh pool tại first-bold của số đó. */
+    let everPháNew = null;
+    if (!pickMode) {
+      everPháNew = new Set();
+      for (let mi = 0; mi < milestones.length; mi++) {
+        const prevPhá = mi > 0 ? (milestones[mi - 1].phá || []) : [];
+        const prevSet = new Set(prevPhá);
+        const phaList = milestones[mi].phá || [];
+        for (let pi = 0; pi < phaList.length; pi++) {
+          const n = phaList[pi];
+          if (!prevSet.has(n)) everPháNew.add(n);
+        }
+      }
+    }
     let html = '';
     if (milestones.length > 1) html += '<div class="th-tl-flow" aria-hidden="true"></div>';
     for (let i = 0; i < milestones.length; i++) {
@@ -3383,21 +3393,24 @@
       /* Chỉ nổi số đầu của chuỗi cùng |pool| (khác mốc trên / mốc đầu). */
       const sizeChg = prevLen == null || prevLen !== currLen;
       let pháTxt;
-      /** Hist có ĐA: viền xanh trên pool + cột phá (số mới vào phá). */
-      let phaNewInPool = null;
+      /** Viền xanh pool: chỉ mốc in đậm đầu tiên (giống cột phá / firstBold). */
+      const poolGreen = new Set();
       if (pickMode) {
         const phaArr = simPháPicksAtMilestone(milestones, picks, i, firstBoldMap);
-        /* Sim/học: viền xanh trên cột phá đúng mốc firstBold. */
+        /* Sim/học: viền xanh phá + pool đúng mốc firstBold. */
         const newPhá = new Set();
         for (let pi = 0; pi < phaArr.length; pi++) {
           const n = phaArr[pi];
-          if (firstBoldMap && firstBoldMap.get(n) === i) newPhá.add(n);
+          if (firstBoldMap.get(n) === i) {
+            newPhá.add(n);
+            poolGreen.add(n);
+          }
         }
         pháTxt = phaArr.length
           ? formatNumsDeriveHtml(phaArr, deriveSet, ',', null, 'tl-pha-rm', newPhá)
           : '';
       } else {
-        /* Hist: số mới vào chuỗi phá tại mốc này → viền xanh pool + phá. */
+        /* Hist: số mới vào phá → viền xanh cột phá; pool chỉ tại first-bold. */
         const prevPhá = i > 0 ? (milestones[i - 1].phá || []) : [];
         const prevSet = new Set(prevPhá);
         const newPhá = new Set();
@@ -3406,7 +3419,11 @@
           const n = phaList[pi];
           if (!prevSet.has(n)) newPhá.add(n);
         }
-        phaNewInPool = newPhá.size ? newPhá : null;
+        if (everPháNew) {
+          everPháNew.forEach((n) => {
+            if (firstBoldMap.get(n) === i) poolGreen.add(n);
+          });
+        }
         pháTxt = phaList.length
           ? formatNumsDeriveHtml(phaList, deriveSet, ',', null, 'tl-pha', newPhá)
           : '';
@@ -3418,7 +3435,10 @@
         + '<span class="tl-t">' + m.t + '%</span>'
         + '<span class="tl-rate" title="% phá luật tại threshold này">' + rateTxt + '</span>'
         + '<span class="tl-pool">'
-        + formatTimelinePoolHtml(m.pool, m.newlyIn, deriveSet, prevPool, pickOpts, phaNewInPool, sizeChg)
+        + formatTimelinePoolHtml(
+          m.pool, m.newlyIn, deriveSet, prevPool, pickOpts,
+          poolGreen.size ? poolGreen : null, sizeChg
+        )
         + '</span>'
         + '<span class="tl-phá">phá: ' + pháTxt + '</span>'
         + '</div>';
