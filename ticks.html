@@ -1085,7 +1085,7 @@
       <strong id="sumDeriveRestCount">0</strong>
       <button type="button" id="btnDeriveRestList">Xem</button>
     </div>
-    <div class="chip" title="Kỳ có ≥1 số phá đúng k luật (theo cột thỏa threshold hiện tại)">
+    <div class="chip" title="Kỳ có ≥1 số ∈ phá mà ảnh hưởng đúng k luật (= dòng Ảnh hưởng k luật trong popup; threshold hiện tại)">
       <span>5/ Có số phá</span>
       <select id="phaKSelect" class="pha-k-select" aria-label="Số luật k" title="Chọn k">
         <option value="1">1</option>
@@ -1213,7 +1213,7 @@
   let derivePhaMaxList = [];
   /** @type {{ id: number, nums: number[] }[]} */
   let deriveRestList = [];
-  /** k → kỳ có ≥1 số x phá đúng k luật (threshold hiện tại) */
+  /** k → kỳ có ≥1 số ∈ phá mà ảnh hưởng đúng k luật (threshold hiện tại) */
   /** @type {Record<string, { id: number, nums: number[] }[]>} */
   let phaKListsByK = {};
   let selectedPhaK = 1;
@@ -3813,7 +3813,8 @@
       titleLabel = '5/ Có số phá ' + k + ' luật';
       titleX = list.length;
       useRateTitle = true;
-      subExtra = ' · ≥1 số phá đúng ' + k + ' luật (threshold hiện tại) · small = các số đó'
+      subExtra = ' · ≥1 số ∈ phá mà ảnh hưởng đúng ' + k
+        + ' luật (cùng nghĩa dòng Ảnh hưởng k luật · threshold hiện tại) · small = các số đó'
         + ' · mẫu = id cuối có ĐA − 21 + 1';
       listLen = titleX;
       listHtml = list.length
@@ -4756,8 +4757,10 @@
   }
 
   /**
-   * Kỳ có ≥1 số x phá đúng k luật — theo cột active (threshold hiện tại).
-   * nums trên mỗi kỳ = các x phá đúng k luật.
+   * Kỳ có ≥1 số ∈ tập phá mà ảnh hưởng đúng k luật — cùng nghĩa
+   * dòng "Ảnh hưởng k luật" trong popup (đếm pool trên cột hold∪violate),
+   * chỉ lấy số thuộc phá. Threshold = cột active hiện tại.
+   * nums trên mỗi kỳ = các số phá có ảnh hưởng đúng k.
    */
   function computePhaKLists(active) {
     phaKListsByK = {};
@@ -4770,21 +4773,29 @@
     let maxK = 0;
     for (let j = 0; j < displayIdx.length; j++) {
       const i = displayIdx[j];
-      const lawCountByNum = new Map();
+      const pháSet = new Set();
+      const affectByNum = new Map();
       for (let ai = 0; ai < active.length; ai++) {
         const pi = active[ai];
         const s = splits[pi];
-        if (!s || !s.violate.has(i)) continue;
-        const vn = s.violNums && s.violNums.get(i);
-        if (!vn) continue;
-        vn.forEach((x) => {
-          lawCountByNum.set(x, (lawCountByNum.get(x) || 0) + 1);
+        if (!s || s.disabled.has(i)) continue;
+        if (s.violate.has(i)) {
+          const vn = s.violNums && s.violNums.get(i);
+          if (vn) vn.forEach((x) => pháSet.add(x));
+        }
+        if (!s.hold.has(i) && !s.violate.has(i)) continue;
+        const pn = s.poolNums && s.poolNums.get(i);
+        if (!pn) continue;
+        pn.forEach((x) => {
+          affectByNum.set(x, (affectByNum.get(x) || 0) + 1);
         });
       }
-      if (!lawCountByNum.size) continue;
+      if (!pháSet.size) continue;
       /** @type {Record<string, number[]>} */
       const numsByK = {};
-      lawCountByNum.forEach((c, x) => {
+      pháSet.forEach((x) => {
+        const c = affectByNum.get(x) || 0;
+        if (c <= 0) return;
         if (c > maxK) maxK = c;
         const key = String(c);
         if (!numsByK[key]) numsByK[key] = [];
