@@ -886,6 +886,14 @@
     outline-offset: 1px;
     border-radius: 2px;
   }
+  /* Số vừa append vào cột phá tại mốc này — cùng UI viền pick pool */
+  .modal .th-tl-row .tl-num.is-pha-new,
+  .modal .th-tl-row .tl-num.is-pha-new.is-hl,
+  .modal .th-tl-row .tl-num.is-pha-new.is-hl-pha {
+    outline: 2px solid #0f766e;
+    outline-offset: 1px;
+    border-radius: 2px;
+  }
   .modal .affect-by-law {
     margin: 0 0 10px;
     padding: 6px 0 2px;
@@ -1040,7 +1048,7 @@
     <div class="actions"><button type="button" id="modalClose">Đóng</button></div>
   </div>
 </div>
-<script src="focus-sync.js?v=20261015force"></script>
+<script src="focus-sync.js?v=20261016simpha"></script>
 <script>
 (function () {
   // Pool đủ (D,P) ∈ 0..9; thứ tự: P tăng dần, rồi D tăng dần.
@@ -1755,24 +1763,30 @@
   /**
    * Danh sách số; gạch chân ∈ derive; phaSet = tô màu phá (khi đã có ĐA).
    * hoverMode: 'tl' | 'tl-pha' | 'tl-pha-rm' (sim: click bỏ phá) | 'affect'
+   * newPháSet: số vừa append tại mốc này → viền xanh (giống pick pool).
    */
-  function formatNumsDeriveHtml(nums, deriveSet, sep, phaSet, hoverMode) {
+  function formatNumsDeriveHtml(nums, deriveSet, sep, phaSet, hoverMode, newPháSet) {
     const list = nums || [];
     const joiner = sep == null ? ',' : sep;
     const parts = [];
     for (let i = 0; i < list.length; i++) {
       const n = list[i];
+      const isNewPhá = !!(newPháSet && newPháSet.has(n));
       let bit = wrapDeriveMarkHtml(String(n), n, deriveSet);
       if (phaSet && phaSet.has(n)) {
         bit = '<span class="pha-mark">' + bit + '</span>';
       }
       if (hoverMode === 'tl-pha-rm') {
-        bit = '<span class="tl-num tl-pha-rm" data-hl-num="' + n
+        bit = '<span class="tl-num tl-pha-rm'
+          + (isNewPhá ? ' is-pha-new' : '')
+          + '" data-hl-num="' + n
           + '" data-hl-col="pha" data-tl-pha-rm="' + n
           + '" title="Click: bỏ khỏi phá">' + bit + '</span>';
       } else if (hoverMode === 'tl' || hoverMode === 'tl-pha') {
         const col = hoverMode === 'tl-pha' ? 'pha' : 'pool';
-        bit = '<span class="tl-num" data-hl-num="' + n + '" data-hl-col="' + col + '">' + bit + '</span>';
+        bit = '<span class="tl-num'
+          + (isNewPhá ? ' is-pha-new' : '')
+          + '" data-hl-num="' + n + '" data-hl-col="' + col + '">' + bit + '</span>';
       } else if (hoverMode === 'affect') {
         bit = '<span class="affect-num" data-affect-num="' + n + '">' + bit + '</span>';
       }
@@ -2097,6 +2111,8 @@
   const SIM_TAB_ID_SS = 'ticks.simTabId';
   const SIM_PHA_BC_NAME = 'sua-sim-pha-picks';
   const SIM_PHA_LS_PREFIX = 'sua:simPhaPicks:';
+  /** Bridge → mọi tab index.html (kỳ rỗng cuối). */
+  const SIM_PHA_INDEX_LS = 'sua:simPhaPicks:index';
   let simRoomTag = '';
   let simTabId = '';
   let simPhaSyncApplying = false;
@@ -2147,6 +2163,7 @@
   function publishSimTlPháPicks() {
     if (simPhaSyncApplying) return;
     const tag = simRoomTag;
+    /* Trống mã = không sync (index↔ticks lẫn ticks peers). */
     if (!tag) return;
     const payload = {
       type: 'sim-pha-picks',
@@ -2159,12 +2176,25 @@
       if (simPhaBc) simPhaBc.postMessage(payload);
     } catch (e) { /* ignore */ }
     try {
+      localStorage.setItem(SIM_PHA_INDEX_LS, JSON.stringify({
+        picks: payload.picks,
+        t: payload.t,
+        tag: payload.tag,
+        from: payload.from
+      }));
+    } catch (e) { /* ignore */ }
+    try {
       localStorage.setItem(simPhaStorageKey(tag), JSON.stringify({
         picks: payload.picks,
         t: payload.t,
         from: payload.from
       }));
     } catch (e) { /* ignore */ }
+    try {
+      if (window.FocusSync && typeof window.FocusSync.publishSimPhaPicks === 'function') {
+        window.FocusSync.publishSimPhaPicks(payload.picks, { tag: payload.tag });
+      }
+    } catch (eFs) { /* ignore */ }
   }
 
   function applyRemoteSimTlPháPicks(picks, meta) {
@@ -2237,6 +2267,11 @@
         });
       }
     } catch (e) { /* ignore */ }
+    try {
+      if (window.FocusSync && typeof window.FocusSync.publishSimPhaJoin === 'function') {
+        window.FocusSync.publishSimPhaJoin(tag);
+      }
+    } catch (eFs) { /* ignore */ }
   }
 
   function loadSimPhaPicksForTag(tag) {
@@ -2288,6 +2323,28 @@
         };
       }
     } catch (e) { /* ignore */ }
+    /* FocusSync: nhận pick/join từ index (cùng kênh focus). */
+    try {
+      if (window.FocusSync && typeof window.FocusSync.onSimPhaPicks === 'function') {
+        window.FocusSync.onSimPhaPicks((payload) => {
+          const tag = normalizeSimRoomTag(payload && payload.tag);
+          if (!tag || !simRoomTag || tag !== simRoomTag) return;
+          if (payload && payload.source === 'ticks') return;
+          applyRemoteSimTlPháPicks(payload && payload.picks, {
+            force: true,
+            t: Number(payload && payload.t) || Date.now()
+          });
+        });
+      }
+      if (window.FocusSync && typeof window.FocusSync.onSimPhaJoin === 'function') {
+        window.FocusSync.onSimPhaJoin((payload) => {
+          const tag = normalizeSimRoomTag(payload && payload.tag);
+          if (!tag || !simRoomTag || tag !== simRoomTag) return;
+          if (payload && payload.source === 'ticks') return;
+          publishSimTlPháPicks();
+        });
+      }
+    } catch (eFsListen) { /* ignore */ }
     window.addEventListener('storage', (e) => {
       if (!e || !simRoomTag) return;
       if (e.key !== simPhaStorageKey(simRoomTag)) return;
@@ -2678,12 +2735,27 @@
       let pháTxt;
       if (isSim) {
         const phaArr = simPháPicksAtMilestone(milestones, picks, i, firstBoldMap);
+        /* Viền xanh đúng chỗ số vừa append (= mốc firstBold của pick). */
+        const newPhá = new Set();
+        for (let pi = 0; pi < phaArr.length; pi++) {
+          const n = phaArr[pi];
+          if (firstBoldMap && firstBoldMap.get(n) === i) newPhá.add(n);
+        }
         pháTxt = phaArr.length
-          ? formatNumsDeriveHtml(phaArr, deriveSet, ',', null, 'tl-pha-rm')
+          ? formatNumsDeriveHtml(phaArr, deriveSet, ',', null, 'tl-pha-rm', newPhá)
           : '';
       } else {
-        pháTxt = m.phá.length
-          ? formatNumsDeriveHtml(m.phá, deriveSet, ',', null, 'tl-pha')
+        /* Hist: số mới vào chuỗi phá tại mốc này (chưa có ở mốc trước). */
+        const prevPhá = i > 0 ? (milestones[i - 1].phá || []) : [];
+        const prevSet = new Set(prevPhá);
+        const newPhá = new Set();
+        const phaList = m.phá || [];
+        for (let pi = 0; pi < phaList.length; pi++) {
+          const n = phaList[pi];
+          if (!prevSet.has(n)) newPhá.add(n);
+        }
+        pháTxt = phaList.length
+          ? formatNumsDeriveHtml(phaList, deriveSet, ',', null, 'tl-pha', newPhá)
           : '';
       }
       const rateTxt = Number.isFinite(m.violPct)

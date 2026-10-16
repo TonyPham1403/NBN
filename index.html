@@ -9432,7 +9432,7 @@
         <div id="appStage">
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20261015deriveCopy2"
+            <iframe id="okFrame" src="ok_left.html?v=20261016simRoomTag"
                 style="width:100%;height:100%;border:0"></iframe>
         </section>
 
@@ -10498,7 +10498,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
     <script src="presence-config.js"></script>
-    <script src="focus-sync.js?v=20261015force"></script>
+    <script src="focus-sync.js?v=20261016simpha"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
     <script src="right-pane-sheets.js?v=20261012p1rel"></script>
@@ -15517,6 +15517,271 @@ function getFilterNoteTRefMaxSelections(mode) {
                     }
                 }
             });
+        }
+
+        /**
+         * Sync pick phá / khoanh với ticks.html — chỉ khi cùng mã định danh (≤3 chữ/số).
+         * Tab vào mã trước giữ trạng thái; tab sau join → ăn theo; rồi 2 bên lắng nghe nhau.
+         */
+        const SIM_PHA_TICKS_BC = 'sua-sim-pha-picks';
+        const SIM_PHA_INDEX_LS = 'sua:simPhaPicks:index';
+        const SIM_PHA_ROOM_PREFIX = 'sua:simPhaPicks:';
+        const INDEX_SIM_ROOM_TAG_SS = 'index.simRoomTag';
+        let indexSimRoomTag = '';
+        let simPhaFromTicksLastT = 0;
+        let simPhaFromTicksBc = null;
+        let simPhaSyncApplying = false;
+
+        function normalizeIndexSimRoomTag(raw) {
+            if (window.FocusSync && typeof window.FocusSync.normalizeSimRoomTag === 'function') {
+                return window.FocusSync.normalizeSimRoomTag(raw);
+            }
+            return String(raw == null ? '' : raw)
+                .replace(/[^a-zA-Z0-9]/g, '')
+                .slice(0, 3)
+                .toUpperCase();
+        }
+
+        function normalizeSimPhaPicksFromTicks(raw) {
+            const out = [];
+            const seen = new Set();
+            const list = Array.isArray(raw) ? raw : [];
+            for (let i = 0; i < list.length; i++) {
+                if (out.length >= 5) break;
+                const n = Number(list[i]);
+                if (!Number.isFinite(n) || n < 1 || n > 35 || seen.has(n)) continue;
+                seen.add(n);
+                out.push(n);
+            }
+            return out;
+        }
+
+        /** @type {number[]|null} */
+        let pendingSimPhaPicksFromTicks = null;
+
+        function getIndexSimPhaPicks() {
+            if (sheetManager && Array.isArray(sheetManager.leftBasicPreviewPickNums)) {
+                return normalizeSimPhaPicksFromTicks(sheetManager.leftBasicPreviewPickNums);
+            }
+            return [];
+        }
+
+        function syncSimPhaPicksToLeftUi(next) {
+            if (!sheetManager || typeof sheetManager.setLeftBasicPreviewPickNums !== 'function') {
+                pendingSimPhaPicksFromTicks = next.slice();
+                return;
+            }
+            sheetManager.setLeftBasicPreviewPickNums(next);
+            if (next.length && 'lastTrackingPreviewBarNum' in sheetManager) {
+                sheetManager.lastTrackingPreviewBarNum = next[next.length - 1];
+            }
+            const pushIframe = () => {
+                if (typeof sheetManager.syncLeftPickSelectionToIframe === 'function') {
+                    sheetManager.syncLeftPickSelectionToIframe(next);
+                }
+            };
+            /* Luôn đẩy khoanh nửa trái (giống click bar) — không phụ thuộc shouldSync. */
+            pushIframe();
+            requestAnimationFrame(pushIframe);
+            setTimeout(pushIframe, 120);
+            setTimeout(pushIframe, 400);
+            try {
+                window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
+            } catch (e) { /* ignore */ }
+        }
+
+        function flushPendingSimPhaPicksFromTicks() {
+            if (!pendingSimPhaPicksFromTicks) return;
+            const next = pendingSimPhaPicksFromTicks;
+            pendingSimPhaPicksFromTicks = null;
+            syncSimPhaPicksToLeftUi(next);
+        }
+
+        function publishIndexSimPhaPicks() {
+            if (simPhaSyncApplying) return;
+            const tag = indexSimRoomTag;
+            if (!tag) return;
+            const picks = getIndexSimPhaPicks();
+            const t = Date.now();
+            try {
+                if (window.FocusSync && typeof window.FocusSync.publishSimPhaPicks === 'function') {
+                    window.FocusSync.publishSimPhaPicks(picks, { tag: tag });
+                }
+            } catch (eFs) { /* ignore */ }
+            try {
+                if (simPhaFromTicksBc) {
+                    simPhaFromTicksBc.postMessage({
+                        type: 'sim-pha-picks',
+                        tag: tag,
+                        picks: picks,
+                        t: t,
+                        from: 'index'
+                    });
+                }
+            } catch (eBc) { /* ignore */ }
+        }
+
+        function applySimPhaPicksFromTicks(picks, meta) {
+            const tag = normalizeIndexSimRoomTag(meta && meta.tag);
+            if (!indexSimRoomTag || !tag || tag !== indexSimRoomTag) return;
+            const t = meta && meta.t != null ? Number(meta.t) : 0;
+            if (t && simPhaFromTicksLastT && t < simPhaFromTicksLastT && !(meta && meta.force)) {
+                return;
+            }
+            if (t) simPhaFromTicksLastT = t;
+            const next = normalizeSimPhaPicksFromTicks(picks);
+            const cur = getIndexSimPhaPicks();
+            const same = next.length === cur.length && next.every((n, i) => n === cur[i]);
+            /* Trùng nội dung → không đẩy UI (tránh echo publish ↔ ticks). */
+            if (same) return;
+            simPhaSyncApplying = true;
+            try {
+                syncSimPhaPicksToLeftUi(next);
+            } finally {
+                requestAnimationFrame(() => {
+                    simPhaSyncApplying = false;
+                });
+            }
+        }
+
+        function joinIndexSimRoom(tag) {
+            if (!tag) return;
+            let room = null;
+            try {
+                if (window.FocusSync && typeof window.FocusSync.readSimPhaRoom === 'function') {
+                    room = window.FocusSync.readSimPhaRoom(tag);
+                }
+            } catch (eR) { /* ignore */ }
+            if (!room) {
+                try {
+                    const raw = localStorage.getItem(SIM_PHA_ROOM_PREFIX + tag);
+                    if (raw) {
+                        const o = JSON.parse(raw);
+                        if (o && Array.isArray(o.picks)) room = o;
+                    }
+                } catch (eLs) { /* ignore */ }
+            }
+            if (room && Array.isArray(room.picks)) {
+                applySimPhaPicksFromTicks(room.picks, {
+                    tag: tag,
+                    force: true,
+                    t: Number(room.t) || Date.now()
+                });
+            } else {
+                requestAnimationFrame(() => {
+                    if (indexSimRoomTag === tag) publishIndexSimPhaPicks();
+                });
+            }
+            try {
+                if (window.FocusSync && typeof window.FocusSync.publishSimPhaJoin === 'function') {
+                    window.FocusSync.publishSimPhaJoin(tag);
+                }
+            } catch (eJ) { /* ignore */ }
+            try {
+                if (simPhaFromTicksBc) {
+                    simPhaFromTicksBc.postMessage({
+                        type: 'sim-pha-join',
+                        tag: tag,
+                        from: 'index',
+                        t: Date.now()
+                    });
+                }
+            } catch (eBc) { /* ignore */ }
+        }
+
+        function pushIndexSimRoomTagToLeftIframe() {
+            try {
+                const frame = el('okFrame');
+                if (frame && frame.contentWindow) {
+                    frame.contentWindow.postMessage({
+                        type: 'setSimRoomTag',
+                        tag: indexSimRoomTag
+                    }, '*');
+                }
+            } catch (e) { /* ignore */ }
+        }
+
+        function setIndexSimRoomTag(raw) {
+            const next = normalizeIndexSimRoomTag(raw);
+            const prev = indexSimRoomTag;
+            if (next === prev) {
+                pushIndexSimRoomTagToLeftIframe();
+                return;
+            }
+            indexSimRoomTag = next;
+            try {
+                sessionStorage.setItem(INDEX_SIM_ROOM_TAG_SS, next);
+            } catch (e) { /* ignore */ }
+            pushIndexSimRoomTagToLeftIframe();
+            if (next) {
+                joinIndexSimRoom(next);
+            }
+        }
+
+        function maybePublishIndexSimPhaFromLeftCircled() {
+            if (simPhaSyncApplying || !indexSimRoomTag) return;
+            publishIndexSimPhaPicks();
+        }
+
+        function initSimPhaPicksFromTicksSync() {
+            if (window.FocusSync && typeof window.FocusSync.onSimPhaPicks === 'function') {
+                window.FocusSync.onSimPhaPicks((payload) => {
+                    applySimPhaPicksFromTicks(payload && payload.picks, {
+                        tag: payload && payload.tag,
+                        force: true,
+                        t: Number(payload && payload.t) || Date.now()
+                    });
+                });
+            }
+            if (window.FocusSync && typeof window.FocusSync.onSimPhaJoin === 'function') {
+                window.FocusSync.onSimPhaJoin((payload) => {
+                    const tag = normalizeIndexSimRoomTag(payload && payload.tag);
+                    if (!tag || !indexSimRoomTag || tag !== indexSimRoomTag) return;
+                    publishIndexSimPhaPicks();
+                });
+            }
+            try {
+                if (typeof BroadcastChannel === 'function') {
+                    simPhaFromTicksBc = new BroadcastChannel(SIM_PHA_TICKS_BC);
+                    simPhaFromTicksBc.onmessage = (ev) => {
+                        const msg = ev && ev.data;
+                        if (!msg || !msg.type) return;
+                        const tag = normalizeIndexSimRoomTag(msg.tag);
+                        if (!tag || !indexSimRoomTag || tag !== indexSimRoomTag) return;
+                        if (msg.from === 'index') return;
+                        if (msg.type === 'sim-pha-join') {
+                            publishIndexSimPhaPicks();
+                            return;
+                        }
+                        if (msg.type === 'sim-pha-picks') {
+                            applySimPhaPicksFromTicks(msg.picks, {
+                                tag: tag,
+                                force: true,
+                                t: Number(msg.t) || Date.now()
+                            });
+                        }
+                    };
+                }
+            } catch (e) { /* ignore */ }
+            window.addEventListener('storage', (e) => {
+                if (!e || !e.newValue || !indexSimRoomTag) return;
+                const roomKey = SIM_PHA_ROOM_PREFIX + indexSimRoomTag;
+                if (e.key !== roomKey && e.key !== SIM_PHA_INDEX_LS) return;
+                try {
+                    const o = JSON.parse(e.newValue);
+                    if (!o || !Array.isArray(o.picks)) return;
+                    const tag = normalizeIndexSimRoomTag(o.tag) || indexSimRoomTag;
+                    applySimPhaPicksFromTicks(o.picks, {
+                        tag: tag,
+                        force: true,
+                        t: Number(o.t) || Date.now()
+                    });
+                } catch (err) { /* ignore */ }
+            });
+            try {
+                const saved = sessionStorage.getItem(INDEX_SIM_ROOM_TAG_SS);
+                if (saved) setIndexSimRoomTag(saved);
+            } catch (e) { /* ignore */ }
         }
 
         function getNextFilterPopupDeriveChainPolarity(current) {
@@ -33951,7 +34216,7 @@ function getFilterNoteTRefMaxSelections(mode) {
         }
 
         /** Đồng bộ viền cam → nửa trái. Gạch chân Chuỗi luôn theo basicNums (tách special). */
-        function notifyLeftTrackingObserveFocusNums(nums, viewMode, basicNums) {
+        function notifyLeftTrackingObserveFocusNums(nums, viewMode, basicNums, observePinGen) {
             const frame = el('okFrame');
             if (!frame || !frame.contentWindow) {
                 return;
@@ -33976,13 +34241,19 @@ function getFilterNoteTRefMaxSelections(mode) {
             if (!Array.isArray(basicList)) {
                 basicList = mode === 'basic' ? list : [];
             }
+            const payload = {
+                type: 'trackingObserveFocusNumsChanged',
+                nums: list,
+                viewMode: mode === 'special' ? 'special' : 'basic',
+                basicNums: basicList
+            };
+            if (observePinGen != null && Number.isFinite(Number(observePinGen))) {
+                payload.observePinGen = Number(observePinGen);
+            } else if (sheetManager && sheetManager._lastObservePinGen != null) {
+                payload.observePinGen = Number(sheetManager._lastObservePinGen);
+            }
             try {
-                frame.contentWindow.postMessage({
-                    type: 'trackingObserveFocusNumsChanged',
-                    nums: list,
-                    viewMode: mode === 'special' ? 'special' : 'basic',
-                    basicNums: basicList
-                }, '*');
+                frame.contentWindow.postMessage(payload, '*');
             } catch (e) { /* ignore */ }
         }
 
@@ -34598,6 +34869,7 @@ function getFilterNoteTRefMaxSelections(mode) {
 
         function onLeftPaneReadyMessage() {
             leftPaneIframeReady = true;
+            pushIndexSimRoomTagToLeftIframe();
             if (!sessionBootstrapDone) {
                 if (sheetManager) {
                     bootstrapDefaultSessionState();
@@ -34614,6 +34886,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                     sheetManager = new RightPaneSheetManager();
                 }
                 sheetManager.loadData(j);
+                flushPendingSimPhaPicksFromTicks();
                 if (typeof sheetManager.setPhaseToolbarConfig === 'function') {
                     sheetManager.setPhaseToolbarConfig({
                         enabled: !!phaseToolbarEnabled,
@@ -34659,6 +34932,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                     sheetManager = new RightPaneSheetManager();
                 }
                 sheetManager.loadData([]);
+                flushPendingSimPhaPicksFromTicks();
                 if (typeof sheetManager.setPhaseToolbarConfig === 'function') {
                     sheetManager.setPhaseToolbarConfig({
                         enabled: !!phaseToolbarEnabled,
@@ -34963,6 +35237,7 @@ function getFilterNoteTRefMaxSelections(mode) {
 
         document.addEventListener('DOMContentLoaded', () => {
             initSharedFocusIdSync();
+            initSimPhaPicksFromTicksSync();
             initParentSpaceSubmitShortcut();
             initSplitPaneKeyboardRouting();
             initRightPanePointerFocusRouting();
@@ -34991,7 +35266,10 @@ function getFilterNoteTRefMaxSelections(mode) {
                 const nums = Array.isArray(detail.nums) ? detail.nums : null;
                 const viewMode = detail.viewMode || null;
                 const basicNums = Array.isArray(detail.basicNums) ? detail.basicNums : null;
-                notifyLeftTrackingObserveFocusNums(nums, viewMode, basicNums);
+                const observePinGen = detail.observePinGen != null
+                    ? detail.observePinGen
+                    : null;
+                notifyLeftTrackingObserveFocusNums(nums, viewMode, basicNums, observePinGen);
             });
 
             // Listen for sheet changes
@@ -35434,7 +35712,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                             : 'basic';
                         sheetManager.setTrackingBarObserveFocusNums(msg.nums, {
                             force: !!msg.force,
-                            mode: targetMode
+                            mode: targetMode,
+                            observePinGen: msg.observePinGen
                         });
                     }
                     return;
@@ -35477,6 +35756,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                             maxFreqNum: msg.maxFreqNum
                         });
                     }
+                } else if (msg.type === 'simRoomTagChanged') {
+                    setIndexSimRoomTag(msg.tag);
                 } else if (msg.type === 'leftCircledNumsReady') {
                     if (sheetManager && typeof sheetManager.setLeftBasicPreviewPickNums === 'function') {
                         const forceSync = !!msg.forceSync;
@@ -35496,6 +35777,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                             });
                             if (changed || forceSync) {
                                 window.dispatchEvent(new CustomEvent('leftCircledNumsChanged'));
+                            }
+                            if (changed || forceSync) {
+                                maybePublishIndexSimPhaFromLeftCircled();
                             }
                         }
                     }

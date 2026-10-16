@@ -1194,6 +1194,32 @@
             gap: 6px 10px;
         }
 
+        /* Mã phòng sync pick với ticks — cuối hàng pick (text area) */
+        .mode-row .sim-room-tag {
+            margin-left: auto;
+            width: 3.25em;
+            height: 26px;
+            padding: 0 6px;
+            box-sizing: border-box;
+            border: 1px solid #d1d5db;
+            border-radius: 5px;
+            background: #fff;
+            color: #111;
+            font: 700 12px/1 ui-monospace, "Cascadia Mono", Consolas, monospace;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+            text-align: center;
+        }
+        .mode-row .sim-room-tag:focus {
+            outline: 2px solid #0f766e;
+            outline-offset: 1px;
+            border-color: #0f766e;
+        }
+        .mode-row .sim-room-tag:not(:placeholder-shown) {
+            border-color: #0f766e;
+            color: #0f766e;
+        }
+
         .pick-preview-with-badges {
             display: inline-flex;
             align-items: center;
@@ -2518,6 +2544,10 @@
                                     title="Intersection (intersect): cặp a,b trong tập khoanh, freq≥2, cùng chuỗi M, tách miền trên/dưới M">∩</span>
                             </span>
                         </span>
+                        <input id="simRoomTag" class="sim-room-tag" type="text" maxlength="3"
+                            inputmode="text" autocomplete="off" spellcheck="false" placeholder="···"
+                            title="Mã sync pick với ticks (tối đa 3 chữ/số) · cùng mã = đồng bộ · trống = không sync"
+                            aria-label="Mã định danh sync pick với ticks"/>
                     </div>
                     <div id="pairList"
                         style="margin-top:6px;font-size:13px;color:#333;white-space:normal;word-break:break-word;overflow-wrap:anywhere;display:flex;align-items:center;flex-wrap:wrap;gap:6px;max-width:100%;box-sizing:border-box">
@@ -8096,6 +8126,13 @@
         var observeChuoiPinSyncTimer = null;
         /** Bộ số vừa post khi sync pin — dùng để nhận đúng echo từ parent. */
         var observeChuoiPinSyncExpectedKey = '';
+        /**
+         * Gen + follow-lock: đổi id nhanh (ticks) → không cho echo số cũ
+         * suy lại nhãn pin (tránh gạch chân nhảy sang Chuỗi x khác).
+         */
+        var observeChuoiPinGen = 0;
+        var observeChuoiPinFollowLock = false;
+        var observeChuoiPinFollowLockTimer = null;
 
         function normalizeChuoiPinnedLabels(labels) {
             var out = [];
@@ -8213,6 +8250,27 @@
             return keep;
         }
 
+        function clearObserveChuoiPinFollowLock() {
+            observeChuoiPinFollowLock = false;
+            if (observeChuoiPinFollowLockTimer) {
+                clearTimeout(observeChuoiPinFollowLockTimer);
+                observeChuoiPinFollowLockTimer = null;
+            }
+        }
+
+        /** Khóa nhãn pin khi đổi focus id — hết hạn hoặc khi nhận đúng echo. */
+        function armObserveChuoiPinFollowLock() {
+            observeChuoiPinGen += 1;
+            observeChuoiPinFollowLock = true;
+            if (observeChuoiPinFollowLockTimer) {
+                clearTimeout(observeChuoiPinFollowLockTimer);
+            }
+            observeChuoiPinFollowLockTimer = setTimeout(function () {
+                observeChuoiPinFollowLock = false;
+                observeChuoiPinFollowLockTimer = null;
+            }, 2000);
+        }
+
         function beginObserveChuoiPinSyncGuard(expectedFocusSet) {
             observeChuoiPinSyncing = true;
             observeChuoiPinSyncExpectedKey = expectedFocusSet
@@ -8221,6 +8279,7 @@
             if (observeChuoiPinSyncTimer) {
                 clearTimeout(observeChuoiPinSyncTimer);
             }
+            /* Chỉ hết syncing — giữ followLock để echo muộn không suy lại nhãn. */
             observeChuoiPinSyncTimer = setTimeout(function () {
                 observeChuoiPinSyncing = false;
                 observeChuoiPinSyncExpectedKey = '';
@@ -8237,7 +8296,8 @@
                     type: 'setTrackingBarObserveFocus',
                     nums: list,
                     force: force !== false,
-                    mode: 'basic'
+                    mode: 'basic',
+                    observePinGen: observeChuoiPinGen
                 }, '*');
             } catch (ePost) { /* ignore */ }
         }
@@ -8283,10 +8343,16 @@
         }
 
         /**
-         * Viền cam đổi → cập nhật snapshot; pin chỉ đổi khi KHÔNG đang sync follow-id
+         * Viền cam đổi → cập nhật snapshot; pin chỉ đổi khi KHÔNG đang sync/follow-id
          * (tránh event số cũ làm gạch chân nhảy sang chuỗi khác).
          */
-        function onTrackingObserveFocusNumsChanged(rawNums, viewMode, basicNums) {
+        function onTrackingObserveFocusNumsChanged(rawNums, viewMode, basicNums, observePinGen) {
+            var msgGen = observePinGen != null ? Number(observePinGen) : null;
+            if (msgGen != null && Number.isFinite(msgGen) && msgGen > 0
+                && msgGen < observeChuoiPinGen) {
+                /* Echo từ lần đổi id trước — bỏ. */
+                return;
+            }
             var sourceNums = Array.isArray(basicNums)
                 ? basicNums
                 : (viewMode === 'special' ? null : rawNums);
@@ -8307,12 +8373,18 @@
                         clearTimeout(observeChuoiPinSyncTimer);
                         observeChuoiPinSyncTimer = null;
                     }
+                    clearObserveChuoiPinFollowLock();
                     return;
                 }
                 /* Event cũ / thiếu số lúc đang sync id — bỏ qua, giữ nhãn pin */
                 return;
             }
             observeChuoiLastFocusSet = next;
+            if (observeChuoiPinFollowLock) {
+                /* Đang follow đổi id: chỉ vẽ lại theo nhãn đã pin, không suy nhãn từ số. */
+                applyObserveChuoiPinUnderline();
+                return;
+            }
             /* Chỉnh viền cam tay: pin = các chuỗi đang đủ 5 số */
             setObserveChuoiPinnedLabels(getFullyObservedChuoiLabels(next));
             applyObserveChuoiPinUnderline();
@@ -14751,7 +14823,12 @@
 
                 if (msg.type === 'trackingObserveFocusNumsChanged') {
                     try {
-                        onTrackingObserveFocusNumsChanged(msg.nums, msg.viewMode, msg.basicNums);
+                        onTrackingObserveFocusNumsChanged(
+                            msg.nums,
+                            msg.viewMode,
+                            msg.basicNums,
+                            msg.observePinGen
+                        );
                     } catch (eObs) { /* ignore */ }
                     return;
                 }
@@ -14929,6 +15006,10 @@
                      * Follow theo nhãn đã pin (Chuỗi 3 giữ Chuỗi 3), không suy lại từ bộ số. */
                     var chuoiFollowAcrossIds = [];
                     if (isFocusArrival) {
+                        /* Khóa ngay — đổi id nhanh từ ticks không để echo cũ lệch gạch chân. */
+                        try {
+                            armObserveChuoiPinFollowLock();
+                        } catch (eArm) { /* ignore */ }
                         try {
                             chuoiFollowAcrossIds = observeChuoiPinnedLabels.slice();
                             if (!chuoiFollowAcrossIds.length) {
@@ -15553,6 +15634,66 @@
             } catch (eReq) {
                 /* ignore */
             }
+        })();
+
+        /* Mã định danh sync pick với ticks — cuối mode-row (text area) */
+        (function initSimRoomTagField() {
+            var el = document.getElementById('simRoomTag');
+            if (!el) return;
+            var SS_KEY = 'index.simRoomTag';
+            var current = '';
+
+            function normalizeTag(raw) {
+                return String(raw == null ? '' : raw)
+                    .replace(/[^a-zA-Z0-9]/g, '')
+                    .slice(0, 3)
+                    .toUpperCase();
+            }
+
+            function notifyParent(tag) {
+                try {
+                    if (window.parent && window.parent !== window) {
+                        window.parent.postMessage({ type: 'simRoomTagChanged', tag: tag }, '*');
+                    }
+                } catch (e) { /* ignore */ }
+            }
+
+            function setTag(raw, opts) {
+                var next = normalizeTag(raw);
+                var silent = opts && opts.silent;
+                if (el.value !== next) el.value = next;
+                if (next === current) return;
+                current = next;
+                try {
+                    sessionStorage.setItem(SS_KEY, next);
+                } catch (eSs) { /* ignore */ }
+                if (!silent) notifyParent(next);
+            }
+
+            try {
+                var saved = sessionStorage.getItem(SS_KEY);
+                if (saved) {
+                    current = normalizeTag(saved);
+                    el.value = current;
+                    notifyParent(current);
+                }
+            } catch (eLoad) { /* ignore */ }
+
+            el.addEventListener('input', function () {
+                var cur = el.value;
+                var norm = normalizeTag(cur);
+                if (cur !== norm) el.value = norm;
+                setTag(norm);
+            });
+            el.addEventListener('blur', function () {
+                setTag(el.value);
+            });
+
+            window.addEventListener('message', function (ev) {
+                var msg = ev && ev.data;
+                if (!msg || msg.type !== 'setSimRoomTag') return;
+                setTag(msg.tag, { silent: true });
+            });
         })();
 
         // Báo parent: đã gắn message listener — tránh bootstrap setLines lúc còn about:blank.

@@ -3,12 +3,15 @@
  * BroadcastChannel (realtime) + localStorage (tab mở sau / fallback).
  *
  * state: { id:number, popup:boolean, mode:'hist'|'sim'|null }
+ * Aux: sim-pha-picks — pick phá kỳ rỗng cuối (ticks → index khoanh).
  */
 (function (global) {
   'use strict';
 
   const CHANNEL = 'sua-focus-id';
   const STORAGE_KEY = 'sua:focusId';
+  const SIM_PHA_STORAGE_KEY = 'sua:simPhaPicks:index';
+  const SIM_PHA_ROOM_PREFIX = 'sua:simPhaPicks:';
 
   /** @type {BroadcastChannel|null} */
   let bc = null;
@@ -17,7 +20,22 @@
   let applying = false;
   /** @type {((state: object, meta: object) => void)|null} */
   let applyFn = null;
+  /** @type {((payload: object, meta: object) => void)|null} */
+  let simPhaApplyFn = null;
+  /** @type {((payload: object, meta: object) => void)|null} */
+  let simPhaJoinFn = null;
   let sourceName = 'page';
+
+  function normalizeSimRoomTag(raw) {
+    return String(raw == null ? '' : raw)
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .slice(0, 3)
+      .toUpperCase();
+  }
+
+  function simPhaRoomKey(tag) {
+    return SIM_PHA_ROOM_PREFIX + tag;
+  }
 
   function parseId(raw) {
     const n = Number(raw);
@@ -150,7 +168,16 @@
         bc = new BroadcastChannel(CHANNEL);
         bc.onmessage = function (ev) {
           const d = ev && ev.data;
-          if (!d || d.type !== 'focus') return;
+          if (!d || !d.type) return;
+          if (d.type === 'sim-pha-picks') {
+            deliverSimPha(d, { remote: true, source: d.source });
+            return;
+          }
+          if (d.type === 'sim-pha-join') {
+            deliverSimPhaJoin(d, { remote: true, source: d.source });
+            return;
+          }
+          if (d.type !== 'focus') return;
           deliver(
             { id: d.id, popup: d.popup, mode: d.mode },
             { remote: true, source: d.source, force: !!d.force }
@@ -162,7 +189,18 @@
     }
 
     window.addEventListener('storage', function (ev) {
-      if (!ev || ev.key !== STORAGE_KEY) return;
+      if (!ev) return;
+      if (ev.key === SIM_PHA_STORAGE_KEY) {
+        if (!ev.newValue) return;
+        try {
+          const o = JSON.parse(ev.newValue);
+          if (o && Array.isArray(o.picks)) {
+            deliverSimPha(o, { remote: true, source: 'storage' });
+          }
+        } catch (e) { /* ignore */ }
+        return;
+      }
+      if (ev.key !== STORAGE_KEY) return;
       var st = null;
       try {
         if (ev.newValue && ev.newValue.charAt(0) === '{') {
@@ -175,6 +213,100 @@
       }
       deliver(st, { remote: true, source: 'storage' });
     });
+  }
+
+  function deliverSimPha(payload, meta) {
+    if (typeof simPhaApplyFn !== 'function') return;
+    try {
+      simPhaApplyFn(payload || {}, meta || {});
+    } catch (e) { /* ignore */ }
+  }
+
+  function deliverSimPhaJoin(payload, meta) {
+    if (typeof simPhaJoinFn !== 'function') return;
+    try {
+      simPhaJoinFn(payload || {}, meta || {});
+    } catch (e) { /* ignore */ }
+  }
+
+  /**
+   * Publish picks phá sim — chỉ khi có mã phòng (index↔ticks cùng mã).
+   * @param {number[]} picks
+   * @param {{ tag?: string }} [opts]
+   */
+  function publishSimPhaPicks(picks, opts) {
+    opts = opts || {};
+    const tag = normalizeSimRoomTag(opts.tag);
+    if (!tag) return;
+    const list = [];
+    const seen = {};
+    const raw = Array.isArray(picks) ? picks : [];
+    for (let i = 0; i < raw.length; i++) {
+      if (list.length >= 5) break;
+      const n = Number(raw[i]);
+      if (!Number.isFinite(n) || n < 1 || n > 35 || seen[n]) continue;
+      seen[n] = true;
+      list.push(n);
+    }
+    const payload = {
+      type: 'sim-pha-picks',
+      picks: list,
+      tag: tag,
+      t: Date.now(),
+      source: sourceName
+    };
+    try {
+      localStorage.setItem(SIM_PHA_STORAGE_KEY, JSON.stringify(payload));
+    } catch (e) { /* ignore */ }
+    try {
+      localStorage.setItem(simPhaRoomKey(tag), JSON.stringify(payload));
+    } catch (e) { /* ignore */ }
+    if (bc) {
+      try {
+        bc.postMessage(payload);
+      } catch (e2) { /* ignore */ }
+    }
+  }
+
+  /** Tab mới vào phòng → xin trạng thái từ tab đang giữ mã. */
+  function publishSimPhaJoin(tag) {
+    const t = normalizeSimRoomTag(tag);
+    if (!t) return;
+    const payload = {
+      type: 'sim-pha-join',
+      tag: t,
+      t: Date.now(),
+      source: sourceName
+    };
+    if (bc) {
+      try {
+        bc.postMessage(payload);
+      } catch (e) { /* ignore */ }
+    }
+  }
+
+  function readSimPhaRoom(tag) {
+    const t = normalizeSimRoomTag(tag);
+    if (!t) return null;
+    try {
+      const raw = localStorage.getItem(simPhaRoomKey(t));
+      if (!raw) return null;
+      const o = JSON.parse(raw);
+      if (!o || !Array.isArray(o.picks)) return null;
+      return o;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /** @param {(payload: object, meta: object) => void} fn */
+  function onSimPhaPicks(fn) {
+    simPhaApplyFn = typeof fn === 'function' ? fn : null;
+  }
+
+  /** @param {(payload: object, meta: object) => void} fn */
+  function onSimPhaJoin(fn) {
+    simPhaJoinFn = typeof fn === 'function' ? fn : null;
   }
 
   function get() {
@@ -243,10 +375,17 @@
   global.FocusSync = {
     init: init,
     publish: publish,
+    publishSimPhaPicks: publishSimPhaPicks,
+    publishSimPhaJoin: publishSimPhaJoin,
+    readSimPhaRoom: readSimPhaRoom,
+    onSimPhaPicks: onSimPhaPicks,
+    onSimPhaJoin: onSimPhaJoin,
+    normalizeSimRoomTag: normalizeSimRoomTag,
     get: get,
     getId: getId,
     readStored: readStored,
     seedFromUrlOrStorage: seedFromUrlOrStorage,
-    isApplying: function () { return applying; }
+    isApplying: function () { return applying; },
+    SIM_PHA_STORAGE_KEY: SIM_PHA_STORAGE_KEY
   };
 })(typeof window !== 'undefined' ? window : this);

@@ -20726,12 +20726,16 @@ class RightPaneSheetManager {
     /** Báo nửa trái: gạch chân Chuỗi luôn theo basicNums (tách biệt special). */
     emitTrackingObserveFocusChanged() {
         try {
+            const detail = {
+                nums: this.getTrackingBarObserveFocusNums(),
+                viewMode: this.getActiveTrackingViewMode(),
+                basicNums: this.getTrackingBarObserveFocusNumsForMode('basic')
+            };
+            if (this._lastObservePinGen != null) {
+                detail.observePinGen = this._lastObservePinGen;
+            }
             window.dispatchEvent(new CustomEvent('trackingObserveFocusNumsChanged', {
-                detail: {
-                    nums: this.getTrackingBarObserveFocusNums(),
-                    viewMode: this.getActiveTrackingViewMode(),
-                    basicNums: this.getTrackingBarObserveFocusNumsForMode('basic')
-                }
+                detail
             }));
         } catch (e) { /* ignore */ }
     }
@@ -20801,6 +20805,9 @@ class RightPaneSheetManager {
         const tableWrap = typeof document !== 'undefined'
             ? document.getElementById('tableWrap')
             : null;
+        if (options && options.observePinGen != null) {
+            this._lastObservePinGen = Number(options.observePinGen);
+        }
         if (tableWrap && typeof tableWrap.__trackingSetObserveFocusNums === 'function') {
             return !!tableWrap.__trackingSetObserveFocusNums(rawNums, options);
         }
