@@ -730,6 +730,23 @@
   .modal .elim-sum {
     font-size: 18px; font-weight: 800; color: #b45309;
     margin: 0 0 8px; font-variant-numeric: tabular-nums;
+    line-height: 1.35;
+  }
+  /* Giữ chiều cao Loại ổn định khi pick thêm/bớt (sync 2 tab): ghost = pool max. */
+  .modal .elim-sum-loại {
+    position: relative;
+    display: block;
+  }
+  .modal .elim-sum-loại-ghost {
+    display: block;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .modal .elim-sum-loại-live {
+    position: absolute;
+    left: 0;
+    right: 0;
+    top: 0;
   }
   .modal .viol-sum {
     font-size: 18px; font-weight: 800; color: #b91c1c;
@@ -2070,15 +2087,24 @@
    * Tóm tắt Loại/Phá luật trên popup sim:
    * - Loại = pool max \ (peer mọi luật dính pick)
    * - Phá luật = các số đã click
+   * Chiều cao Loại khóa theo ghost pool-max để sync 2 tab không nhảy layout.
    */
   function formatSimPickSumHtml(deriveSet, poolMaxArr) {
     const poolMax = Array.isArray(poolMaxArr) ? poolMaxArr : simTlPoolMaxCache;
     const elimArr = buildSimLoạiArr(poolMax, simTlPháPicks);
     const picksSorted = simTlPháPicks.slice().sort((a, b) => a - b);
-    let sumHtml = elimArr.length
+    const liveLoại = elimArr.length
       ? ('Loại (' + elimArr.length + ' số): '
         + formatNumsDeriveHtml(elimArr, deriveSet, ', '))
       : 'Loại (0 số): (không)';
+    const ghostLoại = poolMax.length
+      ? ('Loại (' + poolMax.length + ' số): '
+        + formatNumsDeriveHtml(poolMax, deriveSet, ', '))
+      : 'Loại (0 số): (không)';
+    let sumHtml = '<span class="elim-sum-loại">'
+      + '<span class="elim-sum-loại-ghost" aria-hidden="true">' + ghostLoại + '</span>'
+      + '<span class="elim-sum-loại-live">' + liveLoại + '</span>'
+      + '</span>';
     sumHtml += '<div class="viol-sum">'
       + (picksSorted.length
         ? ('Phá luật (' + picksSorted.length + ' số): '
