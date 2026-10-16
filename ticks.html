@@ -19,7 +19,31 @@
   .banner .title-row {
     display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px;
   }
-  .banner h1 { margin: 0; font-size: 16px; font-weight: 700; }
+  .banner h1 {
+    margin: 0; font-size: 16px; font-weight: 700;
+    border: 2px solid transparent;
+    border-radius: 6px;
+    padding: 2px 8px;
+    box-sizing: border-box;
+    cursor: pointer;
+    user-select: none;
+    /* Nằm trên overlay popup — click được như threshold khi modal mở. */
+    position: relative;
+    z-index: 60;
+  }
+  .banner h1:hover {
+    border-color: rgba(234, 179, 8, .55);
+  }
+  /* Trạng thái học tập (E / click tiêu đề): một viền vàng */
+  body.is-study .banner h1,
+  body.is-study .banner h1:hover {
+    border-color: #eab308;
+  }
+  /* Học tập: siêu mờ giá trị mọi cột (giữ id rõ để click) — không transition để đổi tức thì */
+  body.is-study table.dc-table tbody td:not(.id) {
+    opacity: 0.08;
+    filter: grayscale(1);
+  }
   .banner p {
     margin: 4px 0 0; opacity: .85; font-size: 12px;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
@@ -867,14 +891,33 @@
     font-weight: 600;
     font-style: italic;
   }
+  .delta-tip .derive-mark {
+    text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 2px;
+    text-decoration-color: currentColor;
+  }
   .modal .th-tl-row .tl-pool {
     display: inline-flex;
     align-items: center;
     gap: 3px;
     white-space: nowrap;
   }
+  /* Chỗ Δ trống (vd pool[0]): giữ đúng bề ngang nút Δ → pool thẳng cột */
+  .modal .th-tl-row .tl-delta-slot {
+    display: inline-block;
+    flex: 0 0 12px;
+    width: 12px;
+    height: 12px;
+    margin: 0 1px 0 0;
+  }
   .modal .th-tl-row .tl-pool-text { min-width: 0; }
   .modal .th-tl-row .tl-pool b { font-weight: 800; color: #111; }
+  /* |pool| khác mốc trên (số đầu chuỗi cùng size): nổi số trong pool[N] */
+  .modal .th-tl-row .tl-pool-n.is-size-chg {
+    color: #c2410c;
+    font-weight: 800;
+  }
   /* Sim (kỳ rỗng cuối): số đậm click → append phá từ mốc lần đầu tô đen */
   .modal .th-tl-row .tl-num.tl-pick {
     cursor: pointer;
@@ -884,8 +927,7 @@
     outline-offset: 1px;
     border-radius: 2px;
   }
-  .modal .th-tl-row .tl-num.tl-pick.is-picked,
-  .modal .th-tl-row .tl-num.tl-pick.is-picked.is-hl {
+  .modal .th-tl-row .tl-num.tl-pick.is-picked {
     outline: 2px solid #0f766e;
     outline-offset: 1px;
     border-radius: 2px;
@@ -903,10 +945,8 @@
     outline-offset: 1px;
     border-radius: 2px;
   }
-  /* Số vừa append vào cột phá tại mốc này — cùng UI viền pick pool */
-  .modal .th-tl-row .tl-num.is-pha-new,
-  .modal .th-tl-row .tl-num.is-pha-new.is-hl,
-  .modal .th-tl-row .tl-num.is-pha-new.is-hl-pha {
+  /* Viền xanh: số mới vào phá (hist: pool + phá; sim: cột phá) */
+  .modal .th-tl-row .tl-num.is-pha-new {
     outline: 2px solid #0f766e;
     outline-offset: 1px;
     border-radius: 2px;
@@ -950,9 +990,12 @@
   .modal .tl-num {
     cursor: default;
   }
-  /* outline không chiếm layout → số vẫn sát nhau như khi không hl */
+  /* Rê số → tô đỏ chỗ in đậm; ưu tiên hơn viền xanh (pick / pha-new) */
   .modal .tl-num.is-hl,
-  .modal .tl-num.is-hl-pha {
+  .modal .tl-num.is-hl-pha,
+  .modal .th-tl-row .tl-num.tl-pick.is-picked.is-hl,
+  .modal .th-tl-row .tl-num.is-pha-new.is-hl,
+  .modal .th-tl-row .tl-num.is-pha-new.is-hl-pha {
     outline: 3px solid #b91c1c;
     outline-offset: 0;
     border-radius: 2px;
@@ -983,7 +1026,9 @@
 <body>
 <div class="banner">
   <div class="title-row">
-    <h1>derive_chain — tick khi mệnh đề đúng (hold)</h1>
+    <h1 id="studyModeTitle"
+      title="Click hoặc phím E: bật/tắt học tập · cùng mã định danh = sync giữa các tab ticks"
+      role="button" tabindex="0" aria-pressed="false">derive_chain — tick khi mệnh đề đúng (hold)</h1>
     <div class="threshold" title="Chỉ hiện cột có T% thỏa ngưỡng">
       <span class="th-label">threshold</span>
       <div class="op-dd" id="thOpDd">
@@ -1140,6 +1185,12 @@
   let simIdOn = false;
   /** @type {number|null} */
   let histIdOnIdx = null;
+  /** Học tập (phím E): mờ cột + pick giả lập trên timeline kỳ hist. */
+  let studyMode = false;
+  /** @type {number[]} pick phá giả lập khi học — nhớ khi toggle E cùng id. */
+  let studyPicks = [];
+  /** @type {number|null} id đang gắn studyPicks; đổi id → xóa picks. */
+  let studyPicksForId = null;
   /**
    * Hai id hist gần nhất đã click (khác rỗng cuối) — Ctrl+Z xoay vòng A↔B.
    * focusUndoB = kỳ hiện tại · focusUndoA = kỳ trước đó.
@@ -1923,6 +1974,8 @@
     simTlMilestonesCache = null;
     simTlDeriveSetCache = null;
     simTlPoolMaxCache = [];
+    studyTlDetailsCache = null;
+    studyTlDisabledCache = null;
   }
 
   function clearSimTlPháPicks() {
@@ -1984,38 +2037,117 @@
 
   const SIM_PHA_PICK_MAX = 5;
 
+  function isStudyHistPickActive() {
+    return !!(studyMode && !simIdOn && histIdOnIdx != null && popupKind === 'elim');
+  }
+
+  function isTimelinePickActive() {
+    return !!(simIdOn && popupKind === 'elim') || isStudyHistPickActive();
+  }
+
+  /** @returns {number[]} */
+  function activeTlPháPicksRef() {
+    return isStudyHistPickActive() ? studyPicks : simTlPháPicks;
+  }
+
   function toggleSimTlPháPick(num) {
     const n = Number(num);
     if (!Number.isFinite(n)) return false;
     if (!simTlMilestonesCache || !simTlMilestonesCache.length) return false;
     if (firstBoldMilestoneIndex(simTlMilestonesCache, n) < 0) return false;
-    const ix = simTlPháPicks.indexOf(n);
+    const picks = activeTlPháPicksRef();
+    const ix = picks.indexOf(n);
     if (ix >= 0) {
-      simTlPháPicks.splice(ix, 1);
+      picks.splice(ix, 1);
       return true;
     }
     /* Cột phá tối đa 5 số — chặn pick thêm. */
-    if (simTlPháPicks.length >= SIM_PHA_PICK_MAX) return false;
-    simTlPháPicks.push(n);
+    if (picks.length >= SIM_PHA_PICK_MAX) return false;
+    picks.push(n);
     return true;
   }
 
-  /** Bỏ số khỏi cột phá sim (click trên cột phá). */
+  /** Bỏ số khỏi cột phá sim / học tập (click trên cột phá). */
   function removeSimTlPháPick(num) {
     const n = Number(num);
     if (!Number.isFinite(n)) return false;
-    const ix = simTlPháPicks.indexOf(n);
+    const picks = activeTlPháPicksRef();
+    const ix = picks.indexOf(n);
     if (ix < 0) return false;
-    simTlPháPicks.splice(ix, 1);
+    picks.splice(ix, 1);
     return true;
+  }
+
+  function rememberStudyPicksForId(id) {
+    const n = Number(id);
+    if (!Number.isFinite(n) || n <= 0) return;
+    if (studyPicksForId != null && studyPicksForId !== n) {
+      studyPicks = [];
+      studyPicksForId = n;
+      /* Đổi id: thử nạp picks đã sync của id mới (cùng mã phòng). */
+      if (simRoomTag) loadStudyPicksForTag(simRoomTag);
+      return;
+    }
+    studyPicksForId = n;
+    if (simRoomTag && !studyPicks.length) loadStudyPicksForTag(simRoomTag);
+  }
+
+  const studyModeTitleEl = document.getElementById('studyModeTitle');
+
+  function syncStudyModeTitleUi() {
+    if (!studyModeTitleEl) return;
+    studyModeTitleEl.setAttribute('aria-pressed', studyMode ? 'true' : 'false');
+  }
+
+  /**
+   * @param {boolean} on
+   * @param {{ remote?: boolean, skipPopup?: boolean }} [opts]
+   */
+  function setStudyMode(on, opts) {
+    const next = !!on;
+    if (next === studyMode) return;
+    studyMode = next;
+    /* CSS mờ + viền vàng — đổi ngay (không chờ popup). */
+    document.body.classList.toggle('is-study', studyMode);
+    syncStudyModeTitleUi();
+    if (!(opts && opts.remote)) publishStudyMode();
+    if (opts && opts.skipPopup) return;
+    /* Popup nặng: để frame sau khi paint mờ xong mới rebuild. */
+    const focusIdx = histIdOnIdx;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (studyMode !== next) return;
+        if (!modalBack.hidden && popupKind === 'elim' && focusIdx != null && !simIdOn
+          && histIdOnIdx === focusIdx) {
+          openHistElim(focusIdx);
+        }
+      });
+    });
+  }
+
+  function toggleStudyMode() {
+    setStudyMode(!studyMode);
+  }
+
+  if (studyModeTitleEl) {
+    studyModeTitleEl.addEventListener('click', (e) => {
+      e.preventDefault();
+      toggleStudyMode();
+    });
+    studyModeTitleEl.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' && e.key !== ' ') return;
+      e.preventDefault();
+      toggleStudyMode();
+    });
   }
 
   /** Tô đỏ số đã pick trên các dòng "Ảnh hưởng k luật". */
   function syncSimAffectPhaMarks() {
     if (!modalBody) return;
+    const src = isTimelinePickActive() ? activeTlPháPicksRef() : simTlPháPicks;
     const picked = new Set();
-    for (let i = 0; i < simTlPháPicks.length; i++) {
-      picked.add(Number(simTlPháPicks[i]));
+    for (let i = 0; i < src.length; i++) {
+      picked.add(Number(src[i]));
     }
     modalBody.querySelectorAll('.affect-num[data-affect-num]').forEach((el) => {
       const n = Number(el.getAttribute('data-affect-num'));
@@ -2039,12 +2171,17 @@
     });
   }
 
+  /** @type {object[]|null} chi tiết luật khi học tập hist (giống sim.details). */
+  let studyTlDetailsCache = null;
+  /** @type {boolean[]|null} */
+  let studyTlDisabledCache = null;
+
   /**
-   * Loại sim: pool max trừ các peer thuộc luật dính pick.
+   * Loại sim/học tập: pool max trừ các peer thuộc luật dính pick.
    * Pick số x → mọi luật (pool max) có x trong elim đều bị coi là phá
    * → toàn bộ elim của luật đó ra khỏi Loại (không chỉ x).
    */
-  function buildSimLoạiArr(poolMaxArr, picks) {
+  function buildSimLoạiArr(poolMaxArr, picks, detailsOpt, disabledOpt) {
     const poolMax = Array.isArray(poolMaxArr) ? poolMaxArr : [];
     const picked = new Set();
     for (let i = 0; i < (picks || []).length; i++) {
@@ -2053,12 +2190,20 @@
     }
     if (!picked.size) return poolMax.slice();
     const ban = new Set(picked);
-    if (simState && simState.details) {
+    const details = detailsOpt
+      || studyTlDetailsCache
+      || (simState && simState.details)
+      || null;
+    const disabled = disabledOpt
+      || studyTlDisabledCache
+      || (simState && simState.disabled)
+      || null;
+    if (details) {
       const pairs = maxPoolPairIndices();
       for (let ai = 0; ai < pairs.length; ai++) {
         const pi = pairs[ai];
-        if (simState.disabled && simState.disabled[pi]) continue;
-        const d = simState.details[pi];
+        if (disabled && disabled[pi]) continue;
+        const d = details[pi];
         if (!d || !d.elim || !d.elim.length) continue;
         let hit = false;
         for (let ei = 0; ei < d.elim.length; ei++) {
@@ -2084,15 +2229,26 @@
   }
 
   /**
-   * Tóm tắt Loại/Phá luật trên popup sim:
+   * Khóa chiều cao dòng Loại bằng ghost (thường = pool max) — 1 hàng dư như kỳ rỗng cuối.
+   */
+  function formatLoạiSumLockedHtml(liveHtml, ghostHtml) {
+    return '<span class="elim-sum-loại">'
+      + '<span class="elim-sum-loại-ghost" aria-hidden="true">' + ghostHtml + '</span>'
+      + '<span class="elim-sum-loại-live">' + liveHtml + '</span>'
+      + '</span>';
+  }
+
+  /**
+   * Tóm tắt Loại/Phá luật trên popup sim / học tập:
    * - Loại = pool max \ (peer mọi luật dính pick)
    * - Phá luật = các số đã click
    * Chiều cao Loại khóa theo ghost pool-max để sync 2 tab không nhảy layout.
    */
-  function formatSimPickSumHtml(deriveSet, poolMaxArr) {
+  function formatSimPickSumHtml(deriveSet, poolMaxArr, picksOpt) {
     const poolMax = Array.isArray(poolMaxArr) ? poolMaxArr : simTlPoolMaxCache;
-    const elimArr = buildSimLoạiArr(poolMax, simTlPháPicks);
-    const picksSorted = simTlPháPicks.slice().sort((a, b) => a - b);
+    const picks = Array.isArray(picksOpt) ? picksOpt : simTlPháPicks;
+    const elimArr = buildSimLoạiArr(poolMax, picks);
+    const picksSorted = picks.slice().sort((a, b) => a - b);
     const liveLoại = elimArr.length
       ? ('Loại (' + elimArr.length + ' số): '
         + formatNumsDeriveHtml(elimArr, deriveSet, ', '))
@@ -2101,16 +2257,36 @@
       ? ('Loại (' + poolMax.length + ' số): '
         + formatNumsDeriveHtml(poolMax, deriveSet, ', '))
       : 'Loại (0 số): (không)';
-    let sumHtml = '<span class="elim-sum-loại">'
-      + '<span class="elim-sum-loại-ghost" aria-hidden="true">' + ghostLoại + '</span>'
-      + '<span class="elim-sum-loại-live">' + liveLoại + '</span>'
-      + '</span>';
+    let sumHtml = formatLoạiSumLockedHtml(liveLoại, ghostLoại);
     sumHtml += '<div class="viol-sum">'
       + (picksSorted.length
         ? ('Phá luật (' + picksSorted.length + ' số): '
           + formatNumsDeriveHtml(picksSorted, deriveSet, ', '))
         : 'Phá luật (0 số): (không)')
       + '</div>';
+    return sumHtml;
+  }
+
+  /** Hist (có ĐA): Loại/Phá thật + ghost pool-max khóa chiều cao dòng Loại. */
+  function formatHistPickSumHtml(elimArr, violArr, deriveSet, poolMaxArr, showViolate) {
+    const poolMax = Array.isArray(poolMaxArr) ? poolMaxArr : [];
+    const liveLoại = elimArr.length
+      ? ('Loại (' + elimArr.length + ' số): '
+        + formatNumsDeriveHtml(elimArr, deriveSet, ', '))
+      : 'Loại (0 số): (không)';
+    const ghostLoại = poolMax.length
+      ? ('Loại (' + poolMax.length + ' số): '
+        + formatNumsDeriveHtml(poolMax, deriveSet, ', '))
+      : liveLoại;
+    let sumHtml = formatLoạiSumLockedHtml(liveLoại, ghostLoại);
+    if (showViolate) {
+      sumHtml += '<div class="viol-sum">'
+        + (violArr.length
+          ? ('Phá luật (' + violArr.length + ' số): '
+            + formatNumsDeriveHtml(violArr, deriveSet, ', '))
+          : 'Phá luật (0 số): (không)')
+        + '</div>';
+    }
     return sumHtml;
   }
 
@@ -2122,6 +2298,29 @@
 
   function refreshSimTimelinePháDom() {
     if (!modalTimeline || !simTlMilestonesCache) return;
+    if (isStudyHistPickActive()) {
+      modalTimeline.innerHTML = renderThresholdTimelineHtml(
+        simTlMilestonesCache,
+        'hist',
+        simTlDeriveSetCache,
+        studyPicks
+      );
+      if (modalSum) {
+        modalSum.innerHTML = formatSimPickSumHtml(
+          simTlDeriveSetCache,
+          simTlPoolMaxCache,
+          studyPicks
+        );
+        modalSum.hidden = false;
+      }
+      if (modalSub && histIdOnIdx != null && dataCtx) {
+        modalSub.textContent = 'Học tập · id ' + dataCtx.ids[histIdOnIdx]
+          + ' · pick ' + studyPicks.length + '/' + SIM_PHA_PICK_MAX;
+      }
+      syncSimAffectPhaMarks();
+      return;
+    }
+    if (!(simIdOn && popupKind === 'elim')) return;
     modalTimeline.innerHTML = renderThresholdTimelineHtml(
       simTlMilestonesCache,
       'sim',
@@ -2137,28 +2336,27 @@
   const SIM_TAB_ID_SS = 'ticks.simTabId';
   const SIM_PHA_BC_NAME = 'sua-sim-pha-picks';
   const SIM_PHA_LS_PREFIX = 'sua:simPhaPicks:';
+  const STUDY_MODE_LS_PREFIX = 'sua:studyMode:';
+  const STUDY_PICKS_LS_PREFIX = 'sua:studyPicks:';
   /** Bridge → mọi tab index.html (kỳ rỗng cuối). */
   const SIM_PHA_INDEX_LS = 'sua:simPhaPicks:index';
   let simRoomTag = '';
   let simTabId = '';
   let simPhaSyncApplying = false;
   let simPhaLastAppliedT = 0;
+  let studyModeSyncApplying = false;
+  let studyModeLastT = 0;
+  let studyPicksSyncApplying = false;
+  let studyPicksLastT = 0;
   /** @type {BroadcastChannel|null} */
   let simPhaBc = null;
   const simRoomTagEl = document.getElementById('simRoomTag');
 
   function ensureSimTabId() {
+    /* Chỉ giữ trong RAM — không dùng sessionStorage: nhân đôi tab sẽ clone
+       cùng id → BroadcastChannel bị lọc như “self” nên pick không sync. */
     if (simTabId) return simTabId;
-    try {
-      let id = sessionStorage.getItem(SIM_TAB_ID_SS);
-      if (!id) {
-        id = 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-        sessionStorage.setItem(SIM_TAB_ID_SS, id);
-      }
-      simTabId = id;
-    } catch (e) {
-      simTabId = 't' + Math.random().toString(36).slice(2, 9);
-    }
+    simTabId = 't' + Date.now().toString(36) + Math.random().toString(36).slice(2, 9);
     return simTabId;
   }
 
@@ -2171,6 +2369,177 @@
 
   function simPhaStorageKey(tag) {
     return SIM_PHA_LS_PREFIX + tag;
+  }
+
+  function studyModeStorageKey(tag) {
+    return STUDY_MODE_LS_PREFIX + tag;
+  }
+
+  function studyPicksStorageKey(tag) {
+    return STUDY_PICKS_LS_PREFIX + tag;
+  }
+
+  function normalizeStudyPicksList(raw) {
+    const out = [];
+    const seen = {};
+    const list = Array.isArray(raw) ? raw : [];
+    for (let i = 0; i < list.length; i++) {
+      if (out.length >= SIM_PHA_PICK_MAX) break;
+      const n = Number(list[i]);
+      if (!Number.isFinite(n) || n < 1 || n > 35 || seen[n]) continue;
+      seen[n] = true;
+      out.push(n);
+    }
+    return out;
+  }
+
+  function readStudyPicksRoom(tag) {
+    try {
+      const raw = localStorage.getItem(studyPicksStorageKey(tag));
+      if (!raw) return { byId: {}, t: 0 };
+      const o = JSON.parse(raw);
+      if (!o || typeof o !== 'object') return { byId: {}, t: 0 };
+      if (o.byId && typeof o.byId === 'object') {
+        return { byId: o.byId, t: Number(o.t) || 0 };
+      }
+      /* Migrate format cũ { id, picks, t }. */
+      const byId = {};
+      if (o.id != null && Array.isArray(o.picks)) {
+        byId[String(o.id)] = {
+          picks: o.picks,
+          t: Number(o.t) || 0
+        };
+      }
+      return { byId: byId, t: Number(o.t) || 0 };
+    } catch (e) {
+      return { byId: {}, t: 0 };
+    }
+  }
+
+  /** Sync pick học tập giữa tab ticks cùng mã (theo từng id kỳ). */
+  function publishStudyPicks() {
+    if (studyPicksSyncApplying) return;
+    const tag = simRoomTag;
+    if (!tag) return;
+    const id = studyPicksForId != null
+      ? studyPicksForId
+      : (histIdOnIdx != null && dataCtx ? dataCtx.ids[histIdOnIdx] : null);
+    if (id == null) return;
+    const t = Date.now();
+    const room = readStudyPicksRoom(tag);
+    room.byId[String(id)] = {
+      picks: studyPicks.slice(),
+      t: t
+    };
+    room.t = t;
+    room.tag = tag;
+    room.type = 'study-picks';
+    try {
+      localStorage.setItem(studyPicksStorageKey(tag), JSON.stringify(room));
+    } catch (e) { /* ignore */ }
+    const payload = {
+      type: 'study-picks',
+      tag: tag,
+      id: id,
+      picks: studyPicks.slice(),
+      t: t,
+      from: ensureSimTabId()
+    };
+    try {
+      if (simPhaBc) simPhaBc.postMessage(payload);
+    } catch (e2) { /* ignore */ }
+  }
+
+  function applyRemoteStudyPicks(picks, id, meta) {
+    const nId = Number(id);
+    if (!Number.isFinite(nId) || nId <= 0) return;
+    const t = meta && meta.t != null ? Number(meta.t) : 0;
+    const force = !!(meta && meta.force);
+    if (t && studyPicksLastT && t < studyPicksLastT && !force) return;
+    if (t) studyPicksLastT = Math.max(studyPicksLastT, t);
+    const next = normalizeStudyPicksList(picks);
+    const curId = histIdOnIdx != null && dataCtx ? dataCtx.ids[histIdOnIdx] : null;
+    /* Chỉ áp khi đang xem đúng id đó (hoặc chưa mở hist / đúng studyPicksForId). */
+    const adopt = (curId != null && curId === nId)
+      || (curId == null && (studyPicksForId == null || studyPicksForId === nId));
+    if (!adopt) return;
+    const same = studyPicksForId === nId
+      && next.length === studyPicks.length
+      && next.every((x, i) => x === studyPicks[i]);
+    if (same) return;
+    studyPicksSyncApplying = true;
+    try {
+      studyPicksForId = nId;
+      studyPicks = next;
+      if (studyMode && curId === nId && !simIdOn && popupKind === 'elim') {
+        if (simTlMilestonesCache && studyPicks.length) {
+          const fb = buildFirstBoldIndexMap(simTlMilestonesCache);
+          studyPicks = studyPicks.filter((x) => fb.has(Number(x)));
+        }
+        refreshSimTimelinePháDom();
+      }
+    } finally {
+      requestAnimationFrame(() => { studyPicksSyncApplying = false; });
+    }
+  }
+
+  function loadStudyPicksForTag(tag) {
+    if (!tag) return;
+    const room = readStudyPicksRoom(tag);
+    const curId = histIdOnIdx != null && dataCtx
+      ? dataCtx.ids[histIdOnIdx]
+      : studyPicksForId;
+    if (curId == null) return;
+    const slot = room.byId[String(curId)];
+    if (!slot || !Array.isArray(slot.picks)) return;
+    applyRemoteStudyPicks(slot.picks, curId, {
+      force: true,
+      t: Number(slot.t) || room.t || Date.now()
+    });
+  }
+
+  /** Sync học tập giữa tab ticks cùng mã (trống mã = không sync). */
+  function publishStudyMode() {
+    if (studyModeSyncApplying) return;
+    const tag = simRoomTag;
+    if (!tag) return;
+    const payload = {
+      type: 'study-mode',
+      tag: tag,
+      on: !!studyMode,
+      t: Date.now(),
+      from: ensureSimTabId()
+    };
+    try {
+      localStorage.setItem(studyModeStorageKey(tag), JSON.stringify(payload));
+    } catch (e) { /* ignore */ }
+    try {
+      if (simPhaBc) simPhaBc.postMessage(payload);
+    } catch (e2) { /* ignore */ }
+  }
+
+  function applyRemoteStudyMode(on, meta) {
+    const t = meta && meta.t != null ? Number(meta.t) : 0;
+    if (t && studyModeLastT && t < studyModeLastT && !(meta && meta.force)) return;
+    if (t) studyModeLastT = t;
+    if (!!on === studyMode) return;
+    studyModeSyncApplying = true;
+    try {
+      setStudyMode(!!on, { remote: true });
+    } finally {
+      requestAnimationFrame(() => { studyModeSyncApplying = false; });
+    }
+  }
+
+  function loadStudyModeForTag(tag) {
+    if (!tag) return;
+    try {
+      const raw = localStorage.getItem(studyModeStorageKey(tag));
+      if (!raw) return;
+      const o = JSON.parse(raw);
+      if (!o || typeof o.on !== 'boolean') return;
+      applyRemoteStudyMode(o.on, { force: true, t: Number(o.t) || Date.now() });
+    } catch (e) { /* ignore */ }
   }
 
   function readStoredSimPhaPicks(tag) {
@@ -2278,6 +2647,9 @@
       force: true,
       t: stored.t || Date.now()
     });
+    /* Cùng mã → ăn theo trạng thái học tập + pick học tập phòng (nếu có). */
+    loadStudyModeForTag(tag);
+    loadStudyPicksForTag(tag);
     if (!hasKey) {
       requestAnimationFrame(() => {
         if (simRoomTag === tag) publishSimTlPháPicks();
@@ -2298,6 +2670,9 @@
         window.FocusSync.publishSimPhaJoin(tag);
       }
     } catch (eFs) { /* ignore */ }
+    /* Tab đang học → báo mode + picks cho tab mới vào. */
+    if (studyMode) publishStudyMode();
+    if (studyPicksForId != null) publishStudyPicks();
   }
 
   function loadSimPhaPicksForTag(tag) {
@@ -2336,8 +2711,24 @@
           if (!tag || !simRoomTag || tag !== simRoomTag) return;
           if (msg.from && msg.from === ensureSimTabId()) return;
           if (msg.type === 'sim-pha-join') {
-            /* Tab đang giữ mã → trả toàn bộ picks hiện tại cho tab mới vào. */
+            /* Tab đang giữ mã → trả toàn bộ picks + học tập cho tab mới vào. */
             publishSimTlPháPicks();
+            if (studyMode) publishStudyMode();
+            if (studyPicksForId != null) publishStudyPicks();
+            return;
+          }
+          if (msg.type === 'study-mode') {
+            applyRemoteStudyMode(!!msg.on, {
+              force: true,
+              t: Number(msg.t) || Date.now()
+            });
+            return;
+          }
+          if (msg.type === 'study-picks') {
+            applyRemoteStudyPicks(msg.picks, msg.id, {
+              force: true,
+              t: Number(msg.t) || Date.now()
+            });
             return;
           }
           if (msg.type === 'sim-pha-picks') {
@@ -2372,9 +2763,47 @@
       }
     } catch (eFsListen) { /* ignore */ }
     window.addEventListener('storage', (e) => {
-      if (!e || !simRoomTag) return;
+      if (!e || !simRoomTag || !e.newValue) return;
+      if (e.key === studyModeStorageKey(simRoomTag)) {
+        try {
+          const o = JSON.parse(e.newValue);
+          if (o && typeof o.on === 'boolean') {
+            applyRemoteStudyMode(o.on, {
+              force: true,
+              t: Number(o.t) || Date.now()
+            });
+          }
+        } catch (errSm) { /* ignore */ }
+        return;
+      }
+      if (e.key === studyPicksStorageKey(simRoomTag)) {
+        try {
+          const o = JSON.parse(e.newValue);
+          if (!o || typeof o !== 'object') return;
+          /* Format mới: { byId: { "950": { picks, t } } }; cũ: { id, picks }. */
+          if (o.byId && typeof o.byId === 'object') {
+            const curId = histIdOnIdx != null && dataCtx
+              ? dataCtx.ids[histIdOnIdx]
+              : studyPicksForId;
+            if (curId != null && o.byId[String(curId)]) {
+              const slot = o.byId[String(curId)];
+              if (slot && Array.isArray(slot.picks)) {
+                applyRemoteStudyPicks(slot.picks, curId, {
+                  force: true,
+                  t: Number(slot.t) || Number(o.t) || Date.now()
+                });
+              }
+            }
+          } else if (Array.isArray(o.picks)) {
+            applyRemoteStudyPicks(o.picks, o.id, {
+              force: true,
+              t: Number(o.t) || Date.now()
+            });
+          }
+        } catch (errSp) { /* ignore */ }
+        return;
+      }
       if (e.key !== simPhaStorageKey(simRoomTag)) return;
-      if (!e.newValue) return;
       try {
         const o = JSON.parse(e.newValue);
         if (o && Array.isArray(o.picks)) {
@@ -2541,8 +2970,10 @@
 
   /**
    * Timeline từ đầu thang về ngưỡng hiện tại.
-   * Ghi mốc khi |pool| đổi HOẶC có số phá mới (append) — vd 7 đã có trong pool
-   * từ cột hold nhưng mới vào phá khi cột violate bật: vẫn phải append vào cột phá.
+   * Ghi mốc khi pool đổi, có số phá mới, hoặc có luật mới (peer có thể đã nằm trong pool).
+   * Hist phá: append khi số ∈ tập phá cuối (ngưỡng hiện tại) lần đầu vào pool —
+   *   tránh lệch 1 hàng (số đã bold/pool từ hold, phá violate mới bật sau).
+   * Sim phá: theo elim các cột chưa tick (như cũ).
    * >= : 100→thVal · <= : 1→thVal · = : một mốc.
    * boldNums: mọi peer của luật MỚI (so với mốc trước) — kể cả số đã có trong pool.
    */
@@ -2557,7 +2988,8 @@
     } else {
       steps.push(end);
     }
-    let prevSize = null;
+    /** @type {number[]|null} */
+    let prevPoolArr = null;
     /** @type {Set<number>|null} */
     let prevMilestoneActive = null;
     /** Phá append theo timeline — không sort. */
@@ -2565,6 +2997,18 @@
     const pháSeen = new Set();
     const milestones = [];
     const isHist = opts.mode === 'hist' && Number.isFinite(opts.focusIdx);
+    /** Hist: tập phá tại ngưỡng cuối — mốc append = lần đầu số đó vào pool. */
+    const finalViol = isHist
+      ? new Set(violNumsArrForRow(opts.focusIdx, activePairIndicesAt(op, end), true))
+      : null;
+    function samePoolArr(a, b) {
+      if (a === b) return true;
+      if (!a || !b || a.length !== b.length) return false;
+      for (let i = 0; i < a.length; i++) {
+        if (a[i] !== b[i]) return false;
+      }
+      return true;
+    }
     for (let si = 0; si < steps.length; si++) {
       const t = steps[si];
       const active = activePairIndicesAt(op, t);
@@ -2579,15 +3023,23 @@
         pháArr = packed.phá;
       }
       let pháGrew = false;
-      for (let i = 0; i < pháArr.length; i++) {
-        const n = pháArr[i];
-        if (pháSeen.has(n)) continue;
-        pháSeen.add(n);
-        pháChain.push(n);
-        pháGrew = true;
+      if (isHist && finalViol) {
+        for (let i = 0; i < poolArr.length; i++) {
+          const n = poolArr[i];
+          if (!finalViol.has(n) || pháSeen.has(n)) continue;
+          pháSeen.add(n);
+          pháChain.push(n);
+          pháGrew = true;
+        }
+      } else {
+        for (let i = 0; i < pháArr.length; i++) {
+          const n = pháArr[i];
+          if (pháSeen.has(n)) continue;
+          pháSeen.add(n);
+          pháChain.push(n);
+          pháGrew = true;
+        }
       }
-      const poolChanged = prevSize === null || poolArr.length !== prevSize;
-      if (!poolChanged && !pháGrew) continue;
       const newPairs = [];
       for (let ai = 0; ai < active.length; ai++) {
         const pi = active[ai];
@@ -2602,6 +3054,9 @@
         const n = related[i];
         if (poolSet.has(n)) boldNums.push(n);
       }
+      const poolChanged = prevPoolArr === null || !samePoolArr(poolArr, prevPoolArr);
+      /* Bỏ mốc “luật mới” không peer trong pool (tránh hàng rỗng 51%/55%/…). */
+      if (!poolChanged && !pháGrew && !boldNums.length) continue;
       const rate = violPctAtActive(active);
       milestones.push({
         t: t,
@@ -2610,22 +3065,25 @@
         newlyIn: boldNums,
         violPct: rate
       });
-      prevSize = poolArr.length;
+      prevPoolArr = poolArr;
       prevMilestoneActive = new Set(active);
     }
     return milestones;
   }
 
   /**
-   * @param {object} [pickOpts] sim only: { pickable: true, pickedSet: Set }
+   * @param {object} [pickOpts] sim/học: { pickable, pickedSet }
+   * @param {Set|null} [phaNewInPool] hist có ĐA: số mới vào phá tại mốc → viền xanh trên pool
+   * @param {boolean} [sizeChg] |pool| khác mốc kề → nổi số trong pool[N]
    */
-  function formatTimelinePoolHtml(poolArr, newlyIn, deriveSet, prevPool, pickOpts) {
+  function formatTimelinePoolHtml(poolArr, newlyIn, deriveSet, prevPool, pickOpts, phaNewInPool, sizeChg) {
     const nums = poolArr || [];
     const bold = new Set(newlyIn || []);
     const pickable = !!(pickOpts && pickOpts.pickable);
     const pickedSet = (pickOpts && pickOpts.pickedSet instanceof Set)
       ? pickOpts.pickedSet
       : null;
+    const phaNew = (phaNewInPool instanceof Set) ? phaNewInPool : null;
     const parts = [];
     for (let i = 0; i < nums.length; i++) {
       const n = nums[i];
@@ -2634,9 +3092,11 @@
       if (isBold) bit = '<b>' + bit + '</b>';
       const canPick = pickable && isBold;
       const isPicked = !!(pickedSet && pickedSet.has(n));
+      const isPhaNew = !!(phaNew && phaNew.has(n));
       let cls = 'tl-num';
       if (canPick) cls += ' tl-pick';
       if (canPick && isPicked) cls += ' is-picked';
+      if (isPhaNew) cls += ' is-pha-new';
       bit = '<span class="' + cls + '" data-hl-num="' + n + '" data-hl-col="pool"'
         + (isBold ? ' data-hl-bold="1"' : '')
         + (canPick
@@ -2646,13 +3106,22 @@
         + '>' + bit + '</span>';
       parts.push(bit);
     }
-    const body = 'pool[' + nums.length + ']{' + parts.join(',') + '}';
+    const nCls = 'tl-pool-n' + (sizeChg ? ' is-size-chg' : '');
+    const body = 'pool[<span class="' + nCls + '">' + nums.length + '</span>]{'
+      + parts.join(',') + '}';
     let deltaBtn = '';
     if (prevPool) {
-      const diff = poolDiffFromPrev(nums, prevPool);
+      /* poolCurr\prev; nếu pool không đổi nhưng có luật mới (peer đã có sẵn) → Δ = newlyIn. */
+      let diff = poolDiffFromPrev(nums, prevPool);
+      if (!diff.length && newlyIn && newlyIn.length) {
+        diff = newlyIn.slice();
+      }
       if (diff.length) deltaBtn = copyDeltaBtnHtml(diff);
     }
-    return deltaBtn
+    /* Không có Δ → spacer cùng cỡ nút để chữ pool thẳng hàng với các dòng có Δ. */
+    const deltaSlot = deltaBtn
+      || '<span class="tl-delta-slot" aria-hidden="true"></span>';
+    return deltaSlot
       + '<span class="tl-pool-text">' + body + '</span>'
       + copyNumsBtnHtml(nums);
   }
@@ -2733,35 +3202,37 @@
   /**
    * @param {number[]} [simPicks] chỉ mode sim — số đã click để append phá
    */
+  /** Derive set của popup timeline đang mở — tooltip Δ gạch chân số ∈ derive. */
+  let popupTimelineDeriveSet = null;
+
   function renderThresholdTimelineHtml(milestones, mode, deriveSet, simPicks) {
+    popupTimelineDeriveSet = deriveSet instanceof Set ? deriveSet : null;
     if (!milestones.length) {
-      return '<div class="th-tl-title">Timeline threshold</div>'
-        + '<div class="th-tl-row">(không có mốc)</div>';
+      return '<div class="th-tl-row">(không có mốc)</div>';
     }
     const isSim = mode === 'sim';
-    const picks = isSim ? (simPicks || []) : [];
-    const pickedSet = isSim ? new Set(picks) : null;
-    const firstBoldMap = isSim ? buildFirstBoldIndexMap(milestones) : null;
-    const pickOpts = isSim ? { pickable: true, pickedSet: pickedSet } : null;
-    const dir = thOp === '>='
-      ? ('>= 100% → ' + thVal + '%')
-      : (thOp === '<='
-        ? ('<= 1% → ' + thVal + '%')
-        : ('= ' + thVal + '%'));
-    let html = '<div class="th-tl-title">Timeline threshold (' + dir
-      + ') · mốc khi |pool| đổi hoặc có số phá mới · Δ = copy hiệu pool vs mốc trên'
-      + (isSim
-        ? ' · click số <b>đậm</b> → append phá từ mốc lần đầu tô đen (tối đa 5 · click lại = gỡ)'
-        : '')
-      + '</div>';
+    /* Học tập trên hist: pick giả lập giống sim (không lộ phá thật). */
+    const studyPick = !isSim && studyMode && Array.isArray(simPicks);
+    const pickMode = isSim || studyPick;
+    const picks = pickMode ? (simPicks || []) : [];
+    const pickedSet = pickMode ? new Set(picks) : null;
+    const firstBoldMap = pickMode ? buildFirstBoldIndexMap(milestones) : null;
+    const pickOpts = pickMode ? { pickable: true, pickedSet: pickedSet } : null;
+    let html = '';
     if (milestones.length > 1) html += '<div class="th-tl-flow" aria-hidden="true"></div>';
     for (let i = 0; i < milestones.length; i++) {
       const m = milestones[i];
       const prevPool = i > 0 ? milestones[i - 1].pool : null;
+      const currLen = (m.pool || []).length;
+      const prevLen = prevPool ? prevPool.length : null;
+      /* Chỉ nổi số đầu của chuỗi cùng |pool| (khác mốc trên / mốc đầu). */
+      const sizeChg = prevLen == null || prevLen !== currLen;
       let pháTxt;
-      if (isSim) {
+      /** Hist có ĐA: viền xanh trên pool + cột phá (số mới vào phá). */
+      let phaNewInPool = null;
+      if (pickMode) {
         const phaArr = simPháPicksAtMilestone(milestones, picks, i, firstBoldMap);
-        /* Viền xanh đúng chỗ số vừa append (= mốc firstBold của pick). */
+        /* Sim/học: viền xanh trên cột phá đúng mốc firstBold. */
         const newPhá = new Set();
         for (let pi = 0; pi < phaArr.length; pi++) {
           const n = phaArr[pi];
@@ -2771,7 +3242,7 @@
           ? formatNumsDeriveHtml(phaArr, deriveSet, ',', null, 'tl-pha-rm', newPhá)
           : '';
       } else {
-        /* Hist: số mới vào chuỗi phá tại mốc này (chưa có ở mốc trước). */
+        /* Hist: số mới vào chuỗi phá tại mốc này → viền xanh pool + phá. */
         const prevPhá = i > 0 ? (milestones[i - 1].phá || []) : [];
         const prevSet = new Set(prevPhá);
         const newPhá = new Set();
@@ -2780,6 +3251,7 @@
           const n = phaList[pi];
           if (!prevSet.has(n)) newPhá.add(n);
         }
+        phaNewInPool = newPhá.size ? newPhá : null;
         pháTxt = phaList.length
           ? formatNumsDeriveHtml(phaList, deriveSet, ',', null, 'tl-pha', newPhá)
           : '';
@@ -2791,7 +3263,7 @@
         + '<span class="tl-t">' + m.t + '%</span>'
         + '<span class="tl-rate" title="% phá luật tại threshold này">' + rateTxt + '</span>'
         + '<span class="tl-pool">'
-        + formatTimelinePoolHtml(m.pool, m.newlyIn, deriveSet, prevPool, pickOpts)
+        + formatTimelinePoolHtml(m.pool, m.newlyIn, deriveSet, prevPool, pickOpts, phaNewInPool, sizeChg)
         + '</span>'
         + '<span class="tl-phá">phá: ' + pháTxt + '</span>'
         + '</div>';
@@ -2829,6 +3301,8 @@
       showViolate ? violPart.allViol : null
     );
 
+    /* Học tập hist: UI giống kỳ rỗng cuối (sim) — Loại/rest/pool + pick timeline. */
+    const studyHist = studyMode && opts.timelineMode === 'hist';
     let html = '';
     if (showViolate) {
       html += '<div class="sec-title">Loại (cột ✓)</div>';
@@ -2848,11 +3322,16 @@
     const elimArr = Array.from(elimPart.allElim).sort((a, b) => a - b);
     const violArr = Array.from(violPart.allViol).sort((a, b) => a - b);
     modalTitle.textContent = showViolate ? ('Kỳ id ' + focusId) : 'Số bị loại';
-    const colBits = [];
-    if (elimPart.chosen.length) colBits.push('✓ ' + elimPart.chosen.join(' '));
-    if (violPart.chosen.length) colBits.push('phá ' + violPart.chosen.join(' '));
-    modalSub.textContent = modeLabel + ' id ' + focusId
-      + ' · ' + (colBits.length ? colBits.join(' · ') : '—');
+    if (studyHist) {
+      modalSub.textContent = 'Học tập · id ' + focusId
+        + ' · pick ' + studyPicks.length + '/' + SIM_PHA_PICK_MAX;
+    } else {
+      const colBits = [];
+      if (elimPart.chosen.length) colBits.push('✓ ' + elimPart.chosen.join(' '));
+      if (violPart.chosen.length) colBits.push('phá ' + violPart.chosen.join(' '));
+      modalSub.textContent = modeLabel + ' id ' + focusId
+        + ' · ' + (colBits.length ? colBits.join(' · ') : '—');
+    }
     const deriveSet = deriveSetEarly;
     const poolMaxArr = Array.isArray(opts.maxPoolNums) ? opts.maxPoolNums : poolArr;
     let tlMilestones = null;
@@ -2866,11 +3345,14 @@
       syncPopupPoolBold(poolArr);
     }
     if (wCounts) {
-      const answerSet = opts.answerSet instanceof Set ? opts.answerSet : null;
+      /* Học tập: rest không tô đáp án (tránh lộ). */
+      const answerSet = studyHist
+        ? null
+        : (opts.answerSet instanceof Set ? opts.answerSet : null);
       modalRest.innerHTML = formatRestSubHtml(
         buildRestItems(poolMaxArr, wCounts),
         answerSet,
-        deriveSet
+        studyHist ? null : deriveSet
       );
       modalRest.hidden = false;
     } else {
@@ -2878,30 +3360,34 @@
       modalRest.innerHTML = '';
     }
     // Dòng pool cố định = pool max (cùng nguồn với rest); số ∈ derive → gạch chân.
-    modalPool.innerHTML = formatPoolSubHtml(poolMaxArr, null, deriveSet, 'pool max');
+    modalPool.innerHTML = formatPoolSubHtml(
+      poolMaxArr,
+      null,
+      studyHist ? null : deriveSet,
+      'pool max'
+    );
     modalPool.hidden = false;
     let sumHtml;
     if (opts.timelineMode === 'sim') {
       /* Loại = pool max \ picks · Phá = picks. */
       sumHtml = formatSimPickSumHtml(deriveSet, poolMaxArr);
+    } else if (studyHist) {
+      /* Giống kỳ rỗng cuối: Loại theo pick + Phá = pick. */
+      sumHtml = formatSimPickSumHtml(null, poolMaxArr, studyPicks);
     } else {
-      sumHtml = elimArr.length
-        ? ('Loại (' + elimArr.length + ' số): '
-          + formatNumsDeriveHtml(elimArr, deriveSet, ', '))
-        : 'Loại (0 số): (không)';
-      if (showViolate) {
-        sumHtml += '<div class="viol-sum">'
-          + (violArr.length
-            ? ('Phá luật (' + violArr.length + ' số): '
-              + formatNumsDeriveHtml(violArr, deriveSet, ', '))
-            : 'Phá luật (0 số): (không)')
-          + '</div>';
-      }
+      sumHtml = formatHistPickSumHtml(
+        elimArr,
+        violArr,
+        deriveSet,
+        poolMaxArr,
+        showViolate
+      );
     }
     modalSum.innerHTML = sumHtml;
     modalSum.hidden = false;
     if (showViolate && tlMilestones) {
       const isSimTl = opts.timelineMode === 'sim';
+      const studyTl = !isSimTl && studyMode;
       if (isSimTl) {
         simTlMilestonesCache = tlMilestones;
         simTlDeriveSetCache = deriveSet instanceof Set ? deriveSet : null;
@@ -2913,6 +3399,15 @@
         }
         /* Sum sau khi lọc picks (Loại = poolMax \ picks). */
         modalSum.innerHTML = formatSimPickSumHtml(deriveSet, simTlPoolMaxCache);
+      } else if (studyTl) {
+        simTlMilestonesCache = tlMilestones;
+        simTlDeriveSetCache = deriveSet instanceof Set ? deriveSet : null;
+        simTlPoolMaxCache = poolMaxArr.slice();
+        if (studyPicks.length) {
+          const fb = buildFirstBoldIndexMap(tlMilestones);
+          studyPicks = studyPicks.filter((n) => fb.has(Number(n)));
+        }
+        modalSum.innerHTML = formatSimPickSumHtml(null, simTlPoolMaxCache, studyPicks);
       } else {
         clearSimTlPháPicks();
       }
@@ -2920,7 +3415,7 @@
         tlMilestones,
         isSimTl ? 'sim' : 'hist',
         deriveSet,
-        isSimTl ? simTlPháPicks : null
+        isSimTl ? simTlPháPicks : (studyTl ? studyPicks : null)
       );
       modalTimeline.hidden = false;
     } else {
@@ -2931,7 +3426,7 @@
     // Dưới timeline, trên "Loại (cột ✓)": nhóm số theo số luật ảnh hưởng.
     const affectPhaSet = opts.timelineMode === 'sim'
       ? new Set(simTlPháPicks)
-      : violPart.allViol;
+      : (studyMode ? new Set(studyPicks) : violPart.allViol);
     const affectHtml = showViolate
       ? buildAffectByLawHtml(opts, deriveSet, affectPhaSet)
       : '';
@@ -3303,6 +3798,7 @@
     clearCopyNumsOkEffect();
     clearAffectNumHl();
     hideDeltaTip();
+    popupTimelineDeriveSet = null;
     if (closingSim) {
       /* Có mã phòng: giữ picks để sync / mở lại; không mã: xóa như cũ. */
       if (simRoomTag) clearSimTlPháCache();
@@ -3346,10 +3842,11 @@
   if (modalPool) modalPool.addEventListener('click', onCopyNumsClick);
   if (modalTimeline) {
     modalTimeline.addEventListener('click', (e) => {
-      if (!(simIdOn && popupKind === 'elim')) {
+      if (!isTimelinePickActive()) {
         onCopyNumsClick(e);
         return;
       }
+      const studyPick = isStudyHistPickActive();
       const rmEl = e.target && e.target.closest
         ? e.target.closest('[data-tl-pha-rm]')
         : null;
@@ -3358,7 +3855,8 @@
         e.stopPropagation();
         if (removeSimTlPháPick(rmEl.getAttribute('data-tl-pha-rm'))) {
           refreshSimTimelinePháDom();
-          publishSimTlPháPicks();
+          if (studyPick) publishStudyPicks();
+          else publishSimTlPháPicks();
         }
         return;
       }
@@ -3371,7 +3869,8 @@
         e.stopPropagation();
         if (toggleSimTlPháPick(pickEl.getAttribute('data-tl-pick'))) {
           refreshSimTimelinePháDom();
-          publishSimTlPháPicks();
+          if (studyPick) publishStudyPicks();
+          else publishSimTlPháPicks();
         }
         return;
       }
@@ -3397,19 +3896,36 @@
     deltaTip.textContent = '';
   }
 
-  /** Con trỏ = góc phải trên của tip → tip nằm bên trái dưới con trỏ. */
+  /** Chuỗi Δ kèm gạch chân số ∈ derive (giống cột pool). */
+  function formatDeltaTipHtml(csv) {
+    if (!csv) return '';
+    const nums = [];
+    const parts = String(csv).split(',');
+    for (let i = 0; i < parts.length; i++) {
+      const n = Number(parts[i]);
+      if (!Number.isFinite(n)) continue;
+      nums.push(n);
+    }
+    if (!nums.length) return escapeAttr(csv);
+    return formatNumsDeriveHtml(nums, popupTimelineDeriveSet, ',');
+  }
+
+  /** Con trỏ = góc phải dưới của tip → tip nằm bên trái trên con trỏ. */
   function positionDeltaTipAt(clientX, clientY) {
     deltaTipX = clientX;
     deltaTipY = clientY;
     const tipW = deltaTip.offsetWidth || 40;
     const tipH = deltaTip.offsetHeight || 24;
     let left = clientX - tipW;
-    let top = clientY;
+    let top = clientY - tipH;
     if (left < 4) left = 4;
+    if (top < 4) top = 4;
+    if (left + tipW > window.innerWidth - 4) {
+      left = Math.max(4, window.innerWidth - tipW - 4);
+    }
     if (top + tipH > window.innerHeight - 4) {
       top = Math.max(4, window.innerHeight - tipH - 4);
     }
-    if (top < 4) top = 4;
     deltaTip.style.left = Math.round(left) + 'px';
     deltaTip.style.top = Math.round(top) + 'px';
   }
@@ -3419,7 +3935,11 @@
     const csv = btn.getAttribute('data-copy') || '';
     const empty = !csv;
     deltaTipBtn = btn;
-    deltaTip.textContent = empty ? '(rỗng)' : csv;
+    if (empty) {
+      deltaTip.textContent = '(rỗng)';
+    } else {
+      deltaTip.innerHTML = formatDeltaTipHtml(csv);
+    }
     deltaTip.classList.toggle('is-empty', empty);
     deltaTip.hidden = false;
     deltaTip.classList.add('is-on');
@@ -3553,14 +4073,21 @@
       hidePopup();
       return;
     }
+    const t = e.target;
+    const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'
+      || t.tagName === 'SELECT' || (t.isContentEditable));
+    /* E: bật/tắt trạng thái học tập. */
+    if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey
+      && (e.key === 'e' || e.key === 'E')) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleStudyMode();
+      return;
+    }
     /* Ctrl+Z: xoay vòng focus giữa 2 kỳ hist vừa click (không đụng input). */
     if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey
       && (e.key === 'z' || e.key === 'Z')) {
-      const t = e.target;
-      if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'
-        || t.tagName === 'SELECT' || (t.isContentEditable))) {
-        return;
-      }
+      if (typing) return;
       if (cycleHistFocusUndo()) {
         e.preventDefault();
         e.stopPropagation();
@@ -3656,12 +4183,30 @@
     const packed = detailsAtFocus(focusIdx, focusId);
     if (!packed) return;
     if (histIdOnIdx !== focusIdx) resetPopupPoolTrack();
+    /* Học tập: đổi id → quên pick giả lập id cũ; cùng id (toggle E) → giữ. */
+    if (studyMode) rememberStudyPicksForId(focusId);
     const active = activePairIndices();
     const activeSet = new Set(active);
     const holdBase = dataCtx.holdMasks.get(focusIdx) || PAIRS.map(() => false);
     const violBase = dataCtx.violateMasks.get(focusIdx) || PAIRS.map(() => false);
-    const mask = holdBase.map((on, pi) => !!(on && activeSet.has(pi)));
-    const violMask = violBase.map((on, pi) => !!(on && activeSet.has(pi)));
+    let mask = holdBase.map((on, pi) => !!(on && activeSet.has(pi)));
+    let violMask = violBase.map((on, pi) => !!(on && activeSet.has(pi)));
+    let violDetails = packed.violDetails;
+    /* Học tập: UI giống kỳ rỗng cuối — không lộ ✓/phá thật; phá = click timeline. */
+    if (studyMode) {
+      mask = PAIRS.map(() => false);
+      violMask = PAIRS.map(() => false);
+      violDetails = packed.details.map((d) => ({
+        label: d.label,
+        D: d.D,
+        P: d.P,
+        disabled: d.disabled,
+        viol: (d.elim || []).slice(),
+        lines: d.lines || []
+      }));
+      studyTlDetailsCache = packed.details;
+      studyTlDisabledCache = packed.disabled;
+    }
     histIdOnIdx = focusIdx;
     simIdOn = false;
     syncSimRowDom();
@@ -3675,19 +4220,28 @@
       focusId,
       focusIdx,
       details: packed.details,
-      violDetails: packed.violDetails,
+      violDetails: violDetails,
       disabled: packed.disabled,
       mask,
       violMask,
       poolNums: poolNumsArrForRow(focusIdx, active),
       maxPoolNums: poolNumsArrForRow(focusIdx, maxPoolPairIndices()),
       counts: windowCounts(dataCtx.rowNums, focusIdx),
-      answerSet: new Set(dataCtx.rowNums[focusIdx] || []),
+      answerSet: studyMode ? null : new Set(dataCtx.rowNums[focusIdx] || []),
       deriveSet: deriveSet,
       showViolate: true,
       timelineMode: 'hist',
-      modeLabel: 'Kỳ',
-      emptyHint: 'Kỳ này không có cột ✓ trong các cột thỏa threshold.'
+      modeLabel: studyMode ? 'Kỳ · học tập' : 'Kỳ',
+      emptyHint: studyMode
+        ? 'Loại ban đầu = pool max; click số đậm → Phá + gỡ cả peer luật liên quan khỏi Loại.'
+        : 'Kỳ này không có cột ✓ trong các cột thỏa threshold.',
+      violSecTitle: studyMode
+        ? 'Phá luật (theo click số đậm trên pool)'
+        : undefined,
+      violEmptyHint: studyMode
+        ? 'Chi tiết theo cột tắt — xem tóm tắt Loại/Phá phía trên / cột phá timeline.'
+        : undefined,
+      violLineSuffix: studyMode ? 'nếu đáp án có peer' : undefined
     });
   }
 
@@ -4300,8 +4854,9 @@
     syncRestColWidth();
   }
 
-  function syncPoolViolCols(active) {
+  function syncPoolViolCols(active, opts) {
     const act = active || activePairIndices();
+    const skipWidth = !!(opts && opts.skipWidth);
     wrap.querySelectorAll('td.pool-nums[data-idx]').forEach((td) => {
       const i = Number(td.getAttribute('data-idx'));
       if (!Number.isFinite(i)) return;
@@ -4324,8 +4879,8 @@
         ? ('Phá luật ⊆ pool (cột threshold): ' + text)
         : 'Không phá luật cột nào trong threshold';
     });
-    syncViolColWidth();
-    syncRestAnsCol();
+    if (!skipWidth) syncViolColWidth();
+    /* rest không phụ thuộc threshold — không sync lại ở đây. */
     syncSimPoolCol(act);
   }
 
@@ -4395,23 +4950,73 @@
       : 'Kỳ giả lập — chưa có peer từ cột threshold';
   }
 
-  /** Chỉ toggle class — không đụng innerHTML → scroll không về 0. */
-  function applyThresholdColumns() {
-    const active = activePairIndices();
-    const activeSet = new Set(active);
+  /** Cache ô [data-pi] theo cột — tránh querySelectorAll toàn bảng mỗi lần ± threshold. */
+  /** @type {Element[][]|null} */
+  let colCellsByPi = null;
+  /** @type {Set<number>|null} */
+  let prevThresholdActiveSet = null;
+
+  function invalidateColCellCache() {
+    colCellsByPi = null;
+    prevThresholdActiveSet = null;
+  }
+
+  function ensureColCellCache() {
+    if (colCellsByPi) return colCellsByPi;
+    const byPi = [];
+    for (let pi = 0; pi < PAIRS.length; pi++) byPi[pi] = [];
     wrap.querySelectorAll('table.dc-table [data-pi]').forEach((el) => {
       const pi = Number(el.getAttribute('data-pi'));
-      if (!Number.isFinite(pi)) return;
-      el.classList.toggle('col-off', !activeSet.has(pi));
+      if (!Number.isFinite(pi) || pi < 0 || pi >= byPi.length) return;
+      byPi[pi].push(el);
     });
+    colCellsByPi = byPi;
+    return byPi;
+  }
+
+  /**
+   * @param {{ light?: boolean }} [opts]
+   *   light: chỉ ẩn/hiện cột + status (spam ±) — bỏ summary/pool/viol nặng.
+   */
+  function applyThresholdColumns(opts) {
+    const light = !!(opts && opts.light);
+    const active = activePairIndices();
+    const activeSet = new Set(active);
+    const byPi = ensureColCellCache();
+    if (!prevThresholdActiveSet) {
+      for (let pi = 0; pi < byPi.length; pi++) {
+        const off = !activeSet.has(pi);
+        const cells = byPi[pi];
+        for (let ci = 0; ci < cells.length; ci++) {
+          cells[ci].classList.toggle('col-off', off);
+        }
+      }
+    } else {
+      prevThresholdActiveSet.forEach((pi) => {
+        if (activeSet.has(pi)) return;
+        const cells = byPi[pi];
+        for (let ci = 0; ci < cells.length; ci++) cells[ci].classList.add('col-off');
+      });
+      activeSet.forEach((pi) => {
+        if (prevThresholdActiveSet.has(pi)) return;
+        const cells = byPi[pi];
+        for (let ci = 0; ci < cells.length; ci++) cells[ci].classList.remove('col-off');
+      });
+    }
+    prevThresholdActiveSet = activeSet;
+    updateStatusLine(active.length);
+    if (light) {
+      syncSimRowDom();
+      return;
+    }
     updateSummaryForActive(active);
     syncPoolViolCols(active);
-    updateStatusLine(active.length);
     syncSimRowDom();
   }
 
   function buildFullTable() {
     if (!tableBundle || !simState) return;
+    invalidateColCellCache();
     const { displayIdx, ids, splits, stats, pairLabels } = tableBundle;
     const pool = poolPairIndices();
 
@@ -4481,6 +5086,7 @@
       buildFullTable();
     }
     applyThresholdColumns();
+    syncRestAnsCol();
     syncSimRowDom();
     syncHistIdDom();
     if (pendingSharedFocus != null) flushPendingSharedFocus();
@@ -4575,6 +5181,34 @@
     });
   }
 
+  /**
+   * Spam ± threshold: số + ẩn/hiện cột đổi ngay (rẻ).
+   * Summary / pool / viol / popup / localStorage — chỉ chạy khi dừng ~50ms.
+   * (Trước đây mỗi click rebuild ~900 hàng + timeline → giật.)
+   */
+  let thSettleTimer = 0;
+  let thPrefsTimer = 0;
+
+  function scheduleSaveThresholdPrefs() {
+    if (thPrefsTimer) clearTimeout(thPrefsTimer);
+    thPrefsTimer = setTimeout(() => {
+      thPrefsTimer = 0;
+      saveThresholdPrefs();
+    }, 150);
+  }
+
+  function scheduleThresholdHeavyApply() {
+    scheduleSaveThresholdPrefs();
+    if (thSettleTimer) clearTimeout(thSettleTimer);
+    thSettleTimer = setTimeout(() => {
+      thSettleTimer = 0;
+      saveThresholdPrefs();
+      if (!tableBundle) return;
+      applyThresholdColumns();
+      refreshOpenPopupAfterThreshold();
+    }, 50);
+  }
+
   function syncThresholdFromUi() {
     thVal = clampTh(thValEl.value);
     thValEl.value = String(thVal);
@@ -4588,6 +5222,10 @@
 
   function setThresholdOp(op) {
     thOp = op === '=' || op === '<=' ? op : '>=';
+    /* Đổi dấu → neo thang: >= = 1 · <= = 100 (giữ nguyên khi =). */
+    if (thOp === '>=') thVal = 1;
+    else if (thOp === '<=') thVal = 100;
+    thValEl.value = String(thVal);
     syncThOpDropdown();
     closeThOpMenu();
     saveThresholdPrefs();
@@ -4600,29 +5238,40 @@
   function stepThreshold(delta) {
     thVal = clampTh(thVal + delta);
     thValEl.value = String(thVal);
-    saveThresholdPrefs();
-    if (tableBundle) {
-      applyThresholdColumns();
-      refreshOpenPopupAfterThreshold();
-    }
+    if (tableBundle) applyThresholdColumns({ light: true });
+    scheduleThresholdHeavyApply();
   }
 
   function bindHoldStep(btn, dir) {
     let delayTimer = null;
     let repeatTimer = null;
+    let repCount = 0;
     const clear = () => {
       if (delayTimer) clearTimeout(delayTimer);
-      if (repeatTimer) clearInterval(repeatTimer);
+      if (repeatTimer) clearTimeout(repeatTimer);
       delayTimer = null;
       repeatTimer = null;
+      repCount = 0;
+    };
+    const scheduleNext = () => {
+      /* Giữ nút: 28ms → 14ms → 8ms — spam/giữ phải nhảy nhanh. */
+      const ms = repCount < 8 ? 28 : (repCount < 24 ? 14 : 8);
+      repeatTimer = setTimeout(() => {
+        repCount++;
+        stepThreshold(dir);
+        scheduleNext();
+      }, ms);
     };
     const start = (e) => {
+      if (e.type === 'mousedown' && e.button !== 0) return;
       e.preventDefault();
       stepThreshold(dir);
       clear();
       delayTimer = setTimeout(() => {
-        repeatTimer = setInterval(() => stepThreshold(dir), 45);
-      }, 280);
+        delayTimer = null;
+        repCount = 0;
+        scheduleNext();
+      }, 120);
     };
     btn.addEventListener('mousedown', start);
     btn.addEventListener('touchstart', start, { passive: false });
@@ -4630,6 +5279,8 @@
     btn.addEventListener('mouseleave', clear);
     btn.addEventListener('touchend', clear);
     btn.addEventListener('touchcancel', clear);
+    window.addEventListener('mouseup', clear);
+    window.addEventListener('blur', clear);
   }
 
   thOpBtn.addEventListener('click', (e) => {
