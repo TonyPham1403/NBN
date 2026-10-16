@@ -2338,6 +2338,7 @@
   const SIM_PHA_LS_PREFIX = 'sua:simPhaPicks:';
   const STUDY_MODE_LS_PREFIX = 'sua:studyMode:';
   const STUDY_PICKS_LS_PREFIX = 'sua:studyPicks:';
+  const ROOM_SCROLL_LS_PREFIX = 'sua:roomScroll:';
   /** Bridge → mọi tab index.html (kỳ rỗng cuối). */
   const SIM_PHA_INDEX_LS = 'sua:simPhaPicks:index';
   let simRoomTag = '';
@@ -2348,6 +2349,11 @@
   let studyModeLastT = 0;
   let studyPicksSyncApplying = false;
   let studyPicksLastT = 0;
+  let scrollSyncApplying = false;
+  let roomScrollLastT = 0;
+  let scrollPublishTimer = null;
+  /** @type {{ top: number, left: number }|null} modal scroll chờ khi popup chưa mở */
+  let pendingModalScroll = null;
   /** @type {BroadcastChannel|null} */
   let simPhaBc = null;
   const simRoomTagEl = document.getElementById('simRoomTag');
@@ -2377,6 +2383,132 @@
 
   function studyPicksStorageKey(tag) {
     return STUDY_PICKS_LS_PREFIX + tag;
+  }
+
+  function roomScrollStorageKey(tag) {
+    return ROOM_SCROLL_LS_PREFIX + tag;
+  }
+
+  function readScrollPos(el) {
+    if (!el) return { top: 0, left: 0 };
+    return {
+      top: Math.round(el.scrollTop) || 0,
+      left: Math.round(el.scrollLeft) || 0
+    };
+  }
+
+  function scrollPosNearlySame(a, b) {
+    if (!a || !b) return !a && !b;
+    return Math.abs(a.top - b.top) < 2 && Math.abs(a.left - b.left) < 2;
+  }
+
+  function applyScrollPos(el, pos) {
+    if (!el || !pos) return;
+    const top = Number(pos.top) || 0;
+    const left = Number(pos.left) || 0;
+    if (Math.abs(el.scrollTop - top) >= 2) el.scrollTop = top;
+    if (Math.abs(el.scrollLeft - left) >= 2) el.scrollLeft = left;
+  }
+
+  function captureRoomScrollPayload() {
+    const wrapPos = readScrollPos(wrap);
+    const modalOpen = !!(modalEl && modalBack && !modalBack.hidden);
+    const modalPos = modalOpen ? readScrollPos(modalEl) : (pendingModalScroll || null);
+    return {
+      type: 'room-scroll',
+      tag: simRoomTag,
+      from: ensureSimTabId(),
+      t: Date.now(),
+      wrap: wrapPos,
+      modal: modalPos
+    };
+  }
+
+  function publishRoomScroll() {
+    if (scrollSyncApplying) return;
+    const tag = simRoomTag;
+    if (!tag) return;
+    const payload = captureRoomScrollPayload();
+    try {
+      localStorage.setItem(roomScrollStorageKey(tag), JSON.stringify({
+        wrap: payload.wrap,
+        modal: payload.modal,
+        t: payload.t,
+        tag: tag
+      }));
+    } catch (e) { /* ignore */ }
+    try {
+      if (simPhaBc) simPhaBc.postMessage(payload);
+    } catch (e2) { /* ignore */ }
+  }
+
+  function schedulePublishRoomScroll() {
+    if (scrollSyncApplying || !simRoomTag) return;
+    if (scrollPublishTimer) clearTimeout(scrollPublishTimer);
+    scrollPublishTimer = setTimeout(() => {
+      scrollPublishTimer = null;
+      publishRoomScroll();
+    }, 40);
+  }
+
+  function applyRemoteRoomScroll(msg, meta) {
+    if (!msg || typeof msg !== 'object') return;
+    const t = meta && meta.t != null ? Number(meta.t) : Number(msg.t) || 0;
+    const force = !!(meta && meta.force);
+    if (t && roomScrollLastT && t < roomScrollLastT && !force) return;
+    if (t) roomScrollLastT = Math.max(roomScrollLastT, t);
+    const wrapPos = msg.wrap && typeof msg.wrap === 'object' ? msg.wrap : null;
+    const modalPos = msg.modal && typeof msg.modal === 'object' ? msg.modal : null;
+    if (wrapPos && scrollPosNearlySame(readScrollPos(wrap), wrapPos)
+      && (!modalPos || (modalEl && !modalBack.hidden
+        && scrollPosNearlySame(readScrollPos(modalEl), modalPos)))) {
+      if (modalPos) pendingModalScroll = modalPos;
+      return;
+    }
+    scrollSyncApplying = true;
+    try {
+      if (wrapPos) applyScrollPos(wrap, wrapPos);
+      if (modalPos) {
+        pendingModalScroll = modalPos;
+        if (modalEl && modalBack && !modalBack.hidden) {
+          applyScrollPos(modalEl, modalPos);
+        }
+      }
+    } finally {
+      requestAnimationFrame(() => { scrollSyncApplying = false; });
+    }
+  }
+
+  function flushPendingModalScroll() {
+    if (!pendingModalScroll || !modalEl || !modalBack || modalBack.hidden) return;
+    scrollSyncApplying = true;
+    try {
+      applyScrollPos(modalEl, pendingModalScroll);
+    } finally {
+      requestAnimationFrame(() => { scrollSyncApplying = false; });
+    }
+  }
+
+  function loadRoomScrollForTag(tag) {
+    if (!tag) return;
+    try {
+      const raw = localStorage.getItem(roomScrollStorageKey(tag));
+      if (!raw) return;
+      const o = JSON.parse(raw);
+      if (!o) return;
+      applyRemoteRoomScroll(o, { force: true, t: Number(o.t) || Date.now() });
+    } catch (e) { /* ignore */ }
+  }
+
+  function bindRoomScrollSync() {
+    if (wrap && !wrap._roomScrollBound) {
+      wrap._roomScrollBound = true;
+      wrap.addEventListener('scroll', schedulePublishRoomScroll, { passive: true });
+    }
+    if (modalEl && !modalEl._roomScrollBound) {
+      modalEl._roomScrollBound = true;
+      modalEl.addEventListener('scroll', schedulePublishRoomScroll, { passive: true });
+    }
   }
 
   function normalizeStudyPicksList(raw) {
@@ -2647,9 +2779,10 @@
       force: true,
       t: stored.t || Date.now()
     });
-    /* Cùng mã → ăn theo trạng thái học tập + pick học tập phòng (nếu có). */
+    /* Cùng mã → ăn theo trạng thái học tập + pick học tập + scroll phòng (nếu có). */
     loadStudyModeForTag(tag);
     loadStudyPicksForTag(tag);
+    loadRoomScrollForTag(tag);
     if (!hasKey) {
       requestAnimationFrame(() => {
         if (simRoomTag === tag) publishSimTlPháPicks();
@@ -2670,9 +2803,10 @@
         window.FocusSync.publishSimPhaJoin(tag);
       }
     } catch (eFs) { /* ignore */ }
-    /* Tab đang học → báo mode + picks cho tab mới vào. */
+    /* Tab đang học → báo mode + picks + scroll cho tab mới vào. */
     if (studyMode) publishStudyMode();
     if (studyPicksForId != null) publishStudyPicks();
+    publishRoomScroll();
   }
 
   function loadSimPhaPicksForTag(tag) {
@@ -2711,10 +2845,11 @@
           if (!tag || !simRoomTag || tag !== simRoomTag) return;
           if (msg.from && msg.from === ensureSimTabId()) return;
           if (msg.type === 'sim-pha-join') {
-            /* Tab đang giữ mã → trả toàn bộ picks + học tập cho tab mới vào. */
+            /* Tab đang giữ mã → trả toàn bộ picks + học tập + scroll cho tab mới vào. */
             publishSimTlPháPicks();
             if (studyMode) publishStudyMode();
             if (studyPicksForId != null) publishStudyPicks();
+            publishRoomScroll();
             return;
           }
           if (msg.type === 'study-mode') {
@@ -2726,6 +2861,13 @@
           }
           if (msg.type === 'study-picks') {
             applyRemoteStudyPicks(msg.picks, msg.id, {
+              force: true,
+              t: Number(msg.t) || Date.now()
+            });
+            return;
+          }
+          if (msg.type === 'room-scroll') {
+            applyRemoteRoomScroll(msg, {
               force: true,
               t: Number(msg.t) || Date.now()
             });
@@ -2803,6 +2945,18 @@
         } catch (errSp) { /* ignore */ }
         return;
       }
+      if (e.key === roomScrollStorageKey(simRoomTag)) {
+        try {
+          const o = JSON.parse(e.newValue);
+          if (o) {
+            applyRemoteRoomScroll(o, {
+              force: true,
+              t: Number(o.t) || Date.now()
+            });
+          }
+        } catch (errSc) { /* ignore */ }
+        return;
+      }
       if (e.key !== simPhaStorageKey(simRoomTag)) return;
       try {
         const o = JSON.parse(e.newValue);
@@ -2814,6 +2968,7 @@
         }
       } catch (err) { /* ignore */ }
     });
+    bindRoomScrollSync();
     try {
       const saved = sessionStorage.getItem(SIM_ROOM_TAG_SS);
       if (saved) setSimRoomTag(saved);
@@ -3436,6 +3591,10 @@
     if (modalEl) modalEl.classList.remove('is-stats');
     modalBack.hidden = false;
     document.body.classList.add('modal-open');
+    /* Đồng bộ scroll popup (cùng mã) sau khi nội dung render. */
+    requestAnimationFrame(() => {
+      flushPendingModalScroll();
+    });
   }
 
   /** @type {{ id: number, popup: boolean, mode: string|null }|null} */
@@ -3719,6 +3878,9 @@
     if (modalEl) modalEl.classList.add('is-stats');
     modalBack.hidden = false;
     document.body.classList.add('modal-open');
+    requestAnimationFrame(() => {
+      flushPendingModalScroll();
+    });
   }
 
   modalBody.addEventListener('click', (e) => {
@@ -3774,6 +3936,76 @@
     openHistElim(idx);
     publishSharedFocus(nextId, { popup: true, mode: 'hist', force: true });
     return true;
+  }
+
+  /**
+   * Vị trí trên dãy displayIdx (+ 1 slot sim cuối nếu có).
+   * @returns {number} -1 nếu chưa biết focus
+   */
+  function focusNavPos() {
+    if (!tableBundle) return -1;
+    const { displayIdx } = tableBundle;
+    if (simIdOn && simState) return displayIdx.length;
+    if (histIdOnIdx == null) return -1;
+    for (let j = 0; j < displayIdx.length; j++) {
+      if (displayIdx[j] === histIdOnIdx) return j;
+    }
+    return -1;
+  }
+
+  /** Arrow ↑← = kỳ trước; ↓→ = kỳ sau (theo thứ tự bảng; cuối = sim nếu có). */
+  function stepFocusIdByArrow(delta) {
+    if (!tableBundle || !dataCtx || !delta) return false;
+    const { displayIdx, ids } = tableBundle;
+    if (!displayIdx.length) return false;
+    const maxPos = simState ? displayIdx.length : displayIdx.length - 1;
+    let pos = focusNavPos();
+    if (pos < 0) {
+      /* Chưa focus: thử id sync / bắt đầu từ đầu hoặc cuối theo hướng. */
+      let seedId = null;
+      try {
+        const st = window.FocusSync && typeof window.FocusSync.get === 'function'
+          ? window.FocusSync.get()
+          : null;
+        if (st && st.id != null) seedId = Number(st.id);
+      } catch (e) { /* ignore */ }
+      if (seedId != null && Number.isFinite(seedId)) {
+        if (simState && simState.focusId === seedId) pos = displayIdx.length;
+        else {
+          const hi = findHistIdxById(seedId);
+          if (hi >= 0) {
+            for (let j = 0; j < displayIdx.length; j++) {
+              if (displayIdx[j] === hi) { pos = j; break; }
+            }
+          }
+        }
+      }
+      if (pos < 0) pos = delta > 0 ? 0 : maxPos;
+      else pos = pos + delta;
+    } else {
+      pos = pos + delta;
+    }
+    if (pos < 0 || pos > maxPos) return false;
+    if (pos === displayIdx.length && simState) {
+      alignRowIntoView(simState.focusId, { instant: false });
+      openSimElim();
+      publishSharedFocus(simState.focusId, { popup: true, mode: 'sim', force: true });
+      return true;
+    }
+    const idx = displayIdx[pos];
+    const id = ids[idx];
+    if (id == null) return false;
+    rememberHistFocusClick(id);
+    alignRowIntoView(id, { instant: false });
+    openHistElim(idx);
+    publishSharedFocus(id, { popup: true, mode: 'hist', force: true });
+    return true;
+  }
+
+  function arrowNavDelta(key) {
+    if (key === 'ArrowDown' || key === 'ArrowRight') return 1;
+    if (key === 'ArrowUp' || key === 'ArrowLeft') return -1;
+    return 0;
   }
 
   function hidePopup() {
@@ -4083,6 +4315,15 @@
       e.stopPropagation();
       toggleStudyMode();
       return;
+    }
+    /* ↑↓←→: chuyển id (hist / sim) theo thứ tự bảng. */
+    if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+      const d = arrowNavDelta(e.key);
+      if (d && stepFocusIdByArrow(d)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
     }
     /* Ctrl+Z: xoay vòng focus giữa 2 kỳ hist vừa click (không đụng input). */
     if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey
