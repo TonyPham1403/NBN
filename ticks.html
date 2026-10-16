@@ -482,6 +482,12 @@
     color: #9ca3af;
     font-weight: 600;
   }
+  thead th.rest-h.pct,
+  thead th.rest-h.xy,
+  thead th.rest-h.name,
+  td.rest-ans {
+    padding-left: 2px;
+  }
   thead th.rest-h.pct {
     position: sticky; top: 0; left: calc(220px + var(--viol-w)); z-index: 7;
     background: #0f766e; color: #ecfdf5;
@@ -535,8 +541,8 @@
   tr:hover td.rest-ans { background: #dcfce7; }
   tr.sim-row td.rest-ans {
     background: #fef3c7 !important;
-    color: #9ca3af;
-    font-weight: 600;
+    color: #005000;
+    font-weight: 800;
   }
   td.id.hist-id {
     cursor: pointer;
@@ -5074,13 +5080,18 @@
     return out.slice().sort((a, b) => a - b);
   }
 
-  /** Đáp án ∩ rest (rest cố định theo pool tối đa); thứ tự theo đáp án; kèm freq. */
+  /**
+   * rest cố định theo pool tối đa + Đáp án ∩ rest (thứ tự đáp án, kèm freq).
+   * @returns {{ restSize: number, items: { num: number, freq: number }[] }}
+   */
   function restAnswerItemsForRow(i) {
-    if (!tableBundle || !dataCtx) return [];
+    const empty = { restSize: 0, items: [] };
+    if (!tableBundle || !dataCtx) return empty;
     const poolMax = poolNumsArrForRow(i, maxPoolPairIndices());
     const counts = windowCounts(dataCtx.rowNums, i);
     const restItems = buildRestItems(poolMax, counts);
-    if (!restItems.length) return [];
+    const restSize = restItems.length;
+    if (!restSize) return empty;
     const freqByNum = new Map();
     for (let r = 0; r < restItems.length; r++) {
       freqByNum.set(restItems[r].num, restItems[r].freq);
@@ -5094,35 +5105,56 @@
       seen.add(n);
       out.push({ num: n, freq: freqByNum.get(n) });
     }
-    return out;
+    return { restSize: restSize, items: out };
   }
 
-  function formatRestAnsCell(items, deriveSet) {
-    if (!items.length) return '';
+  /** Ô cột rest: [n]{…} — n = |rest|; trong {} = đáp án ∩ rest (rỗng → chỉ [n]). */
+  function formatRestAnsCell(items, deriveSet, restSize) {
+    const n = restSize | 0;
+    if (!n) return '';
     const parts = [];
-    for (let i = 0; i < items.length; i++) {
+    for (let i = 0; i < (items || []).length; i++) {
       const it = items[i];
       const bit = String(it.num) + toSubscript(it.freq);
       parts.push(wrapDeriveMarkHtml(bit, it.num, deriveSet));
     }
-    return parts.join(',');
+    if (!parts.length) return '[' + n + ']';
+    /* &nbsp; — khoảng thường bị HTML gộp còn 1. */
+    return '[' + n + ']&nbsp;&nbsp;&nbsp;&nbsp;{' + parts.join(',') + '}';
+  }
+
+  /** Kỳ giả lập: chỉ [n] (|rest| theo pool max) — chưa có đáp án → không {}. */
+  function syncSimRestCol() {
+    const td = wrap.querySelector('tr.sim-row td.rest-ans');
+    if (!td || !simState || !dataCtx) return;
+    const poolMax = simPoolNumsForPairs(maxPoolPairIndices());
+    const counts = windowCounts(dataCtx.rowNums, simState.focusIdx);
+    const restSize = buildRestItems(poolMax, counts).length;
+    td.textContent = restSize ? ('[' + restSize + ']') : '';
+    td.title = restSize
+      ? ('rest[' + restSize + '] · kỳ giả lập — chưa có đáp án')
+      : 'rest rỗng · kỳ giả lập';
   }
 
   function syncRestAnsCol() {
     wrap.querySelectorAll('td.rest-ans[data-idx]').forEach((td) => {
       const i = Number(td.getAttribute('data-idx'));
       if (!Number.isFinite(i)) return;
-      const items = restAnswerItemsForRow(i);
+      const packed = restAnswerItemsForRow(i);
+      const items = packed.items || [];
+      const restSize = packed.restSize | 0;
       const plain = items.length
         ? items.map((it) => String(it.num) + toSubscript(it.freq)).join(',')
         : '';
-      td.innerHTML = items.length
-        ? formatRestAnsCell(items, deriveSetForRow(i))
+      td.innerHTML = restSize
+        ? formatRestAnsCell(items, deriveSetForRow(i), restSize)
         : '';
-      td.title = plain
-        ? ('Đáp án ∩ rest: ' + plain)
-        : 'Không có số đáp án thuộc rest';
+      td.title = restSize
+        ? ('rest[' + restSize + ']'
+          + (plain ? (' · Đáp án ∩ rest: ' + plain) : ' · không có số đáp án thuộc rest'))
+        : 'rest rỗng';
     });
+    syncSimRestCol();
     syncRestColWidth();
   }
 
@@ -5196,7 +5228,7 @@
     syncStickyColWidth(
       '--rest-w',
       'td.rest-ans, thead th.rest-h',
-      'td.rest-ans[data-idx]',
+      'td.rest-ans[data-idx], tr.sim-row td.rest-ans',
       'thead th.rest-h.name'
     );
   }
@@ -5332,7 +5364,7 @@
       + '" title="Click: mở popup giả lập phá (click số đậm trên pool)">' + simState.focusId + '</td>'
       + '<td class="pool-nums" title="Kỳ giả lập">—</td>'
       + '<td class="viol-nums" title="Kỳ giả lập — chưa có đáp án">—</td>'
-      + '<td class="rest-ans" title="Kỳ giả lập — chưa có đáp án">—</td>';
+      + '<td class="rest-ans" title="Kỳ giả lập — chưa có đáp án"></td>';
     for (let ai = 0; ai < pool.length; ai++) {
       const pi = pool[ai];
       if (simState.disabled[pi]) {
