@@ -891,6 +891,7 @@
   .delta-tip.is-on {
     opacity: 1;
     visibility: visible;
+    pointer-events: auto;
   }
   .delta-tip.is-empty {
     color: #94a3b8;
@@ -902,6 +903,257 @@
     text-decoration-thickness: 1.5px;
     text-underline-offset: 2px;
     text-decoration-color: currentColor;
+  }
+  /* Bản gắn (chuột phải): kéo được · nút × góc phải */
+  .delta-tip.delta-tip-pin {
+    z-index: 10060;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+  }
+  .delta-tip.delta-tip-pin.is-dragging {
+    cursor: grabbing;
+  }
+  .delta-tip.delta-tip-pin.is-copy-ok {
+    outline: 2px solid #16a34a;
+    outline-offset: 1px;
+    border-color: #16a34a;
+    box-shadow:
+      0 0 0 1px rgba(22, 163, 74, .45),
+      0 10px 28px rgba(15, 23, 42, .38);
+  }
+  .delta-tip-pin-body {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+  .delta-tip-pin-x {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    margin: -2px -4px 0 0;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #94a3b8;
+    font: 700 14px/18px system-ui, sans-serif;
+    cursor: pointer;
+  }
+  .delta-tip-pin-x:hover {
+    color: #f8fafc;
+    background: rgba(248, 250, 252, .12);
+  }
+  /* Calculate popup — tập A/B; z trên mọi pin tooltip (Δ ~10050+, cal-pin ~10070+) */
+  .cal-back {
+    position: fixed; inset: 0; z-index: 11000;
+    background: rgba(15, 23, 42, .45);
+    display: flex; align-items: center; justify-content: center;
+    padding: 16px;
+  }
+  .cal-back[hidden] { display: none; }
+  .cal-modal {
+    background: #fff;
+    color: #111;
+    box-sizing: border-box;
+    width: min(420px, calc(100vw - 24px));
+    max-height: min(86vh, 640px);
+    overflow: auto;
+    border-radius: 10px;
+    box-shadow: 0 20px 50px rgba(0,0,0,.35);
+    padding: 14px 16px 16px;
+  }
+  .cal-modal h2 {
+    margin: 0 0 10px;
+    font-size: 16px;
+    font-weight: 800;
+  }
+  .cal-modal .cal-fields {
+    display: grid;
+    gap: 8px;
+    margin: 0 0 10px;
+  }
+  .cal-modal label {
+    display: grid;
+    gap: 3px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #374151;
+  }
+  .cal-field-head {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .cal-field-head .cal-field-name {
+    font-weight: 800;
+  }
+  .cal-field-clear {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+    background: #f8fafc;
+    color: #64748b;
+    font: 700 12px/16px system-ui, sans-serif;
+    cursor: pointer;
+  }
+  .cal-field-clear:hover {
+    color: #b91c1c;
+    border-color: #fca5a5;
+    background: #fef2f2;
+  }
+  .cal-modal textarea {
+    width: 100%;
+    min-height: 52px;
+    box-sizing: border-box;
+    resize: vertical;
+    font: 600 13px/1.35 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    padding: 6px 8px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+  }
+  .cal-modal textarea:focus {
+    outline: 2px solid #0f766e;
+    outline-offset: 1px;
+    border-color: #0f766e;
+  }
+  .cal-modal textarea.is-paste-bad {
+    outline: 2px solid #dc2626;
+    outline-offset: 1px;
+    border-color: #dc2626;
+  }
+  .cal-ops {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 0 0 10px;
+  }
+  .cal-ops button {
+    font: 700 12px/1.2 system-ui, sans-serif;
+    padding: 6px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #f8fafc;
+    color: #0f172a;
+    cursor: pointer;
+  }
+  .cal-ops button:hover {
+    background: #ecfdf5;
+    border-color: #0f766e;
+  }
+  .cal-ops button.is-on {
+    background: #0f766e;
+    border-color: #0f766e;
+    color: #fff;
+  }
+  .cal-result {
+    margin: 0 0 10px;
+    padding: 8px 10px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 6px;
+    font: 700 13px/1.4 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    word-break: break-word;
+    min-height: 2.2em;
+    cursor: context-menu;
+  }
+  .cal-result-meta {
+    font-size: 11px;
+    font-weight: 600;
+    color: #64748b;
+    margin: 0 0 8px;
+  }
+  .cal-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+    align-items: center;
+  }
+  .cal-actions button {
+    font: 700 12px/1 system-ui, sans-serif;
+    padding: 7px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    background: #fff;
+    cursor: pointer;
+  }
+  .cal-actions button.cal-copy {
+    background: #0f766e;
+    border-color: #0f766e;
+    color: #fff;
+  }
+  .cal-actions button.cal-copy.is-ok {
+    background: #16a34a;
+    border-color: #16a34a;
+  }
+  .cal-actions button:hover { filter: brightness(1.05); }
+  /* Pin kết quả calculate — xanh dương tối + chữ trắng; layout như delta tip */
+  .cal-tip.cal-tip-pin {
+    position: fixed;
+    z-index: 10080;
+    display: flex;
+    align-items: flex-start;
+    gap: 6px;
+    max-width: min(440px, calc(100vw - 20px));
+    padding: 6px 9px;
+    background: #1e3a8a;
+    color: #f8fafc;
+    border-radius: 6px;
+    border: 1px solid #1e40af;
+    box-shadow:
+      0 0 0 1px rgba(37, 99, 235, .4),
+      0 10px 28px rgba(15, 23, 42, .38);
+    font: 700 13px/1.35 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: .03em;
+    word-break: break-word;
+    cursor: grab;
+    user-select: none;
+    touch-action: none;
+  }
+  .cal-tip.cal-tip-pin.is-empty {
+    color: #94a3b8;
+    font-weight: 600;
+    font-style: italic;
+  }
+  .cal-tip.cal-tip-pin.is-dragging { cursor: grabbing; }
+  .cal-tip.cal-tip-pin.is-copy-ok {
+    outline: 2px solid #16a34a;
+    outline-offset: 1px;
+    border-color: #16a34a;
+  }
+  .cal-tip.cal-tip-pin .derive-mark {
+    text-decoration: underline;
+    text-decoration-thickness: 1.5px;
+    text-underline-offset: 2px;
+    text-decoration-color: currentColor;
+  }
+  .cal-tip-pin-body { flex: 1 1 auto; min-width: 0; }
+  .cal-tip-pin-x {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    margin: -2px -4px 0 0;
+    padding: 0;
+    border: none;
+    border-radius: 4px;
+    background: transparent;
+    color: #93c5fd;
+    font: 700 14px/18px system-ui, sans-serif;
+    cursor: pointer;
+  }
+  .cal-tip-pin-x:hover {
+    color: #f8fafc;
+    background: rgba(248, 250, 252, .12);
   }
   .modal .th-tl-row .tl-pool {
     display: inline-flex;
@@ -1114,6 +1366,40 @@
     <div class="th-timeline" id="modalTimeline" hidden></div>
     <div id="modalBody"></div>
     <div class="actions"><button type="button" id="modalClose">Đóng</button></div>
+  </div>
+</div>
+<div class="cal-back" id="calBack" hidden>
+  <div class="cal-modal" role="dialog" aria-modal="true" aria-labelledby="calTitle">
+    <h2 id="calTitle">Calculate · tập A / B</h2>
+    <div class="cal-fields">
+      <label>
+        <span class="cal-field-head">
+          <span class="cal-field-name">A</span>
+          <button type="button" class="cal-field-clear" data-cal-clear="A" title="Xóa tập A" aria-label="Xóa tập A">×</button>
+        </span>
+        <textarea id="calSetA" spellcheck="false" autocomplete="off" inputmode="decimal" lang="en"></textarea>
+      </label>
+      <label>
+        <span class="cal-field-head">
+          <span class="cal-field-name">B</span>
+          <button type="button" class="cal-field-clear" data-cal-clear="B" title="Xóa tập B" aria-label="Xóa tập B">×</button>
+        </span>
+        <textarea id="calSetB" spellcheck="false" autocomplete="off" inputmode="decimal" lang="en"></textarea>
+      </label>
+    </div>
+    <div class="cal-ops" id="calOps" role="group" aria-label="Phép tập hợp">
+      <button type="button" data-cal-op="intersect" title="A ∩ B">A ∩ B</button>
+      <button type="button" data-cal-op="union" title="A ∪ B">A ∪ B</button>
+      <button type="button" data-cal-op="aMinusB" title="A \ B">A \ B</button>
+      <button type="button" data-cal-op="bMinusA" title="B \ A">B \ A</button>
+      <button type="button" data-cal-op="symDiff" title="(A∪B) \ (A∩B)">A Δ B</button>
+    </div>
+    <div class="cal-result" id="calResult">KQ[0]{}</div>
+    <p class="cal-result-meta" id="calResultMeta">Chọn phép · RMB nút Copy = pin + đóng</p>
+    <div class="cal-actions">
+      <button type="button" id="calCopy" class="cal-copy" title="Click: copy · Chuột phải: pin kết quả + đóng">Copy</button>
+      <button type="button" id="calClose">Đóng</button>
+    </div>
   </div>
 </div>
 <script src="focus-sync.js?v=20261016simpha"></script>
@@ -3717,6 +4003,7 @@
       resetPopupPoolTrack();
       clearCopyNumsOkEffect();
       hideDeltaTip();
+      clearDeltaTipPins();
       hideModalRestPool();
       modalTimeline.hidden = true;
       modalTimeline.innerHTML = '';
@@ -4057,6 +4344,7 @@
     clearCopyNumsOkEffect();
     clearAffectNumHl();
     hideDeltaTip();
+    clearDeltaTipPins();
     popupTimelineDeriveSet = null;
     if (closingSim) {
       /* Có mã phòng: giữ picks để sync / mở lại; không mã: xóa như cũ. */
@@ -4138,7 +4426,7 @@
   }
   if (modalBody) modalBody.addEventListener('click', onCopyNumsClick);
 
-  /** Tooltip Δ — góc phải trên sát con trỏ; chỉ chuỗi. */
+  /** Tooltip Δ — góc phải trên sát con trỏ; chuột phải → gắn bản sao kéo được. */
   const deltaTip = document.createElement('div');
   deltaTip.className = 'delta-tip';
   deltaTip.setAttribute('role', 'tooltip');
@@ -4147,12 +4435,157 @@
   let deltaTipBtn = null;
   let deltaTipX = 0;
   let deltaTipY = 0;
+  /** @type {HTMLElement|null} */
+  let deltaTipDragEl = null;
+  let deltaTipDragOffX = 0;
+  let deltaTipDragOffY = 0;
+  /** z-index khối pin — khối vừa nắm kéo gần nhất nằm trên. */
+  let deltaTipPinZ = 10060;
+
+  function bringDeltaTipPinToFront(pin) {
+    if (!pin) return;
+    deltaTipPinZ += 1;
+    pin.style.zIndex = String(deltaTipPinZ);
+  }
 
   function hideDeltaTip() {
     deltaTipBtn = null;
     deltaTip.classList.remove('is-on', 'is-empty');
     deltaTip.hidden = true;
     deltaTip.textContent = '';
+  }
+
+  function clearDeltaTipPins() {
+    document.querySelectorAll('.delta-tip-pin').forEach((el) => {
+      el.remove();
+    });
+    deltaTipDragEl = null;
+    deltaTipPinZ = 10060;
+  }
+
+  function clampDeltaTipPinPos(el, left, top) {
+    const tipW = el.offsetWidth || 40;
+    const tipH = el.offsetHeight || 24;
+    let l = left;
+    let t = top;
+    if (l < 4) l = 4;
+    if (t < 4) t = 4;
+    if (l + tipW > window.innerWidth - 4) {
+      l = Math.max(4, window.innerWidth - tipW - 4);
+    }
+    if (t + tipH > window.innerHeight - 4) {
+      t = Math.max(4, window.innerHeight - tipH - 4);
+    }
+    el.style.left = Math.round(l) + 'px';
+    el.style.top = Math.round(t) + 'px';
+  }
+
+  /** Chuột phải trên tip / nút Δ → gắn bản sao (kéo + nút ×). */
+  function pinDeltaTipClone(clientX, clientY) {
+    if (deltaTip.hidden || !deltaTip.classList.contains('is-on')) return false;
+    if (modalBack.hidden || popupKind !== 'elim') return false;
+    const bodyHtml = deltaTip.innerHTML;
+    if (!bodyHtml) return false;
+    const empty = deltaTip.classList.contains('is-empty');
+    const pin = document.createElement('div');
+    pin.className = 'delta-tip delta-tip-pin is-on'
+      + (empty ? ' is-empty' : '');
+    pin.setAttribute('role', 'dialog');
+    pin.setAttribute('aria-label', 'Δ đã gắn — kéo để di chuyển');
+    const body = document.createElement('div');
+    body.className = 'delta-tip-pin-body';
+    body.innerHTML = bodyHtml;
+    const xBtn = document.createElement('button');
+    xBtn.type = 'button';
+    xBtn.className = 'delta-tip-pin-x';
+    xBtn.setAttribute('aria-label', 'Xóa');
+    xBtn.textContent = '×';
+    pin.appendChild(body);
+    pin.appendChild(xBtn);
+    document.body.appendChild(pin);
+    bringDeltaTipPinToFront(pin);
+    const srcLeft = parseFloat(deltaTip.style.left) || (clientX - 40);
+    const srcTop = parseFloat(deltaTip.style.top) || (clientY - 24);
+    clampDeltaTipPinPos(pin, srcLeft, srcTop);
+    requestAnimationFrame(() => {
+      clampDeltaTipPinPos(pin, srcLeft + 10, srcTop + 10);
+    });
+    xBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (deltaTipDragEl === pin) deltaTipDragEl = null;
+      pin.remove();
+    });
+    function flashPinCopyOk() {
+      pin.classList.add('is-copy-ok');
+      if (pin._copyOkTimer) clearTimeout(pin._copyOkTimer);
+      pin._copyOkTimer = setTimeout(() => {
+        pin.classList.remove('is-copy-ok');
+        pin._copyOkTimer = 0;
+      }, 650);
+    }
+    function copyPinBodyText() {
+      const plain = String(body.textContent || '')
+        .replace(/\s+/g, '')
+        .trim();
+      if (!plain) return;
+      const done = () => flashPinCopyOk();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(plain).then(done).catch(() => { /* ignore */ });
+        return;
+      }
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = plain;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        done();
+      } catch (err) { /* ignore */ }
+    }
+    pin.addEventListener('dblclick', (e) => {
+      if (e.target && e.target.closest && e.target.closest('.delta-tip-pin-x')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      copyPinBodyText();
+    });
+    pin.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      if (e.target && e.target.closest && e.target.closest('.delta-tip-pin-x')) return;
+      e.preventDefault();
+      bringDeltaTipPinToFront(pin);
+      const rect = pin.getBoundingClientRect();
+      deltaTipDragEl = pin;
+      deltaTipDragOffX = e.clientX - rect.left;
+      deltaTipDragOffY = e.clientY - rect.top;
+      pin.classList.add('is-dragging');
+      try {
+        pin.setPointerCapture(e.pointerId);
+      } catch (err) { /* ignore */ }
+    });
+    pin.addEventListener('pointermove', (e) => {
+      if (deltaTipDragEl !== pin) return;
+      clampDeltaTipPinPos(
+        pin,
+        e.clientX - deltaTipDragOffX,
+        e.clientY - deltaTipDragOffY
+      );
+    });
+    function endPinDrag(e) {
+      if (deltaTipDragEl !== pin) return;
+      deltaTipDragEl = null;
+      pin.classList.remove('is-dragging');
+      try {
+        if (e && e.pointerId != null) pin.releasePointerCapture(e.pointerId);
+      } catch (err) { /* ignore */ }
+    }
+    pin.addEventListener('pointerup', endPinDrag);
+    pin.addEventListener('pointercancel', endPinDrag);
+    return true;
   }
 
   /** Chuỗi Δ kèm gạch chân số ∈ derive (giống cột pool). */
@@ -4210,6 +4643,31 @@
     });
   }
 
+  function isOverDeltaTip(node) {
+    return !!(node && (node === deltaTip || (deltaTip.contains && deltaTip.contains(node))));
+  }
+
+  deltaTip.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    pinDeltaTipClone(e.clientX, e.clientY);
+  });
+  deltaTip.addEventListener('mouseleave', (e) => {
+    const to = e.relatedTarget;
+    if (to && deltaTipBtn && typeof to.closest === 'function'
+      && (deltaTipBtn === to || deltaTipBtn.contains(to))) {
+      return;
+    }
+    if (to && typeof to.closest === 'function') {
+      const next = to.closest('button.copy-delta-btn');
+      if (next && modalTimeline && modalTimeline.contains(next)) {
+        showDeltaTip(next, e.clientX, e.clientY);
+        return;
+      }
+    }
+    hideDeltaTip();
+  });
+
   if (modalTimeline) {
     modalTimeline.addEventListener('mouseover', (e) => {
       const btn = e.target && e.target.closest
@@ -4233,6 +4691,7 @@
         : null;
       if (!btn || !modalTimeline.contains(btn)) return;
       const to = e.relatedTarget;
+      if (isOverDeltaTip(to)) return;
       if (to && typeof to.closest === 'function') {
         if (btn.contains(to)) return;
         const next = to.closest('button.copy-delta-btn');
@@ -4242,6 +4701,18 @@
         }
       }
       hideDeltaTip();
+    });
+    modalTimeline.addEventListener('contextmenu', (e) => {
+      const btn = e.target && e.target.closest
+        ? e.target.closest('button.copy-delta-btn')
+        : null;
+      if (!btn || !modalTimeline.contains(btn)) return;
+      if (deltaTipBtn !== btn || deltaTip.hidden) {
+        showDeltaTip(btn, e.clientX, e.clientY);
+      }
+      e.preventDefault();
+      e.stopPropagation();
+      pinDeltaTipClone(e.clientX, e.clientY);
     });
     modalTimeline.addEventListener('scroll', hideDeltaTip, true);
   }
@@ -4327,10 +4798,474 @@
       clearAffectNumHl();
     });
   }
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && !modalBack.hidden) {
-      hidePopup();
+  /* —— Calculate popup (C): tập A/B + phép cơ bản + pin kết quả —— */
+  const calBack = document.getElementById('calBack');
+  const calModal = calBack ? calBack.querySelector('.cal-modal') : null;
+  const calSetA = document.getElementById('calSetA');
+  const calSetB = document.getElementById('calSetB');
+  const calOps = document.getElementById('calOps');
+  const calResult = document.getElementById('calResult');
+  const calResultMeta = document.getElementById('calResultMeta');
+  const calCopyBtn = document.getElementById('calCopy');
+  const calCloseBtn = document.getElementById('calClose');
+  let calOp = 'intersect';
+  /** @type {number[]} */
+  let calResultNums = [];
+  /** @type {HTMLElement|null} */
+  let calTipDragEl = null;
+  let calTipDragOffX = 0;
+  let calTipDragOffY = 0;
+  let calTipPinZ = 10080;
+
+  function isCalOpen() {
+    return !!(calBack && !calBack.hidden);
+  }
+
+  function parseCalSet(raw) {
+    const out = [];
+    const seen = new Set();
+    const parts = String(raw == null ? '' : raw).split(/[^0-9]+/);
+    for (let i = 0; i < parts.length; i++) {
+      if (!parts[i]) continue;
+      const n = Number(parts[i]);
+      if (!Number.isFinite(n) || n < 1 || n > 35 || seen.has(n)) continue;
+      seen.add(n);
+      out.push(n);
+    }
+    return out;
+  }
+
+  function calOpLabel(op) {
+    if (op === 'union') return 'A ∪ B';
+    if (op === 'aMinusB') return 'A \\ B';
+    if (op === 'bMinusA') return 'B \\ A';
+    if (op === 'symDiff') return 'A Δ B';
+    return 'A ∩ B';
+  }
+
+  function runCalOp(a, b, op) {
+    const setB = new Set(b);
+    const setA = new Set(a);
+    if (op === 'union') {
+      const out = a.slice();
+      for (let i = 0; i < b.length; i++) {
+        if (!setA.has(b[i])) out.push(b[i]);
+      }
+      return out;
+    }
+    if (op === 'aMinusB') {
+      return a.filter((n) => !setB.has(n));
+    }
+    if (op === 'bMinusA') {
+      return b.filter((n) => !setA.has(n));
+    }
+    if (op === 'symDiff') {
+      const out = a.filter((n) => !setB.has(n));
+      for (let i = 0; i < b.length; i++) {
+        if (!setA.has(b[i])) out.push(b[i]);
+      }
+      return out;
+    }
+    return a.filter((n) => setB.has(n));
+  }
+
+  function formatCalResultText(nums) {
+    const n = (nums || []).length;
+    if (!n) return 'KQ[0]{}';
+    return 'KQ[' + n + ']{' + nums.join(',') + '}';
+  }
+
+  function refreshCalResult() {
+    const a = parseCalSet(calSetA ? calSetA.value : '');
+    const b = parseCalSet(calSetB ? calSetB.value : '');
+    calResultNums = runCalOp(a, b, calOp);
+    if (calResult) {
+      calResult.textContent = formatCalResultText(calResultNums);
+    }
+    if (calResultMeta) {
+      calResultMeta.textContent = calOpLabel(calOp)
+        + ' · |A|=' + a.length + ' · |B|=' + b.length
+        + ' · |KQ|=' + calResultNums.length
+        + ' · RMB Copy = pin + đóng';
+    }
+    if (calOps) {
+      calOps.querySelectorAll('[data-cal-op]').forEach((btn) => {
+        btn.classList.toggle('is-on', btn.getAttribute('data-cal-op') === calOp);
+      });
+    }
+  }
+
+  function clearCalTipPins() {
+    document.querySelectorAll('.cal-tip-pin').forEach((el) => el.remove());
+    calTipDragEl = null;
+    calTipPinZ = 10080;
+  }
+
+  function bringCalTipPinToFront(pin) {
+    if (!pin) return;
+    calTipPinZ += 1;
+    pin.style.zIndex = String(calTipPinZ);
+  }
+
+  function clampCalTipPinPos(el, left, top) {
+    const tipW = el.offsetWidth || 40;
+    const tipH = el.offsetHeight || 24;
+    let l = left;
+    let t = top;
+    if (l < 4) l = 4;
+    if (t < 4) t = 4;
+    if (l + tipW > window.innerWidth - 4) {
+      l = Math.max(4, window.innerWidth - tipW - 4);
+    }
+    if (t + tipH > window.innerHeight - 4) {
+      t = Math.max(4, window.innerHeight - tipH - 4);
+    }
+    el.style.left = Math.round(l) + 'px';
+    el.style.top = Math.round(t) + 'px';
+  }
+
+  function pinCalResultTip(clientX, clientY) {
+    const nums = calResultNums.slice();
+    const empty = !nums.length;
+    const pin = document.createElement('div');
+    pin.className = 'cal-tip cal-tip-pin' + (empty ? ' is-empty' : '');
+    pin.setAttribute('role', 'dialog');
+    pin.setAttribute('aria-label', 'KQ calculate — kéo để di chuyển');
+    const body = document.createElement('div');
+    body.className = 'cal-tip-pin-body';
+    /* Giống delta tip: chuỗi số / (rỗng), gạch chân ∈ derive nếu đang mở kỳ. */
+    if (empty) {
+      body.textContent = '(rỗng)';
+    } else {
+      body.innerHTML = formatNumsDeriveHtml(nums, popupTimelineDeriveSet, ',');
+    }
+    const xBtn = document.createElement('button');
+    xBtn.type = 'button';
+    xBtn.className = 'cal-tip-pin-x';
+    xBtn.setAttribute('aria-label', 'Xóa');
+    xBtn.textContent = '×';
+    pin.appendChild(body);
+    pin.appendChild(xBtn);
+    document.body.appendChild(pin);
+    bringCalTipPinToFront(pin);
+    const left = (clientX != null ? clientX : 80) - 20;
+    const top = (clientY != null ? clientY : 80) - 16;
+    clampCalTipPinPos(pin, left, top);
+    xBtn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      if (calTipDragEl === pin) calTipDragEl = null;
+      pin.remove();
+    });
+    function flashOk() {
+      pin.classList.add('is-copy-ok');
+      if (pin._copyOkTimer) clearTimeout(pin._copyOkTimer);
+      pin._copyOkTimer = setTimeout(() => {
+        pin.classList.remove('is-copy-ok');
+        pin._copyOkTimer = 0;
+      }, 650);
+    }
+    function copyBody() {
+      const payload = nums.join(',');
+      const done = () => flashOk();
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(payload).then(done).catch(() => { /* ignore */ });
+        return;
+      }
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = payload;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        done();
+      } catch (err) { /* ignore */ }
+    }
+    pin.addEventListener('dblclick', (ev) => {
+      if (ev.target && ev.target.closest && ev.target.closest('.cal-tip-pin-x')) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      copyBody();
+    });
+    pin.addEventListener('pointerdown', (ev) => {
+      if (ev.button !== 0) return;
+      if (ev.target && ev.target.closest && ev.target.closest('.cal-tip-pin-x')) return;
+      ev.preventDefault();
+      bringCalTipPinToFront(pin);
+      const rect = pin.getBoundingClientRect();
+      calTipDragEl = pin;
+      calTipDragOffX = ev.clientX - rect.left;
+      calTipDragOffY = ev.clientY - rect.top;
+      pin.classList.add('is-dragging');
+      try { pin.setPointerCapture(ev.pointerId); } catch (err) { /* ignore */ }
+    });
+    pin.addEventListener('pointermove', (ev) => {
+      if (calTipDragEl !== pin) return;
+      clampCalTipPinPos(pin, ev.clientX - calTipDragOffX, ev.clientY - calTipDragOffY);
+    });
+    function endDrag(ev) {
+      if (calTipDragEl !== pin) return;
+      calTipDragEl = null;
+      pin.classList.remove('is-dragging');
+      try {
+        if (ev && ev.pointerId != null) pin.releasePointerCapture(ev.pointerId);
+      } catch (err) { /* ignore */ }
+    }
+    pin.addEventListener('pointerup', endDrag);
+    pin.addEventListener('pointercancel', endDrag);
+  }
+
+  function openCalPopup() {
+    if (!calBack) return;
+    calBack.hidden = false;
+    refreshCalResult();
+    requestAnimationFrame(() => {
+      if (calSetA) calSetA.focus();
+    });
+  }
+
+  function hideCalPopup() {
+    if (!calBack) return;
+    calBack.hidden = true;
+    if (calSetA) calSetA.blur();
+    if (calSetB) calSetB.blur();
+    /* Không xóa pin KQ — sống ngoài popup đến khi bấm ×. */
+  }
+
+  function toggleCalPopup() {
+    if (isCalOpen()) hideCalPopup();
+    else openCalPopup();
+  }
+
+  if (calOps) {
+    calOps.addEventListener('click', (e) => {
+      const btn = e.target && e.target.closest
+        ? e.target.closest('[data-cal-op]')
+        : null;
+      if (!btn || !calOps.contains(btn)) return;
+      calOp = btn.getAttribute('data-cal-op') || 'intersect';
+      refreshCalResult();
+    });
+  }
+  function flashCalPasteBad(ta) {
+    if (!ta) return;
+    ta.classList.add('is-paste-bad');
+    if (ta._pasteBadTimer) clearTimeout(ta._pasteBadTimer);
+    ta._pasteBadTimer = setTimeout(() => {
+      ta.classList.remove('is-paste-bad');
+      ta._pasteBadTimer = 0;
+    }, 650);
+  }
+
+  /** Clipboard thỏa = parse được ≥1 số 1..35; ký tự lạ → viền đỏ. */
+  function applyClipboardToCalSet(ta) {
+    if (!ta) return;
+    const applyText = (raw) => {
+      if (hasCalSetIllegalChars(raw)) flashCalPasteBad(ta);
+      const nums = parseCalSet(sanitizeCalSetText(raw));
+      if (!nums.length) {
+        flashCalPasteBad(ta);
+        return;
+      }
+      ta.value = nums.join(',');
+      refreshCalResult();
+    };
+    if (navigator.clipboard && navigator.clipboard.readText) {
+      navigator.clipboard.readText().then((raw) => {
+        applyText(raw);
+      }).catch(() => {
+        flashCalPasteBad(ta);
+      });
       return;
+    }
+    flashCalPasteBad(ta);
+  }
+
+  /** A/B chỉ cho phép số, dấu phẩy, dấu cách. */
+  function isCalSetAllowedChar(ch) {
+    return ch === ',' || ch === ' ' || (ch >= '0' && ch <= '9');
+  }
+  function sanitizeCalSetText(raw) {
+    return String(raw || '').replace(/[^0-9,\s]/g, '');
+  }
+  function hasCalSetIllegalChars(raw) {
+    return /[^0-9,\s]/.test(String(raw || ''));
+  }
+
+  function isCalHotkeyC(e) {
+    if (!e || e.ctrlKey || e.metaKey || e.altKey) return false;
+    /* Dùng code: Unikey/Telex thường cho key="Process" thay vì "c". */
+    return e.code === 'KeyC' || e.key === 'c' || e.key === 'C';
+  }
+
+  function bindCalSetField(ta) {
+    if (!ta) return;
+    ta.addEventListener('keydown', (e) => {
+      if (e.ctrlKey || e.metaKey || e.altKey) return;
+      /* Hotkey C: chặn ghi + không nháy đỏ (toggle ở capture). */
+      if (isCalHotkeyC(e)) {
+        e.preventDefault();
+        e.stopPropagation();
+        return;
+      }
+      if (e.key === 'Enter' || e.key === 'Process') {
+        if (e.key === 'Enter') e.preventDefault();
+        return;
+      }
+      if (e.key.length === 1 && !isCalSetAllowedChar(e.key)) {
+        e.preventDefault();
+        flashCalPasteBad(ta);
+      }
+    });
+    ta.addEventListener('beforeinput', (e) => {
+      const data = e.data;
+      if (data == null || data === '') return;
+      if (!hasCalSetIllegalChars(data)) return;
+      e.preventDefault();
+      if (!/^[cC]+$/.test(data)) flashCalPasteBad(ta);
+    });
+    ta.addEventListener('compositionend', () => {
+      const v = ta.value;
+      const clean = sanitizeCalSetText(v);
+      if (clean === v) return;
+      const removed = v.replace(/[0-9,\s]/g, '');
+      ta.value = clean;
+      if (removed && !/^[cC]+$/.test(removed)) flashCalPasteBad(ta);
+      refreshCalResult();
+    });
+    ta.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const raw = (e.clipboardData || window.clipboardData)
+        ? (e.clipboardData || window.clipboardData).getData('text')
+        : '';
+      if (hasCalSetIllegalChars(raw)) flashCalPasteBad(ta);
+      const clean = sanitizeCalSetText(raw);
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const next = ta.value.slice(0, start) + clean + ta.value.slice(end);
+      ta.value = next;
+      const caret = start + clean.length;
+      try { ta.setSelectionRange(caret, caret); } catch (err) { /* ignore */ }
+      refreshCalResult();
+    });
+    ta.addEventListener('input', () => {
+      const v = ta.value;
+      const clean = sanitizeCalSetText(v);
+      if (clean !== v) {
+        const removed = v.replace(/[0-9,\s]/g, '');
+        const pos = typeof ta.selectionStart === 'number' ? ta.selectionStart : clean.length;
+        ta.value = clean;
+        const caret = Math.min(pos, clean.length);
+        try { ta.setSelectionRange(caret, caret); } catch (err) { /* ignore */ }
+        if (removed && !/^[cC]+$/.test(removed)) flashCalPasteBad(ta);
+      }
+      refreshCalResult();
+    });
+    ta.addEventListener('dblclick', (e) => {
+      e.preventDefault();
+      applyClipboardToCalSet(ta);
+    });
+  }
+
+  bindCalSetField(calSetA);
+  bindCalSetField(calSetB);
+
+  if (calCopyBtn) {
+    calCopyBtn.addEventListener('click', () => {
+      const plain = calResultNums.join(',');
+      const done = () => {
+        calCopyBtn.classList.add('is-ok');
+        calCopyBtn.textContent = 'Đã copy';
+        setTimeout(() => {
+          calCopyBtn.classList.remove('is-ok');
+          calCopyBtn.textContent = 'Copy';
+        }, 700);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(plain).then(done).catch(() => { /* ignore */ });
+        return;
+      }
+      try {
+        const ta = document.createElement('textarea');
+        ta.value = plain;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        done();
+      } catch (err) { /* ignore */ }
+    });
+    /* Chuột phải Copy → pin KQ (nền xanh dương) + đóng cal. */
+    calCopyBtn.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      refreshCalResult();
+      const x = e.clientX;
+      const y = e.clientY;
+      hideCalPopup();
+      pinCalResultTip(x, y);
+    });
+  }
+  if (calCloseBtn) {
+    calCloseBtn.addEventListener('click', hideCalPopup);
+  }
+  if (calBack) {
+    calBack.addEventListener('click', (e) => {
+      if (e.target === calBack) hideCalPopup();
+    });
+  }
+  if (calModal) {
+    calModal.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const btn = e.target && e.target.closest
+        ? e.target.closest('[data-cal-clear]')
+        : null;
+      if (!btn || !calModal.contains(btn)) return;
+      e.preventDefault();
+      const which = btn.getAttribute('data-cal-clear');
+      const ta = which === 'B' ? calSetB : calSetA;
+      if (ta) {
+        ta.value = '';
+        ta.classList.remove('is-paste-bad');
+        refreshCalResult();
+        ta.focus();
+      }
+    });
+  }
+
+  /* C: bật/tắt cal — capture + e.code (chịu Unikey/Telex key=Process). */
+  document.addEventListener('keydown', (e) => {
+    if (!isCalHotkeyC(e)) return;
+    const t = e.target;
+    const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'
+      || t.tagName === 'SELECT' || (t.isContentEditable));
+    const inCalField = t === calSetA || t === calSetB;
+    if (typing && !inCalField) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    if (inCalField) {
+      try { t.blur(); } catch (err) { /* ignore */ }
+    }
+    toggleCalPopup();
+  }, true);
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (isCalOpen()) {
+        hideCalPopup();
+        return;
+      }
+      if (!modalBack.hidden) {
+        hidePopup();
+        return;
+      }
     }
     const t = e.target;
     const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'
@@ -4450,7 +5385,10 @@
     const focusId = dataCtx.ids[focusIdx];
     const packed = detailsAtFocus(focusIdx, focusId);
     if (!packed) return;
-    if (histIdOnIdx !== focusIdx) resetPopupPoolTrack();
+    if (histIdOnIdx !== focusIdx || simIdOn) {
+      resetPopupPoolTrack();
+      clearDeltaTipPins();
+    }
     /* Học tập: đổi id → quên pick giả lập id cũ; cùng id (toggle E) → giữ. */
     if (studyMode) rememberStudyPicksForId(focusId);
     const active = activePairIndices();
@@ -4517,6 +5455,7 @@
     if (!simState) return;
     if (!simIdOn) {
       resetPopupPoolTrack();
+      clearDeltaTipPins();
       if (simRoomTag) loadSimPhaPicksForTag(simRoomTag);
     }
     const active = activePairIndices();

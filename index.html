@@ -15496,24 +15496,90 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
         }
 
+        /** Index hàng sheet1 theo id kỳ (chuẩn hóa số). */
+        function findSourceSheetRowIndexById(rawId) {
+            if (!sheetManager) {
+                return -1;
+            }
+            const key = String(rawId == null ? '' : rawId).trim();
+            if (!key) {
+                return -1;
+            }
+            const rows = typeof sheetManager.getSourceSheetRows === 'function'
+                ? sheetManager.getSourceSheetRows()
+                : (sheetManager.sourceRows || []);
+            if (!Array.isArray(rows) || !rows.length) {
+                return -1;
+            }
+            if (typeof sheetManager.getSourceRowById === 'function') {
+                const row = sheetManager.getSourceRowById(key);
+                if (row) {
+                    const ix = rows.indexOf(row);
+                    if (ix >= 0) {
+                        return ix;
+                    }
+                }
+            }
+            const norm = typeof sheetManager.normalizeNumberKey === 'function'
+                ? sheetManager.normalizeNumberKey(key)
+                : key;
+            for (let i = 0; i < rows.length; i++) {
+                const id = String(rows[i].id || rows[i].ID || '').trim();
+                if (id === key) {
+                    return i;
+                }
+                if (typeof sheetManager.normalizeNumberKey === 'function'
+                    && sheetManager.normalizeNumberKey(id) === norm) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        /**
+         * Đẩy nửa trái (ok_left) theo id focus — dùng khi FocusSync từ ticks
+         * đã đúng sheet nhưng iframe chưa nhận setLines.
+         */
+        function syncOkLeftPaneToFocusId(rawId) {
+            if (!sheetManager) {
+                return false;
+            }
+            const idx = findSourceSheetRowIndexById(rawId);
+            if (idx < 0) {
+                return false;
+            }
+            if (typeof sheetManager.syncLeftPaneFromSourceRowIndex === 'function') {
+                sheetManager.syncLeftPaneFromSourceRowIndex(idx, { immediate: true });
+                return true;
+            }
+            if (typeof sheetManager.postLeftPaneSetLinesForSourceRow === 'function') {
+                sheetManager.postLeftPaneSetLinesForSourceRow(idx, { lightStep: false });
+                return true;
+            }
+            return false;
+        }
+
         function initSharedFocusIdSync() {
             if (!window.FocusSync || typeof window.FocusSync.init !== 'function') {
                 return;
             }
             window.FocusSync.init({
                 source: 'index',
-                apply: (state) => {
+                apply: (state, meta) => {
                     const id = Number(state && state.id != null ? state.id : state);
                     if (!Number.isFinite(id) || id <= 0) {
                         return;
                     }
-                    // Cùng id: không re-focus (tránh loop / nuốt publish khi ticks tắt popup).
                     const cur = getCurrentSheetFocusIdNumber();
-                    if (cur === id) {
-                        return;
-                    }
-                    if (typeof window.focusSheetByRowId === 'function') {
+                    const remote = !!(meta && (meta.remote || meta.seed));
+                    // Đổi id sheet khi khác focus hiện tại (tránh loop khi ticks tắt popup).
+                    if (cur !== id && typeof window.focusSheetByRowId === 'function') {
                         window.focusSheetByRowId(String(id));
+                    }
+                    // Remote (ticks/storage): luôn sync nửa trái — sheet có thể đã đúng id
+                    // nhưng ok_left chưa setLines (vd cùng id + force, hoặc rowClicked bị nuốt).
+                    if (remote) {
+                        syncOkLeftPaneToFocusId(id);
                     }
                 }
             });
@@ -31536,6 +31602,8 @@ function getFilterNoteTRefMaxSelections(mode) {
                     flushTrackingSetLinesCoalesce();
                     commitMainTableNav();
                 }
+                /* Arrow xong → sync id sang ticks (finishSheet1ArrowNav không bắn rowClicked). */
+                publishSharedFocusIdFromSheet();
             }, RIGHT_PANE_NAV_COALESCE_MS);
         }
 
@@ -35354,9 +35422,6 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (detail.sheetName === 'sheet1' && typeof detail.focusRowIndex === 'number') {
                     mainSheet1FocusRowIndex = detail.focusRowIndex;
                 }
-                if (typeof detail.focusRowIndex === 'number') {
-                    publishSharedFocusIdFromSheet();
-                }
                 if (periodFilterEnabled && !fromFilterNav && typeof detail.focusRowIndex === 'number') {
                     syncFilterPopupFocusFromMainRow(detail.focusRowIndex);
                 }
@@ -35368,7 +35433,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
                 selectedLines = detail.selectedLines || [];
                 selectedNums.clear();
-                detail.selectedNums.forEach(n => selectedNums.add(n));
+                if (detail.selectedNums && typeof detail.selectedNums.forEach === 'function') {
+                    detail.selectedNums.forEach(n => selectedNums.add(n));
+                }
                 if (!detail.light) {
                     syncComboLogicUi();
                     renderSelectedLines();
@@ -35376,6 +35443,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
 
                 // Send selected lines to iframe for updating submit state
+                // (trước publish FocusSync — nửa trái cập nhật trước khi broadcast).
                 const frame = el('okFrame');
                 let referenceConn3HeaderLines = [];
                 let referenceConn3Triplets = [];
@@ -35414,6 +35482,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                         referenceConn3PhaseMaxNum = null;
                     }
                 }
+                let leftPanePosted = false;
                 if (frame && frame.contentWindow && selectedLines.length > 0) {
                     // ok_left process() expects tab-separated columns (same as iframe copyLine):
                     // result, optional note, optional nonexist. Pipe-only lines leave note/nonexist empty
@@ -35462,13 +35531,27 @@ function getFilterNoteTRefMaxSelections(mode) {
                     };
                     if (detail.fromSheet1NavStep || (fromTrackingSync && detail.trackingFrameStep)) {
                         frame.contentWindow.postMessage(setLinesPayload, '*');
+                        leftPanePosted = true;
                     } else if (fromTrackingSync) {
                         scheduleTrackingSetLinesPost(setLinesPayload);
+                        leftPanePosted = true;
                     } else if (fromFilterNav && periodFilterEnabled && isAllLikeFilterMode(periodFilterMode)) {
                         scheduleFilterAllModeSetLines(setLinesPayload);
+                        leftPanePosted = true;
                     } else {
                         frame.contentWindow.postMessage(setLinesPayload, '*');
+                        leftPanePosted = true;
                     }
+                }
+                if (!leftPanePosted && typeof detail.focusRowIndex === 'number') {
+                    const fid = detail.clickedRowId || getCurrentSheetFocusIdNumber();
+                    if (fid != null && fid !== '') {
+                        syncOkLeftPaneToFocusId(fid);
+                    }
+                }
+                /* Broadcast sang ticks sau khi đã đẩy nửa trái. */
+                if (typeof detail.focusRowIndex === 'number') {
+                    publishSharedFocusIdFromSheet();
                 }
                 if (sheetManager && sheetManager.activeSheet === 'combo_1') {
                     scheduleComboH1ReplaceFromLeftCircled();
