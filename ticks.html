@@ -972,13 +972,36 @@
     text-underline-offset: 2px;
     text-decoration-color: currentColor;
   }
-  /* Nhãn i/j/k trong tip Δ — cùng màu timeline */
+  /* Nhãn i/j/k trong tip Δ — cùng màu timeline; click = toggle nền đỏ */
   .delta-tip .delta-tip-lbl {
     color: #2563eb;
     font-weight: 800;
+    cursor: pointer;
+    border-radius: 3px;
+    padding: 0 1px;
+    user-select: none;
   }
   .delta-tip .delta-tip-lbl.is-k {
     color: #ea580c;
+  }
+  .delta-tip .delta-tip-lbl:hover {
+    background: rgba(248, 250, 252, .12);
+  }
+  .delta-tip.is-mark-red {
+    background: #b91c1c;
+    border-color: #7f1d1d;
+    box-shadow:
+      0 0 0 1px rgba(185, 28, 28, .45),
+      0 10px 28px rgba(15, 23, 42, .38);
+  }
+  .delta-tip.is-mark-red .delta-tip-lbl {
+    color: #fef2f2;
+  }
+  .delta-tip.is-mark-red .delta-tip-lbl.is-k {
+    color: #ffedd5;
+  }
+  .delta-tip.is-mark-red .delta-tip-lbl:hover {
+    background: rgba(254, 242, 242, .16);
   }
   /* Bản gắn (chuột phải): kéo được · nút × góc phải */
   .delta-tip.delta-tip-pin {
@@ -4790,7 +4813,7 @@
         return;
       }
       if (e.target && e.target.closest
-        && e.target.closest('.delta-tip-pin-x, .cal-tip-pin-x')) {
+        && e.target.closest('.delta-tip-pin-x, .cal-tip-pin-x, .delta-tip-lbl')) {
         e.preventDefault();
         return;
       }
@@ -4839,6 +4862,7 @@
       return createDeltaTipPin({
         bodyHtml: payload.bodyHtml || '',
         empty: !!payload.empty,
+        markRed: !!payload.markRed,
         left: left,
         top: top,
         xferId: payload.xferId
@@ -4910,7 +4934,7 @@
 
   function hideDeltaTip() {
     deltaTipBtn = null;
-    deltaTip.classList.remove('is-on', 'is-empty');
+    deltaTip.classList.remove('is-on', 'is-empty', 'is-mark-red');
     deltaTip.hidden = true;
     deltaTip.textContent = '';
   }
@@ -4932,6 +4956,7 @@
     const empty = !!(opts && opts.empty);
     const pin = document.createElement('div');
     pin.className = 'delta-tip delta-tip-pin is-on' + (empty ? ' is-empty' : '');
+    if (opts && opts.markRed) pin.classList.add('is-mark-red');
     pin.setAttribute('role', 'dialog');
     pin.setAttribute('aria-label', 'Δ đã gắn — kéo sang tab khác được');
     const xferId = (opts && opts.xferId) || newTipPinXferId();
@@ -5001,20 +5026,29 @@
     }
     pin.addEventListener('dblclick', (e) => {
       if (e.target && e.target.closest && e.target.closest('.delta-tip-pin-x')) return;
+      if (e.target && e.target.closest && e.target.closest('.delta-tip-lbl')) return;
       e.preventDefault();
       e.stopPropagation();
       copyPinBodyText();
     });
-    /* Ctrl/Cmd+click → clone pin lệch nhẹ. */
+    /* Click nhãn i1: → toggle nền đỏ; Ctrl/Cmd+click → clone pin. */
     pin.addEventListener('click', (e) => {
-      if (!(e.ctrlKey || e.metaKey)) return;
       if (e.target && e.target.closest && e.target.closest('.delta-tip-pin-x')) return;
+      const onLbl = e.target && e.target.closest && e.target.closest('.delta-tip-lbl');
+      if (onLbl && !(e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        e.stopPropagation();
+        toggleDeltaTipMarkRed(pin);
+        return;
+      }
+      if (!(e.ctrlKey || e.metaKey)) return;
       e.preventDefault();
       e.stopPropagation();
       const rect = pin.getBoundingClientRect();
       createDeltaTipPin({
         bodyHtml: body.innerHTML,
         empty: empty,
+        markRed: pin.classList.contains('is-mark-red'),
         left: rect.left + 14,
         top: rect.top + 14
       });
@@ -5025,6 +5059,7 @@
       xferId: id,
       fromTab: ensureSimTabId(),
       empty: empty,
+      markRed: pin.classList.contains('is-mark-red'),
       bodyHtml: body.innerHTML,
       plain: deltaPinNumsPlain(),
       offX: offX,
@@ -5065,6 +5100,7 @@
     const pin = createDeltaTipPin({
       bodyHtml: bodyHtml,
       empty: empty,
+      markRed: deltaTip.classList.contains('is-mark-red'),
       left: left,
       top: top
     });
@@ -5086,10 +5122,11 @@
   /** Chuỗi Δ: `i4:  2,8,…` — nhãn cùng màu timeline; số gạch chân ∈ derive. */
   function formatDeltaTipHtml(csv, deltaLabel) {
     const lbl = deltaLabel ? String(deltaLabel) : '';
+    /* Dấu : nằm trong nhãn — click cả “i1:” để toggle nền đỏ. */
     const prefix = lbl
       ? ('<span class="delta-tip-lbl'
         + (lbl === 'k' ? ' is-k' : '')
-        + '">' + escapeAttr(lbl) + '</span>:  ')
+        + '" title="Click: đổi nền đỏ / tắt">' + escapeAttr(lbl) + ':</span>  ')
       : '';
     if (!csv) return prefix ? (prefix + '(rỗng)') : '';
     const nums = [];
@@ -5101,6 +5138,11 @@
     }
     if (!nums.length) return prefix + escapeAttr(csv);
     return prefix + formatNumsDeriveHtml(nums, popupTimelineDeriveSet, ',');
+  }
+
+  function toggleDeltaTipMarkRed(tipEl) {
+    if (!tipEl || !tipEl.classList) return;
+    tipEl.classList.toggle('is-mark-red');
   }
 
   /**
@@ -5212,6 +5254,15 @@
     e.preventDefault();
     e.stopPropagation();
     pinDeltaTipClone(e.clientX, e.clientY, deltaTipBtn);
+  });
+  deltaTip.addEventListener('click', (e) => {
+    const lbl = e.target && e.target.closest
+      ? e.target.closest('.delta-tip-lbl')
+      : null;
+    if (!lbl || !deltaTip.contains(lbl)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    toggleDeltaTipMarkRed(deltaTip);
   });
   deltaTip.addEventListener('mouseleave', (e) => {
     const to = e.relatedTarget;
