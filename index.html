@@ -15443,7 +15443,36 @@ function getFilterNoteTRefMaxSelections(mode) {
             return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
         }
 
+        /** Làm nóng ticks.html + data.json khi rảnh / hover nút — lần mở đầu nhanh hơn. */
+        let ticksAssetsWarmed = false;
+        function warmTicksAssets() {
+            if (ticksAssetsWarmed) {
+                return;
+            }
+            ticksAssetsWarmed = true;
+            const hrefs = [
+                { rel: 'prefetch', href: 'ticks.html', as: 'document' },
+                { rel: 'prefetch', href: 'data.json', as: 'fetch' },
+                { rel: 'prefetch', href: 'focus-sync.js?v=20261016simpha', as: 'script' }
+            ];
+            for (let i = 0; i < hrefs.length; i++) {
+                try {
+                    const link = document.createElement('link');
+                    link.rel = hrefs[i].rel;
+                    link.href = hrefs[i].href;
+                    if (hrefs[i].as) {
+                        link.as = hrefs[i].as;
+                    }
+                    document.head.appendChild(link);
+                } catch (ePref) { /* ignore */ }
+            }
+            try {
+                fetch('data.json', { cache: 'force-cache' }).catch(() => {});
+            } catch (eFetch) { /* ignore */ }
+        }
+
         function openTicksHtmlNewTab() {
+            warmTicksAssets();
             const id = getCurrentSheetFocusIdNumber();
             let url = 'ticks.html';
             if (id != null) {
@@ -15468,6 +15497,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
                 openTicksHtmlNewTab();
             };
+            btn.addEventListener('pointerenter', warmTicksAssets, { once: true });
             btn.addEventListener('pointerdown', (event) => {
                 if (event.button !== 0) {
                     return;
@@ -15483,6 +15513,11 @@ function getFilterNoteTRefMaxSelections(mode) {
                     run();
                 }
             });
+            if (typeof requestIdleCallback === 'function') {
+                requestIdleCallback(() => warmTicksAssets(), { timeout: 4000 });
+            } else {
+                setTimeout(warmTicksAssets, 1500);
+            }
         }
 
         function publishSharedFocusIdFromSheet() {
@@ -15549,7 +15584,11 @@ function getFilterNoteTRefMaxSelections(mode) {
                 return false;
             }
             if (typeof sheetManager.syncLeftPaneFromSourceRowIndex === 'function') {
-                sheetManager.syncLeftPaneFromSourceRowIndex(idx, { immediate: true });
+                // lightStep:false — cần focusNonexistHighlights để tô màu hàng freq=0
+                sheetManager.syncLeftPaneFromSourceRowIndex(idx, {
+                    immediate: true,
+                    lightStep: false
+                });
                 return true;
             }
             if (typeof sheetManager.postLeftPaneSetLinesForSourceRow === 'function') {
@@ -15581,6 +15620,16 @@ function getFilterNoteTRefMaxSelections(mode) {
                     if (remote) {
                         syncOkLeftPaneToFocusId(id);
                     }
+                }
+            });
+            // Tab treo/ẩn lâu: iframe trái có thể bỏ lỡ setLines — hiện lại thì đẩy lại.
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState !== 'visible') {
+                    return;
+                }
+                const id = getCurrentSheetFocusIdNumber();
+                if (id != null) {
+                    syncOkLeftPaneToFocusId(id);
                 }
             });
         }
@@ -35543,7 +35592,17 @@ function getFilterNoteTRefMaxSelections(mode) {
                         leftPanePosted = true;
                     }
                 }
-                if (!leftPanePosted && typeof detail.focusRowIndex === 'number') {
+                /* Luôn đảm bảo nửa trái theo id focus (cùng path ticks remote).
+                 * postMessage setLines đôi khi bị nuốt sau treo tab / iframe ngủ —
+                 * syncOkLeftPane dựng lại từ source row nên tin cậy hơn. */
+                if (typeof detail.focusRowIndex === 'number'
+                    && !detail.fromSheet1NavStep
+                    && !(fromTrackingSync && detail.trackingFrameStep)) {
+                    const fid = detail.clickedRowId || getCurrentSheetFocusIdNumber();
+                    if (fid != null && fid !== '') {
+                        syncOkLeftPaneToFocusId(fid);
+                    }
+                } else if (!leftPanePosted && typeof detail.focusRowIndex === 'number') {
                     const fid = detail.clickedRowId || getCurrentSheetFocusIdNumber();
                     if (fid != null && fid !== '') {
                         syncOkLeftPaneToFocusId(fid);

@@ -180,14 +180,27 @@
   }
   .banner .err { color: #fecaca; margin-top: 8px; }
   .banner .summary {
-    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    align-items: center;
     margin-top: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: thin;
   }
   .banner .summary .chip {
-    display: inline-flex; align-items: center; gap: 8px;
-    background: #fff; border: 1px solid #e5e7eb;
-    border-radius: 8px; padding: 6px 8px 6px 12px;
-    font-size: 12px; color: #111;
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    gap: 8px;
+    background: #fff;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    padding: 6px 8px 6px 12px;
+    font-size: 12px;
+    color: #111;
   }
   .banner .summary .chip strong {
     font-variant-numeric: tabular-nums; font-size: 14px;
@@ -203,6 +216,9 @@
     font: 700 12px/1.2 Inter, Segoe UI, Arial, sans-serif;
     font-variant-numeric: tabular-nums;
     cursor: pointer;
+  }
+  .banner .summary .chip select.pha-k-select#phaSymSelect {
+    min-width: 6.5em;
   }
   .viol-rate,
   .rest-rate {
@@ -477,6 +493,10 @@
   }
   tr:nth-child(even) td.viol-nums { background: #fef2f2; }
   tr:hover td.viol-nums { background: #fee2e2; }
+  /* Viền trong xanh: kỳ đối xứng phá 100% (cùng UI tick-full trên cột id) */
+  td.viol-nums.pha-sym-full {
+    box-shadow: inset 0 0 0 2px #16a34a;
+  }
   tr.sim-row td.viol-nums {
     background: #fef3c7 !important;
     color: #9ca3af;
@@ -785,7 +805,7 @@
   .modal .th-timeline {
     position: relative;
     margin: 0 0 12px;
-    padding: 8px 10px 8px 22px;
+    padding: 6px 8px 6px 10px;
     background: #f9fafb;
     border: 1px solid #e5e7eb;
     border-radius: 6px;
@@ -801,10 +821,10 @@
   /* Mũi tên dọc: đọc timeline từ trên xuống dưới */
   .modal .th-tl-flow {
     position: absolute;
-    left: 6px;
-    top: 28px;
-    bottom: 10px;
-    width: 10px;
+    left: 1px;
+    top: 26px;
+    bottom: 8px;
+    width: 8px;
     pointer-events: none;
   }
   .modal .th-tl-flow::before {
@@ -833,22 +853,70 @@
   }
   .modal .th-tl-row {
     display: grid;
-    grid-template-columns: 3.25em 4.25em max-content 1fr;
-    column-gap: 8px;
+    grid-template-columns: max-content max-content 1fr;
+    column-gap: 3px;
     align-items: baseline;
-    margin: 2px 0;
+    margin: 1px 0;
     width: 100%;
   }
+  /* T% + %phá: sát tối đa (split view), bề ngang cố định → thẳng cột */
+  .modal .th-tl-row .tl-tr {
+    display: inline-flex;
+    align-items: baseline;
+    gap: 2px;
+    white-space: nowrap;
+  }
   .modal .th-tl-row .tl-t {
-    font-weight: 700; text-align: right; white-space: nowrap;
+    flex: 0 0 2.4em;
+    width: 2.4em;
+    font-weight: 700;
+    text-align: right;
+    white-space: nowrap;
   }
   .modal .th-tl-row .tl-rate {
-    font-weight: 800; color: #ef4444; text-align: right; white-space: nowrap;
+    flex: 0 0 3.1em;
+    width: 3.1em;
+    font-weight: 800;
+    color: #ef4444;
+    text-align: right;
+    white-space: nowrap;
+  }
+  /* Δ + nhãn i/j/k dính liền; nhãn hẹp cố định (pool[0] thẳng hàng) */
+  .modal .th-tl-row .tl-delta-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 0;
+    flex: 0 0 auto;
+    margin-right: 0;
+  }
+  .modal .th-tl-row .tl-delta-lbl {
+    box-sizing: border-box;
+    flex: 0 0 1.25em;
+    width: 1.25em;
+    min-width: 1.25em;
+    margin: 0;
+    padding: 0;
+    font: 800 10px/1.1 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    color: #2563eb;
+    letter-spacing: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    user-select: text;
+    cursor: text;
+  }
+  .modal .th-tl-row .tl-delta-lbl.is-k {
+    color: #ea580c;
+  }
+  .modal .th-tl-row .tl-delta-lbl-slot {
+    visibility: hidden;
+    pointer-events: none;
+    user-select: none;
+    cursor: default;
   }
   .modal .copy-nums-btn.copy-delta-btn {
     width: 12px;
     height: 12px;
-    margin: 0 1px 0 0;
+    margin: 0;
     font: 700 10px/1 "Segoe UI", system-ui, sans-serif;
     color: #0f766e;
     opacity: .75;
@@ -872,7 +940,7 @@
     z-index: 10050;
     pointer-events: none;
     max-width: min(440px, calc(100vw - 20px));
-    padding: 6px 9px;
+    padding: 2px 6px;
     background: #0f172a;
     color: #f8fafc;
     border-radius: 6px;
@@ -883,7 +951,7 @@
     opacity: 0;
     visibility: hidden;
     margin: 0;
-    font: 700 13px/1.35 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font: 700 13px/1.25 ui-monospace, "Cascadia Mono", Consolas, monospace;
     font-variant-numeric: tabular-nums;
     letter-spacing: .03em;
     word-break: break-word;
@@ -904,12 +972,21 @@
     text-underline-offset: 2px;
     text-decoration-color: currentColor;
   }
+  /* Nhãn i/j/k trong tip Δ — cùng màu timeline */
+  .delta-tip .delta-tip-lbl {
+    color: #2563eb;
+    font-weight: 800;
+  }
+  .delta-tip .delta-tip-lbl.is-k {
+    color: #ea580c;
+  }
   /* Bản gắn (chuột phải): kéo được · nút × góc phải */
   .delta-tip.delta-tip-pin {
     z-index: 10060;
     display: flex;
-    align-items: flex-start;
-    gap: 6px;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 4px 1px 6px;
     opacity: 1;
     visibility: visible;
     pointer-events: auto;
@@ -936,15 +1013,15 @@
   }
   .delta-tip-pin-x {
     flex: 0 0 auto;
-    width: 18px;
-    height: 18px;
-    margin: -2px -4px 0 0;
+    width: 16px;
+    height: 16px;
+    margin: 0;
     padding: 0;
     border: none;
     border-radius: 4px;
     background: transparent;
     color: #94a3b8;
-    font: 700 14px/18px system-ui, sans-serif;
+    font: 700 13px/16px system-ui, sans-serif;
     cursor: pointer;
   }
   .delta-tip-pin-x:hover {
@@ -1113,15 +1190,15 @@
     border-color: #16a34a;
   }
   .cal-actions button:hover { filter: brightness(1.05); }
-  /* Pin kết quả calculate — xanh dương tối + chữ trắng; layout như delta tip */
+  /* Pin kết quả calculate — xanh dương; kích thước khớp delta tip */
   .cal-tip.cal-tip-pin {
     position: fixed;
     z-index: 10080;
     display: flex;
-    align-items: flex-start;
-    gap: 6px;
+    align-items: center;
+    gap: 4px;
     max-width: min(440px, calc(100vw - 20px));
-    padding: 6px 9px;
+    padding: 1px 4px 1px 6px;
     background: #1e3a8a;
     color: #f8fafc;
     border-radius: 6px;
@@ -1129,7 +1206,7 @@
     box-shadow:
       0 0 0 1px rgba(37, 99, 235, .4),
       0 10px 28px rgba(15, 23, 42, .38);
-    font: 700 13px/1.35 ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font: 700 13px/1.25 ui-monospace, "Cascadia Mono", Consolas, monospace;
     font-variant-numeric: tabular-nums;
     letter-spacing: .03em;
     word-break: break-word;
@@ -1158,15 +1235,15 @@
   .cal-tip-pin-body { flex: 1 1 auto; min-width: 0; }
   .cal-tip-pin-x {
     flex: 0 0 auto;
-    width: 18px;
-    height: 18px;
-    margin: -2px -4px 0 0;
+    width: 16px;
+    height: 16px;
+    margin: 0;
     padding: 0;
     border: none;
     border-radius: 4px;
     background: transparent;
     color: #93c5fd;
-    font: 700 14px/18px system-ui, sans-serif;
+    font: 700 13px/16px system-ui, sans-serif;
     cursor: pointer;
   }
   .cal-tip-pin-x:hover {
@@ -1176,8 +1253,11 @@
   .modal .th-tl-row .tl-pool {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
+    gap: 0;
     white-space: nowrap;
+  }
+  .modal .th-tl-row .tl-pool > .copy-nums-btn {
+    margin-left: 2px;
   }
   /* Chỗ Δ trống (vd pool[0]): giữ đúng bề ngang nút Δ → pool thẳng cột */
   .modal .th-tl-row .tl-delta-slot {
@@ -1185,9 +1265,13 @@
     flex: 0 0 12px;
     width: 12px;
     height: 12px;
-    margin: 0 1px 0 0;
+    margin: 0;
   }
-  .modal .th-tl-row .tl-pool-text { min-width: 0; }
+  .modal .th-tl-row .tl-pool-text {
+    min-width: 0;
+    margin-left: 1px;
+  }
+  .modal .th-tl-row .tl-pool-brace { display: inline; }
   .modal .th-tl-row .tl-pool b { font-weight: 800; color: #111; }
   /* |pool| khác mốc trên (số đầu chuỗi cùng size): nổi số trong pool[N] */
   .modal .th-tl-row .tl-pool-n.is-size-chg {
@@ -1370,6 +1454,20 @@
       <strong id="sumPhaKCount">0</strong>
       <button type="button" id="btnPhaKList">Xem</button>
     </div>
+    <div class="chip" title="Đối xứng phá-append trên timeline ≥@1 vs ≤@100 · % cặp nhãn iN↔jN (và k) khớp · cố định theo data, không đổi theo threshold header">
+      <span>6/ Đối xứng phá</span>
+      <select id="phaSymSelect" class="pha-k-select" aria-label="Mức đối xứng" title="Chọn mức đối xứng">
+        <option value="100">100%</option>
+        <option value="80-99">80–99%</option>
+        <option value="60-79">60–79%</option>
+        <option value="40-59">40–59%</option>
+        <option value="20-39">20–39%</option>
+        <option value="0-19">0–19%</option>
+        <option value="diffDelta">Khác số Δ</option>
+      </select>
+      <strong id="sumPhaSymCount">0</strong>
+      <button type="button" id="btnPhaSymList">Xem</button>
+    </div>
   </div>
   <p id="err" class="err" hidden></p>
 </div>
@@ -1436,12 +1534,31 @@
   const errEl = document.getElementById('err');
   const wrap = document.getElementById('wrap');
   const summaryEl = document.getElementById('summary');
+  if (summaryEl) {
+    summaryEl.addEventListener('wheel', (e) => {
+      if (summaryEl.scrollWidth <= summaryEl.clientWidth) return;
+      const dx = e.deltaX || 0;
+      const dy = e.deltaY || 0;
+      // Con lăn dọc → cuộn ngang; giữ deltaX nếu trackpad đã kéo ngang.
+      const delta = Math.abs(dx) > Math.abs(dy) ? dx : dy;
+      if (!delta) return;
+      const max = summaryEl.scrollWidth - summaryEl.clientWidth;
+      const next = Math.max(0, Math.min(max, summaryEl.scrollLeft + delta));
+      if (next !== summaryEl.scrollLeft) {
+        e.preventDefault();
+        summaryEl.scrollLeft = next;
+      }
+    }, { passive: false });
+  }
   const sumFullCount = document.getElementById('sumFullCount');
   const sumZeroCount = document.getElementById('sumZeroCount');
   const sumDerivePhaCount = document.getElementById('sumDerivePhaCount');
   const sumDeriveRestCount = document.getElementById('sumDeriveRestCount');
   const sumPhaKCount = document.getElementById('sumPhaKCount');
   const phaKSelect = document.getElementById('phaKSelect');
+  const phaSymSelect = document.getElementById('phaSymSelect');
+  const sumPhaSymCount = document.getElementById('sumPhaSymCount');
+  const btnPhaSymList = document.getElementById('btnPhaSymList');
   const sumViolPct = document.getElementById('sumViolPct');
   const sumViolFrac = document.getElementById('sumViolFrac');
   const chipViolRate = document.getElementById('chipViolRate');
@@ -1511,7 +1628,7 @@
   let focusUndoB = null;
   /** @type {'elim'|'stats'|null} */
   let popupKind = null;
-  /** @type {'full'|'zero'|'derivePha'|'deriveRest'|'phaK'|'rest'|null} */
+  /** @type {'full'|'zero'|'derivePha'|'deriveRest'|'phaK'|'phaSym'|'rest'|null} */
   let statsPopupKind = null;
   /** @type {{ rows: object[], rowNums: number[][], ids: number[], candsCache: object[][], holdMasks: Map<number, boolean[]>, violateMasks: Map<number, boolean[]> } | null} */
   let dataCtx = null;
@@ -1527,6 +1644,19 @@
   /** @type {Record<string, { id: number, nums: number[] }[]>} */
   let phaKListsByK = {};
   let selectedPhaK = 1;
+  /** 6/ Đối xứng phá — bucket → danh sách kỳ (cố định theo data). */
+  const PHA_SYM_BUCKETS = [
+    { key: '100', label: '100%' },
+    { key: '80-99', label: '80–99%' },
+    { key: '60-79', label: '60–79%' },
+    { key: '40-59', label: '40–59%' },
+    { key: '20-39', label: '20–39%' },
+    { key: '0-19', label: '0–19%' },
+    { key: 'diffDelta', label: 'Khác số Δ' }
+  ];
+  /** @type {Record<string, { id: number, pct: number|null }[]>} */
+  let phaSymListsByKey = {};
+  let selectedPhaSymKey = '100';
   /** @type {null | { displayIdx: number[], ids: number[], splits: object[], stats: object[], pairLabels: string[], msHint: string }} */
   let tableBundle = null;
   const TH_LS_KEY = 'ticks.threshold';
@@ -2079,11 +2209,14 @@
   }
 
   /** Nút Δ — copy hiệu pool(dòng này) \ pool(mốc trên). Tooltip custom (không title). */
-  function copyDeltaBtnHtml(nums) {
+  function copyDeltaBtnHtml(nums, deltaLabel) {
     const csv = (nums || []).join(',');
+    const lbl = deltaLabel ? String(deltaLabel) : '';
     return '<button type="button" class="copy-nums-btn copy-delta-btn" data-copy="'
       + escapeAttr(csv)
-      + '" data-copy-icon="delta" aria-label="Copy hiệu pool Δ: '
+      + '" data-copy-icon="delta"'
+      + (lbl ? ' data-delta-lbl="' + escapeAttr(lbl) + '"' : '')
+      + ' aria-label="Copy hiệu pool Δ: '
       + escapeAttr(csv || '(rỗng)') + '">Δ</button>';
   }
 
@@ -2097,6 +2230,50 @@
       if (!prevSet.has(n)) out.push(n);
     }
     return out;
+  }
+
+  /**
+   * Δ tip/copy: poolCurr\prev; nếu pool không đổi nhưng có luật mới → newlyIn.
+   * Luôn sort tăng (kể cả khi |pool| giữ nguyên).
+   */
+  function timelinePoolDeltaNums(poolCurr, poolPrev, newlyIn) {
+    let diff = poolDiffFromPrev(poolCurr, poolPrev);
+    if (!diff.length && newlyIn && newlyIn.length) {
+      diff = newlyIn.slice();
+    }
+    if (diff.length > 1) diff.sort((a, b) => a - b);
+    return diff;
+  }
+
+  /** Có nút Δ trên mốc này? (hàng đầu pool[0] thường không). */
+  function timelineMilestoneHasDelta(m, prevPool) {
+    if (!prevPool || !m) return false;
+    return timelinePoolDeltaNums(m.pool || [], prevPool, m.newlyIn).length > 0;
+  }
+
+  /**
+   * Nhãn thứ tự các hàng có Δ: i1…iN · (k nếu lẻ) · jN…j1.
+   * @returns {string[]} song song milestones — '' nếu không có Δ.
+   */
+  function buildTimelineDeltaLabels(milestones) {
+    const labels = [];
+    const deltaIdx = [];
+    for (let i = 0; i < milestones.length; i++) {
+      labels.push('');
+      const prev = i > 0 ? milestones[i - 1].pool : null;
+      if (timelineMilestoneHasDelta(milestones[i], prev)) deltaIdx.push(i);
+    }
+    const n = deltaIdx.length;
+    if (!n) return labels;
+    const half = Math.floor(n / 2);
+    const hasK = n % 2 === 1;
+    for (let k = 0; k < n; k++) {
+      const mi = deltaIdx[k];
+      if (hasK && k === half) labels[mi] = 'k';
+      else if (k < half) labels[mi] = 'i' + (k + 1);
+      else labels[mi] = 'j' + (n - k);
+    }
+    return labels;
   }
 
   function copyTextToClipboard(text, btn) {
@@ -3415,7 +3592,7 @@
       if (!pn) continue;
       pn.forEach((x) => set.add(x));
     }
-    return Array.from(set);
+    return sortedNumsFromSet(set);
   }
 
   function simPoolNumsForPairs(pairIndices) {
@@ -3428,7 +3605,7 @@
       if (!d || !d.elim) continue;
       d.elim.forEach((x) => set.add(x));
     }
-    return Array.from(set);
+    return sortedNumsFromSet(set);
   }
 
   function lastAnsweredIdForRate() {
@@ -3473,8 +3650,8 @@
    * boldNums: mọi peer của luật MỚI (so với mốc trước) — kể cả số đã có trong pool.
    */
   function buildThresholdPoolTimeline(opts) {
-    const op = thOp;
-    const end = thVal;
+    const op = (opts && opts.op) || thOp;
+    const end = (opts && Number.isFinite(opts.end)) ? Number(opts.end) : thVal;
     const steps = [];
     if (op === '>=') {
       for (let t = 100; t >= end; t--) steps.push(t);
@@ -3571,7 +3748,7 @@
    * @param {Set|null} [poolGreenSet] viền xanh pool — chỉ tại mốc in đậm đầu tiên
    * @param {boolean} [sizeChg] |pool| khác mốc kề → nổi số trong pool[N]
    */
-  function formatTimelinePoolHtml(poolArr, newlyIn, deriveSet, prevPool, pickOpts, poolGreenSet, sizeChg) {
+  function formatTimelinePoolHtml(poolArr, newlyIn, deriveSet, prevPool, pickOpts, poolGreenSet, sizeChg, deltaLabel) {
     const nums = poolArr || [];
     const bold = new Set(newlyIn || []);
     const pickable = !!(pickOpts && pickOpts.pickable);
@@ -3598,21 +3775,25 @@
       parts.push(bit);
     }
     const nCls = 'tl-pool-n' + (sizeChg ? ' is-size-chg' : '');
-    const body = 'pool[<span class="' + nCls + '">' + nums.length + '</span>]{'
-      + parts.join(',') + '}';
+    /* .tl-pool-brace: neo vị trí pin Δ (đè lên chuỗi {…}). */
+    const body = 'pool[<span class="' + nCls + '">' + nums.length + '</span>]'
+      + '<span class="tl-pool-brace">{' + parts.join(',') + '}</span>';
     let deltaBtn = '';
     if (prevPool) {
       /* poolCurr\prev; nếu pool không đổi nhưng có luật mới (peer đã có sẵn) → Δ = newlyIn. */
-      let diff = poolDiffFromPrev(nums, prevPool);
-      if (!diff.length && newlyIn && newlyIn.length) {
-        diff = newlyIn.slice();
-      }
-      if (diff.length) deltaBtn = copyDeltaBtnHtml(diff);
+      const diff = timelinePoolDeltaNums(nums, prevPool, newlyIn);
+      if (diff.length) deltaBtn = copyDeltaBtnHtml(diff, deltaLabel);
     }
     /* Không có Δ → spacer cùng cỡ nút để chữ pool thẳng hàng với các dòng có Δ. */
     const deltaSlot = deltaBtn
       || '<span class="tl-delta-slot" aria-hidden="true"></span>';
-    return deltaSlot
+    const lbl = deltaLabel ? String(deltaLabel) : '';
+    const labelHtml = lbl
+      ? ('<span class="tl-delta-lbl'
+        + (lbl === 'k' ? ' is-k' : '')
+        + '" title="Thứ tự mốc Δ">' + escapeAttr(lbl) + '</span>')
+      : '<span class="tl-delta-lbl tl-delta-lbl-slot" aria-hidden="true">&nbsp;</span>';
+    return '<span class="tl-delta-group">' + deltaSlot + labelHtml + '</span>'
       + '<span class="tl-pool-text">' + body + '</span>'
       + copyNumsBtnHtml(nums);
   }
@@ -3723,6 +3904,7 @@
         }
       }
     }
+    const deltaLabels = buildTimelineDeltaLabels(milestones);
     let html = '';
     if (milestones.length > 1) html += '<div class="th-tl-flow" aria-hidden="true"></div>';
     for (let i = 0; i < milestones.length; i++) {
@@ -3772,12 +3954,15 @@
         ? (m.violPct.toFixed(1) + '%')
         : '—';
       html += '<div class="th-tl-row">'
+        + '<span class="tl-tr">'
         + '<span class="tl-t">' + m.t + '%</span>'
         + '<span class="tl-rate" title="% phá luật tại threshold này">' + rateTxt + '</span>'
+        + '</span>'
         + '<span class="tl-pool">'
         + formatTimelinePoolHtml(
           m.pool, m.newlyIn, deriveSet, prevPool, pickOpts,
-          poolGreen.size ? poolGreen : null, sizeChg
+          poolGreen.size ? poolGreen : null, sizeChg,
+          deltaLabels[i] || ''
         )
         + '</span>'
         + '<span class="tl-phá">phá: ' + pháTxt + '</span>'
@@ -4184,6 +4369,29 @@
             + row.id + ' <small>' + row.nums.join(',') + '</small></button>').join('')
           + '</div>')
         : '';
+    } else if (kind === 'phaSym') {
+      const bucket = PHA_SYM_BUCKETS.find((b) => b.key === selectedPhaSymKey)
+        || PHA_SYM_BUCKETS[0];
+      const list = phaSymListsByKey[bucket.key] || [];
+      titleLabel = '6/ Đối xứng phá · ' + bucket.label;
+      titleX = list.length;
+      useRateTitle = true;
+      subExtra = bucket.key === 'diffDelta'
+        ? (' · hai chiều ≥@1 / ≤@100 khác số mốc Δ · không so i↔j'
+          + ' · mẫu = id cuối có ĐA − 21 + 1')
+        : (' · % cặp nhãn iN↔jN (và k) khớp trên phá-append · timeline ≥@1 vs ≤@100'
+          + ' · small = % khớp · mẫu = id cuối có ĐA − 21 + 1');
+      listLen = titleX;
+      listHtml = list.length
+        ? ('<div class="id-list">'
+          + list.map((row) => '<button type="button" data-jump-id="' + row.id + '">'
+            + row.id
+            + (row.pct != null
+              ? (' <small>' + row.pct + '%</small>')
+              : ' <small>khác Δ</small>')
+            + '</button>').join('')
+          + '</div>')
+        : '';
     } else if (kind === 'rest') {
       if (restHitCache == null) restHitCache = computeRestHitStats();
       const cache = restHitCache || { hitList: [], emptyList: [], nonemptyCount: 0, periodCount: 0 };
@@ -4575,6 +4783,10 @@
   function bindTipPinHtml5Drag(pin, kind, buildPayload) {
     pin.draggable = true;
     pin.addEventListener('dragstart', (e) => {
+      if (e.ctrlKey || e.metaKey) {
+        e.preventDefault();
+        return;
+      }
       if (e.target && e.target.closest
         && e.target.closest('.delta-tip-pin-x, .cal-tip-pin-x')) {
         e.preventDefault();
@@ -4751,10 +4963,21 @@
         pin._copyOkTimer = 0;
       }, 650);
     }
-    function copyPinBodyText() {
-      const plain = String(body.textContent || '')
+    function deltaPinNumsPlain() {
+      /* Copy chỉ chuỗi số — bỏ nhãn i4: / k: */
+      const clone = body.cloneNode(true);
+      const labs = clone.querySelectorAll
+        ? clone.querySelectorAll('.delta-tip-lbl')
+        : [];
+      for (let i = 0; i < labs.length; i++) labs[i].remove();
+      return String(clone.textContent || '')
+        .replace(/^\s*:\s*/, '')
         .replace(/\s+/g, '')
+        .replace(/^\(rỗng\)$/, '')
         .trim();
+    }
+    function copyPinBodyText() {
+      const plain = deltaPinNumsPlain();
       if (!plain) return;
       const done = () => flashPinCopyOk();
       if (navigator.clipboard && navigator.clipboard.writeText) {
@@ -4780,6 +5003,20 @@
       e.stopPropagation();
       copyPinBodyText();
     });
+    /* Ctrl/Cmd+click → clone pin lệch nhẹ. */
+    pin.addEventListener('click', (e) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      if (e.target && e.target.closest && e.target.closest('.delta-tip-pin-x')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const rect = pin.getBoundingClientRect();
+      createDeltaTipPin({
+        bodyHtml: body.innerHTML,
+        empty: empty,
+        left: rect.left + 14,
+        top: rect.top + 14
+      });
+    });
     bindTipPinHtml5Drag(pin, 'delta', (id, offX, offY) => ({
       v: 1,
       kind: 'delta',
@@ -4787,38 +5024,72 @@
       fromTab: ensureSimTabId(),
       empty: empty,
       bodyHtml: body.innerHTML,
-      plain: String(body.textContent || '').replace(/\s+/g, '').trim(),
+      plain: deltaPinNumsPlain(),
       offX: offX,
       offY: offY
     }));
     return pin;
   }
 
-  /** Chuột phải trên tip / nút Δ → gắn bản sao (kéo + nút ×). */
-  function pinDeltaTipClone(clientX, clientY) {
+  /** Rect chuỗi {…} của dòng pool gắn nút Δ — neo pin đè lên brace. */
+  function findPoolBraceRectForDeltaBtn(btn) {
+    if (!btn || typeof btn.closest !== 'function') return null;
+    const pool = btn.closest('.tl-pool');
+    if (!pool) return null;
+    const brace = pool.querySelector('.tl-pool-brace');
+    if (brace) return brace.getBoundingClientRect();
+    const text = pool.querySelector('.tl-pool-text');
+    return text ? text.getBoundingClientRect() : null;
+  }
+
+  /** Chuột phải trên tip / nút Δ → gắn bản sao tại {…} pool (kéo được). */
+  function pinDeltaTipClone(clientX, clientY, anchorBtn) {
     if (deltaTip.hidden || !deltaTip.classList.contains('is-on')) return false;
     if (modalBack.hidden || popupKind !== 'elim') return false;
     const bodyHtml = deltaTip.innerHTML;
     if (!bodyHtml) return false;
     const empty = deltaTip.classList.contains('is-empty');
-    const srcLeft = parseFloat(deltaTip.style.left) || (clientX - 40);
-    const srcTop = parseFloat(deltaTip.style.top) || (clientY - 24);
+    const btn = anchorBtn || deltaTipBtn;
+    const braceRect = findPoolBraceRectForDeltaBtn(btn);
+    let left;
+    let top;
+    if (braceRect) {
+      left = braceRect.left;
+      top = braceRect.top;
+    } else {
+      left = (parseFloat(deltaTip.style.left) || (clientX - 40)) + 10;
+      top = (parseFloat(deltaTip.style.top) || (clientY - 24)) + 10;
+    }
     const pin = createDeltaTipPin({
       bodyHtml: bodyHtml,
       empty: empty,
-      left: srcLeft,
-      top: srcTop
+      left: left,
+      top: top
     });
     if (!pin) return false;
     requestAnimationFrame(() => {
-      clampTipPinPos(pin, srcLeft + 10, srcTop + 10);
+      const r2 = findPoolBraceRectForDeltaBtn(btn);
+      if (r2) {
+        /* Căn giữa theo chiều cao dòng pool nếu pin cao hơn chữ. */
+        const pinH = pin.offsetHeight || 24;
+        const top2 = r2.top + (r2.height - pinH) / 2;
+        clampTipPinPos(pin, r2.left, top2);
+      } else {
+        clampTipPinPos(pin, left, top);
+      }
     });
     return true;
   }
 
-  /** Chuỗi Δ kèm gạch chân số ∈ derive (giống cột pool). */
-  function formatDeltaTipHtml(csv) {
-    if (!csv) return '';
+  /** Chuỗi Δ: `i4:  2,8,…` — nhãn cùng màu timeline; số gạch chân ∈ derive. */
+  function formatDeltaTipHtml(csv, deltaLabel) {
+    const lbl = deltaLabel ? String(deltaLabel) : '';
+    const prefix = lbl
+      ? ('<span class="delta-tip-lbl'
+        + (lbl === 'k' ? ' is-k' : '')
+        + '">' + escapeAttr(lbl) + '</span>:  ')
+      : '';
+    if (!csv) return prefix ? (prefix + '(rỗng)') : '';
     const nums = [];
     const parts = String(csv).split(',');
     for (let i = 0; i < parts.length; i++) {
@@ -4826,48 +5097,108 @@
       if (!Number.isFinite(n)) continue;
       nums.push(n);
     }
-    if (!nums.length) return escapeAttr(csv);
-    return formatNumsDeriveHtml(nums, popupTimelineDeriveSet, ',');
+    if (!nums.length) return prefix + escapeAttr(csv);
+    return prefix + formatNumsDeriveHtml(nums, popupTimelineDeriveSet, ',');
   }
 
-  /** Con trỏ = góc phải dưới của tip → tip nằm bên trái trên con trỏ. */
-  function positionDeltaTipAt(clientX, clientY) {
+  /**
+   * Đặt tip hover né nút Δ (split view hẹp hay bị đè nút → không click được).
+   * Ưu tiên: đè chuỗi pool {…} → phải / trên / dưới / trái nút.
+   */
+  function positionDeltaTipAt(clientX, clientY, anchorBtn) {
     deltaTipX = clientX;
     deltaTipY = clientY;
     const tipW = deltaTip.offsetWidth || 40;
     const tipH = deltaTip.offsetHeight || 24;
-    let left = clientX - tipW;
-    let top = clientY - tipH;
-    if (left < 4) left = 4;
-    if (top < 4) top = 4;
-    if (left + tipW > window.innerWidth - 4) {
-      left = Math.max(4, window.innerWidth - tipW - 4);
+    const gap = 4;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const btn = anchorBtn || deltaTipBtn;
+    const br = btn && btn.getBoundingClientRect
+      ? btn.getBoundingClientRect()
+      : null;
+    const brace = btn ? findPoolBraceRectForDeltaBtn(btn) : null;
+
+    function clampPos(left, top) {
+      let l = left;
+      let t = top;
+      if (l < 4) l = 4;
+      if (t < 4) t = 4;
+      if (l + tipW > vw - 4) l = Math.max(4, vw - tipW - 4);
+      if (t + tipH > vh - 4) t = Math.max(4, vh - tipH - 4);
+      return { left: l, top: t };
     }
-    if (top + tipH > window.innerHeight - 4) {
-      top = Math.max(4, window.innerHeight - tipH - 4);
+
+    function overlapsBtn(left, top) {
+      if (!br) return false;
+      const r = br;
+      const tipRight = left + tipW;
+      const tipBottom = top + tipH;
+      return !(tipRight <= r.left - 1 || left >= r.right + 1
+        || tipBottom <= r.top - 1 || top >= r.bottom + 1);
     }
-    deltaTip.style.left = Math.round(left) + 'px';
-    deltaTip.style.top = Math.round(top) + 'px';
+
+    const candidates = [];
+    if (brace) {
+      candidates.push({
+        left: brace.left,
+        top: brace.top + (brace.height - tipH) / 2
+      });
+    }
+    if (br) {
+      candidates.push(
+        { left: br.right + gap, top: br.top + (br.height - tipH) / 2 },
+        { left: br.left, top: br.top - tipH - gap },
+        { left: br.left, top: br.bottom + gap },
+        { left: br.left - tipW - gap, top: br.top + (br.height - tipH) / 2 },
+        { left: br.right + gap, top: br.top - tipH - gap },
+        { left: br.right + gap, top: br.bottom + gap }
+      );
+    } else {
+      candidates.push(
+        { left: clientX + gap, top: clientY - tipH - gap },
+        { left: clientX - tipW - gap, top: clientY - tipH - gap },
+        { left: clientX + gap, top: clientY + gap }
+      );
+    }
+
+    let best = null;
+    for (let i = 0; i < candidates.length; i++) {
+      const c = clampPos(candidates[i].left, candidates[i].top);
+      if (!overlapsBtn(c.left, c.top)) {
+        best = c;
+        break;
+      }
+    }
+    if (!best) {
+      best = br
+        ? clampPos(br.right + gap, br.top - tipH - gap)
+        : clampPos(clientX + gap, clientY - tipH - gap);
+      if (overlapsBtn(best.left, best.top) && br) {
+        best = clampPos(br.right + gap, br.bottom + gap);
+      }
+    }
+
+    deltaTip.style.left = Math.round(best.left) + 'px';
+    deltaTip.style.top = Math.round(best.top) + 'px';
   }
 
   function showDeltaTip(btn, clientX, clientY) {
     if (!btn) return;
     const csv = btn.getAttribute('data-copy') || '';
+    const lbl = btn.getAttribute('data-delta-lbl') || '';
     const empty = !csv;
     deltaTipBtn = btn;
-    if (empty) {
-      deltaTip.textContent = '(rỗng)';
-    } else {
-      deltaTip.innerHTML = formatDeltaTipHtml(csv);
-    }
+    deltaTip.innerHTML = formatDeltaTipHtml(csv, lbl);
+    if (!deltaTip.innerHTML) deltaTip.textContent = '(rỗng)';
     deltaTip.classList.toggle('is-empty', empty);
     deltaTip.hidden = false;
     deltaTip.classList.add('is-on');
     const x = clientX != null ? clientX : deltaTipX;
     const y = clientY != null ? clientY : deltaTipY;
-    positionDeltaTipAt(x, y);
+    positionDeltaTipAt(x, y, btn);
     requestAnimationFrame(() => {
-      if (deltaTipBtn === btn) positionDeltaTipAt(x, y);
+      if (deltaTipBtn === btn) positionDeltaTipAt(x, y, btn);
     });
   }
 
@@ -4878,7 +5209,7 @@
   deltaTip.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    pinDeltaTipClone(e.clientX, e.clientY);
+    pinDeltaTipClone(e.clientX, e.clientY, deltaTipBtn);
   });
   deltaTip.addEventListener('mouseleave', (e) => {
     const to = e.relatedTarget;
@@ -4911,7 +5242,8 @@
         ? e.target.closest('button.copy-delta-btn')
         : null;
       if (btn !== deltaTipBtn) return;
-      positionDeltaTipAt(e.clientX, e.clientY);
+      /* Neo theo nút/brace — không theo con trỏ (tránh đè nút khi split hẹp). */
+      positionDeltaTipAt(e.clientX, e.clientY, deltaTipBtn);
     });
     modalTimeline.addEventListener('mouseout', (e) => {
       const btn = e.target && e.target.closest
@@ -4940,7 +5272,7 @@
       }
       e.preventDefault();
       e.stopPropagation();
-      pinDeltaTipClone(e.clientX, e.clientY);
+      pinDeltaTipClone(e.clientX, e.clientY, btn);
     });
     modalTimeline.addEventListener('scroll', hideDeltaTip, true);
   }
@@ -5394,6 +5726,21 @@
       ev.stopPropagation();
       copyBody();
     });
+    /* Ctrl/Cmd+click → clone pin lệch nhẹ. */
+    pin.addEventListener('click', (ev) => {
+      if (!(ev.ctrlKey || ev.metaKey)) return;
+      if (ev.target && ev.target.closest && ev.target.closest('.cal-tip-pin-x')) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const rect = pin.getBoundingClientRect();
+      createCalTipPin({
+        nums: nums.slice(),
+        empty: empty,
+        bodyHtml: body.innerHTML,
+        left: rect.left + 14,
+        top: rect.top + 14
+      });
+    });
     bindTipPinHtml5Drag(pin, 'cal', (id, offX, offY) => ({
       v: 1,
       kind: 'cal',
@@ -5710,6 +6057,7 @@
   if (btnDerivePhaList) btnDerivePhaList.addEventListener('click', () => showIdListPopup('derivePha'));
   if (btnDeriveRestList) btnDeriveRestList.addEventListener('click', () => showIdListPopup('deriveRest'));
   if (btnPhaKList) btnPhaKList.addEventListener('click', () => showIdListPopup('phaK'));
+  if (btnPhaSymList) btnPhaSymList.addEventListener('click', () => showIdListPopup('phaSym'));
   if (btnRestList) btnRestList.addEventListener('click', () => showIdListPopup('rest'));
   if (btnRestToggle) {
     btnRestToggle.addEventListener('click', (e) => {
@@ -5746,6 +6094,16 @@
       syncPhaKCountUi();
       if (!modalBack.hidden && statsPopupKind === 'phaK') {
         showIdListPopup('phaK');
+      }
+    });
+  }
+  if (phaSymSelect) {
+    phaSymSelect.addEventListener('change', () => {
+      const v = String(phaSymSelect.value || '100');
+      selectedPhaSymKey = PHA_SYM_BUCKETS.some((b) => b.key === v) ? v : '100';
+      syncPhaSymCountUi();
+      if (!modalBack.hidden && statsPopupKind === 'phaSym') {
+        showIdListPopup('phaSym');
       }
     });
   }
@@ -6324,6 +6682,180 @@
     return ok;
   }
 
+  function syncPhaSymCountUi() {
+    const list = phaSymListsByKey[selectedPhaSymKey] || [];
+    if (sumPhaSymCount) sumPhaSymCount.textContent = String(list.length);
+  }
+
+  /** Viền xanh inset trên cột phá cho kỳ đối xứng 100%. */
+  function syncPhaSymViolBorders() {
+    if (!wrap) return;
+    const list = phaSymListsByKey['100'] || [];
+    const idSet = new Set();
+    for (let i = 0; i < list.length; i++) idSet.add(list[i].id);
+    const ids = tableBundle && tableBundle.ids;
+    wrap.querySelectorAll('td.viol-nums[data-idx]').forEach((td) => {
+      const idx = Number(td.getAttribute('data-idx'));
+      const id = ids && Number.isFinite(idx) ? ids[idx] : null;
+      td.classList.toggle('pha-sym-full', id != null && idSet.has(id));
+    });
+  }
+
+  function phaSymAppendsByLabel(milestones) {
+    const labels = buildTimelineDeltaLabels(milestones);
+    /** @type {Record<string, number[]>} */
+    const byLabel = {};
+    let prevPhá = [];
+    for (let i = 0; i < milestones.length; i++) {
+      const cur = milestones[i].phá || [];
+      const prevSet = new Set(prevPhá);
+      const added = [];
+      for (let j = 0; j < cur.length; j++) {
+        if (!prevSet.has(cur[j])) added.push(cur[j]);
+      }
+      if (labels[i]) byLabel[labels[i]] = added;
+      prevPhá = cur;
+    }
+    return {
+      byLabel: byLabel,
+      deltaCount: labels.filter(Boolean).length
+    };
+  }
+
+  function phaSymArrEq(a, b) {
+    if (!a || !b || a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+      if (a[i] !== b[i]) return false;
+    }
+    return true;
+  }
+
+  function phaSymBucketKey(pct, sameDelta) {
+    if (!sameDelta) return 'diffDelta';
+    if (pct >= 100) return '100';
+    if (pct >= 80) return '80-99';
+    if (pct >= 60) return '60-79';
+    if (pct >= 40) return '40-59';
+    if (pct >= 20) return '20-39';
+    return '0-19';
+  }
+
+  /** Hủy / thế hệ job 6/ — tránh chồng khi render lại. */
+  let phaSymComputeGen = 0;
+
+  function scheduleIdleWork(fn) {
+    if (typeof requestIdleCallback === 'function') {
+      requestIdleCallback(fn, { timeout: 200 });
+    } else {
+      setTimeout(fn, 0);
+    }
+  }
+
+  /**
+   * 6/ Đối xứng phá-append: timeline ≥@1 vs ≤@100.
+   * % = tỷ lệ cặp nhãn iN↔jN (và k) khớp · cố định theo data.
+   * Chia nhỏ theo idle — không chặn lần đầu mở bảng.
+   */
+  function computePhaSymLists() {
+    const gen = ++phaSymComputeGen;
+    phaSymListsByKey = {};
+    for (let bi = 0; bi < PHA_SYM_BUCKETS.length; bi++) {
+      phaSymListsByKey[PHA_SYM_BUCKETS[bi].key] = [];
+    }
+    if (!tableBundle) {
+      syncPhaSymCountUi();
+      syncPhaSymViolBorders();
+      return;
+    }
+    const { displayIdx, ids } = tableBundle;
+    let j = 0;
+    const CHUNK = 8;
+
+    function scoreOne(focusIdx) {
+      const id = ids[focusIdx];
+      const msGe = buildThresholdPoolTimeline({
+        mode: 'hist',
+        focusIdx: focusIdx,
+        op: '>=',
+        end: 1
+      });
+      const msLe = buildThresholdPoolTimeline({
+        mode: 'hist',
+        focusIdx: focusIdx,
+        op: '<=',
+        end: 100
+      });
+      const fw = phaSymAppendsByLabel(msGe);
+      const rv = phaSymAppendsByLabel(msLe);
+      let pct = null;
+      let bucket = 'diffDelta';
+      if (fw.deltaCount === rv.deltaCount) {
+        const nD = fw.deltaCount;
+        if (!nD) {
+          pct = 100;
+          bucket = '100';
+        } else {
+          const half = Math.floor(nD / 2);
+          const hasK = nD % 2 === 1;
+          const pairs = [];
+          for (let k = 1; k <= half; k++) {
+            pairs.push(['i' + k, 'j' + k]);
+            pairs.push(['j' + k, 'i' + k]);
+          }
+          if (hasK) pairs.push(['k', 'k']);
+          let hit = 0;
+          for (let pi = 0; pi < pairs.length; pi++) {
+            const a = pairs[pi][0];
+            const b = pairs[pi][1];
+            if (phaSymArrEq(fw.byLabel[a] || [], rv.byLabel[b] || [])) hit++;
+          }
+          pct = Math.round((100 * hit) / pairs.length);
+          bucket = phaSymBucketKey(pct, true);
+        }
+      }
+      if (!phaSymListsByKey[bucket]) phaSymListsByKey[bucket] = [];
+      phaSymListsByKey[bucket].push({ id: id, pct: pct });
+    }
+
+    function finishUi() {
+      if (gen !== phaSymComputeGen) return;
+      if (phaSymSelect) {
+        const ok = PHA_SYM_BUCKETS.some((b) => b.key === selectedPhaSymKey);
+        if (!ok) selectedPhaSymKey = '100';
+        phaSymSelect.value = selectedPhaSymKey;
+      }
+      syncPhaSymCountUi();
+      syncPhaSymViolBorders();
+      if (!modalBack.hidden && statsPopupKind === 'phaSym') {
+        showIdListPopup('phaSym');
+      }
+    }
+
+    function step(deadline) {
+      if (gen !== phaSymComputeGen) return;
+      let n = 0;
+      const hasBudget = deadline && typeof deadline.timeRemaining === 'function';
+      while (j < displayIdx.length) {
+        if (n >= CHUNK && hasBudget && deadline.timeRemaining() < 3) break;
+        if (n >= CHUNK && !hasBudget) break;
+        scoreOne(displayIdx[j]);
+        j++;
+        n++;
+      }
+      if (j < displayIdx.length) {
+        if (j === CHUNK || (j % 64) === 0) {
+          syncPhaSymCountUi();
+        }
+        scheduleIdleWork(step);
+        return;
+      }
+      finishUi();
+    }
+
+    syncPhaSymCountUi();
+    scheduleIdleWork(step);
+  }
+
   /**
    * 3/ derive ⊆ tập phá max · 4/ derive ⊆ rest
    * Cố định theo pool tối đa — không đổi theo threshold header.
@@ -6530,6 +7062,7 @@
         ? ('Phá luật ⊆ pool (cột threshold): ' + text)
         : 'Không phá luật cột nào trong threshold';
     });
+    syncPhaSymViolBorders();
     if (!skipWidth) syncViolColWidth();
     /* rest không phụ thuộc threshold — không sync lại ở đây. */
     syncSimPoolCol(act);
@@ -6740,6 +7273,7 @@
     syncRestAnsCol();
     syncSimRowDom();
     syncHistIdDom();
+    syncPhaSymViolBorders();
     if (pendingSharedFocus != null) flushPendingSharedFocus();
   }
 
@@ -6819,16 +7353,21 @@
       msHint: ms + 'ms'
     };
 
-    computeDeriveOverlapLists();
+    // Ưu tiên lần đầu: vẽ bảng + focus trước; chip 3/4/6 tính sau (idle).
     paintTable({ keepScroll: false });
     requestAnimationFrame(() => {
       if (window.FocusSync && typeof window.FocusSync.seedFromUrlOrStorage === 'function') {
         window.FocusSync.seedFromUrlOrStorage({ useStorage: true });
       }
       flushPendingSharedFocus();
-      if (histIdOnIdx == null && !simIdOn) {
-        wrap.scrollTop = wrap.scrollHeight;
-      }
+      // Lần đầu mở: luôn xuống cuối (sau alignRow từ seed — tránh bị kéo lên giữa bảng).
+      requestAnimationFrame(() => {
+        if (wrap) wrap.scrollTop = wrap.scrollHeight;
+      });
+      scheduleIdleWork(() => {
+        computeDeriveOverlapLists();
+        computePhaSymLists();
+      });
     });
   }
 
@@ -6980,7 +7519,8 @@
     }
   } catch (e) { /* ignore */ }
 
-  fetch('data.json', { cache: 'no-store' })
+  // Cho phép cache HTTP — index prefetch data.json trước khi mở tab.
+  fetch('data.json', { cache: 'default' })
     .then((r) => {
       if (!r.ok) throw new Error('HTTP ' + r.status);
       return r.json();

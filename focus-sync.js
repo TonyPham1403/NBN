@@ -89,6 +89,13 @@
     } catch (e) { /* ignore */ }
   }
 
+  function clearApplyingSoon() {
+    // Không dùng rAF: tab ẩn / treo lâu có thể hoãn rAF rất lâu → publish bị nuốt.
+    setTimeout(function () {
+      applying = false;
+    }, 0);
+  }
+
   function deliver(state, meta) {
     const next = normalizeState(state);
     if (!next) return;
@@ -99,9 +106,7 @@
     try {
       applyFn(next, meta || {});
     } finally {
-      requestAnimationFrame(function () {
-        applying = false;
-      });
+      clearApplyingSoon();
     }
   }
 
@@ -364,9 +369,7 @@
       try {
         applyFn(state, { seed: true });
       } finally {
-        requestAnimationFrame(function () {
-          applying = false;
-        });
+        clearApplyingSoon();
       }
     }
     return state;

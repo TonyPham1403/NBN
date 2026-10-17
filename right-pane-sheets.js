@@ -13702,8 +13702,9 @@ class RightPaneSheetManager {
 
     postLeftPaneSetLinesForSourceRow(idx, options = {}) {
         const rows = this.getSourceSheetRows();
+        // Mặc định full highlights (freq=0 màu). Chỉ light khi gọi nav arrow (lightStep:true).
         const data = this.buildSourceRowLeftPaneData(idx, rows, {
-            lightStep: options.lightStep !== false
+            lightStep: options.lightStep === true
         });
         if (!data || !data.lines.length) {
             return;
