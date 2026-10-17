@@ -4237,6 +4237,7 @@
       clearCopyNumsOkEffect();
       hideDeltaTip();
       clearDeltaTipPins();
+      clearCalTipPins();
       hideModalRestPool();
       modalTimeline.hidden = true;
       modalTimeline.innerHTML = '';
@@ -4601,6 +4602,7 @@
     clearAffectNumHl();
     hideDeltaTip();
     clearDeltaTipPins();
+    clearCalTipPins();
     popupTimelineDeriveSet = null;
     if (closingSim) {
       /* Có mã phòng: giữ picks để sync / mở lại; không mã: xóa như cũ. */
@@ -5789,7 +5791,7 @@
     calBack.hidden = true;
     if (calSetA) calSetA.blur();
     if (calSetB) calSetB.blur();
-    /* Không xóa pin KQ — sống ngoài popup đến khi bấm ×. */
+    /* Pin KQ: giữ khi chỉ đóng popup Calculate; xóa khi đổi id / tắt elim (clearCalTipPins). */
   }
 
   function toggleCalPopup() {
@@ -6154,6 +6156,7 @@
     if (histIdOnIdx !== focusIdx || simIdOn) {
       resetPopupPoolTrack();
       clearDeltaTipPins();
+      clearCalTipPins();
     }
     /* Học tập: đổi id → quên pick giả lập id cũ; cùng id (toggle E) → giữ. */
     if (studyMode) rememberStudyPicksForId(focusId);
@@ -6222,6 +6225,7 @@
     if (!simIdOn) {
       resetPopupPoolTrack();
       clearDeltaTipPins();
+      clearCalTipPins();
       if (simRoomTag) loadSimPhaPicksForTag(simRoomTag);
     }
     const active = activePairIndices();
