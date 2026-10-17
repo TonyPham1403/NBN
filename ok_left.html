@@ -353,6 +353,12 @@
             cursor: default;
         }
 
+        /* Block tay (chuột phải): vẫn nhận RMB để gỡ — trái vẫn chặn qua isBlocked(). */
+        .blocked.manual-ui-blocked {
+            pointer-events: auto;
+            cursor: context-menu;
+        }
+
         .cell.num.blocked {
             border-radius: 0;
         }
@@ -633,7 +639,7 @@
             box-sizing: border-box;
         }
 
-        /* Submit/Block/A/S/B + bảng tần suất: một khối dính nhau */
+        /* Submit/A/S/B + bảng tần suất: một khối dính nhau */
         .leftFreqStack {
             display: flex;
             flex-direction: column;
@@ -1891,8 +1897,7 @@
         }
 
         #resetBtn,
-        #submitBtn,
-        #blockBtn {
+        #submitBtn {
             font-size: 12px;
             padding: 4px 10px;
             font-weight: bold;
@@ -1906,63 +1911,11 @@
             transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
         }
 
-        #mode {
-            border: 1px solid #ccc;
-            border-radius: 6px;
-            padding: 4px 8px;
-            height: 24px;
-            line-height: 1;
-            background-color: #ffffff;
-            color: #111111;
-            font-weight: bold;
-        }
-
-        select#mode.synced-mode,
-        #mode.synced-mode {
-            background-color: #006400 !important;
-            color: #ffffff !important;
-            font-weight: bold;
-            border-color: #006400 !important;
-        }
-
-        select#mode:disabled,
-        select#mode.synced-mode:disabled,
-        #mode:disabled,
-        #mode.synced-mode:disabled {
-            opacity: 1 !important;
-            filter: none !important;
-            background-color: #006400 !important;
-            color: #ffffff !important;
-            -webkit-text-fill-color: #ffffff !important;
-        }
-
         /* Submit button active state: dark green background when submit preview is ON */
         #submitBtn.active {
             background: #2e7d32;
             color: #ffffff;
             border-color: #1b5e20;
-        }
-
-        /* Block toggle — ON: nền đen chữ trắng (chặn số theo mode) */
-        #blockBtn.active {
-            background: #111111;
-            color: #ffffff;
-            border-color: #111111;
-            box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
-        }
-
-        /* Block OFF: viền liền, nền sáng — không chặn, số vẫn bấm được */
-        #blockBtn:not(.active) {
-            background: linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%);
-            color: #64748b;
-            border: 1px solid #94a3b8;
-            box-shadow: none;
-        }
-
-        #blockBtn:not(.active):hover {
-            color: #334155;
-            border-color: #64748b;
-            background: #f8fafc;
         }
 
         /* A/S/B: tô ngoặc góc đỏ hồng lên số freq≥2 luôn above/same/below phase1 */
@@ -2521,16 +2474,6 @@
                             hiện khi chọn dòng ở bảng phải…</div>
                     </div>
                     <div class="mode-row">
-                        <select id="mode">
-                            <option value="modeq">?</option>
-                            <option value="pair1">1 bộ 2</option>
-                            <option value="pair2">2 bộ 2</option>
-                            <option value="pair3">3 bộ 2</option>
-                            <option value="pair4">4 bộ 2</option>
-                            <option value="pair5">5 bộ 2</option>
-                            <option value="triple1">1 bộ 3</option>
-                            <option value="quad1">1 bộ 4</option>
-                        </select>
                         <button id="pickBtn">Pick</button>
                         <span class="pick-preview-with-badges">
                             <span id="pickPreview" style="font-weight:normal;color:#333"></span>
@@ -2559,7 +2502,6 @@
                         <div class="tableActions">
                             <div class="actions-left">
                                 <button id="submitBtn" type="button">Submit</button>
-                                <button id="blockBtn" type="button" aria-pressed="false">Block</button>
                                 <button id="relPhaseAboveBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
                                     title="A = ABOVE: freq≥2 luôn trên phase1 — nối 2 góc trên">A</button>
                                 <button id="relPhaseSameBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
@@ -2812,6 +2754,8 @@
         let focusNonexistHighlights = {};
         let selected = new Set();
         let blockedSet = new Set();
+        /** Chuột phải: UI blocked (nền đen) trên số. */
+        let manualUiBlockedSet = new Set();
         let simulatedSelected = new Set();
         let submitActive = false;
         let answerTicketPreviewNums = new Set();
@@ -2820,8 +2764,6 @@
         /** Answer popup: sau Submit ON chờ click phiếu mới được khoanh đỏ (không autoring ngay). */
         let answerPopupTicketPreviewOnly = false;
         let forceClearPicksOnSubmitOff = false;
-        const BLOCK_FEATURE_KEY = 'leftPaneBlockEnabled';
-        let blockFeatureEnabled = false;
 
         function applyConn3TripletToSelection(sortedNums) {
             // Submit ON: không khoanh/xóa khoanh từ textarea — chỉ khi Submit OFF.
@@ -7246,325 +7188,18 @@
             }
         }
 
+        /** Nút Block đã bỏ — chỉ còn UI block tay (chuột phải). */
         function isBlockFeatureEnabled() {
-            return blockFeatureEnabled !== false;
-        }
-
-        function loadBlockFeatureSetting() {
-            try {
-                const saved = localStorage.getItem(BLOCK_FEATURE_KEY);
-                /* Mặc định tắt; chỉ bật khi user đã lưu '1'. */
-                blockFeatureEnabled = saved === '1';
-            } catch (e) {
-                blockFeatureEnabled = false;
-            }
-        }
-
-        function saveBlockFeatureSetting() {
-            try {
-                localStorage.setItem(BLOCK_FEATURE_KEY, blockFeatureEnabled ? '1' : '0');
-            } catch (e) { }
-        }
-
-        function syncBlockBtnUi() {
-            const btn = document.getElementById('blockBtn');
-            if (!btn) {
-                return;
-            }
-            const on = isBlockFeatureEnabled();
-            btn.classList.toggle('active', on);
-            btn.setAttribute('aria-pressed', on ? 'true' : 'false');
-            btn.setAttribute('title', on
-                ? 'Đang bật chặn số theo mode (nền đen). Bấm để tắt'
-                : 'Đang tắt chặn số — có thể chọn mọi số. Bấm để bật lại');
-        }
-
-        function clearSelectionWhenBlockTurnsOn() {
-            try {
-                selected = new Set();
-                transientSelected.clear();
-                if (!submitActive) {
-                    simulatedSelected.clear();
-                }
-                pickOrder = [];
-                clearPairContributionTracking();
-                if (submitActive) {
-                    try { syncPickOrderForSubmitState(); } catch (e) { }
-                }
-                pairNeonObserveNum = null;
-                resetPairNeonObserveContextBeyondLonePair();
-                invalidateClearSelectionToggleBackup();
-                currentPairIndex = -1;
-                currentTailIndex = -1;
-                undoEnabled = false;
-                undoWasCleared = false;
-                try {
-                    currentPhaseNumber = null;
-                    currentPhaseRow = null;
-                    lastClickedNumber = null;
-                    lastClickedRow = null;
-                    lastClickedRegion = null;
-                } catch (ee) { }
-                try { recomputePairsFromSelected(); } catch (e) { }
-                try { updateBlocked(); } catch (e) { }
-                try { refreshPairTailSelectionState(); } catch (e) { }
-                try {
-                    if (raw && document.getElementById('right') && document.getElementById('left')) {
-                        try { applySubmitState(); } catch (e) { }
-                    }
-                } catch (e) { }
-                try { applySelectionAndBlockedInDOM(); updateFloatingCopyButtons(); alignTableActionsAndCenter(); } catch (e) { renderTable1(); renderTable2(); alignTableActionsAndCenter(); updateFloatingCopyButtons(); }
-                try { updateFocusIndicator(); } catch (e) { }
-                try { refreshLeftPickSelectionUi(); } catch (e) { /* ignore */ }
-            } catch (e) { console.error(e); }
-        }
-
-        function toggleBlockFeature() {
-            const wasEnabled = isBlockFeatureEnabled();
-            blockFeatureEnabled = !blockFeatureEnabled;
-            saveBlockFeatureSetting();
-            syncBlockBtnUi();
-            if (blockFeatureEnabled && !wasEnabled) {
-                clearSelectionWhenBlockTurnsOn();
-            } else {
-                updateBlocked();
-                try { applySelectionAndBlockedInDOM(); } catch (e) { }
-            }
-            try {
-                if (window.parent && window.parent !== window) {
-                    window.parent.postMessage({ type: 'blockFeatureChanged', enabled: blockFeatureEnabled }, '*');
-                }
-            } catch (e) { }
+            return false;
         }
 
         function updateBlocked() {
+            /* Nút Block + mode đã bỏ — không còn chặn tự động theo mode. */
             blockedSet.clear();
-            if (!isBlockFeatureEnabled()) {
-                return;
-            }
-            let mode = document.getElementById("mode") ? document.getElementById("mode").value : null;
-            if (!raw) return;
-
-            var multisetCfg = getMultisetBlockingConfig(mode);
-            if (multisetCfg) {
-                applyMultisetBlockingForSelection(function (n) {
-                    return selected.has(n) || simulatedSelected.has(n);
-                }, blockedSet, multisetCfg);
-            } else if (mode === "pair1") {
-                let p = firstPair;
-                if (p) {
-                    getRawDisplayLines().forEach(line => {
-                        let nums = getNumsFromLineObj(line);
-                        if (nums.some(n => p.includes(n))) nums.forEach(n => { if (!p.includes(n)) blockedSet.add(n) });
-                        if (nums.some(n => (selected.has(n) || simulatedSelected.has(n)) && (!p || !p.includes(n)))) nums.forEach(n => blockedSet.add(n));
-                    });
-                }
-            } else if (mode === "modeq") {
-                getRawDisplayLines().forEach(line => {
-                    let nums = getNumsFromLineObj(line);
-                    let selInLine = nums.filter(n => selected.has(n) || simulatedSelected.has(n));
-                    if (selInLine.length > 0) {
-                        nums.forEach(n => { if (!selInLine.includes(n)) blockedSet.add(n); });
-                    }
-                });
-            } else if (isPairMode(mode)) {
-                let maxPairs = pairModeCount(mode);
-                let pairs = [];
-                if (firstPair) pairs.push(firstPair);
-                if (secondPair) pairs.push(secondPair);
-                if (thirdPair) pairs.push(thirdPair);
-                if (fourthPair) pairs.push(fourthPair);
-                if (fifthPair) pairs.push(fifthPair);
-                let completePairs = pairs.filter(p => p && p.length === 2);
-                let numsInCompletePairs = completePairs.length ? [].concat(...completePairs) : [];
-
-                getRawDisplayLines().forEach(line => {
-                    let nums = getNumsFromLineObj(line);
-                    let selectedInLine = nums.filter(n => selected.has(n) || simulatedSelected.has(n));
-                    if (selectedInLine.length === 0) return;
-                    let pairsInLine = completePairs.filter(p => p.every(n => nums.includes(n)));
-                    if (pairsInLine.length >= 1) nums.forEach(n => { if (!pairsInLine.some(p => p.includes(n))) blockedSet.add(n) });
-                    if (completePairs.length === maxPairs) {
-                        let remaining = nums.filter(n => !numsInCompletePairs.includes(n));
-                        if (remaining.length > 0) remaining.forEach(n => blockedSet.add(n));
-                    }
-                    let extraSelected = nums.filter(n => (selected.has(n) || simulatedSelected.has(n)) && !pairs.some(p => p && p.includes(n)));
-                    if (extraSelected.length > 0 && pairsInLine.length >= 1) nums.forEach(n => blockedSet.add(n));
-                });
-            }
-
-            // compute simulated-only blocks and union
-            let simBlocked = new Set();
-            if (raw) {
-                if (multisetCfg) {
-                    applyMultisetBlockingForSelection(function (n) { return simulatedSelected.has(n); }, simBlocked, multisetCfg);
-                } else if (mode === "pair1") {
-                    let p = null;
-                    getRawDisplayLines().forEach(line => {
-                        if (p) return;
-                        let nums = getNumsFromLineObj(line);
-                        let selInLine = nums.filter(x => simulatedSelected.has(x));
-                        if (selInLine.length >= 2) p = selInLine.slice(0, 2);
-                    });
-                    if (p) {
-                        getRawDisplayLines().forEach(line => {
-                            let nums = getNumsFromLineObj(line);
-                            if (nums.some(n => p.includes(n))) nums.forEach(n => { if (!p.includes(n)) simBlocked.add(n); });
-                            if (nums.some(n => simulatedSelected.has(n) && (!p || !p.includes(n)))) nums.forEach(n => simBlocked.add(n));
-                        });
-                    }
-                } else if (isPairMode(mode)) {
-                    let maxPairs = pairModeCount(mode);
-                    let pairs = [];
-                    getRawDisplayLines().forEach(line => {
-                        let nums = getNumsFromLineObj(line);
-                        let selInLine = nums.filter(n => simulatedSelected.has(n));
-                        if (selInLine.length >= 2) pairs.push(selInLine.slice(0, 2));
-                    });
-                    let completePairs = pairs.filter(p => p && p.length === 2);
-                    let numsInCompletePairs = completePairs.length ? [].concat(...completePairs) : [];
-                    getRawDisplayLines().forEach(line => {
-                        let nums = getNumsFromLineObj(line);
-                        let selectedInLine = nums.filter(n => simulatedSelected.has(n));
-                        if (selectedInLine.length === 0) return;
-                        let pairsInLine = completePairs.filter(p => p.every(n => nums.includes(n)));
-                        if (pairsInLine.length >= 1) nums.forEach(n => { if (!pairsInLine.some(p => p.includes(n))) simBlocked.add(n); });
-                        if (completePairs.length === maxPairs) {
-                            let remaining = nums.filter(n => !numsInCompletePairs.includes(n));
-                            if (remaining.length > 0) remaining.forEach(n => simBlocked.add(n));
-                        }
-                        let extraSelected = nums.filter(n => simulatedSelected.has(n) && !pairs.some(p => p && p.includes(n)));
-                        if (extraSelected.length > 0 && pairsInLine.length >= 1) nums.forEach(n => simBlocked.add(n));
-                    });
-                }
-            }
-
-            simBlocked.forEach(n => blockedSet.add(n));
-            simulatedSelected.forEach(n => blockedSet.delete(n));
         }
 
-        // Compute blocked set given an arbitrary selection set (does not mutate globals)
         function computeBlockedForSelected(selSet) {
-            let b = new Set();
-            if (!isBlockFeatureEnabled() || !raw) return b;
-            let mode = document.getElementById("mode") ? document.getElementById("mode").value : null;
-
-            let localFirstPair = null, localSecondPair = null, localThirdPair = null, localFourthPair = null, localFifthPair = null, localFirstTriple = null;
-            if (mode === "pair1") {
-                for (let i = 0; i < 10; i++) {
-                    let nums = getRawDisplayLineNumsAt(i);
-                    let selInLine = nums.filter(x => selSet.has(x));
-                    if (selInLine.length >= 2) { localFirstPair = selInLine.slice(0, 2); break; }
-                }
-            }
-
-            if (isPairMode(mode)) {
-                let pairs = [];
-                getRawDisplayLines().forEach(line => {
-                    let nums = getNumsFromLineObj(line);
-                    let selInLine = nums.filter(n => selSet.has(n));
-                    if (selInLine.length >= 2) pairs.push(selInLine.slice(0, 2));
-                });
-                localFirstPair = pairs[0] || null; localSecondPair = pairs[1] || null; localThirdPair = pairs[2] || null; localFourthPair = pairs[3] || null; localFifthPair = pairs[4] || null;
-            }
-
-            var multisetCfgSel = getMultisetBlockingConfig(mode);
-            if (multisetCfgSel) {
-                applyMultisetBlockingForSelection(function (n) {
-                    return selSet.has(n) || simulatedSelected.has(n);
-                }, b, multisetCfgSel);
-            } else if (mode === "pair1") {
-                let p = localFirstPair;
-                if (p) {
-                    getRawDisplayLines().forEach(line => {
-                        let nums = getNumsFromLineObj(line);
-                        if (nums.some(n => p.includes(n))) nums.forEach(n => { if (!p.includes(n)) b.add(n) });
-                        if (nums.some(n => (selSet.has(n) || simulatedSelected.has(n)) && (!p || !p.includes(n)))) nums.forEach(n => b.add(n));
-                    });
-                }
-            } else if (mode === "modeq") {
-                getRawDisplayLines().forEach(line => {
-                    let nums = getNumsFromLineObj(line);
-                    let selInLine = nums.filter(n => selSet.has(n) || simulatedSelected.has(n));
-                    if (selInLine.length > 0) {
-                        nums.forEach(n => { if (!selInLine.includes(n)) b.add(n); });
-                    }
-                });
-            } else if (isPairMode(mode)) {
-                let maxPairs = pairModeCount(mode);
-                let pairs = [];
-                if (localFirstPair) pairs.push(localFirstPair);
-                if (localSecondPair) pairs.push(localSecondPair);
-                if (localThirdPair) pairs.push(localThirdPair);
-                if (localFourthPair) pairs.push(localFourthPair);
-                if (localFifthPair) pairs.push(localFifthPair);
-                let completePairs = pairs.filter(p => p && p.length === 2);
-                let numsInCompletePairs = completePairs.length ? [].concat(...completePairs) : [];
-
-                getRawDisplayLines().forEach(line => {
-                    let nums = getNumsFromLineObj(line);
-                    let selectedInLine = nums.filter(n => selSet.has(n) || simulatedSelected.has(n));
-                    if (selectedInLine.length === 0) return;
-                    let pairsInLine = completePairs.filter(p => p.every(n => nums.includes(n)));
-                    if (pairsInLine.length >= 1) nums.forEach(n => { if (!pairsInLine.some(p => p.includes(n))) b.add(n) });
-                    if (completePairs.length === maxPairs) {
-                        let remaining = nums.filter(n => !numsInCompletePairs.includes(n));
-                        if (remaining.length > 0) remaining.forEach(n => b.add(n));
-                    }
-                    let extraSelected = nums.filter(n => (selSet.has(n) || simulatedSelected.has(n)) && !pairs.some(p => p && p.includes(n)));
-                    if (extraSelected.length > 0 && pairsInLine.length >= 1) nums.forEach(n => b.add(n));
-                });
-            }
-
-            // union simBlocked
-            let simBlocked = new Set();
-            if (raw) {
-                if (multisetCfgSel) {
-                    applyMultisetBlockingForSelection(function (n) { return simulatedSelected.has(n); }, simBlocked, multisetCfgSel);
-                } else if (mode === "pair1") {
-                    let p = null;
-                    getRawDisplayLines().forEach(line => {
-                        if (p) return;
-                        let nums = getNumsFromLineObj(line);
-                        let selInLine = nums.filter(x => simulatedSelected.has(x));
-                        if (selInLine.length >= 2) p = selInLine.slice(0, 2);
-                    });
-                    if (p) {
-                        getRawDisplayLines().forEach(line => {
-                            let nums = getNumsFromLineObj(line);
-                            if (nums.some(n => p.includes(n))) nums.forEach(n => { if (!p.includes(n)) simBlocked.add(n); });
-                            if (nums.some(n => simulatedSelected.has(n) && (!p || !p.includes(n)))) nums.forEach(n => simBlocked.add(n));
-                        });
-                    }
-                } else if (isPairMode(mode)) {
-                    let maxPairs = pairModeCount(mode);
-                    let pairs = [];
-                    getRawDisplayLines().forEach(line => {
-                        let nums = getNumsFromLineObj(line);
-                        let selInLine = nums.filter(n => simulatedSelected.has(n));
-                        if (selInLine.length >= 2) pairs.push(selInLine.slice(0, 2));
-                    });
-                    let completePairs = pairs.filter(p => p && p.length === 2);
-                    let numsInCompletePairs = completePairs.length ? [].concat(...completePairs) : [];
-                    getRawDisplayLines().forEach(line => {
-                        let nums = getNumsFromLineObj(line);
-                        let selectedInLine = nums.filter(n => simulatedSelected.has(n));
-                        if (selectedInLine.length === 0) return;
-                        let pairsInLine = completePairs.filter(p => p.every(n => nums.includes(n)));
-                        if (pairsInLine.length >= 1) nums.forEach(n => { if (!pairsInLine.some(p => p.includes(n))) simBlocked.add(n); });
-                        if (completePairs.length === maxPairs) {
-                            let remaining = nums.filter(n => !numsInCompletePairs.includes(n));
-                            if (remaining.length > 0) remaining.forEach(n => simBlocked.add(n));
-                        }
-                        let extraSelected = nums.filter(n => simulatedSelected.has(n) && !pairs.some(p => p && p.includes(n)));
-                        if (extraSelected.length > 0 && pairsInLine.length >= 1) nums.forEach(n => simBlocked.add(n));
-                    });
-                }
-            }
-
-            simBlocked.forEach(n => b.add(n));
-            simulatedSelected.forEach(n => b.delete(n));
-            return b;
+            return new Set();
         }
 
         function toggleNumber(n) {
@@ -7696,6 +7331,7 @@
                             // number cells: show selected ring and blocked state
                             el.classList.toggle('selected', selected.has(v) && !isSubmitAutoringOverlayNum(v));
                             el.classList.toggle('blocked', isBlocked(v));
+                            el.classList.toggle('manual-ui-blocked', isManualUiBlocked(v));
                             if (!submitActive) {
                                 el.classList.remove('submit-highlight');
                                 el.classList.remove('answer-neon');
@@ -7711,11 +7347,13 @@
                         } else if (el.classList.contains('index')) {
                             // chân index: không blocked / không tô đỏ khi khoanh — màu sync từ bảng 1
                             el.classList.remove('blocked');
+                            el.classList.remove('manual-ui-blocked');
                             el.classList.remove('idx-highlight');
                             if (!submitActive) el.classList.remove('submit-highlight');
                         } else {
                             // fallback: ensure no blocked/submit highlight
                             el.classList.remove('blocked');
+                            el.classList.remove('manual-ui-blocked');
                             if (!submitActive) el.classList.remove('submit-highlight');
                         }
                     } catch (ee) { }
@@ -8008,6 +7646,7 @@
                 document.querySelectorAll('.cell.num[data-num="' + n + '"]').forEach(function (el) {
                     el.classList.toggle('selected', selected.has(n) && !isSubmitAutoringOverlayNum(n));
                     el.classList.toggle('blocked', isBlocked(n));
+                    el.classList.toggle('manual-ui-blocked', isManualUiBlocked(n));
                 });
             });
         }
@@ -8475,12 +8114,43 @@
             } catch (e) { /* ignore */ }
         }
 
+        function isManualUiBlocked(n) {
+            const num = typeof n === 'number' ? n : parseInt(n, 10);
+            return Number.isFinite(num) && manualUiBlockedSet.has(num);
+        }
+
+        function clearManualUiBlocked() {
+            if (!manualUiBlockedSet.size) return;
+            manualUiBlockedSet.clear();
+        }
+
+        /** Chuột phải số: bật/tắt UI blocked (nền đen). */
+        function toggleManualUiBlocked(n) {
+            if (submitActive) return false;
+            const num = typeof n === 'number' ? n : parseInt(n, 10);
+            if (!Number.isFinite(num) || num < 1 || num > 35) return false;
+            if (manualUiBlockedSet.has(num)) manualUiBlockedSet.delete(num);
+            else {
+                manualUiBlockedSet.add(num);
+                try {
+                    if (selected.has(num)) {
+                        selected.delete(num);
+                        transientSelected.delete(num);
+                        simulatedSelected.delete(num);
+                        pickOrder = pickOrder.filter(function (x) { return x !== num; });
+                    }
+                } catch (eSel) { /* ignore */ }
+            }
+            try { updateBlocked(); } catch (eB) { /* ignore */ }
+            try { applySelectionAndBlockedInDOM(); } catch (eD) { /* ignore */ }
+            try { updateFloatingCopyButtons(); } catch (eF) { /* ignore */ }
+            try { refreshLeftPickSelectionUi(); } catch (eR) { /* ignore */ }
+            return true;
+        }
+
         function isBlocked(n) {
             try {
-                if (!isBlockFeatureEnabled()) return false;
-                if (typeof blockedSet === 'undefined' || !blockedSet || !blockedSet.has(n)) return false;
-                if (submitActive) return !simulatedSelected.has(n);
-                return !selected.has(n) && !simulatedSelected.has(n);
+                return isManualUiBlocked(n);
             } catch (e) { }
             return false;
         }
@@ -10659,7 +10329,7 @@
             const agg = buildAggregatedNoteNonexistSets();
             const aggregatedNoteSet = agg.noteSet;
             const aggregatedNonexistSet = agg.nonexistSet;
-            let blockCount = blockedSet.size;
+            let blockCount = manualUiBlockedSet.size;
             let blockLabel = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
                 + '<span>Các số</span>'
                 + '<span style="font-weight:bold;text-align:right;">' + blockCount + '</span></div>';
@@ -10677,6 +10347,7 @@
                     if (soloFreqInfo.all.has(n)) cls += " solo-freq-ul";
                     if (selected.has(n)) cls += " selected";
                     if (isBlocked(n)) cls += " blocked";
+                    if (isManualUiBlocked(n)) cls += " manual-ui-blocked";
                     if (isFreqZeroRow) {
                         cls += getLeftNonexistHighlightClassFromFocus(n);
                     } else {
@@ -11237,6 +10908,7 @@
                         ? `onclick="onNumberCellClick(${n},'right',${i})"` : "";
                     // Prefer class-based blocked styling (no inline black background)
                     if (isBlocked(n)) cls += ' blocked';
+                    if (isManualUiBlocked(n)) cls += ' manual-ui-blocked';
                     cls += freqOneItalicFromCh11Ch12Class(n);
                     let style = '';
                     if (submitActive && answerNums.indexOf(n) !== -1) cls += ' submit-highlight';
@@ -13870,27 +13542,12 @@
             } catch (ee) { /* ignore */ }
         });
 
-        loadBlockFeatureSetting();
-        syncBlockBtnUi();
         loadRelPhaseAsbSettings();
         syncRelPhaseAsbBtnUi();
         try { syncMobileNeonStaticBodyClass(); } catch (eMobNeon) { /* ignore */ }
         setTimeout(function () {
             try { syncMobileNeonStaticBodyClass(); } catch (eMobNeon2) { /* ignore */ }
         }, 400);
-
-        (function () {
-            try {
-                var bb = document.getElementById('blockBtn');
-                if (!bb) return;
-                bb.addEventListener('click', function (ev) {
-                    try {
-                        ev.preventDefault();
-                        toggleBlockFeature();
-                    } catch (e) { console.error(e); }
-                });
-            } catch (e) { }
-        })();
 
         (function () {
             try {
@@ -14414,6 +14071,7 @@
                             span.classList.toggle('selected', selected.has(val) && !autoringOverlay);
                             span.classList.toggle('pre-submit-manual-pick', showPreSubmitManualPickRings && preSubmitSelected.has(val));
                             span.classList.toggle('blocked', isBlocked(val));
+                            span.classList.toggle('manual-ui-blocked', isManualUiBlocked(val));
                             if (isSubmitAnswer) {
                                 try { span.style.removeProperty('color'); } catch (e) { }
                                 try { span.style.removeProperty('font-weight'); } catch (e) { }
@@ -14471,8 +14129,10 @@
                         span.classList.toggle('selected', selected.has(val) && !autoringOverlay);
                         span.classList.toggle('pre-submit-manual-pick', showPreSubmitManualPickRings && preSubmitSelected.has(val));
                         span.classList.toggle('blocked', isBlocked(val));
+                        span.classList.toggle('manual-ui-blocked', isManualUiBlocked(val));
                     } else {
                         span.classList.remove('blocked');
+                        span.classList.remove('manual-ui-blocked');
                     }
                 });
 
@@ -14967,6 +14627,7 @@
                         invalidateClearSelectionToggleBackup();
                         autoRingPicked.clear();
                         selected.clear();
+                        clearManualUiBlocked();
                         clearPairContributionTracking();
                         transientSelected.clear();
                         simulatedSelected.clear();
@@ -15385,22 +15046,6 @@
                     });
                 }
             } catch (eSb) { /* ignore */ }
-            try {
-                var modeEl = document.getElementById('mode');
-                if (modeEl) {
-                    modeEl.addEventListener('change', function () {
-                        try {
-                            var sbox = document.getElementById('searchBox');
-                            if (sbox) {
-                                sbox.value = '';
-                            }
-                        } catch (e0) { /* ignore */ }
-                        try {
-                            process();
-                        } catch (e1) { /* ignore */ }
-                    });
-                }
-            } catch (eMode) { /* ignore */ }
         })();
 
         // Delegated click handlers: ensure clicks on number/index cells reach toggleNumber()
@@ -15420,8 +15065,30 @@
                     try { return !!(el && el.getAttribute && el.getAttribute('onclick')); } catch (e) { return false; }
                 }
 
+                function onNumberContextMenu(ev, region) {
+                    try {
+                        var el = findClosestCell(ev.target, '.cell[data-num]');
+                        if (!el) return;
+                        /* Chỉ số trên bảng tần suất / W10 (num hoặc index chân). */
+                        if (!el.classList.contains('num') && !el.classList.contains('index')) return;
+                        var n = parseInt(el.getAttribute('data-num'), 10);
+                        if (isNaN(n)) return;
+                        ev.preventDefault();
+                        ev.stopPropagation();
+                        try {
+                            lastClickedRegion = region || 'left';
+                            syncLeftKeyboardRegion(region || 'left');
+                            lastClickedNumber = n;
+                        } catch (eR) { /* ignore */ }
+                        toggleManualUiBlocked(n);
+                    } catch (eCtx) { /* ignore */ }
+                }
+
                 var leftRoot = document.getElementById('left');
                 if (leftRoot) {
+                    leftRoot.addEventListener('contextmenu', function (ev) {
+                        onNumberContextMenu(ev, 'left');
+                    });
                     leftRoot.addEventListener('click', function (ev) {
                         try {
                             var el = findClosestCell(ev.target, '.cell.num[data-num]');
@@ -15440,6 +15107,9 @@
 
                 var rightRoot = document.getElementById('right');
                 if (rightRoot) {
+                    rightRoot.addEventListener('contextmenu', function (ev) {
+                        onNumberContextMenu(ev, 'right');
+                    });
                     rightRoot.addEventListener('click', function (ev) {
                         try {
                             // accept clicks on either number cells or index cells in table 2

@@ -1290,26 +1290,25 @@ class RightPaneSheetManager {
     }
 
     buildSheetColumnHeaderHtml(col, ctx) {
-        const dragTitle = 'Kéo để đổi thứ tự cột';
         switch (col) {
             case 'date':
-                return `<th class="cell-date-h sheet-col-draggable" data-col="date" data-col-drag="1" title="${dragTitle}">date</th>`;
+                return '<th class="cell-date-h sheet-col-draggable" data-col="date" data-col-drag="1">date</th>';
             case 'id':
-                return `<th class="cell-id-h sheet-col-draggable" data-col="id" data-col-drag="1" title="${dragTitle}">id</th>`;
+                return '<th class="cell-id-h sheet-col-draggable" data-col="id" data-col-drag="1">id</th>';
             case 'special':
-                return `<th class="cell-special-h sheet-col-draggable" data-col="special" data-col-drag="1" data-special-stats="${ctx.specialStatsAttr}" title="${dragTitle}">special</th>`;
+                return `<th class="cell-special-h sheet-col-draggable" data-col="special" data-col-drag="1" data-special-stats="${ctx.specialStatsAttr}">special</th>`;
             case 'belly':
-                return `<th class="cell-belly-h sheet-col-draggable" data-col="belly" data-col-drag="1" data-belly-stats="${ctx.bellyStatsAttr}" title="${dragTitle}">belly</th>`;
+                return `<th class="cell-belly-h sheet-col-draggable" data-col="belly" data-col-drag="1" data-belly-stats="${ctx.bellyStatsAttr}">belly</th>`;
             case 'trend':
-                return `<th class="cell-trend-h sheet-col-draggable" data-col="trend" data-col-drag="1" data-trend-stats="${ctx.trendStatsAttr}" title="${dragTitle}">trend</th>`;
+                return `<th class="cell-trend-h sheet-col-draggable" data-col="trend" data-col-drag="1" data-trend-stats="${ctx.trendStatsAttr}">trend</th>`;
             case 'label':
-                return `<th class="cell-pick-label-h sheet-col-draggable" data-col="label" data-col-drag="1" title="${dragTitle}">label</th>`;
+                return '<th class="cell-pick-label-h sheet-col-draggable" data-col="label" data-col-drag="1">label</th>';
             case 'follow':
-                return `<th class="cell-follow-h sheet-col-draggable" data-col="follow" data-col-drag="1" title="${dragTitle}">follow</th>`;
+                return '<th class="cell-follow-h sheet-col-draggable" data-col="follow" data-col-drag="1">follow</th>';
             case 'p1_relative':
-                return `<th class="cell-p1-relative-h sheet-col-draggable" data-col="p1_relative" data-col-drag="1" title="${dragTitle}">P1rel</th>`;
+                return '<th class="cell-p1-relative-h sheet-col-draggable" data-col="p1_relative" data-col-drag="1">P1rel</th>';
             case 'derive':
-                return `<th class="cell-derive-h sheet-col-draggable" data-col="derive" data-col-drag="1" title="${dragTitle}">derive</th>`;
+                return '<th class="cell-derive-h sheet-col-draggable" data-col="derive" data-col-drag="1">derive</th>';
             case 'result':
                 return '<th class="cell-result-h sheet-col-fixed" data-col="result">result</th>';
             case 'note':
