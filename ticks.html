@@ -4259,8 +4259,7 @@
       resetPopupPoolTrack();
       clearCopyNumsOkEffect();
       hideDeltaTip();
-      clearDeltaTipPins();
-      clearCalTipPins();
+      stashTipPinsForId(n);
       hideModalRestPool();
       modalTimeline.hidden = true;
       modalTimeline.innerHTML = '';
@@ -4624,8 +4623,11 @@
     clearCopyNumsOkEffect();
     clearAffectNumHl();
     hideDeltaTip();
-    clearDeltaTipPins();
-    clearCalTipPins();
+    if (wasElim && closeId != null) {
+      stashTipPinsForId(closeId);
+    } else {
+      discardTipPinsForIdChange();
+    }
     popupTimelineDeriveSet = null;
     if (closingSim) {
       /* Có mã phòng: giữ picks để sync / mở lại; không mã: xóa như cũ. */
@@ -4945,6 +4947,90 @@
     });
     deltaTipPinZ = 10060;
   }
+
+  /**
+   * Tip pin theo id: tắt popup → cất tạm; mở lại cùng id → hiện lại;
+   * đổi id → xóa hẳn.
+   * @type {{ id: number, delta: object[], cal: object[] }|null}
+   */
+  let tipPinsStash = null;
+
+  function clearTipPinsStash() {
+    tipPinsStash = null;
+  }
+
+  function discardTipPinsForIdChange() {
+    tipPinsStash = null;
+    clearDeltaTipPins();
+    clearCalTipPins();
+  }
+
+  function snapshotTipPinsState() {
+    const delta = [];
+    document.querySelectorAll('.delta-tip-pin').forEach((el) => {
+      const body = el.querySelector('.delta-tip-pin-body');
+      const rect = el.getBoundingClientRect();
+      delta.push({
+        bodyHtml: body ? body.innerHTML : '',
+        empty: el.classList.contains('is-empty'),
+        markRed: el.classList.contains('is-mark-red'),
+        left: rect.left,
+        top: rect.top
+      });
+    });
+    const cal = [];
+    document.querySelectorAll('.cal-tip-pin').forEach((el) => {
+      const body = el.querySelector('.cal-tip-pin-body');
+      const rect = el.getBoundingClientRect();
+      const raw = el.getAttribute('data-cal-nums') || '';
+      const nums = [];
+      if (raw) {
+        const parts = raw.split(',');
+        for (let i = 0; i < parts.length; i++) {
+          const n = Number(parts[i]);
+          if (Number.isFinite(n)) nums.push(n);
+        }
+      }
+      cal.push({
+        nums: nums,
+        empty: el.classList.contains('is-empty'),
+        bodyHtml: body ? body.innerHTML : '',
+        left: rect.left,
+        top: rect.top
+      });
+    });
+    return { delta: delta, cal: cal };
+  }
+
+  /** Tắt popup: cất tip theo id rồi gỡ khỏi DOM (mở lại cùng id sẽ restore). */
+  function stashTipPinsForId(id) {
+    const n = Number(id);
+    if (!Number.isFinite(n) || n <= 0) {
+      discardTipPinsForIdChange();
+      return;
+    }
+    const snap = snapshotTipPinsState();
+    tipPinsStash = { id: n, delta: snap.delta, cal: snap.cal };
+    clearDeltaTipPins();
+    clearCalTipPins();
+  }
+
+  /** Mở popup cùng id: hiện lại tip đã cất. */
+  function restoreTipPinsForId(id) {
+    const n = Number(id);
+    if (!tipPinsStash || !Number.isFinite(n) || tipPinsStash.id !== n) return;
+    const st = tipPinsStash;
+    tipPinsStash = null;
+    const deltas = st.delta || [];
+    for (let i = 0; i < deltas.length; i++) {
+      createDeltaTipPin(deltas[i]);
+    }
+    const cals = st.cal || [];
+    for (let i = 0; i < cals.length; i++) {
+      createCalTipPin(cals[i]);
+    }
+  }
+
 
   function clampDeltaTipPinPos(el, left, top) {
     clampTipPinPos(el, left, top);
@@ -5735,6 +5821,7 @@
     xBtn.textContent = '×';
     pin.appendChild(body);
     pin.appendChild(xBtn);
+    pin.setAttribute('data-cal-nums', nums.join(','));
     document.body.appendChild(pin);
     bringCalTipPinToFront(pin);
     const left = opts && opts.left != null ? opts.left : 60;
@@ -5842,7 +5929,7 @@
     calBack.hidden = true;
     if (calSetA) calSetA.blur();
     if (calSetB) calSetB.blur();
-    /* Pin KQ: giữ khi chỉ đóng popup Calculate; xóa khi đổi id / tắt elim (clearCalTipPins). */
+    /* Pin KQ: tắt elim → stash theo id; đổi id → xóa hẳn; đóng Calculate → giữ pin. */
   }
 
   function toggleCalPopup() {
@@ -6204,10 +6291,10 @@
     const focusId = dataCtx.ids[focusIdx];
     const packed = detailsAtFocus(focusIdx, focusId);
     if (!packed) return;
-    if (histIdOnIdx !== focusIdx || simIdOn) {
+    const idChanged = histIdOnIdx !== focusIdx || simIdOn;
+    if (idChanged) {
       resetPopupPoolTrack();
-      clearDeltaTipPins();
-      clearCalTipPins();
+      discardTipPinsForIdChange();
     }
     /* Học tập: đổi id → quên pick giả lập id cũ; cùng id (toggle E) → giữ. */
     if (studyMode) rememberStudyPicksForId(focusId);
@@ -6269,15 +6356,19 @@
         : undefined,
       violLineSuffix: studyMode ? 'nếu đáp án có peer' : undefined
     });
+    restoreTipPinsForId(focusId);
   }
 
   function openSimElim() {
     if (!simState) return;
+    const simFocusId = simState.focusId;
     if (!simIdOn) {
       resetPopupPoolTrack();
-      clearDeltaTipPins();
-      clearCalTipPins();
       if (simRoomTag) loadSimPhaPicksForTag(simRoomTag);
+      /* Đóng rồi mở lại cùng sim → giữ stash; từ hist / id khác → xóa hẳn. */
+      if (!(tipPinsStash && tipPinsStash.id === simFocusId)) {
+        discardTipPinsForIdChange();
+      }
     }
     const active = activePairIndices();
     /* Không giả lập tick cột — mask/violMask tắt; phá = click pool. */
@@ -6335,6 +6426,7 @@
       violEmptyHint: 'Chi tiết theo cột tắt — xem tóm tắt Loại/Phá phía trên / cột phá timeline.',
       violLineSuffix: 'nếu đáp án có peer'
     });
+    restoreTipPinsForId(simFocusId);
   }
 
   function bindSimRow() {
