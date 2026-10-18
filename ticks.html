@@ -3966,7 +3966,7 @@
   /**
    * Timeline từ đầu thang về ngưỡng hiện tại.
    * Ghi mốc khi pool đổi, có số phá mới, hoặc có luật mới (peer có thể đã nằm trong pool).
-   * Hist phá: append khi số ∈ tập phá cuối (ngưỡng hiện tại) lần đầu vào pool —
+   * Hist phá: append khi số ∈ (tập phá cuối ∪ đáp án) lần đầu vào pool —
    *   tránh lệch 1 hàng (số đã bold/pool từ hold, phá violate mới bật sau).
    * Sim phá: theo elim các cột chưa tick (như cũ).
    * >= : 100→thVal · <= : 1→thVal · = : một mốc.
@@ -3992,10 +3992,22 @@
     const pháSeen = new Set();
     const milestones = [];
     const isHist = opts.mode === 'hist' && Number.isFinite(opts.focusIdx);
-    /** Hist: tập phá tại ngưỡng cuối — mốc append = lần đầu số đó vào pool. */
+    /**
+     * Hist: tập phá tại ngưỡng cuối (+ số ∈ đáp án) — mốc append = lần đầu vào pool.
+     * Đáp án nhét vào đây để dò timeline giống phá (vd 7∈đáp án nhưng ∉ violate).
+     */
     const finalViol = isHist
       ? new Set(violNumsArrForRow(opts.focusIdx, activePairIndicesAt(op, end), true))
       : null;
+    if (isHist && finalViol && dataCtx && dataCtx.rowNums) {
+      const ans = dataCtx.rowNums[opts.focusIdx];
+      if (ans && ans.length) {
+        for (let ai = 0; ai < ans.length; ai++) {
+          const n = Number(ans[ai]);
+          if (Number.isFinite(n)) finalViol.add(n);
+        }
+      }
+    }
     function samePoolArr(a, b) {
       if (a === b) return true;
       if (!a || !b || a.length !== b.length) return false;
