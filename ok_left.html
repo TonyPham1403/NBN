@@ -7368,8 +7368,10 @@
         }
 
         /**
-         * Đồng bộ chuỗi pick từ basic tracking (chuột trái/phải bar) → khoanh + pickOrder nửa trái.
-         * Gọi trực tiếp từ parent hoặc qua postMessage; luôn cập nhật DOM khoanh.
+         * Đồng bộ chuỗi pick từ basic tracking / ticks → khoanh đỏ nửa trái.
+         * Submit ON: ghi vào preSubmit* (vòng pre-submit-manual-pick), không đụng selected đáp án —
+         *   tắt Submit vẫn restore đúng, không làm ticks mất pick.
+         * Submit OFF: ghi selected + pickOrder như khoanh tay.
          */
         function applyBasicTrackingPreviewPicksFromParent(rawNums) {
             var pickNums = [];
@@ -7385,6 +7387,24 @@
             basicTrackingPreviewPickActive = true;
             try { invalidateClearSelectionToggleBackup(); } catch (eInv) { /* ignore */ }
             selectionCleared = false;
+
+            if (submitActive) {
+                preSubmitSelected = new Set(pickNums);
+                preSubmitOrder = pickNums.slice();
+                try { applySubmitState(); } catch (eSub) {
+                    try { applySelectionAndBlockedInDOM(); } catch (eD0) { /* ignore */ }
+                }
+                try {
+                    notifyParentLeftCircledNums({
+                        forceSync: true,
+                        basicTrackingPreview: true,
+                        nums: preSubmitOrder.slice(),
+                        submitActive: true
+                    });
+                } catch (eN0) { /* ignore */ }
+                return preSubmitOrder.slice();
+            }
+
             selected.clear();
             try { transientSelected.clear(); } catch (eT) { /* ignore */ }
             try { simulatedSelected.clear(); } catch (eS) { /* ignore */ }

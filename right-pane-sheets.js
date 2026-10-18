@@ -15856,11 +15856,24 @@ class RightPaneSheetManager {
         }
         this.leftSubmitActive = next;
         if (!next) {
-            if (Array.isArray(this.leftBasicPreviewPickNumsStash)
-                && this.leftBasicPreviewPickNumsStash.length) {
-                // Basic: iframe khôi phục preSubmit khi Submit OFF.
-                // Không dispatch leftCircledNumsChanged ở đây — tránh paint trùng với
-                // leftSubmitStateChanged; nums thật về qua leftCircledNumsReady.
+            const stash = Array.isArray(this.leftBasicPreviewPickNumsStash)
+                ? this.leftBasicPreviewPickNumsStash
+                : [];
+            const remember = Array.isArray(this.leftCircleRememberNums)
+                ? this.leftCircleRememberNums
+                : [];
+            const cur = Array.isArray(this.leftBasicPreviewPickNums)
+                ? this.leftBasicPreviewPickNums
+                : [];
+            /* Ưu tiên pick đang giữ (ticks lúc Submit ON) → stash → remember. */
+            const keep = cur.length ? cur.slice()
+                : (stash.length ? stash.slice()
+                    : (remember.length ? remember.slice() : []));
+            if (keep.length) {
+                this.leftBasicPreviewPickNums = keep;
+                this.leftCircleRememberNums = keep.slice();
+                this._basicPreviewStashRestoredAt = Date.now();
+            } else if (stash.length) {
                 this._basicPreviewStashRestoredAt = Date.now();
             }
             this.leftBasicPreviewPickNumsStash = [];
@@ -16070,6 +16083,10 @@ class RightPaneSheetManager {
             if (!options.skipFocusUpdate) {
                 this.applyTrackingPreviewFocusAfterPickNumsChange(prev, next);
             }
+        }
+        /* Submit ON: ticks/khoanh mới vẫn cập nhật stash + remember — tắt Submit không mất pick. */
+        if (this.leftSubmitActive && next.length) {
+            this.leftBasicPreviewPickNumsStash = next.slice();
         }
         if (!same || rememberChanged) {
             try {
