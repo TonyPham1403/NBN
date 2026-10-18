@@ -674,6 +674,15 @@
     box-shadow: 0 20px 50px rgba(0,0,0,.35);
     padding: 16px 18px 18px;
   }
+  /* Ctrl+S tip-store: viền xanh lá thoáng chốc = lưu thành công. */
+  .modal.is-tip-store-saved {
+    animation: tipStoreSaveFlash .75s ease;
+  }
+  @keyframes tipStoreSaveFlash {
+    0% { outline: 2px solid transparent; outline-offset: 2px; }
+    15%, 55% { outline: 2px solid #16a34a; outline-offset: 2px; }
+    100% { outline: 2px solid transparent; outline-offset: 2px; }
+  }
   /* Popup Xem danh sách id — không bung full màn hình */
   .modal.is-stats {
     width: min(420px, calc(100vw - 32px));
@@ -1396,6 +1405,139 @@
     border: 0; background: #111827; color: #fff;
     padding: 8px 14px; border-radius: 6px; cursor: pointer; font-weight: 600;
   }
+  /* Tip store list — mép phải, đè popup kỳ; H/h đóng mở */
+  .tip-store {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 80;
+    width: min(168px, 42vw);
+    display: flex;
+    flex-direction: column;
+    background: rgba(15, 23, 42, .92);
+    color: #e2e8f0;
+    border-left: 1px solid #334155;
+    box-shadow: -8px 0 28px rgba(0, 0, 0, .35);
+    font: 12px/1.25 "Segoe UI", system-ui, sans-serif;
+  }
+  .tip-store[hidden] { display: none !important; }
+  .tip-store-head {
+    flex: 0 0 auto;
+    padding: 8px 10px;
+    border-bottom: 1px solid #334155;
+    background: #0f172a;
+  }
+  .tip-store-head .ts-title-row {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 0;
+  }
+  .tip-store-head .ts-title {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 800;
+    font-size: 12px;
+    letter-spacing: .02em;
+  }
+  .tip-store-head .ts-close {
+    flex: 0 0 auto;
+    margin: 0;
+    padding: 0;
+    width: 16px;
+    height: 16px;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: #94a3b8;
+    font: 700 14px/1 "Segoe UI", system-ui, sans-serif;
+    cursor: pointer;
+  }
+  .tip-store-head .ts-close:hover {
+    color: #f8fafc;
+    background: #334155;
+  }
+  .tip-store-head .ts-key {
+    margin-top: 2px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    color: #5eead4;
+  }
+  .tip-store-head .ts-hint {
+    margin-top: 4px;
+    font-size: 10px;
+    color: #94a3b8;
+  }
+  .tip-store-scroll {
+    flex: 1 1 auto;
+    overflow: scroll;
+    scrollbar-gutter: stable;
+  }
+  .tip-store-pad {
+    box-sizing: border-box;
+    border-bottom: 1px solid #334155;
+    background: #115e59;
+  }
+  .tip-store-row {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    box-sizing: border-box;
+    height: 32px;
+    max-height: 32px;
+    padding: 0 6px;
+    border-bottom: 1px solid #1e293b;
+    font-variant-numeric: tabular-nums;
+  }
+  .tip-store-row.is-sim {
+    height: 34px;
+    max-height: 34px;
+    background: rgba(217, 119, 6, .12);
+  }
+  .tip-store-row.is-on {
+    background: rgba(245, 158, 11, .28);
+  }
+  .tip-store-row .ts-id {
+    flex: 1 1 auto;
+    min-width: 0;
+    font-weight: 700;
+    color: #f8fafc;
+  }
+  .tip-store-row .ts-btns {
+    flex: 0 0 auto;
+    display: inline-flex;
+    gap: 3px;
+  }
+  .tip-store-row button {
+    margin: 0;
+    padding: 1px 5px;
+    border: 1px solid #475569;
+    border-radius: 4px;
+    background: #1e293b;
+    color: #e2e8f0;
+    font: 700 10px/1.2 system-ui, sans-serif;
+    cursor: pointer;
+    line-height: 0;
+  }
+  .tip-store-row button.ts-apply {
+    border-color: #2dd4bf;
+    background: #0f766e;
+    color: #f0fdfa;
+    padding: 3px 5px;
+  }
+  .tip-store-row button.ts-apply svg {
+    width: 11px;
+    height: 11px;
+    display: block;
+  }
+  .tip-store-row button.ts-del {
+    border-color: #f87171;
+    background: #b91c1c;
+    color: #fff1f2;
+  }
+  .tip-store-row button:hover { filter: brightness(1.12); }
+  .tip-store-row:not(.has-save) .ts-btns { visibility: hidden; }
 </style>
 </head>
 <body>
@@ -1487,6 +1629,17 @@
   <p id="err" class="err" hidden></p>
 </div>
 <div class="wrap" id="wrap"></div>
+<aside class="tip-store" id="tipStore" hidden aria-label="Tip store theo threshold">
+  <div class="tip-store-head">
+    <div class="ts-title-row">
+      <div class="ts-title">Tip store</div>
+      <button type="button" class="ts-close" id="tipStoreClose" aria-label="Đóng tip store">×</button>
+    </div>
+    <div class="ts-key" id="tipStoreKeyLabel">—</div>
+    <div class="ts-hint">H đóng/mở · Ctrl+S lưu kỳ đang mở</div>
+  </div>
+  <div class="tip-store-scroll" id="tipStoreScroll"></div>
+</aside>
 <div class="modal-back" id="modalBack" hidden>
   <div class="modal" role="dialog" aria-modal="true">
     <h2 id="modalTitle">Số bị loại</h2>
@@ -2197,6 +2350,10 @@
   const COPY_OK_ICON_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
     + '<path fill="currentColor" d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41L9 16.17z"/>'
     + '</svg>';
+  /* Apply tip store: mũi tên xuống khay = nạp tip đã lưu vào kỳ. */
+  const TIP_STORE_APPLY_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+    + '<path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/>'
+    + '</svg>';
 
   /** Nút copy đang giữ hiệu ứng is-ok — tắt khi click nút copy khác. */
   let copyNumsOkBtn = null;
@@ -2220,6 +2377,23 @@
     return '<button type="button" class="copy-nums-btn" data-copy="'
       + escapeAttr(csv)
       + '" title="Copy ' + (csv ? csv : '(rỗng)') + '" aria-label="Copy dãy số">'
+      + COPY_ICON_SVG + '</button>';
+  }
+
+  /**
+   * Nút copy cuối chuỗi pool timeline — LMB copy cả pool;
+   * RMB pin tip chỉ số in đậm (vd j5: 1,2,3).
+   */
+  function copyTimelinePoolBtnHtml(allNums, boldNums, deltaLabel) {
+    const csv = (allNums || []).join(',');
+    const boldCsv = (boldNums || []).join(',');
+    const lbl = deltaLabel ? String(deltaLabel) : '';
+    return '<button type="button" class="copy-nums-btn copy-pool-btn" data-copy="'
+      + escapeAttr(csv)
+      + '" data-bold-copy="' + escapeAttr(boldCsv) + '"'
+      + (lbl ? ' data-delta-lbl="' + escapeAttr(lbl) + '"' : '')
+      + ' title="Copy ' + (csv ? csv : '(rỗng)')
+      + ' · RMB: tip số đậm" aria-label="Copy dãy pool">'
       + COPY_ICON_SVG + '</button>';
   }
 
@@ -2842,8 +3016,11 @@
   const STUDY_PICKS_LS_PREFIX = 'sua:studyPicks:';
   const ROOM_SCROLL_LS_PREFIX = 'sua:roomScroll:';
   const CAL_STATE_LS_PREFIX = 'sua:calState:';
+  const TIP_STORE_ACT_LS_PREFIX = 'sua:tipStoreAct:';
   /** Bridge → mọi tab index.html (kỳ rỗng cuối). */
   const SIM_PHA_INDEX_LS = 'sua:simPhaPicks:index';
+  let tipStoreActSyncApplying = false;
+  let tipStoreActLastT = 0;
   let simRoomTag = '';
   let simTabId = '';
   let simPhaSyncApplying = false;
@@ -2897,6 +3074,10 @@
 
   function calStateStorageKey(tag) {
     return CAL_STATE_LS_PREFIX + tag;
+  }
+
+  function tipStoreActStorageKey(tag) {
+    return TIP_STORE_ACT_LS_PREFIX + tag;
   }
 
   function readScrollPos(el) {
@@ -3363,6 +3544,14 @@
             if (studyPicksForId != null) publishStudyPicks();
             publishRoomScroll();
             publishCalState();
+            publishTipStoreAct({ act: 'open', open: tipStoreOpen });
+            return;
+          }
+          if (msg.type === 'tip-store-act') {
+            applyRemoteTipStoreAct(msg, {
+              force: true,
+              t: Number(msg.t) || Date.now()
+            });
             return;
           }
           if (msg.type === 'cal-state') {
@@ -3487,6 +3676,18 @@
             });
           }
         } catch (errCal) { /* ignore */ }
+        return;
+      }
+      if (e.key === tipStoreActStorageKey(simRoomTag)) {
+        try {
+          const o = JSON.parse(e.newValue);
+          if (o) {
+            applyRemoteTipStoreAct(o, {
+              force: true,
+              t: Number(o.t) || Date.now()
+            });
+          }
+        } catch (errTs) { /* ignore */ }
         return;
       }
       if (e.key !== simPhaStorageKey(simRoomTag)) return;
@@ -3808,9 +4009,13 @@
         + (lbl === 'k' ? ' is-k' : '')
         + '" title="Thứ tự mốc Δ">' + escapeAttr(lbl) + '</span>')
       : '<span class="tl-delta-lbl tl-delta-lbl-slot" aria-hidden="true">&nbsp;</span>';
+    const boldList = [];
+    for (let bi = 0; bi < nums.length; bi++) {
+      if (bold.has(nums[bi])) boldList.push(nums[bi]);
+    }
     return '<span class="tl-delta-group">' + deltaSlot + labelHtml + '</span>'
       + '<span class="tl-pool-text">' + body + '</span>'
-      + copyNumsBtnHtml(nums);
+      + copyTimelinePoolBtnHtml(nums, boldList, deltaLabel);
   }
 
   /**
@@ -5013,16 +5218,393 @@
     if (!tipPinsStash || !Number.isFinite(n) || tipPinsStash.id !== n) return;
     const st = tipPinsStash;
     tipPinsStash = null;
-    const deltas = st.delta || [];
+    applyTipPinsSnap(st);
+  }
+
+  function applyTipPinsSnap(snap) {
+    if (!snap) return;
+    const deltas = snap.delta || [];
     for (let i = 0; i < deltas.length; i++) {
       createDeltaTipPin(deltas[i]);
     }
-    const cals = st.cal || [];
+    const cals = snap.cal || [];
     for (let i = 0; i < cals.length; i++) {
       createCalTipPin(cals[i]);
     }
   }
 
+  /* —— Tip store (Ctrl+S lưu · H mở/đóng · theo threshold) —— */
+  const TIP_STORE_LS_KEY = 'ticks.tipStore.v1';
+  const tipStoreEl = document.getElementById('tipStore');
+  const tipStoreScrollEl = document.getElementById('tipStoreScroll');
+  const tipStoreKeyLabelEl = document.getElementById('tipStoreKeyLabel');
+  const tipStoreCloseEl = document.getElementById('tipStoreClose');
+  let tipStoreOpen = false;
+  let tipStoreScrollLock = false;
+  /** @type {Record<string, Record<string, { t: number, delta: object[], cal: object[] }>>} */
+  let tipStoreRoot = {};
+
+  function tipStoreThresholdKey() {
+    return String(thOp || '>=') + '|' + String(thVal | 0);
+  }
+
+  function tipStoreThresholdLabel() {
+    return 'threshold ' + (OP_LABEL[thOp] || thOp) + ' ' + thVal + '%';
+  }
+
+  function loadTipStoreRoot() {
+    try {
+      const raw = localStorage.getItem(TIP_STORE_LS_KEY);
+      if (!raw) {
+        tipStoreRoot = {};
+        return;
+      }
+      const o = JSON.parse(raw);
+      tipStoreRoot = (o && typeof o === 'object') ? o : {};
+    } catch (e) {
+      tipStoreRoot = {};
+    }
+  }
+
+  function persistTipStoreRoot() {
+    try {
+      localStorage.setItem(TIP_STORE_LS_KEY, JSON.stringify(tipStoreRoot));
+    } catch (e) { /* ignore */ }
+  }
+
+  function getTipStoreBucket(create) {
+    const key = tipStoreThresholdKey();
+    if (!tipStoreRoot[key] && create) tipStoreRoot[key] = {};
+    return tipStoreRoot[key] || null;
+  }
+
+  function tipStoreHasSave(id) {
+    const b = getTipStoreBucket(false);
+    if (!b) return false;
+    const e = b[String(id)];
+    return !!(e && (e.delta || e.cal));
+  }
+
+  function getTipStoreEntry(id) {
+    const b = getTipStoreBucket(false);
+    if (!b) return null;
+    return b[String(id)] || null;
+  }
+
+  function currentElimFocusId() {
+    if (simIdOn && simState) return simState.focusId;
+    if (histIdOnIdx != null && dataCtx && dataCtx.ids) return dataCtx.ids[histIdOnIdx];
+    return null;
+  }
+
+  let tipStoreSaveFlashTimer = null;
+
+  /** Viền xanh trên popup kỳ đang mở (cùng id nếu truyền forId). */
+  function flashTipStoreSaveOk(forId) {
+    if (!modalEl || !modalBack || modalBack.hidden || popupKind !== 'elim') return;
+    if (forId != null && Number(currentElimFocusId()) !== Number(forId)) return;
+    modalEl.classList.remove('is-tip-store-saved');
+    /* reflow để replay animation khi Ctrl+S liên tiếp */
+    void modalEl.offsetWidth;
+    modalEl.classList.add('is-tip-store-saved');
+    if (tipStoreSaveFlashTimer) clearTimeout(tipStoreSaveFlashTimer);
+    tipStoreSaveFlashTimer = setTimeout(() => {
+      tipStoreSaveFlashTimer = null;
+      if (modalEl) modalEl.classList.remove('is-tip-store-saved');
+    }, 800);
+  }
+
+  /** Ghi snap vào bucket threshold hiện tại của tab này. */
+  function writeTipStoreEntry(id, snap, opts) {
+    const n = Number(id);
+    if (!Number.isFinite(n)) return false;
+    const delta = snap && snap.delta != null ? snap.delta : null;
+    const cal = snap && snap.cal != null ? snap.cal : null;
+    const bucket = getTipStoreBucket(true);
+    bucket[String(n)] = {
+      t: (opts && opts.t) || Date.now(),
+      delta: delta,
+      cal: cal
+    };
+    persistTipStoreRoot();
+    refreshTipStoreRowUi(n);
+    return true;
+  }
+
+  /** Ctrl+S: lưu tip đang hiện của kỳ popup mở (+ sync tab cùng mã). */
+  function saveTipStoreFromOpenPopup(opts) {
+    const fromSync = !!(opts && opts.fromSync);
+    if (fromSync) {
+      loadTipStoreRoot();
+      const id = opts.id;
+      const snap = opts.snap;
+      if (!writeTipStoreEntry(id, snap, { t: opts.t })) return false;
+      flashTipStoreSaveOk(id);
+      return true;
+    }
+    if (!modalBack || modalBack.hidden || popupKind !== 'elim') return false;
+    const id = currentElimFocusId();
+    if (id == null || !Number.isFinite(Number(id))) return false;
+    const snap = snapshotTipPinsState();
+    if (!writeTipStoreEntry(id, snap)) return false;
+    flashTipStoreSaveOk(id);
+    publishTipStoreAct({ act: 'save', id: id, snap: snap });
+    return true;
+  }
+
+  /** Sync hành động tip-store giữa tab cùng mã định danh (threshold vẫn local). */
+  function publishTipStoreAct(fields) {
+    if (tipStoreActSyncApplying) return;
+    const tag = simRoomTag;
+    if (!tag || !fields || !fields.act) return;
+    const payload = {
+      type: 'tip-store-act',
+      tag: tag,
+      from: ensureSimTabId(),
+      t: Date.now(),
+      act: fields.act
+    };
+    if (fields.act === 'open') payload.open = !!fields.open;
+    if (fields.act === 'apply' || fields.act === 'del' || fields.act === 'save') {
+      const n = Number(fields.id);
+      if (!Number.isFinite(n)) return;
+      payload.id = n;
+    }
+    if (fields.act === 'save') {
+      payload.snap = fields.snap
+        ? { delta: fields.snap.delta || null, cal: fields.snap.cal || null }
+        : null;
+    }
+    tipStoreActLastT = payload.t;
+    try {
+      localStorage.setItem(tipStoreActStorageKey(tag), JSON.stringify(payload));
+    } catch (e) { /* ignore */ }
+    try {
+      if (simPhaBc) simPhaBc.postMessage(payload);
+    } catch (e2) { /* ignore */ }
+  }
+
+  function applyRemoteTipStoreAct(msg, meta) {
+    if (!msg || !msg.act) return;
+    const t = meta && meta.t != null ? Number(meta.t) : (Number(msg.t) || 0);
+    if (t && tipStoreActLastT && t < tipStoreActLastT && !(meta && meta.force)) return;
+    if (t) tipStoreActLastT = t;
+    tipStoreActSyncApplying = true;
+    try {
+      if (msg.act === 'open') {
+        setTipStoreOpen(!!msg.open, { fromSync: true });
+      } else if (msg.act === 'apply') {
+        applyTipStoreEntry(msg.id, { fromSync: true });
+      } else if (msg.act === 'del') {
+        deleteTipStoreEntry(msg.id, { fromSync: true });
+      } else if (msg.act === 'save') {
+        saveTipStoreFromOpenPopup({
+          fromSync: true,
+          id: msg.id,
+          snap: msg.snap,
+          t: t || Date.now()
+        });
+      }
+    } finally {
+      requestAnimationFrame(() => { tipStoreActSyncApplying = false; });
+    }
+  }
+
+  function deleteTipStoreEntry(id, opts) {
+    const fromSync = !!(opts && opts.fromSync);
+    if (fromSync) loadTipStoreRoot();
+    const bucket = getTipStoreBucket(false);
+    if (!bucket) {
+      if (!fromSync) publishTipStoreAct({ act: 'del', id: id });
+      return;
+    }
+    const k = String(id);
+    if (bucket[k]) {
+      delete bucket[k];
+      persistTipStoreRoot();
+      refreshTipStoreRowUi(id);
+    } else if (fromSync) {
+      refreshTipStoreRowUi(id);
+    }
+    if (!fromSync) publishTipStoreAct({ act: 'del', id: id });
+  }
+
+  function applyTipStoreEntry(id, opts) {
+    const fromSync = !!(opts && opts.fromSync);
+    if (fromSync) loadTipStoreRoot();
+    const entry = getTipStoreEntry(id);
+    /* Local: chỉ apply khi có bản nhớ. Remote: vẫn mở kỳ; tip chỉ nếu bucket threshold local có. */
+    if (!entry && !fromSync) return;
+    const n = Number(id);
+    const focusIdx = findHistIdxById(n);
+    const isSim = !!(simState && simState.focusId === n);
+    if (focusIdx < 0 && !isSim) {
+      if (!fromSync) publishTipStoreAct({ act: 'apply', id: n });
+      return;
+    }
+    tipPinsStash = null;
+    clearDeltaTipPins();
+    clearCalTipPins();
+    if (isSim || focusIdx < 0) {
+      openSimElim();
+    } else {
+      rememberHistFocusClick(n);
+      alignRowIntoView(n, { instant: true });
+      openHistElim(focusIdx);
+    }
+    /* Sau open (có thể restore stash rỗng): ép tip từ store nếu có. */
+    tipPinsStash = null;
+    clearDeltaTipPins();
+    clearCalTipPins();
+    if (entry) applyTipPinsSnap(entry);
+    publishSharedFocus(n, {
+      popup: true,
+      mode: (isSim || focusIdx < 0) ? 'sim' : 'hist',
+      force: true
+    });
+    syncTipStoreFocusHighlight();
+    if (!fromSync) publishTipStoreAct({ act: 'apply', id: n });
+  }
+
+  function tipStoreTheadPadPx() {
+    const thead = wrap ? wrap.querySelector('thead') : null;
+    if (thead) return Math.max(1, thead.offsetHeight);
+    return 86;
+  }
+
+  function rebuildTipStoreList() {
+    if (!tipStoreScrollEl) return;
+    if (tipStoreKeyLabelEl) tipStoreKeyLabelEl.textContent = tipStoreThresholdLabel();
+    if (!tableBundle) {
+      tipStoreScrollEl.innerHTML = '';
+      return;
+    }
+    const { displayIdx, ids } = tableBundle;
+    let html = '<div class="tip-store-pad" style="height:' + tipStoreTheadPadPx() + 'px"></div>';
+    for (let j = 0; j < displayIdx.length; j++) {
+      const idx = displayIdx[j];
+      const id = ids[idx];
+      const has = tipStoreHasSave(id);
+      html += '<div class="tip-store-row' + (has ? ' has-save' : '')
+        + '" data-store-id="' + id + '">'
+        + '<span class="ts-id">' + id + '</span>'
+        + '<span class="ts-btns">'
+        + '<button type="button" class="ts-apply" data-ts-act="apply" title="Apply tip đã lưu" aria-label="Apply tip đã lưu">'
+        + TIP_STORE_APPLY_SVG + '</button>'
+        + '<button type="button" class="ts-del" data-ts-act="del" title="Xóa bản nhớ">×</button>'
+        + '</span></div>';
+    }
+    if (simState) {
+      const sid = simState.focusId;
+      const has = tipStoreHasSave(sid);
+      html += '<div class="tip-store-row is-sim' + (has ? ' has-save' : '')
+        + '" data-store-id="' + sid + '">'
+        + '<span class="ts-id">' + sid + '</span>'
+        + '<span class="ts-btns">'
+        + '<button type="button" class="ts-apply" data-ts-act="apply" title="Apply tip đã lưu" aria-label="Apply tip đã lưu">'
+        + TIP_STORE_APPLY_SVG + '</button>'
+        + '<button type="button" class="ts-del" data-ts-act="del" title="Xóa bản nhớ">×</button>'
+        + '</span></div>';
+    }
+    tipStoreScrollEl.innerHTML = html;
+    syncTipStoreFocusHighlight();
+    if (tipStoreOpen && wrap) {
+      tipStoreScrollLock = true;
+      tipStoreScrollEl.scrollTop = wrap.scrollTop;
+      tipStoreScrollLock = false;
+    }
+  }
+
+  function refreshTipStoreRowUi(id) {
+    if (!tipStoreScrollEl) return;
+    const row = tipStoreScrollEl.querySelector('.tip-store-row[data-store-id="' + String(id) + '"]');
+    if (!row) {
+      if (tipStoreOpen) rebuildTipStoreList();
+      return;
+    }
+    row.classList.toggle('has-save', tipStoreHasSave(id));
+  }
+
+  function syncTipStoreFocusHighlight() {
+    if (!tipStoreScrollEl) return;
+    const cur = currentElimFocusId();
+    tipStoreScrollEl.querySelectorAll('.tip-store-row').forEach((row) => {
+      const id = Number(row.getAttribute('data-store-id'));
+      row.classList.toggle('is-on', cur != null && id === Number(cur));
+    });
+  }
+
+  function setTipStoreOpen(on, opts) {
+    const fromSync = !!(opts && opts.fromSync);
+    const next = !!on;
+    if (next === tipStoreOpen && tipStoreEl && tipStoreEl.hidden === !next) {
+      return;
+    }
+    tipStoreOpen = next;
+    if (!tipStoreEl) return;
+    tipStoreEl.hidden = !tipStoreOpen;
+    if (tipStoreOpen) {
+      rebuildTipStoreList();
+      if (wrap && tipStoreScrollEl) {
+        tipStoreScrollLock = true;
+        tipStoreScrollEl.scrollTop = wrap.scrollTop;
+        tipStoreScrollLock = false;
+      }
+    }
+    if (!fromSync) publishTipStoreAct({ act: 'open', open: tipStoreOpen });
+  }
+
+  function toggleTipStorePanel() {
+    setTipStoreOpen(!tipStoreOpen);
+  }
+
+  function syncTipStoreScrollFromWrap() {
+    if (!tipStoreOpen || !tipStoreScrollEl || !wrap || tipStoreScrollLock) return;
+    tipStoreScrollLock = true;
+    tipStoreScrollEl.scrollTop = wrap.scrollTop;
+    tipStoreScrollLock = false;
+  }
+
+  function syncWrapScrollFromTipStore() {
+    if (!tipStoreOpen || !tipStoreScrollEl || !wrap || tipStoreScrollLock) return;
+    tipStoreScrollLock = true;
+    wrap.scrollTop = tipStoreScrollEl.scrollTop;
+    tipStoreScrollLock = false;
+  }
+
+  loadTipStoreRoot();
+  if (tipStoreCloseEl) {
+    tipStoreCloseEl.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      setTipStoreOpen(false);
+    });
+  }
+  if (tipStoreScrollEl) {
+    tipStoreScrollEl.addEventListener('scroll', () => {
+      syncWrapScrollFromTipStore();
+    }, { passive: true });
+    tipStoreScrollEl.addEventListener('click', (e) => {
+      const btn = e.target && e.target.closest
+        ? e.target.closest('button[data-ts-act]')
+        : null;
+      if (!btn || !tipStoreScrollEl.contains(btn)) return;
+      const row = btn.closest('.tip-store-row');
+      if (!row) return;
+      const id = Number(row.getAttribute('data-store-id'));
+      if (!Number.isFinite(id)) return;
+      const act = btn.getAttribute('data-ts-act');
+      e.preventDefault();
+      e.stopPropagation();
+      if (act === 'apply') applyTipStoreEntry(id);
+      else if (act === 'del') deleteTipStoreEntry(id);
+    });
+  }
+  if (wrap) {
+    wrap.addEventListener('scroll', () => {
+      syncTipStoreScrollFromWrap();
+    }, { passive: true });
+  }
 
   function clampDeltaTipPinPos(el, left, top) {
     clampTipPinPos(el, left, top);
@@ -5157,28 +5739,31 @@
     return text ? text.getBoundingClientRect() : null;
   }
 
-  /** Chuột phải trên tip / nút Δ → gắn bản sao tại {…} pool (kéo được). */
-  function pinDeltaTipClone(clientX, clientY, anchorBtn) {
-    if (deltaTip.hidden || !deltaTip.classList.contains('is-on')) return false;
+  /** Gắn pin tip tại {…} pool (kéo được) — dùng chung Δ hover / pool-bold RMB. */
+  function pinTipAtPoolBrace(opts) {
     if (modalBack.hidden || popupKind !== 'elim') return false;
-    const bodyHtml = deltaTip.innerHTML;
+    const bodyHtml = opts && opts.bodyHtml;
     if (!bodyHtml) return false;
-    const empty = deltaTip.classList.contains('is-empty');
-    const btn = anchorBtn || deltaTipBtn;
+    const btn = opts.anchorBtn || null;
+    const clientX = opts.clientX != null ? opts.clientX : 0;
+    const clientY = opts.clientY != null ? opts.clientY : 0;
     const braceRect = findPoolBraceRectForDeltaBtn(btn);
     let left;
     let top;
     if (braceRect) {
       left = braceRect.left;
       top = braceRect.top;
+    } else if (opts && opts.fallbackLeft != null && opts.fallbackTop != null) {
+      left = opts.fallbackLeft;
+      top = opts.fallbackTop;
     } else {
-      left = (parseFloat(deltaTip.style.left) || (clientX - 40)) + 10;
-      top = (parseFloat(deltaTip.style.top) || (clientY - 24)) + 10;
+      left = clientX - 30;
+      top = clientY - 14;
     }
     const pin = createDeltaTipPin({
       bodyHtml: bodyHtml,
-      empty: empty,
-      markRed: deltaTip.classList.contains('is-mark-red'),
+      empty: !!(opts && opts.empty),
+      markRed: !!(opts && opts.markRed),
       left: left,
       top: top
     });
@@ -5195,6 +5780,40 @@
       }
     });
     return true;
+  }
+
+  /** Chuột phải trên tip / nút Δ → gắn bản sao tại {…} pool (kéo được). */
+  function pinDeltaTipClone(clientX, clientY, anchorBtn) {
+    if (deltaTip.hidden || !deltaTip.classList.contains('is-on')) return false;
+    const bodyHtml = deltaTip.innerHTML;
+    if (!bodyHtml) return false;
+    const btn = anchorBtn || deltaTipBtn;
+    return pinTipAtPoolBrace({
+      bodyHtml: bodyHtml,
+      empty: deltaTip.classList.contains('is-empty'),
+      markRed: deltaTip.classList.contains('is-mark-red'),
+      anchorBtn: btn,
+      clientX: clientX,
+      clientY: clientY,
+      fallbackLeft: (parseFloat(deltaTip.style.left) || (clientX - 40)) + 10,
+      fallbackTop: (parseFloat(deltaTip.style.top) || (clientY - 24)) + 10
+    });
+  }
+
+  /** RMB nút copy pool → pin tip chỉ số in đậm (vd j5: 1,2,3). */
+  function pinPoolBoldTipClone(clientX, clientY, btn) {
+    if (!btn) return false;
+    const csv = btn.getAttribute('data-bold-copy') || '';
+    const lbl = btn.getAttribute('data-delta-lbl') || '';
+    let bodyHtml = formatDeltaTipHtml(csv, lbl);
+    if (!bodyHtml) bodyHtml = '(rỗng)';
+    return pinTipAtPoolBrace({
+      bodyHtml: bodyHtml,
+      empty: !csv,
+      anchorBtn: btn,
+      clientX: clientX,
+      clientY: clientY
+    });
   }
 
   /** Chuỗi Δ: `i4:  2,8,…` — nhãn cùng màu timeline; số gạch chân ∈ derive. */
@@ -5394,16 +6013,26 @@
       hideDeltaTip();
     });
     modalTimeline.addEventListener('contextmenu', (e) => {
-      const btn = e.target && e.target.closest
+      const deltaBtn = e.target && e.target.closest
         ? e.target.closest('button.copy-delta-btn')
         : null;
-      if (!btn || !modalTimeline.contains(btn)) return;
-      if (deltaTipBtn !== btn || deltaTip.hidden) {
-        showDeltaTip(btn, e.clientX, e.clientY);
+      if (deltaBtn && modalTimeline.contains(deltaBtn)) {
+        if (deltaTipBtn !== deltaBtn || deltaTip.hidden) {
+          showDeltaTip(deltaBtn, e.clientX, e.clientY);
+        }
+        e.preventDefault();
+        e.stopPropagation();
+        pinDeltaTipClone(e.clientX, e.clientY, deltaBtn);
+        return;
       }
-      e.preventDefault();
-      e.stopPropagation();
-      pinDeltaTipClone(e.clientX, e.clientY, btn);
+      const poolBtn = e.target && e.target.closest
+        ? e.target.closest('button.copy-pool-btn')
+        : null;
+      if (poolBtn && modalTimeline.contains(poolBtn)) {
+        e.preventDefault();
+        e.stopPropagation();
+        pinPoolBoldTipClone(e.clientX, e.clientY, poolBtn);
+      }
     });
     modalTimeline.addEventListener('scroll', hideDeltaTip, true);
   }
@@ -6127,6 +6756,15 @@
     });
   }
 
+  /* Ctrl/Cmd+S — capture sớm để chặn Save Page của trình duyệt. */
+  document.addEventListener('keydown', (e) => {
+    if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+    if (!(e.key === 's' || e.key === 'S' || e.code === 'KeyS')) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    saveTipStoreFromOpenPopup();
+  }, true);
+
   /* C: bật/tắt cal — capture + e.code (chịu Unikey/Telex key=Process). */
   document.addEventListener('keydown', (e) => {
     if (!isCalHotkeyC(e)) return;
@@ -6149,6 +6787,10 @@
         hideCalPopup();
         return;
       }
+      if (tipStoreOpen) {
+        setTipStoreOpen(false);
+        return;
+      }
       if (!modalBack.hidden) {
         hidePopup();
         return;
@@ -6157,6 +6799,14 @@
     const t = e.target;
     const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'
       || t.tagName === 'SELECT' || (t.isContentEditable));
+    /* H: đóng/mở tip store list. */
+    if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey
+      && (e.key === 'h' || e.key === 'H')) {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleTipStorePanel();
+      return;
+    }
     /* E: bật/tắt trạng thái học tập. */
     if (!typing && !e.ctrlKey && !e.metaKey && !e.altKey
       && (e.key === 'e' || e.key === 'E')) {
@@ -6349,6 +6999,7 @@
       violLineSuffix: studyMode ? 'nếu đáp án có peer' : undefined
     });
     restoreTipPinsForId(focusId);
+    syncTipStoreFocusHighlight();
   }
 
   function openSimElim() {
@@ -6419,6 +7070,7 @@
       violLineSuffix: 'nếu đáp án có peer'
     });
     restoreTipPinsForId(simFocusId);
+    syncTipStoreFocusHighlight();
   }
 
   function bindSimRow() {
@@ -7413,6 +8065,8 @@
     syncSimRowDom();
     syncHistIdDom();
     syncPhaSymViolBorders();
+    if (tipStoreOpen) rebuildTipStoreList();
+    else if (tipStoreKeyLabelEl) tipStoreKeyLabelEl.textContent = tipStoreThresholdLabel();
     if (pendingSharedFocus != null) flushPendingSharedFocus();
   }
 
@@ -7535,6 +8189,8 @@
       if (!tableBundle) return;
       applyThresholdColumns();
       refreshOpenPopupAfterThreshold();
+      if (tipStoreOpen) rebuildTipStoreList();
+      else if (tipStoreKeyLabelEl) tipStoreKeyLabelEl.textContent = tipStoreThresholdLabel();
     }, 50);
   }
 
@@ -7547,6 +8203,8 @@
       applyThresholdColumns();
       refreshOpenPopupAfterThreshold();
     }
+    if (tipStoreOpen) rebuildTipStoreList();
+    else if (tipStoreKeyLabelEl) tipStoreKeyLabelEl.textContent = tipStoreThresholdLabel();
   }
 
   function setThresholdOp(op) {
@@ -7562,6 +8220,8 @@
       applyThresholdColumns();
       refreshOpenPopupAfterThreshold();
     }
+    if (tipStoreOpen) rebuildTipStoreList();
+    else if (tipStoreKeyLabelEl) tipStoreKeyLabelEl.textContent = tipStoreThresholdLabel();
   }
 
   function stepThreshold(delta) {
