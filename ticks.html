@@ -2862,7 +2862,22 @@
     /* CSS mờ + viền vàng — đổi ngay (không chờ popup). */
     document.body.classList.toggle('is-study', studyMode);
     syncStudyModeTitleUi();
-    if (!(opts && opts.remote)) publishStudyMode();
+    if (!(opts && opts.remote)) {
+      publishStudyMode();
+      /* Bật học: seed pick từ khoanh phòng (index/ticks) rồi bridge lại index. */
+      if (studyMode && simRoomTag) {
+        if (!studyPicks.length) {
+          const stored = readStoredSimPhaPicks(simRoomTag);
+          if (stored.picks && stored.picks.length) {
+            studyPicks = normalizeStudyPicksList(stored.picks);
+          }
+        }
+        if (histIdOnIdx != null && dataCtx) {
+          studyPicksForId = dataCtx.ids[histIdOnIdx];
+        }
+        if (studyPicksForId != null) publishStudyPicks();
+      }
+    }
     if (opts && opts.skipPopup) return;
     /* Popup nặng: để frame sau khi paint mờ xong mới rebuild. */
     const focusIdx = histIdOnIdx;
@@ -3315,7 +3330,7 @@
     }
   }
 
-  /** Sync pick học tập giữa tab ticks cùng mã (theo từng id kỳ). */
+  /** Sync pick học tập giữa tab ticks cùng mã (theo từng id kỳ) + bridge khoanh → index. */
   function publishStudyPicks() {
     if (studyPicksSyncApplying) return;
     const tag = simRoomTag;
@@ -3325,9 +3340,10 @@
       : (histIdOnIdx != null && dataCtx ? dataCtx.ids[histIdOnIdx] : null);
     if (id == null) return;
     const t = Date.now();
+    const picks = studyPicks.slice();
     const room = readStudyPicksRoom(tag);
     room.byId[String(id)] = {
-      picks: studyPicks.slice(),
+      picks: picks,
       t: t
     };
     room.t = t;
@@ -3340,13 +3356,36 @@
       type: 'study-picks',
       tag: tag,
       id: id,
-      picks: studyPicks.slice(),
+      picks: picks,
       t: t,
       from: ensureSimTabId()
     };
     try {
       if (simPhaBc) simPhaBc.postMessage(payload);
     } catch (e2) { /* ignore */ }
+    /* Cùng kênh khoanh với index (sim-pha-picks) khi đang học tập. */
+    try {
+      localStorage.setItem(SIM_PHA_INDEX_LS, JSON.stringify({
+        picks: picks,
+        t: t,
+        tag: tag,
+        from: payload.from,
+        study: true
+      }));
+    } catch (e3) { /* ignore */ }
+    try {
+      localStorage.setItem(simPhaStorageKey(tag), JSON.stringify({
+        picks: picks,
+        t: t,
+        from: payload.from,
+        study: true
+      }));
+    } catch (e4) { /* ignore */ }
+    try {
+      if (window.FocusSync && typeof window.FocusSync.publishSimPhaPicks === 'function') {
+        window.FocusSync.publishSimPhaPicks(picks, { tag: tag });
+      }
+    } catch (eFs) { /* ignore */ }
   }
 
   function applyRemoteStudyPicks(picks, id, meta) {
@@ -3507,17 +3546,37 @@
       seen.add(n);
       next.push(n);
     }
-    const same = next.length === simTlPháPicks.length
+    const sameSim = next.length === simTlPháPicks.length
       && next.every((n, i) => n === simTlPháPicks[i]);
-    if (same && !(meta && meta.force)) {
+    const studyActive = !!(studyMode && !simIdOn);
+    const sameStudy = studyActive
+      && next.length === studyPicks.length
+      && next.every((n, i) => n === studyPicks[i]);
+    if (sameSim && (!studyActive || sameStudy) && !(meta && meta.force)) {
       if (metaT > simPhaLastAppliedT) simPhaLastAppliedT = metaT;
       return;
     }
     simPhaSyncApplying = true;
     try {
       if (metaT) simPhaLastAppliedT = metaT;
-      simTlPháPicks = next;
-      if (simIdOn && popupKind === 'elim' && simTlMilestonesCache) {
+      simTlPháPicks = next.slice();
+      /* Học tập: khoanh index ↔ study picks (cùng mã định danh). */
+      if (studyActive) {
+        studyPicksSyncApplying = true;
+        try {
+          if (histIdOnIdx != null && dataCtx) {
+            studyPicksForId = dataCtx.ids[histIdOnIdx];
+          }
+          studyPicks = next.slice();
+          if (popupKind === 'elim' && simTlMilestonesCache) {
+            const fb = buildFirstBoldIndexMap(simTlMilestonesCache);
+            studyPicks = studyPicks.filter((n) => fb.has(Number(n)));
+            refreshSimTimelinePháDom();
+          }
+        } finally {
+          requestAnimationFrame(() => { studyPicksSyncApplying = false; });
+        }
+      } else if (simIdOn && popupKind === 'elim' && simTlMilestonesCache) {
         const fb = buildFirstBoldIndexMap(simTlMilestonesCache);
         simTlPháPicks = simTlPháPicks.filter((n) => fb.has(Number(n)));
         refreshSimTimelinePháDom();

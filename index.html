@@ -15641,11 +15641,91 @@ function getFilterNoteTRefMaxSelections(mode) {
         const SIM_PHA_TICKS_BC = 'sua-sim-pha-picks';
         const SIM_PHA_INDEX_LS = 'sua:simPhaPicks:index';
         const SIM_PHA_ROOM_PREFIX = 'sua:simPhaPicks:';
+        const STUDY_MODE_LS_PREFIX = 'sua:studyMode:';
         const INDEX_SIM_ROOM_TAG_SS = 'index.simRoomTag';
         let indexSimRoomTag = '';
         let simPhaFromTicksLastT = 0;
         let simPhaFromTicksBc = null;
         let simPhaSyncApplying = false;
+        /** ticks học tập cùng mã → gợi ý tắt submit/autoring (index vẫn tự bật lại được). */
+        let indexTicksStudyOn = false;
+        let indexTicksStudyLastT = 0;
+
+        function studyModeStorageKeyForTag(tag) {
+            return STUDY_MODE_LS_PREFIX + tag;
+        }
+
+        function requestIndexSubmitOffFromTicks() {
+            if (!iframeSubmitActive) {
+                if (sheetManager && typeof sheetManager.setLeftSubmitActive === 'function') {
+                    sheetManager.setLeftSubmitActive(false);
+                }
+                return;
+            }
+            iframeSubmitActive = false;
+            try {
+                syncSubmitForAnswerPopup(false);
+            } catch (e) { /* ignore */ }
+            if (sheetManager && typeof sheetManager.setLeftSubmitActive === 'function') {
+                sheetManager.setLeftSubmitActive(false);
+            }
+            try {
+                window.dispatchEvent(new CustomEvent('leftSubmitStateChanged', {
+                    detail: { active: false }
+                }));
+            } catch (e2) { /* ignore */ }
+        }
+
+        function requestIndexAutoringOffFromTicks() {
+            if (!submitRingEnabled) return;
+            submitRingEnabled = false;
+            try {
+                localStorage.setItem(SUBMIT_RING_ENABLED_KEY, '0');
+            } catch (e) { /* ignore */ }
+            syncSubmitRingToolbarUi();
+            try {
+                sendSubmitRingConfigToIframe();
+            } catch (e2) { /* ignore */ }
+        }
+
+        /**
+         * ticks bật học tập cùng mã → tắt submit + autoring một lần.
+         * Index quyền cao hơn: user vẫn bật submit/autoring lại; khoanh từ ticks vẫn nhận.
+         */
+        function applyStudyModeFromTicks(on, meta) {
+            const tag = normalizeIndexSimRoomTag(meta && meta.tag);
+            if (!indexSimRoomTag || !tag || tag !== indexSimRoomTag) return;
+            const t = meta && meta.t != null ? Number(meta.t) : 0;
+            if (t && indexTicksStudyLastT && t < indexTicksStudyLastT && !(meta && meta.force)) {
+                return;
+            }
+            if (t) indexTicksStudyLastT = t;
+            const next = !!on;
+            const wasOn = indexTicksStudyOn;
+            indexTicksStudyOn = next;
+            if (next && !wasOn) {
+                requestIndexSubmitOffFromTicks();
+                requestIndexAutoringOffFromTicks();
+            }
+        }
+
+        function loadStudyModeFromTicksForTag(tag) {
+            if (!tag) return;
+            try {
+                const raw = localStorage.getItem(studyModeStorageKeyForTag(tag));
+                if (!raw) {
+                    indexTicksStudyOn = false;
+                    return;
+                }
+                const o = JSON.parse(raw);
+                if (!o || typeof o.on !== 'boolean') return;
+                applyStudyModeFromTicks(o.on, {
+                    tag: tag,
+                    force: true,
+                    t: Number(o.t) || Date.now()
+                });
+            } catch (e) { /* ignore */ }
+        }
 
         function normalizeIndexSimRoomTag(raw) {
             if (window.FocusSync && typeof window.FocusSync.normalizeSimRoomTag === 'function') {
@@ -15802,6 +15882,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                     });
                 }
             } catch (eBc) { /* ignore */ }
+            loadStudyModeFromTicksForTag(tag);
         }
 
         function pushIndexSimRoomTagToLeftIframe() {
@@ -15830,6 +15911,8 @@ function getFilterNoteTRefMaxSelections(mode) {
             pushIndexSimRoomTagToLeftIframe();
             if (next) {
                 joinIndexSimRoom(next);
+            } else if (prev) {
+                indexTicksStudyOn = false;
             }
         }
 
@@ -15853,6 +15936,7 @@ function getFilterNoteTRefMaxSelections(mode) {
                     const tag = normalizeIndexSimRoomTag(payload && payload.tag);
                     if (!tag || !indexSimRoomTag || tag !== indexSimRoomTag) return;
                     publishIndexSimPhaPicks();
+                    loadStudyModeFromTicksForTag(tag);
                 });
             }
             try {
@@ -15864,8 +15948,17 @@ function getFilterNoteTRefMaxSelections(mode) {
                         const tag = normalizeIndexSimRoomTag(msg.tag);
                         if (!tag || !indexSimRoomTag || tag !== indexSimRoomTag) return;
                         if (msg.from === 'index') return;
+                        if (msg.type === 'study-mode') {
+                            applyStudyModeFromTicks(!!msg.on, {
+                                tag: tag,
+                                force: true,
+                                t: Number(msg.t) || Date.now()
+                            });
+                            return;
+                        }
                         if (msg.type === 'sim-pha-join') {
                             publishIndexSimPhaPicks();
+                            loadStudyModeFromTicksForTag(tag);
                             return;
                         }
                         if (msg.type === 'sim-pha-picks') {
@@ -15879,7 +15972,22 @@ function getFilterNoteTRefMaxSelections(mode) {
                 }
             } catch (e) { /* ignore */ }
             window.addEventListener('storage', (e) => {
-                if (!e || !e.newValue || !indexSimRoomTag) return;
+                if (!e || !indexSimRoomTag) return;
+                if (e.key === studyModeStorageKeyForTag(indexSimRoomTag)) {
+                    if (!e.newValue) return;
+                    try {
+                        const o = JSON.parse(e.newValue);
+                        if (o && typeof o.on === 'boolean') {
+                            applyStudyModeFromTicks(o.on, {
+                                tag: indexSimRoomTag,
+                                force: true,
+                                t: Number(o.t) || Date.now()
+                            });
+                        }
+                    } catch (errSm) { /* ignore */ }
+                    return;
+                }
+                if (!e.newValue) return;
                 const roomKey = SIM_PHA_ROOM_PREFIX + indexSimRoomTag;
                 if (e.key !== roomKey && e.key !== SIM_PHA_INDEX_LS) return;
                 try {
@@ -15892,6 +16000,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                         t: Number(o.t) || Date.now()
                     });
                 } catch (err) { /* ignore */ }
+            });
+            window.addEventListener('leftCircledNumsChanged', () => {
+                maybePublishIndexSimPhaFromLeftCircled();
             });
             try {
                 const saved = sessionStorage.getItem(INDEX_SIM_ROOM_TAG_SS);
@@ -34248,7 +34359,6 @@ function getFilterNoteTRefMaxSelections(mode) {
                 if (!event.target || event.target.ownerDocument !== document) {
                     return;
                 }
-
                 const frame = el('okFrame');
                 if (!frame || !frame.contentWindow) {
                     return;
