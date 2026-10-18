@@ -985,7 +985,8 @@
     font-weight: 800;
     cursor: pointer;
     border-radius: 3px;
-    padding: 0 1px;
+    padding: 0;
+    margin: 0;
     user-select: none;
   }
   .delta-tip .delta-tip-lbl.is-k {
@@ -6045,7 +6046,7 @@
     });
   }
 
-  /** Chuỗi Δ: `i5[4]:  2,10,…` — nhãn + số phần tử; số gạch chân ∈ derive. */
+  /** Chuỗi Δ: `i3[3] 20,25,…` — nhãn + số phần tử; số gạch chân ∈ derive. */
   function formatDeltaTipHtml(csv, deltaLabel) {
     const lbl = deltaLabel ? String(deltaLabel) : '';
     const nums = [];
@@ -6056,16 +6057,17 @@
         if (Number.isFinite(n)) nums.push(n);
       }
     }
-    /* Dấu : nằm trong nhãn — click cả “i5[4]:” để toggle nền đỏ. */
+    /* Click cả “i3[3]” để toggle nền đỏ — đúng 1 khoảng trắng trước dãy số. */
     const prefix = lbl
       ? ('<span class="delta-tip-lbl'
         + (lbl === 'k' ? ' is-k' : '')
         + '" title="Click: đổi nền đỏ / tắt">'
-        + escapeAttr(lbl) + '[' + nums.length + ']:</span>  ')
+        + escapeAttr(lbl) + '[' + nums.length + ']</span>')
       : '';
-    if (!csv) return prefix ? (prefix + '(rỗng)') : '';
-    if (!nums.length) return prefix + escapeAttr(csv);
-    return prefix + formatNumsDeriveHtml(nums, popupTimelineDeriveSet, ',');
+    const gap = prefix ? ' ' : '';
+    if (!csv) return prefix ? (prefix + gap + '(rỗng)') : '';
+    if (!nums.length) return prefix + gap + escapeAttr(csv);
+    return prefix + gap + formatNumsDeriveHtml(nums, popupTimelineDeriveSet, ',');
   }
 
   function toggleDeltaTipMarkRed(tipEl) {
