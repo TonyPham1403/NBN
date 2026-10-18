@@ -4359,7 +4359,10 @@
     }
 
     const elimArr = Array.from(elimPart.allElim).sort((a, b) => a - b);
-    const violArr = Array.from(violPart.allViol).sort((a, b) => a - b);
+    /* Cùng nguồn cột phá bảng chính: violate ∪ (đáp án ∩ pool). */
+    const violArr = (Number.isFinite(opts.focusIdx) && showViolate)
+      ? violNumsArrForRow(opts.focusIdx, activePairIndices())
+      : Array.from(violPart.allViol).sort((a, b) => a - b);
     modalTitle.textContent = showViolate ? ('Kỳ id ' + focusId) : 'Số bị loại';
     if (studyHist) {
       modalSub.textContent = 'Học tập · id ' + focusId
@@ -7973,7 +7976,10 @@
     return sortedNumsFromSet(set);
   }
 
-  /** @param {boolean} [appendOrder] true = giữ thứ tự gặp (timeline), không sort */
+  /**
+   * Phá hiển thị / timeline: violate ∪ (đáp án ∩ pool) tại active.
+   * @param {boolean} [appendOrder] true = giữ thứ tự gặp (timeline), không sort
+   */
   function violNumsArrForRow(i, active, appendOrder) {
     if (!tableBundle) return [];
     const { splits } = tableBundle;
@@ -7990,6 +7996,19 @@
         set.add(x);
         out.push(x);
       });
+    }
+    /* Đáp án ∩ pool — cùng rule nhét timeline (vd 7∈đáp án nhưng ∉ violate). */
+    if (dataCtx && dataCtx.rowNums && i >= 0 && i < dataCtx.rowNums.length) {
+      const ans = dataCtx.rowNums[i];
+      if (ans && ans.length) {
+        const poolSet = new Set(poolNumsArrForRow(i, active));
+        for (let ai = 0; ai < ans.length; ai++) {
+          const n = Number(ans[ai]);
+          if (!Number.isFinite(n) || set.has(n) || !poolSet.has(n)) continue;
+          set.add(n);
+          out.push(n);
+        }
+      }
     }
     if (appendOrder) return out;
     return out.slice().sort((a, b) => a - b);
