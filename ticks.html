@@ -1464,10 +1464,47 @@
     font-variant-numeric: tabular-nums;
     color: #5eead4;
   }
+  /* Giống .ts-id-wrap: chữ + sao cùng hàng, gap 2px. */
   .tip-store-head .ts-hint {
     margin-top: 4px;
-    font-size: 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .tip-store-head .ts-filter-label {
+    margin: 0;
+    padding: 0;
+    font-weight: 800;
+    font-size: 12px;
+    letter-spacing: .02em;
+    line-height: 1;
     color: #94a3b8;
+    cursor: pointer;
+    user-select: none;
+  }
+  .tip-store-head .ts-filter-star {
+    flex: 0 0 auto;
+    margin: 0;
+    box-sizing: border-box;
+    height: 16px;
+    min-width: 14px;
+    padding: 0 1px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #64748b;
+    font: 700 12px/1 "Segoe UI", system-ui, sans-serif;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tip-store-head .ts-filter-star:hover { color: #fbbf24; }
+  .tip-store-head .ts-filter-star.is-on {
+    color: #fbbf24;
+  }
+  .tip-store-head .ts-hint.is-on .ts-filter-label {
+    color: #fde68a;
   }
   .tip-store-scroll {
     flex: 1 1 auto;
@@ -1498,8 +1535,18 @@
   .tip-store-row.is-on {
     background: rgba(245, 158, 11, .28);
   }
-  .tip-store-row .ts-id {
+  .tip-store-row.is-star .ts-id {
+    color: #fde68a;
+  }
+  .tip-store-row .ts-id-wrap {
     flex: 1 1 auto;
+    min-width: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .tip-store-row .ts-id {
+    flex: 0 1 auto;
     min-width: 0;
     font-weight: 700;
     color: #f8fafc;
@@ -1508,23 +1555,43 @@
     flex: 0 0 auto;
     display: inline-flex;
     gap: 3px;
+    align-items: center;
   }
   .tip-store-row button {
     margin: 0;
-    padding: 1px 5px;
+    box-sizing: border-box;
+    height: 18px;
+    min-width: 18px;
+    padding: 0 5px;
     border: 1px solid #475569;
     border-radius: 4px;
     background: #1e293b;
     color: #e2e8f0;
-    font: 700 10px/1.2 system-ui, sans-serif;
+    font: 700 10px/1 system-ui, sans-serif;
     cursor: pointer;
-    line-height: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .tip-store-row button.ts-star {
+    flex: 0 0 auto;
+    height: 16px;
+    min-width: 14px;
+    border-color: transparent;
+    background: transparent;
+    color: #64748b;
+    padding: 0 1px;
+    font: 700 12px/1 "Segoe UI", system-ui, sans-serif;
+  }
+  .tip-store-row button.ts-star:hover { color: #fbbf24; filter: none; }
+  .tip-store-row button.ts-star.is-on {
+    color: #fbbf24;
   }
   .tip-store-row button.ts-apply {
     border-color: #2dd4bf;
     background: #0f766e;
     color: #f0fdfa;
-    padding: 3px 5px;
+    padding: 0 4px;
   }
   .tip-store-row button.ts-apply svg {
     width: 11px;
@@ -1535,9 +1602,13 @@
     border-color: #f87171;
     background: #b91c1c;
     color: #fff1f2;
+    font-size: 12px;
+    line-height: 1;
+    padding: 0 4px;
   }
   .tip-store-row button:hover { filter: brightness(1.12); }
-  .tip-store-row:not(.has-save) .ts-btns { visibility: hidden; }
+  .tip-store-row:not(.has-save) .ts-apply,
+  .tip-store-row:not(.has-save) .ts-del { visibility: hidden; }
 </style>
 </head>
 <body>
@@ -1636,7 +1707,11 @@
       <button type="button" class="ts-close" id="tipStoreClose" aria-label="Đóng tip store">×</button>
     </div>
     <div class="ts-key" id="tipStoreKeyLabel">—</div>
-    <div class="ts-hint">H đóng/mở · Ctrl+S lưu kỳ đang mở</div>
+    <div class="ts-hint" id="tipStoreFilterHint">
+      <button type="button" class="ts-filter-star" id="tipStoreFilterStar"
+        aria-pressed="false" aria-label="Lọc các kỳ chú ý">☆</button>
+      <span class="ts-filter-label" id="tipStoreFilterLabel">Các kỳ chú ý</span>
+    </div>
   </div>
   <div class="tip-store-scroll" id="tipStoreScroll"></div>
 </aside>
@@ -5235,14 +5310,20 @@
 
   /* —— Tip store (Ctrl+S lưu · H mở/đóng · theo threshold) —— */
   const TIP_STORE_LS_KEY = 'ticks.tipStore.v1';
+  const TIP_STORE_STARS_LS_KEY = 'ticks.tipStoreStars.v1';
   const tipStoreEl = document.getElementById('tipStore');
   const tipStoreScrollEl = document.getElementById('tipStoreScroll');
   const tipStoreKeyLabelEl = document.getElementById('tipStoreKeyLabel');
   const tipStoreCloseEl = document.getElementById('tipStoreClose');
+  const tipStoreFilterStarEl = document.getElementById('tipStoreFilterStar');
   let tipStoreOpen = false;
   let tipStoreScrollLock = false;
+  /** Lọc chỉ kỳ gắn sao — không sync scroll với bảng chính. */
+  let tipStoreStarFilter = false;
   /** @type {Record<string, Record<string, { t: number, delta: object[], cal: object[] }>>} */
   let tipStoreRoot = {};
+  /** @type {Record<string, boolean>} id → gắn sao */
+  let tipStoreStars = {};
 
   function tipStoreThresholdKey() {
     return String(thOp || '>=') + '|' + String(thVal | 0);
@@ -5270,6 +5351,73 @@
     try {
       localStorage.setItem(TIP_STORE_LS_KEY, JSON.stringify(tipStoreRoot));
     } catch (e) { /* ignore */ }
+  }
+
+  function loadTipStoreStars() {
+    try {
+      const raw = localStorage.getItem(TIP_STORE_STARS_LS_KEY);
+      if (!raw) {
+        tipStoreStars = {};
+        return;
+      }
+      const o = JSON.parse(raw);
+      tipStoreStars = (o && typeof o === 'object') ? o : {};
+    } catch (e) {
+      tipStoreStars = {};
+    }
+  }
+
+  function persistTipStoreStars() {
+    try {
+      localStorage.setItem(TIP_STORE_STARS_LS_KEY, JSON.stringify(tipStoreStars));
+    } catch (e) { /* ignore */ }
+  }
+
+  function tipStoreIsStarred(id) {
+    return !!tipStoreStars[String(id)];
+  }
+
+  function setTipStoreStarred(id, on) {
+    const k = String(id);
+    if (!Number.isFinite(Number(k))) return;
+    if (on) tipStoreStars[k] = true;
+    else delete tipStoreStars[k];
+    persistTipStoreStars();
+  }
+
+  function tipStoreStarGlyph(on) {
+    return on ? '★' : '☆';
+  }
+
+  function syncTipStoreFilterStarUi() {
+    if (tipStoreFilterStarEl) {
+      tipStoreFilterStarEl.classList.toggle('is-on', tipStoreStarFilter);
+      tipStoreFilterStarEl.setAttribute('aria-pressed', tipStoreStarFilter ? 'true' : 'false');
+      tipStoreFilterStarEl.textContent = tipStoreStarGlyph(tipStoreStarFilter);
+    }
+    const hint = document.getElementById('tipStoreFilterHint');
+    if (hint) hint.classList.toggle('is-on', tipStoreStarFilter);
+  }
+
+  function tipStoreRowHtml(id, extraCls) {
+    const has = tipStoreHasSave(id);
+    const starred = tipStoreIsStarred(id);
+    const cls = 'tip-store-row'
+      + (extraCls ? ' ' + extraCls : '')
+      + (has ? ' has-save' : '')
+      + (starred ? ' is-star' : '');
+    return '<div class="' + cls + '" data-store-id="' + id + '">'
+      + '<span class="ts-id-wrap">'
+      + '<span class="ts-id">' + id + '</span>'
+      + '<button type="button" class="ts-star' + (starred ? ' is-on' : '')
+      + '" data-ts-act="star" aria-pressed="' + (starred ? 'true' : 'false')
+      + '" aria-label="Đánh dấu sao">' + tipStoreStarGlyph(starred) + '</button>'
+      + '</span>'
+      + '<span class="ts-btns">'
+      + '<button type="button" class="ts-apply" data-ts-act="apply" title="Apply tip đã lưu" aria-label="Apply tip đã lưu">'
+      + TIP_STORE_APPLY_SVG + '</button>'
+      + '<button type="button" class="ts-del" data-ts-act="del" title="Xóa bản nhớ">×</button>'
+      + '</span></div>';
   }
 
   function getTipStoreBucket(create) {
@@ -5475,40 +5623,31 @@
   function rebuildTipStoreList() {
     if (!tipStoreScrollEl) return;
     if (tipStoreKeyLabelEl) tipStoreKeyLabelEl.textContent = tipStoreThresholdLabel();
+    syncTipStoreFilterStarUi();
     if (!tableBundle) {
       tipStoreScrollEl.innerHTML = '';
       return;
     }
     const { displayIdx, ids } = tableBundle;
-    let html = '<div class="tip-store-pad" style="height:' + tipStoreTheadPadPx() + 'px"></div>';
+    /* Lọc sao: không pad/align với thead — list gọn, không sync scroll. */
+    let html = tipStoreStarFilter
+      ? ''
+      : '<div class="tip-store-pad" style="height:' + tipStoreTheadPadPx() + 'px"></div>';
     for (let j = 0; j < displayIdx.length; j++) {
       const idx = displayIdx[j];
       const id = ids[idx];
-      const has = tipStoreHasSave(id);
-      html += '<div class="tip-store-row' + (has ? ' has-save' : '')
-        + '" data-store-id="' + id + '">'
-        + '<span class="ts-id">' + id + '</span>'
-        + '<span class="ts-btns">'
-        + '<button type="button" class="ts-apply" data-ts-act="apply" title="Apply tip đã lưu" aria-label="Apply tip đã lưu">'
-        + TIP_STORE_APPLY_SVG + '</button>'
-        + '<button type="button" class="ts-del" data-ts-act="del" title="Xóa bản nhớ">×</button>'
-        + '</span></div>';
+      if (tipStoreStarFilter && !tipStoreIsStarred(id)) continue;
+      html += tipStoreRowHtml(id, '');
     }
     if (simState) {
       const sid = simState.focusId;
-      const has = tipStoreHasSave(sid);
-      html += '<div class="tip-store-row is-sim' + (has ? ' has-save' : '')
-        + '" data-store-id="' + sid + '">'
-        + '<span class="ts-id">' + sid + '</span>'
-        + '<span class="ts-btns">'
-        + '<button type="button" class="ts-apply" data-ts-act="apply" title="Apply tip đã lưu" aria-label="Apply tip đã lưu">'
-        + TIP_STORE_APPLY_SVG + '</button>'
-        + '<button type="button" class="ts-del" data-ts-act="del" title="Xóa bản nhớ">×</button>'
-        + '</span></div>';
+      if (!tipStoreStarFilter || tipStoreIsStarred(sid)) {
+        html += tipStoreRowHtml(sid, 'is-sim');
+      }
     }
     tipStoreScrollEl.innerHTML = html;
     syncTipStoreFocusHighlight();
-    if (tipStoreOpen && wrap) {
+    if (tipStoreOpen && wrap && !tipStoreStarFilter) {
       tipStoreScrollLock = true;
       tipStoreScrollEl.scrollTop = wrap.scrollTop;
       tipStoreScrollLock = false;
@@ -5523,6 +5662,34 @@
       return;
     }
     row.classList.toggle('has-save', tipStoreHasSave(id));
+    const starred = tipStoreIsStarred(id);
+    row.classList.toggle('is-star', starred);
+    const starBtn = row.querySelector('button.ts-star');
+    if (starBtn) {
+      starBtn.classList.toggle('is-on', starred);
+      starBtn.setAttribute('aria-pressed', starred ? 'true' : 'false');
+      starBtn.textContent = tipStoreStarGlyph(starred);
+    }
+  }
+
+  function toggleTipStoreStar(id) {
+    const n = Number(id);
+    if (!Number.isFinite(n)) return;
+    setTipStoreStarred(n, !tipStoreIsStarred(n));
+    if (tipStoreStarFilter) rebuildTipStoreList();
+    else refreshTipStoreRowUi(n);
+  }
+
+  function setTipStoreStarFilter(on) {
+    const next = !!on;
+    if (next === tipStoreStarFilter) return;
+    tipStoreStarFilter = next;
+    syncTipStoreFilterStarUi();
+    if (tipStoreOpen) rebuildTipStoreList();
+  }
+
+  function toggleTipStoreStarFilter() {
+    setTipStoreStarFilter(!tipStoreStarFilter);
   }
 
   function syncTipStoreFocusHighlight() {
@@ -5545,7 +5712,7 @@
     tipStoreEl.hidden = !tipStoreOpen;
     if (tipStoreOpen) {
       rebuildTipStoreList();
-      if (wrap && tipStoreScrollEl) {
+      if (wrap && tipStoreScrollEl && !tipStoreStarFilter) {
         tipStoreScrollLock = true;
         tipStoreScrollEl.scrollTop = wrap.scrollTop;
         tipStoreScrollLock = false;
@@ -5559,25 +5726,42 @@
   }
 
   function syncTipStoreScrollFromWrap() {
-    if (!tipStoreOpen || !tipStoreScrollEl || !wrap || tipStoreScrollLock) return;
+    if (!tipStoreOpen || tipStoreStarFilter || !tipStoreScrollEl || !wrap || tipStoreScrollLock) return;
     tipStoreScrollLock = true;
     tipStoreScrollEl.scrollTop = wrap.scrollTop;
     tipStoreScrollLock = false;
   }
 
   function syncWrapScrollFromTipStore() {
-    if (!tipStoreOpen || !tipStoreScrollEl || !wrap || tipStoreScrollLock) return;
+    if (!tipStoreOpen || tipStoreStarFilter || !tipStoreScrollEl || !wrap || tipStoreScrollLock) return;
     tipStoreScrollLock = true;
     wrap.scrollTop = tipStoreScrollEl.scrollTop;
     tipStoreScrollLock = false;
   }
 
   loadTipStoreRoot();
+  loadTipStoreStars();
+  syncTipStoreFilterStarUi();
   if (tipStoreCloseEl) {
     tipStoreCloseEl.addEventListener('click', (e) => {
       e.preventDefault();
       e.stopPropagation();
       setTipStoreOpen(false);
+    });
+  }
+  if (tipStoreFilterStarEl) {
+    tipStoreFilterStarEl.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleTipStoreStarFilter();
+    });
+  }
+  const tipStoreFilterLabelEl = document.getElementById('tipStoreFilterLabel');
+  if (tipStoreFilterLabelEl) {
+    tipStoreFilterLabelEl.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      toggleTipStoreStarFilter();
     });
   }
   if (tipStoreScrollEl) {
@@ -5596,7 +5780,8 @@
       const act = btn.getAttribute('data-ts-act');
       e.preventDefault();
       e.stopPropagation();
-      if (act === 'apply') applyTipStoreEntry(id);
+      if (act === 'star') toggleTipStoreStar(id);
+      else if (act === 'apply') applyTipStoreEntry(id);
       else if (act === 'del') deleteTipStoreEntry(id);
     });
   }
