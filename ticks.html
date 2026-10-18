@@ -3587,7 +3587,11 @@
     const next = normalizeSimRoomTag(raw);
     const prev = simRoomTag;
     simRoomTag = next;
-    if (simRoomTagEl && simRoomTagEl.value !== next) simRoomTagEl.value = next;
+    /* Đang gõ: đừng ghi đè value (tránh nuốt/nhân đôi ký tự khi join sync). */
+    if (simRoomTagEl && simRoomTagEl.value !== next
+      && document.activeElement !== simRoomTagEl) {
+      simRoomTagEl.value = next;
+    }
     try {
       sessionStorage.setItem(SIM_ROOM_TAG_SS, next);
     } catch (e) { /* ignore */ }
@@ -3599,6 +3603,29 @@
       /* Rời phòng — giữ picks local của tab này. */
     }
     if (opts && opts.publish && next) publishSimTlPháPicks();
+  }
+
+  /**
+   * Khi đang gõ: chỉ lọc ký tự lạ — không toUpperCase().
+   * (CSS text-transform:uppercase + gán value.toUpperCase() trong input
+   * dễ nuốt/nhân đôi chữ như A → không hiện rồi AA.)
+   */
+  function sanitizeSimRoomTagInputLive() {
+    if (!simRoomTagEl) return;
+    const cur = simRoomTagEl.value;
+    const clean = String(cur == null ? '' : cur)
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .slice(0, 3);
+    if (cur === clean) return;
+    const start = simRoomTagEl.selectionStart;
+    const end = simRoomTagEl.selectionEnd;
+    simRoomTagEl.value = clean;
+    if (typeof start === 'number' && typeof end === 'number') {
+      const max = clean.length;
+      const s = Math.min(start, max);
+      const e = Math.min(end, max);
+      try { simRoomTagEl.setSelectionRange(s, e); } catch (err) { /* ignore */ }
+    }
   }
 
   function initSimRoomTagSync() {
@@ -3782,14 +3809,18 @@
       if (saved) setSimRoomTag(saved);
     } catch (e) { /* ignore */ }
     if (simRoomTagEl) {
+      /* Lọc ký tự khi gõ; uppercase + join/sync chỉ khi blur/Enter. */
       simRoomTagEl.addEventListener('input', () => {
-        const cur = simRoomTagEl.value;
-        const norm = normalizeSimRoomTag(cur);
-        if (cur !== norm) simRoomTagEl.value = norm;
-        setSimRoomTag(norm);
+        sanitizeSimRoomTagInputLive();
       });
       simRoomTagEl.addEventListener('blur', () => {
         setSimRoomTag(simRoomTagEl.value);
+      });
+      simRoomTagEl.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        setSimRoomTag(simRoomTagEl.value);
+        simRoomTagEl.blur();
       });
     }
   }
@@ -5513,11 +5544,13 @@
       act: fields.act
     };
     if (fields.act === 'open') payload.open = !!fields.open;
-    if (fields.act === 'apply' || fields.act === 'del' || fields.act === 'save') {
+    if (fields.act === 'apply' || fields.act === 'del' || fields.act === 'save'
+      || fields.act === 'star') {
       const n = Number(fields.id);
       if (!Number.isFinite(n)) return;
       payload.id = n;
     }
+    if (fields.act === 'star') payload.on = !!fields.on;
     if (fields.act === 'save') {
       payload.snap = fields.snap
         ? { delta: fields.snap.delta || null, cal: fields.snap.cal || null }
@@ -5552,6 +5585,8 @@
           snap: msg.snap,
           t: t || Date.now()
         });
+      } else if (msg.act === 'star') {
+        toggleTipStoreStar(msg.id, { fromSync: true, on: !!msg.on });
       }
     } finally {
       requestAnimationFrame(() => { tipStoreActSyncApplying = false; });
@@ -5672,12 +5707,21 @@
     }
   }
 
-  function toggleTipStoreStar(id) {
+  function toggleTipStoreStar(id, opts) {
+    const fromSync = !!(opts && opts.fromSync);
     const n = Number(id);
     if (!Number.isFinite(n)) return;
-    setTipStoreStarred(n, !tipStoreIsStarred(n));
+    if (fromSync) loadTipStoreStars();
+    const nextOn = fromSync ? !!opts.on : !tipStoreIsStarred(n);
+    if (tipStoreIsStarred(n) === nextOn) {
+      if (tipStoreStarFilter) rebuildTipStoreList();
+      else refreshTipStoreRowUi(n);
+      return;
+    }
+    setTipStoreStarred(n, nextOn);
     if (tipStoreStarFilter) rebuildTipStoreList();
     else refreshTipStoreRowUi(n);
+    if (!fromSync) publishTipStoreAct({ act: 'star', id: n, on: nextOn });
   }
 
   function setTipStoreStarFilter(on) {
