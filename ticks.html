@@ -674,14 +674,31 @@
     box-shadow: 0 20px 50px rgba(0,0,0,.35);
     padding: 16px 18px 18px;
   }
-  /* Ctrl+S tip-store: viền xanh lá thoáng chốc = lưu thành công. */
+  /* Ctrl+S tip-store: neon xanh lá sáng thoáng chốc = lưu thành công. */
   .modal.is-tip-store-saved {
-    animation: tipStoreSaveFlash .75s ease;
+    animation: tipStoreSaveFlash .85s ease;
   }
   @keyframes tipStoreSaveFlash {
-    0% { outline: 2px solid transparent; outline-offset: 2px; }
-    15%, 55% { outline: 2px solid #16a34a; outline-offset: 2px; }
-    100% { outline: 2px solid transparent; outline-offset: 2px; }
+    0% {
+      outline: 2px solid transparent;
+      outline-offset: 2px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, .35);
+    }
+    12%, 55% {
+      outline: 2px solid #39ff14;
+      outline-offset: 2px;
+      box-shadow:
+        0 0 6px #39ff14,
+        0 0 14px #39ff14,
+        0 0 28px rgba(57, 255, 20, .85),
+        0 0 48px rgba(57, 255, 20, .45),
+        0 20px 50px rgba(0, 0, 0, .35);
+    }
+    100% {
+      outline: 2px solid transparent;
+      outline-offset: 2px;
+      box-shadow: 0 20px 50px rgba(0, 0, 0, .35);
+    }
   }
   /* Popup Xem danh sách id — không bung full màn hình */
   .modal.is-stats {
@@ -5532,17 +5549,25 @@
     return tipStoreRoot[key] || null;
   }
 
+  /** Snap có ít nhất 1 tip pin (delta/cal) — [] rỗng không tính. */
+  function tipPinsSnapHasContent(snap) {
+    if (!snap) return false;
+    const d = snap.delta;
+    const c = snap.cal;
+    return !!(Array.isArray(d) && d.length) || !!(Array.isArray(c) && c.length);
+  }
+
   function tipStoreHasSave(id) {
     const b = getTipStoreBucket(false);
     if (!b) return false;
-    const e = b[String(id)];
-    return !!(e && (e.delta || e.cal));
+    return tipPinsSnapHasContent(b[String(id)]);
   }
 
   function getTipStoreEntry(id) {
     const b = getTipStoreBucket(false);
     if (!b) return null;
-    return b[String(id)] || null;
+    const e = b[String(id)] || null;
+    return tipPinsSnapHasContent(e) ? e : null;
   }
 
   function currentElimFocusId() {
@@ -5568,12 +5593,13 @@
     }, 800);
   }
 
-  /** Ghi snap vào bucket threshold hiện tại của tab này. */
+  /** Ghi snap vào bucket threshold hiện tại — bỏ qua nếu không có tip. */
   function writeTipStoreEntry(id, snap, opts) {
     const n = Number(id);
     if (!Number.isFinite(n)) return false;
-    const delta = snap && snap.delta != null ? snap.delta : null;
-    const cal = snap && snap.cal != null ? snap.cal : null;
+    if (!tipPinsSnapHasContent(snap)) return false;
+    const delta = snap.delta || null;
+    const cal = snap.cal || null;
     const bucket = getTipStoreBucket(true);
     bucket[String(n)] = {
       t: (opts && opts.t) || Date.now(),
@@ -5592,6 +5618,7 @@
       loadTipStoreRoot();
       const id = opts.id;
       const snap = opts.snap;
+      if (!tipPinsSnapHasContent(snap)) return false;
       if (!writeTipStoreEntry(id, snap, { t: opts.t })) return false;
       flashTipStoreSaveOk(id);
       return true;
@@ -5600,8 +5627,10 @@
     const id = currentElimFocusId();
     if (id == null || !Number.isFinite(Number(id))) return false;
     const snap = snapshotTipPinsState();
-    if (!writeTipStoreEntry(id, snap)) return false;
     flashTipStoreSaveOk(id);
+    /* Không tip → chỉ neon, không ghi store / không nút Apply·Delete / không sync. */
+    if (!tipPinsSnapHasContent(snap)) return true;
+    if (!writeTipStoreEntry(id, snap)) return false;
     publishTipStoreAct({ act: 'save', id: id, snap: snap });
     return true;
   }
