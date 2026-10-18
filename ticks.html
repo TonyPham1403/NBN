@@ -6045,23 +6045,25 @@
     });
   }
 
-  /** Chuỗi Δ: `i4:  2,8,…` — nhãn cùng màu timeline; số gạch chân ∈ derive. */
+  /** Chuỗi Δ: `i5[4]:  2,10,…` — nhãn + số phần tử; số gạch chân ∈ derive. */
   function formatDeltaTipHtml(csv, deltaLabel) {
     const lbl = deltaLabel ? String(deltaLabel) : '';
-    /* Dấu : nằm trong nhãn — click cả “i1:” để toggle nền đỏ. */
+    const nums = [];
+    if (csv) {
+      const parts = String(csv).split(',');
+      for (let i = 0; i < parts.length; i++) {
+        const n = Number(parts[i]);
+        if (Number.isFinite(n)) nums.push(n);
+      }
+    }
+    /* Dấu : nằm trong nhãn — click cả “i5[4]:” để toggle nền đỏ. */
     const prefix = lbl
       ? ('<span class="delta-tip-lbl'
         + (lbl === 'k' ? ' is-k' : '')
-        + '" title="Click: đổi nền đỏ / tắt">' + escapeAttr(lbl) + ':</span>  ')
+        + '" title="Click: đổi nền đỏ / tắt">'
+        + escapeAttr(lbl) + '[' + nums.length + ']:</span>  ')
       : '';
     if (!csv) return prefix ? (prefix + '(rỗng)') : '';
-    const nums = [];
-    const parts = String(csv).split(',');
-    for (let i = 0; i < parts.length; i++) {
-      const n = Number(parts[i]);
-      if (!Number.isFinite(n)) continue;
-      nums.push(n);
-    }
     if (!nums.length) return prefix + escapeAttr(csv);
     return prefix + formatNumsDeriveHtml(nums, popupTimelineDeriveSet, ',');
   }
