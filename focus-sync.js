@@ -1,9 +1,10 @@
 /**
- * Sync focus id (+ popup ticks) giữa index.html ↔ ticks.html (nhiều tab).
+ * Sync focus id (+ popup) giữa index.html ↔ trial.html (nhiều tab).
  * BroadcastChannel (realtime) + localStorage (tab mở sau / fallback).
  *
  * state: { id:number, popup:boolean, mode:'hist'|'sim'|null }
- * Aux: sim-pha-picks — pick phá kỳ rỗng cuối (ticks → index khoanh).
+ * Aux: sim-pha-picks — pick phá kỳ rỗng cuối (trial → index khoanh).
+ * source vẫn dùng 'ticks' để tương thích echo-filter cũ.
  */
 (function (global) {
   'use strict';

@@ -10301,8 +10301,8 @@
                         title="U/D = connection unique/duplicate. Nhấn: chỉ unique (xanh) → chỉ duplicate (đỏ) → hiện đủ. AND với nút F (follow)."
                         aria-label="Phần trăm connection unique">U 0%</button>
                     <button type="button" id="filterPopupOpenTicksBtn" class="filter-popup-open-ticks-btn" hidden
-                        title="Mở ticks.html tab mới (mỗi lần click = thêm tab) · mang focus id hiện tại · sync giữa các tab"
-                        aria-label="Mở Ticks tab mới">Ticks ↗</button>
+                        title="Mở trial.html tab mới (mỗi lần click = thêm tab) · mang focus id hiện tại · sync giữa các tab"
+                        aria-label="Mở Trial tab mới">Trial ↗</button>
                     <button type="button" id="filterPopupDeriveChainTfPct"
                         class="filter-popup-posnfreq-overlap-pct is-derive-chain-tf-btn" hidden aria-pressed="false"
                         title="Normal: mẫu evaluable, viền xanh=T / đỏ=F, blur=không applicable. Theo hàng: ≥1 derive[D] ★ → đúng (peer[P] được pick); mọi derive miss + peer ★ → F. Nhấn: normal → chỉ T → chỉ F → normal. Nút luôn hiện T% (true/applicable)."
@@ -15443,7 +15443,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             return Number.isFinite(n) && n > 0 ? Math.floor(n) : null;
         }
 
-        /** Làm nóng ticks.html + data.json khi rảnh / hover nút — lần mở đầu nhanh hơn. */
+        /** Làm nóng trial.html + data.json khi rảnh / hover nút — lần mở đầu nhanh hơn. */
         let ticksAssetsWarmed = false;
         function warmTicksAssets() {
             if (ticksAssetsWarmed) {
@@ -15451,7 +15451,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             ticksAssetsWarmed = true;
             const hrefs = [
-                { rel: 'prefetch', href: 'ticks.html', as: 'document' },
+                { rel: 'prefetch', href: 'trial.html', as: 'document' },
                 { rel: 'prefetch', href: 'data.json', as: 'fetch' },
                 { rel: 'prefetch', href: 'focus-sync.js?v=20261016simpha', as: 'script' }
             ];
@@ -15474,7 +15474,7 @@ function getFilterNoteTRefMaxSelections(mode) {
         function openTicksHtmlNewTab() {
             warmTicksAssets();
             const id = getCurrentSheetFocusIdNumber();
-            let url = 'ticks.html';
+            let url = 'trial.html';
             if (id != null) {
                 url += '?id=' + encodeURIComponent(String(id));
                 if (window.FocusSync && typeof window.FocusSync.publish === 'function') {
@@ -15635,7 +15635,7 @@ function getFilterNoteTRefMaxSelections(mode) {
         }
 
         /**
-         * Sync pick phá / khoanh với ticks.html — chỉ khi cùng mã định danh (≤3 chữ/số).
+         * Sync pick phá / khoanh với trial.html — chỉ khi cùng mã định danh (≤3 chữ/số).
          * Tab vào mã trước giữ trạng thái; tab sau join → ăn theo; rồi 2 bên lắng nghe nhau.
          */
         const SIM_PHA_TICKS_BC = 'sua-sim-pha-picks';
