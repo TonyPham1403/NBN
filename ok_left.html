@@ -2487,8 +2487,8 @@
                                     title="Intersection (intersect): cặp a,b trong tập khoanh, freq≥2, cùng chuỗi M, tách miền trên/dưới M">∩</span>
                             </span>
                         </span>
-                        <input id="simRoomTag" class="sim-room-tag" type="text" maxlength="3"
-                            inputmode="text" autocomplete="off" spellcheck="false" placeholder="···"
+                        <input id="simRoomTag" class="sim-room-tag" type="text" maxlength="3" readonly
+                            inputmode="text" autocomplete="off" spellcheck="false" lang="en" placeholder="···"
                             title="Mã sync pick với ticks (tối đa 3 chữ/số) · cùng mã = đồng bộ · trống = không sync"
                             aria-label="Mã định danh sync pick với ticks"/>
                     </div>
@@ -2499,28 +2499,28 @@
                 </div>
                 <div class="tableWrapper">
                     <div class="leftFreqStack">
-                        <div class="tableActions">
-                            <div class="actions-left">
-                                <button id="submitBtn" type="button">Submit</button>
+                    <div class="tableActions">
+                        <div class="actions-left">
+                            <button id="submitBtn" type="button">Submit</button>
                                 <button id="relPhaseAboveBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
                                     title="A = ABOVE: freq≥2 luôn trên phase1 — nối 2 góc trên">A</button>
                                 <button id="relPhaseSameBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
                                     title="S = SAME: freq≥2 luôn cùng chuỗi phase1 — nối cạnh trái + phải">S</button>
                                 <button id="relPhaseBelowBtn" type="button" class="rel-phase-toggle" aria-pressed="false"
                                     title="B = BELOW: freq≥2 luôn dưới phase1 — nối 2 góc dưới">B</button>
-                            </div>
-                            <div class="actions-right">
-                                <button type="button" id="leftPosnfreqHexBtn" class="left-posnfreq-hex" hidden
-                                    title="Posnfreq: click nhanh Mẫu ↔ Số; giữ kéo vào số 1–35 để chọn specimen (giống header lọc)."
-                                    aria-label="Lục giác posnfreq: kéo chọn specimen"></button>
-                                <input id="searchBox" type="text" inputmode="numeric" maxlength="5" placeholder="search"
-                                    name="left-pane-pattern-search" autocomplete="off" autocorrect="off"
-                                    autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true"
-                                    data-form-type="other">
-                                <button id="resetBtn">Reset</button>
-                            </div>
                         </div>
-                        <div id="left" class="left"></div>
+                        <div class="actions-right">
+                            <button type="button" id="leftPosnfreqHexBtn" class="left-posnfreq-hex" hidden
+                                title="Posnfreq: click nhanh Mẫu ↔ Số; giữ kéo vào số 1–35 để chọn specimen (giống header lọc)."
+                                aria-label="Lục giác posnfreq: kéo chọn specimen"></button>
+                            <input id="searchBox" type="text" inputmode="numeric" maxlength="5" placeholder="search"
+                                name="left-pane-pattern-search" autocomplete="off" autocorrect="off"
+                                autocapitalize="off" spellcheck="false" data-lpignore="true" data-1p-ignore="true"
+                                data-form-type="other">
+                            <button id="resetBtn">Reset</button>
+                        </div>
+                    </div>
+                    <div id="left" class="left"></div>
                     </div>
                 </div>
             </div>
@@ -3790,7 +3790,7 @@
                 if (!headRowBuilt) {
                     const headRow = document.createElement('div');
                     headRow.className = 'reference-hint-head-row';
-                    const lineEl = document.createElement('div');
+                const lineEl = document.createElement('div');
                     lineEl.className = 'reference-hint-head';
                     lineEl.textContent = hText;
                     lineEl.title = hText;
@@ -3804,7 +3804,7 @@
                     const lineEl = document.createElement('div');
                     lineEl.className = 'reference-hint-head';
                     lineEl.textContent = hText;
-                    panel.appendChild(lineEl);
+                panel.appendChild(lineEl);
                 }
             }
             if (footerLine) {
@@ -4023,8 +4023,8 @@
                         + formatReferenceHintYLabel(yNum, yFreq) + '\u2192'
                         + formatReferenceHintXLabel(xNum, xFreq);
                 } else {
-                    line.textContent = t.label || '';
-                    line.title = t.label || '';
+                line.textContent = t.label || '';
+                line.title = t.label || '';
                 }
                 row.title = 'Click hàng để bật/tắt Apply';
                 row.addEventListener('click', function (ev) {
@@ -12913,7 +12913,7 @@
                     }
                     ctrlPressedAlone = true;
                     if (!event.shiftKey) {
-                        ctrlChordUsed = false;
+                    ctrlChordUsed = false;
                     }
                     if (!isPeriodFilterShortcutBlockedTarget(event.target)) {
                         event.preventDefault();
@@ -13577,11 +13577,11 @@
                         return;
                     }
                     btn.addEventListener('click', function (ev) {
-                        try {
-                            ev.preventDefault();
+                    try {
+                        ev.preventDefault();
                             toggleRelPhase(which);
-                        } catch (e) { console.error(e); }
-                    });
+                    } catch (e) { console.error(e); }
+                });
                 };
                 bind('relPhaseAboveBtn', 'above');
                 bind('relPhaseSameBtn', 'same');
@@ -14392,16 +14392,16 @@
                 return;
             }
             var mains = right.querySelectorAll('tr.chuoi-main-row');
-            for (var li2 = 0; li2 < nums.length; li2++) {
-                var sp2 = nums[li2];
-                mains.forEach(function (tr) {
-                    tr.querySelectorAll('.cell.num[data-num]').forEach(function (span) {
-                        var v2 = parseInt(span.getAttribute('data-num'), 10);
-                        if (!isNaN(v2) && v2 === sp2) {
-                            posnfreqApplyRingClass(span, li2);
-                        }
+                for (var li2 = 0; li2 < nums.length; li2++) {
+                    var sp2 = nums[li2];
+                    mains.forEach(function (tr) {
+                        tr.querySelectorAll('.cell.num[data-num]').forEach(function (span) {
+                            var v2 = parseInt(span.getAttribute('data-num'), 10);
+                            if (!isNaN(v2) && v2 === sp2) {
+                                posnfreqApplyRingClass(span, li2);
+                            }
+                        });
                     });
-                });
             }
         }
 
@@ -15333,8 +15333,17 @@
             var SS_KEY = 'index.simRoomTag';
             var current = '';
 
+            /* Bỏ dấu tiếng Việt: á/â→a · đ→d (IME gạch chân commit ra chữ có dấu). */
+            function stripTagDiacritics(s) {
+                return String(s == null ? '' : s)
+                    .replace(/đ/g, 'd')
+                    .replace(/Đ/g, 'D')
+                    .normalize('NFD')
+                    .replace(/[̀-ͯ]/g, '');
+            }
+
             function normalizeTag(raw) {
-                return String(raw == null ? '' : raw)
+                return stripTagDiacritics(raw)
                     .replace(/[^a-zA-Z0-9]/g, '')
                     .slice(0, 3)
                     .toUpperCase();
@@ -15369,15 +15378,90 @@
                 }
             } catch (eLoad) { /* ignore */ }
 
-            el.addEventListener('input', function () {
-                var cur = el.value;
-                var norm = normalizeTag(cur);
-                if (cur !== norm) el.value = norm;
-                setTag(norm);
-            });
-            el.addEventListener('blur', function () {
+            /* Đang IME gạch chân — không gán lại value, không chốt (tránh nuốt chữ). */
+            var composing = false;
+            function commitTag() {
+                /* Đọc value kể cả chữ đang gạch chân — không chờ compositionend. */
                 setTag(el.value);
+            }
+            /*
+             * Chặn IME trong ô mã: tự chèn ký tự theo phím bấm → bộ gõ
+             * tiếng Việt không composition nên không gạch chân / nuốt chữ.
+             */
+            el.addEventListener('compositionstart', function (ev) {
+                ev.preventDefault();
+                composing = false;
             });
+            el.addEventListener('keydown', function (ev) {
+                if (ev.ctrlKey || ev.metaKey || ev.altKey) return;
+                if (ev.isComposing || ev.keyCode === 229) {
+                    ev.preventDefault();
+                    return;
+                }
+                var s = typeof el.selectionStart === 'number' ? el.selectionStart : el.value.length;
+                var en = typeof el.selectionEnd === 'number' ? el.selectionEnd : s;
+                function setVal(v, pos) {
+                    el.value = v;
+                    commitTag();
+                    /* setTag gán lại value (uppercase) làm nhảy caret — đặt lại. */
+                    try { el.setSelectionRange(pos, pos); } catch (err) { /* ignore */ }
+                }
+                if (ev.key === 'Backspace' || ev.key === 'Delete') {
+                    ev.preventDefault();
+                    var v = el.value;
+                    var pos = s;
+                    if (s !== en) {
+                        v = v.slice(0, s) + v.slice(en);
+                    } else if (ev.key === 'Backspace' && s > 0) {
+                        v = v.slice(0, s - 1) + v.slice(s);
+                        pos = s - 1;
+                    } else if (ev.key === 'Delete' && s < v.length) {
+                        v = v.slice(0, s) + v.slice(s + 1);
+                    } else {
+                        return;
+                    }
+                    setVal(v, pos);
+                    return;
+                }
+                if (!ev.key || ev.key.length !== 1) return;
+                ev.preventDefault();
+                var ch = stripTagDiacritics(ev.key).replace(/[^a-zA-Z0-9]/g, '');
+                if (!ch) return;
+                var next = (el.value.slice(0, s) + ch + el.value.slice(en)).slice(0, 3);
+                if (next === el.value) return;
+                setVal(next, Math.min(3, s + 1));
+            });
+            /* readonly chặn paste mặc định — tự dán phần hợp lệ. */
+            el.addEventListener('paste', function (ev) {
+                ev.preventDefault();
+                var cd = ev.clipboardData || window.clipboardData;
+                var text = cd ? cd.getData('text') : '';
+                var clean = stripTagDiacritics(text).replace(/[^a-zA-Z0-9]/g, '').slice(0, 3);
+                if (!clean) return;
+                var s = typeof el.selectionStart === 'number' ? el.selectionStart : el.value.length;
+                var en = typeof el.selectionEnd === 'number' ? el.selectionEnd : s;
+                el.value = (el.value.slice(0, s) + clean + el.value.slice(en)).slice(0, 3);
+                var pos = Math.min(3, s + clean.length);
+                commitTag();
+                try { el.setSelectionRange(pos, pos); } catch (err) { /* ignore */ }
+            });
+            el.addEventListener('compositionend', function () {
+                composing = false;
+                commitTag();
+            });
+            el.addEventListener('input', function (ev) {
+                if (composing || (ev && ev.isComposing)) return;
+                commitTag();
+            });
+            el.addEventListener('blur', commitTag);
+            /* Click sang tab khác khi chữ còn gạch chân → chốt ngay. */
+            window.addEventListener('blur', function () {
+                if (document.activeElement === el) commitTag();
+            });
+            document.addEventListener('visibilitychange', function () {
+                if (document.hidden && document.activeElement === el) commitTag();
+            });
+            window.addEventListener('pagehide', commitTag);
 
             window.addEventListener('message', function (ev) {
                 var msg = ev && ev.data;

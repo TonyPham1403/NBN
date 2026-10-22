@@ -3399,7 +3399,7 @@ class RightPaneSheetManager {
      */
     computeFollowCellValue(rows, rowIndex) {
         if (!Array.isArray(rows) || typeof rowIndex !== 'number' || rowIndex < 0) {
-            return '';
+        return '';
         }
         if (rowIndex >= rows.length) {
             return '';
@@ -5541,10 +5541,10 @@ class RightPaneSheetManager {
                 const tag = c.inAnswer ? ' ★ đáp án' : '';
                 const label = `${edgeStr}    ${arrowStr}${tag}`;
                 const yIsPhaseMax = phaseMaxNum != null && p.y === phaseMaxNum;
-                tripletRows.push({
+            tripletRows.push({
                     sorted: [c.num],
                     inAnswer: c.inAnswer,
-                    label,
+                label,
                     y: p.y,
                     x: c.num,
                     edges: p.edges.slice(),
@@ -6473,7 +6473,7 @@ class RightPaneSheetManager {
         for (let i = 0; i < entries.length; i++) {
             const entry = entries[i];
             if (colorList.includes(entry.color)) {
-                count++;
+                    count++;
             }
         }
         return count;
@@ -15889,7 +15889,7 @@ class RightPaneSheetManager {
         // Tracking repaint để frame sau (sau decoration) — giảm khựng cùng lúc.
         requestAnimationFrame(() => {
             try {
-                this.requestTrackingUiRepaintIfActive();
+        this.requestTrackingUiRepaintIfActive();
             } catch (eTrk) { /* ignore */ }
         });
     }
@@ -18759,7 +18759,7 @@ class RightPaneSheetManager {
         sheet.trackingLabelMode = labelMode;
         root.classList.add('special-tracking-root--label-out');
         root.classList.remove('special-tracking-root--label-in');
-        root.dataset.stLabelMode = labelMode;
+            root.dataset.stLabelMode = labelMode;
 
         const progPct = new Float32Array(total);
         for (let i = 0; i < total; i++) {
@@ -19549,8 +19549,8 @@ class RightPaneSheetManager {
                     if (trackLabelEl && numEl.parentElement !== trackLabelEl) {
                         trackLabelEl.appendChild(numEl);
                     }
-                    numEl.style.left = '';
-                    numEl.style.right = '0';
+                        numEl.style.left = '';
+                        numEl.style.right = '0';
                     const numBaseTranslate = 'translateY(-50%)';
                     numEl.style.transform = numItalicSkew
                         ? `${numBaseTranslate} ${numItalicSkew}`
@@ -21137,7 +21137,7 @@ function showPrevRecallFoldTooltip(hit, text, clientX, clientY, options) {
     if (opts.html) {
         tip.innerHTML = String(text || '');
     } else {
-        tip.textContent = text;
+    tip.textContent = text;
     }
     tip.classList.add('is-visible');
 
@@ -21162,9 +21162,9 @@ function showPrevRecallFoldTooltip(hit, text, clientX, clientY, options) {
         }
     } else {
         left = (anchorX != null ? anchorX : rect.right) + offsetX;
-        if (left + tipW + pad > vw) {
+    if (left + tipW + pad > vw) {
             left = Math.max(pad, (anchorX != null ? anchorX : rect.left) - tipW - 8);
-        }
+    }
     }
 
     let top = (typeof clientY === 'number' ? clientY : rect.top) + offsetY;

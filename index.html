@@ -9432,7 +9432,7 @@
         <div id="appStage">
     <main class="wrap">
         <section class="pane left">
-            <iframe id="okFrame" src="ok_left.html?v=20261016simRoomTag"
+            <iframe id="okFrame" src="ok_left.html?v=20261022ime"
                 style="width:100%;height:100%;border:0"></iframe>
         </section>
 
@@ -10498,7 +10498,7 @@
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-storage-compat.js"></script>
     <script src="presence-config.js"></script>
-    <script src="focus-sync.js?v=20261016simpha"></script>
+    <script src="focus-sync.js?v=20261022tagjoin"></script>
     <script src="presence.js?v=20261003focusNewest"></script>
     <script src="chat.js?v=20261003seenUnder"></script>
     <script src="right-pane-sheets.js?v=20261012p1rel"></script>
@@ -15453,7 +15453,7 @@ function getFilterNoteTRefMaxSelections(mode) {
             const hrefs = [
                 { rel: 'prefetch', href: 'trial.html', as: 'document' },
                 { rel: 'prefetch', href: 'data.json', as: 'fetch' },
-                { rel: 'prefetch', href: 'focus-sync.js?v=20261016simpha', as: 'script' }
+                { rel: 'prefetch', href: 'focus-sync.js?v=20261022tagjoin', as: 'script' }
             ];
             for (let i = 0; i < hrefs.length; i++) {
                 try {
@@ -15474,9 +15474,13 @@ function getFilterNoteTRefMaxSelections(mode) {
         function openTicksHtmlNewTab() {
             warmTicksAssets();
             const id = getCurrentSheetFocusIdNumber();
-            let url = 'trial.html';
-            if (id != null) {
-                url += '?id=' + encodeURIComponent(String(id));
+            const tag = normalizeIndexSimRoomTag(indexSimRoomTag);
+            const qs = [];
+            /* Không mã = không sync/handoff focus sang tab trial mới. */
+            if (tag && id != null) qs.push('id=' + encodeURIComponent(String(id)));
+            if (tag) qs.push('tag=' + encodeURIComponent(tag));
+            let url = 'trial.html' + (qs.length ? ('?' + qs.join('&')) : '');
+            if (id != null && tag) {
                 if (window.FocusSync && typeof window.FocusSync.publish === 'function') {
                     window.FocusSync.publish(id);
                 }
@@ -15604,6 +15608,11 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             window.FocusSync.init({
                 source: 'index',
+                getRoomTag: () => indexSimRoomTag,
+                getCurrentState: () => {
+                    const id = getCurrentSheetFocusIdNumber();
+                    return id != null ? { id: id, popup: true, mode: 'hist' } : null;
+                },
                 apply: (state, meta) => {
                     const id = Number(state && state.id != null ? state.id : state);
                     if (!Number.isFinite(id) || id <= 0) {
@@ -15906,11 +15915,23 @@ function getFilterNoteTRefMaxSelections(mode) {
             }
             indexSimRoomTag = next;
             try {
+                if (window.FocusSync && typeof window.FocusSync.setRoomTag === 'function') {
+                    window.FocusSync.setRoomTag(next);
+                }
+            } catch (eFsTag) { /* ignore */ }
+            try {
                 sessionStorage.setItem(INDEX_SIM_ROOM_TAG_SS, next);
             } catch (e) { /* ignore */ }
             pushIndexSimRoomTagToLeftIframe();
             if (next) {
                 joinIndexSimRoom(next);
+                try {
+                    if (window.FocusSync && typeof window.FocusSync.joinRoom === 'function') {
+                        window.FocusSync.joinRoom(next);
+                    } else if (window.FocusSync && typeof window.FocusSync.seedFromUrlOrStorage === 'function') {
+                        window.FocusSync.seedFromUrlOrStorage({ useStorage: true });
+                    }
+                } catch (eFsSeed) { /* ignore */ }
             } else if (prev) {
                 indexTicksStudyOn = false;
             }

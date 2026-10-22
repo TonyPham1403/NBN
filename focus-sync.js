@@ -1,8 +1,9 @@
 /**
  * Sync focus id (+ popup) giữa index.html ↔ trial.html (nhiều tab).
- * BroadcastChannel (realtime) + localStorage (tab mở sau / fallback).
+ * CHỈ sync khi hai tab cùng mã định danh (tag ≠ '').
+ * BroadcastChannel (realtime) + localStorage theo tag (tab mở sau / fallback).
  *
- * state: { id:number, popup:boolean, mode:'hist'|'sim'|null }
+ * state: { id:number, popup:boolean, mode:'hist'|'sim'|null, tag:string }
  * Aux: sim-pha-picks — pick phá kỳ rỗng cuối (trial → index khoanh).
  * source vẫn dùng 'ticks' để tương thích echo-filter cũ.
  */
@@ -26,6 +27,15 @@
   /** @type {((payload: object, meta: object) => void)|null} */
   let simPhaJoinFn = null;
   let sourceName = 'page';
+  /** Mã định danh của tab này ('' = không sync focus). */
+  let roomTag = '';
+  /** @type {(() => string)|null} */
+  let getRoomTagFn = null;
+  /** @type {(() => object|null)|null} focus hiện tại của tab (kể cả trước khi có mã). */
+  let getCurrentStateFn = null;
+  let joinTimer = 0;
+  let joinAwaiting = false;
+  let joinResponded = false;
 
   function normalizeSimRoomTag(raw) {
     return String(raw == null ? '' : raw)
@@ -36,6 +46,29 @@
 
   function simPhaRoomKey(tag) {
     return SIM_PHA_ROOM_PREFIX + tag;
+  }
+
+  function currentTag() {
+    if (typeof getRoomTagFn === 'function') {
+      try {
+        return normalizeSimRoomTag(getRoomTagFn());
+      } catch (e) {
+        return '';
+      }
+    }
+    return normalizeSimRoomTag(roomTag);
+  }
+
+  function storageKeyForTag(tag) {
+    const t = normalizeSimRoomTag(tag);
+    return t ? STORAGE_KEY + ':' + t : null;
+  }
+
+  function setRoomTag(tag) {
+    const next = normalizeSimRoomTag(tag);
+    if (next === roomTag) return;
+    roomTag = next;
+    lastState = { id: null, popup: false, mode: null };
   }
 
   function parseId(raw) {
@@ -68,11 +101,15 @@
   }
 
   function readStored() {
+    const key = storageKeyForTag(currentTag());
+    if (!key) return null;
     try {
-      const raw = localStorage.getItem(STORAGE_KEY);
+      const raw = localStorage.getItem(key);
       if (raw == null || raw === '') return null;
       if (raw.charAt(0) === '{') {
-        return normalizeState(JSON.parse(raw));
+        const o = JSON.parse(raw);
+        if (o && o.tag && normalizeSimRoomTag(o.tag) !== currentTag()) return null;
+        return normalizeState(o);
       }
       return normalizeState(raw);
     } catch (e) {
@@ -81,11 +118,15 @@
   }
 
   function writeStored(state) {
+    const tag = currentTag();
+    const key = storageKeyForTag(tag);
+    if (!key) return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      localStorage.setItem(key, JSON.stringify({
         id: state.id,
         popup: !!state.popup,
-        mode: state.mode || null
+        mode: state.mode || null,
+        tag: tag
       }));
     } catch (e) { /* ignore */ }
   }
@@ -97,7 +138,31 @@
     }, 0);
   }
 
+  function localCurrentState() {
+    if (lastState.id != null) return lastState;
+    if (typeof getCurrentStateFn === 'function') {
+      try {
+        return normalizeState(getCurrentStateFn());
+      } catch (e) {
+        return null;
+      }
+    }
+    return null;
+  }
+
   function deliver(state, meta) {
+    const tag = currentTag();
+    if (!tag) return;
+    if (meta && meta.remote) {
+      joinResponded = true;
+      joinAwaiting = false;
+    }
+    const inTag = (meta && meta.tag != null)
+      ? normalizeSimRoomTag(meta.tag)
+      : (state && typeof state === 'object' ? normalizeSimRoomTag(state.tag) : '');
+    /* BC/storage focus bắt buộc đúng mã; storage theo key tag thì inTag có thể trống. */
+    if (inTag && inTag !== tag) return;
+    if (meta && meta.viaChannel && !inTag) return;
     const next = normalizeState(state);
     if (!next) return;
     if (sameState(next, lastState) && !(meta && meta.force)) return;
@@ -120,6 +185,8 @@
    */
   function publish(rawIdOrState, opts) {
     if (applying) return;
+    const tag = currentTag();
+    if (!tag) return;
     opts = opts || {};
     var force = !!opts.force;
     var base = null;
@@ -154,6 +221,7 @@
           popup: base.popup,
           mode: base.mode,
           force: force,
+          tag: tag,
           t: Date.now(),
           source: sourceName
         });
@@ -162,12 +230,19 @@
   }
 
   /**
-   * @param {{ source?: string, apply?: (state: object, meta: object) => void }} opts
+   * @param {{ source?: string, getRoomTag?: () => string, roomTag?: string,
+   *   getCurrentState?: () => object|null,
+   *   apply?: (state: object, meta: object) => void }} opts
    */
   function init(opts) {
     opts = opts || {};
     sourceName = opts.source || 'page';
     applyFn = typeof opts.apply === 'function' ? opts.apply : null;
+    if (typeof opts.getRoomTag === 'function') getRoomTagFn = opts.getRoomTag;
+    if (typeof opts.getCurrentState === 'function') {
+      getCurrentStateFn = opts.getCurrentState;
+    }
+    if (opts.roomTag != null) roomTag = normalizeSimRoomTag(opts.roomTag);
 
     if (!bc && typeof BroadcastChannel !== 'undefined') {
       try {
@@ -183,10 +258,24 @@
             deliverSimPhaJoin(d, { remote: true, source: d.source });
             return;
           }
+          if (d.type === 'focus-join') {
+            /* Tab vào mã sau hỏi → tab có mã trước trả focus hiện tại của nó. */
+            const tag = currentTag();
+            if (!tag || normalizeSimRoomTag(d.tag) !== tag) return;
+            const st = localCurrentState();
+            if (st) publish(st, { force: true });
+            return;
+          }
           if (d.type !== 'focus') return;
           deliver(
-            { id: d.id, popup: d.popup, mode: d.mode },
-            { remote: true, source: d.source, force: !!d.force }
+            { id: d.id, popup: d.popup, mode: d.mode, tag: d.tag },
+            {
+              remote: true,
+              source: d.source,
+              force: !!d.force,
+              tag: d.tag,
+              viaChannel: true
+            }
           );
         };
       } catch (e) {
@@ -206,18 +295,22 @@
         } catch (e) { /* ignore */ }
         return;
       }
-      if (ev.key !== STORAGE_KEY) return;
+      const key = storageKeyForTag(currentTag());
+      if (!key || ev.key !== key) return;
       var st = null;
+      var stTag = '';
       try {
         if (ev.newValue && ev.newValue.charAt(0) === '{') {
-          st = normalizeState(JSON.parse(ev.newValue));
+          const o = JSON.parse(ev.newValue);
+          stTag = o ? normalizeSimRoomTag(o.tag) : '';
+          st = normalizeState(o);
         } else {
           st = normalizeState(ev.newValue);
         }
       } catch (e) {
         st = normalizeState(ev.newValue);
       }
-      deliver(st, { remote: true, source: 'storage' });
+      deliver(st, { remote: true, source: 'storage', tag: stTag });
     });
   }
 
@@ -316,6 +409,7 @@
   }
 
   function get() {
+    if (!currentTag()) return { id: null, popup: false, mode: null };
     return lastState.id != null ? lastState : readStored();
   }
 
@@ -324,9 +418,10 @@
     return st && st.id != null ? st.id : null;
   }
 
-  /** Đọc ?id= / #id= rồi apply + broadcast (tab mới mở mang id). */
+  /** Đọc ?id= / #id= rồi apply + broadcast (chỉ khi đã có mã định danh). */
   function seedFromUrlOrStorage(opts) {
     opts = opts || {};
+    if (!currentTag()) return null;
     var id = null;
     try {
       var sp = new URLSearchParams(location.search);
@@ -360,6 +455,7 @@
           id: state.id,
           popup: state.popup,
           mode: state.mode,
+          tag: currentTag(),
           t: Date.now(),
           source: sourceName
         });
@@ -376,8 +472,52 @@
     return state;
   }
 
+  /**
+   * Vào mã định danh:
+   * 1) ăn focus đã lưu của mã (nếu có),
+   * 2) hỏi tab đang giữ mã trước → nó trả focus hiện tại (theo thằng trước),
+   * 3) không ai trả (≈600ms) → tab này là thằng đầu tiên: publish focus
+   *    hiện tại của mình để thằng vào sau theo.
+   */
+  function joinRoom(tagRaw) {
+    setRoomTag(tagRaw);
+    const tag = currentTag();
+    if (!tag) return null;
+    joinAwaiting = true;
+    joinResponded = false;
+    const seeded = seedFromUrlOrStorage({ useStorage: true });
+    if (seeded) {
+      /* Đã có focus của phòng trong storage — vẫn chờ bản live mới hơn. */
+      joinAwaiting = true;
+      joinResponded = false;
+    }
+    if (bc) {
+      try {
+        bc.postMessage({
+          type: 'focus-join',
+          tag: tag,
+          t: Date.now(),
+          source: sourceName
+        });
+      } catch (e) { /* ignore */ }
+    }
+    if (joinTimer) clearTimeout(joinTimer);
+    joinTimer = setTimeout(function () {
+      joinTimer = 0;
+      if (!joinAwaiting || joinResponded) return;
+      joinAwaiting = false;
+      if (seeded) return;
+      const st = localCurrentState();
+      if (st) publish(st, { force: true });
+    }, 600);
+    return seeded;
+  }
+
   global.FocusSync = {
     init: init,
+    setRoomTag: setRoomTag,
+    joinRoom: joinRoom,
+    getRoomTag: currentTag,
     publish: publish,
     publishSimPhaPicks: publishSimPhaPicks,
     publishSimPhaJoin: publishSimPhaJoin,
