@@ -5,7 +5,16 @@ on:
     branches:
       - main
   schedule:
-    - cron: "*/15 * * * *"   # 15 phút (giống convert.yml)
+    # Giờ Việt Nam (UTC+7) → cron GitHub luôn là UTC (= VN − 7).
+    # Lưu ý: schedule GitHub KHÔNG đúng phút; thường trễ vài–vài chục phút, repo
+    # ít hoạt động còn có thể bị GitHub tạm tắt lịch (phải bấm Enable / Run thủ công).
+    - cron: "10 6 * * *"    # 13:10 VN
+    - cron: "30 6 * * *"    # 13:30 VN
+    - cron: "45 6 * * *"    # 13:45 VN
+    - cron: "0 7 * * *"     # 14:00 VN
+    - cron: "10 14 * * *"   # 21:10 VN
+    - cron: "30 14 * * *"   # 21:30 VN
+    - cron: "45 14 * * *"   # 21:45 VN
   workflow_dispatch:
 
 jobs:
