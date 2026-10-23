@@ -1246,6 +1246,9 @@
   .t-result-head .t-combo { color: #b45309; }
   .t-result-head .t-trend-up { color: #00ad45; }
   .t-result-head .t-trend-down { color: #e90f31; }
+  /* |Δ%break|=x.x% — cùng màu trend (giảm=đỏ, tăng=xanh). */
+  .t-result-head .t-dbreak.t-trend-down { color: #e90f31; font-weight: 700; }
+  .t-result-head .t-dbreak.t-trend-up { color: #00ad45; font-weight: 700; }
   /* Δimerge: hợp nhất các số trong mọi chuỗi Δi — click số để lọc phụ (đa chọn, click lại để tắt). */
   .t-merge {
     font-family: ui-monospace, Consolas, Menlo, monospace;
@@ -1276,7 +1279,29 @@
     color: #0f172a;
   }
   .t-merge-num.is-in:hover { background: #e2e8f0; }
+  /* Trùng ĐA nhưng chưa vào Δimerge: xanh lá siêu mờ (vẫn mờ hơn ô .is-in). */
+  .t-merge-num.is-hit:not(.is-in) {
+    opacity: .42;
+    background: #dcfce7;
+    border-color: #86efac;
+    color: #166534;
+  }
+  /* Số đã vào Δimerge + trùng ĐA: nền xanh lá chữ trắng. */
+  .t-merge-num.is-in.is-hit {
+    opacity: 1;
+    background: #16a34a;
+    border-color: #15803d;
+    color: #fff;
+  }
+  .t-merge-num.is-in.is-hit:hover { background: #15803d; }
   .t-merge-num.is-on { opacity: 1; background: #0f766e; border-color: #0f766e; color: #fff; }
+  /* Đang chọn lọc + trùng ĐA → xanh đậm hơn (vẫn chữ trắng). */
+  .t-merge-num.is-on.is-hit {
+    opacity: 1;
+    background: #15803d;
+    border-color: #14532d;
+    color: #fff;
+  }
   .t-merge-info { color: #0f766e; margin-left: 8px; }
   /* Tooltip số hàng chứa 1 số trong Δimerge — bám góc trên-trái con trỏ. */
   .t-merge-tip {
@@ -3051,7 +3076,7 @@
           <button type="button" data-t-trend="down" class="is-on is-down">▼ down</button>
         </span>
         <span class="t-xt-wrap scan-param" id="tXTailWrap">
-          <span class="t-lbl tp-label scan-param-tog" data-t-ctog="xt" role="button" tabindex="0" style="min-width:0" title="Click: bật/tắt ràng buộc a·tail ≤ wtail ≤ b·tail (a,b nguyên dương, ô trống = không giới hạn đầu đó)">wtail∈[</span>
+          <span class="t-lbl tp-label scan-param-tog" data-t-ctog="xt" role="button" tabindex="0" style="min-width:0" title="Click: bật/tắt ràng buộc a·tail ≤ wtail ≤ b·tail · trần b ≤ ⌊trần wtail / trần tail⌋ (ô trống = không giới hạn đầu đó)">wtail∈[</span>
           <span class="tp-item">
             <input class="tp-val t-xt-val" id="tTMulLo" type="text" inputmode="numeric" autocomplete="off" spellcheck="false">
             <span class="tp-spin" role="group" aria-label="Tăng giảm a">
@@ -3070,7 +3095,7 @@
           <span class="t-lbl" style="min-width:0">]·tail</span>
         </span>
         <span class="t-x-wrap scan-param" id="tXBandWrap">
-          <span class="t-lbl tp-label scan-param-tog" data-t-ctog="x" role="button" tabindex="0" style="min-width:0" title="Click: bật/tắt ràng buộc a·wtail ≤ wfreq ≤ b·wtail (ô a trống = 0, ô b trống = 1)">wfreq∈[</span>
+          <span class="t-lbl tp-label scan-param-tog" data-t-ctog="x" role="button" tabindex="0" style="min-width:0" title="Click: bật/tắt ràng buộc a·wtail ≤ wfreq ≤ b·wtail · trần b ≤ trần wfreq / trần wtail (ô a trống = 0, ô b trống = 1)">wfreq∈[</span>
           <span class="tp-item">
             <input class="tp-val t-x-val" id="tXLo" type="text" inputmode="decimal" autocomplete="off" spellcheck="false" placeholder="0.00">
             <span class="tp-spin" role="group" aria-label="Tăng giảm a">
@@ -3090,7 +3115,7 @@
         </span>
       </div>
       <div class="t-ranges trial-params" id="tRanges"></div>
-      <div class="t-hint">ô trống = không giới hạn đầu đó · |Δi| = số phần tử của nút Δ ngay bên trái chữ i (pool hiện tại vs pool liền trước) · newlyin = số phần tử mới vào pool tại mốc · trend/%break so với mốc liền trước</div>
+      <div class="t-hint">ô trống = không giới hạn đầu đó · |Δi|/newlyin/i[n] ∈ [0;35] · |Δi| = số phần tử nút Δ bên trái chữ i · newlyin = số mới vào pool · i[n] = tổng phần tử pool tại mốc i · trend/%break so mốc liền trước</div>
     </div>
     <div class="t-actions">
       <button type="button" class="t-run" id="tRun">Lọc</button>
@@ -8361,7 +8386,9 @@
       breakPct: { lo: null, hi: null, on: true },
       dBreak: { lo: null, hi: null, on: true },
       di: { lo: null, hi: null, on: true },
-      newlyIn: { lo: null, hi: null, on: true }
+      newlyIn: { lo: null, hi: null, on: true },
+      /* i[n] = |pool| tại mốc i đó (số phần tử pool). */
+      poolN: { lo: null, hi: null, on: true }
     }
   };
   const tBack = document.getElementById('tBack');
@@ -8439,6 +8466,22 @@
   let tRecruitState = null;
   let tSeenHitKeys = new Set();
   let tTickerWorker = null;
+  /* Job lọc chạy trên main thread → click JSON/Δimerge phải chờ hết combo đang tính.
+     Khi user chạm UI popup T: tạm nhường ~180ms để handler click chạy trước, rồi mới lọc tiếp. */
+  let tUiPauseUntil = 0;
+  function tBumpUiPause(ms) {
+    const until = performance.now() + (ms == null ? 180 : ms);
+    if (until > tUiPauseUntil) tUiPauseUntil = until;
+  }
+  function tShouldYieldToUi() {
+    if (performance.now() < tUiPauseUntil) return true;
+    try {
+      const sch = navigator.scheduling;
+      if (sch && typeof sch.isInputPending === 'function'
+        && sch.isInputPending({ includeContinuous: true })) return true;
+    } catch (e) { /* ignore */ }
+    return false;
+  }
 
   function tHitKey(h) {
     return h.tail + ',' + h.wtail + ',' + h.wfreq + '|' + h.t + '|' + (h.tlLabel || h.i || '');
@@ -8668,8 +8711,11 @@
   /* Controls [a;b] kiểu scanpopup: input + cụm ▴/▾ giữ để nhảy liên tục. */
   const T_RANGE_DEFS = [
     ['tail', 'tail'], ['wtail', 'wtail'], ['wfreq', 'wfreq'],
-    ['breakPct', '%break'], ['dBreak', '|Δ%break|'], ['di', '|Δi|'], ['newlyIn', 'newlyin']
+    ['breakPct', '%break'], ['dBreak', '|Δ%break|'], ['di', '|Δi|'],
+    ['newlyIn', 'newlyin'], ['poolN', 'i[n]']
   ];
+  /* |Δi| · newlyin · i[n] chỉ nhận [0;35] (pool tối đa 35 số). */
+  const T_COUNT_KEYS = { di: 1, newlyIn: 1, poolN: 1 };
   let tControlsRendered = false;
 
   function makeTBoundHtml(key, bound) {
@@ -8773,13 +8819,43 @@
     return n;
   }
 
-  /** Spin 1 đầu [a;b]·tail: trống + ▴ = 1 · đang 1 mà ▾ = về trống · trần 999. */
+  /** Trần b hiệu lực của 1 dòng [a;b] (ô trống / tắt = mép miền). */
+  function tRangeHiEff(key) {
+    const dom = tDomainFor(key);
+    const r = tState.ranges[key];
+    if (!r || r.on === false) return dom.hi;
+    if (r.hi == null || !Number.isFinite(r.hi)) return dom.hi;
+    return Math.max(dom.lo, Math.min(dom.hi, Math.round(Number(r.hi))));
+  }
+
+  /* wtail∈[a;b]·tail: b·tail ≤ trần wtail → b ≤ ⌊wtailHi/tailHi⌋.
+     wfreq∈[a;b]wtail: b·wtail ≤ trần wfreq → b ≤ wfreqHi/wtailHi (2 chữ số).
+     Trần b của tail: tail ≤ ⌊wtail/2⌋ → tailHi ≤ ⌊wtailHi/2⌋. */
+  function tTailHiCap() {
+    const wtailHi = tRangeHiEff('wtail');
+    return Math.max(TRIAL_TAIL_MIN, Math.floor(wtailHi / 2));
+  }
+  function tMulHiCap() {
+    const tailHi = tRangeHiEff('tail');
+    const wtailHi = tRangeHiEff('wtail');
+    if (!(tailHi > 0)) return 999;
+    return Math.max(1, Math.floor(wtailHi / tailHi));
+  }
+  function tXHiCap() {
+    const wtailHi = tRangeHiEff('wtail');
+    const wfreqHi = tRangeHiEff('wfreq');
+    if (!(wtailHi > 0)) return 1;
+    return Math.max(0.01, Math.min(1, Math.floor((wfreqHi / wtailHi) * 100 + 1e-9) / 100));
+  }
+
+  /** Spin 1 đầu [a;b]·tail: trống + ▴ = 1 · đang 1 mà ▾ = về trống · trần theo wtail/tail. */
   function stepTMulBound(bound, d) {
     const el = bound === 'lo' ? tTMulLoEl : tTMulHiEl;
     if (!el || !d) return;
     const key = bound === 'lo' ? 'tailMulLo' : 'tailMulHi';
     let cur = parseTPosInt(el.value);
     if (Number.isNaN(cur)) cur = tState[key];
+    const mulCap = tMulHiCap();
     let next;
     if (cur == null) next = d > 0 ? 1 : null;
     else {
@@ -8793,6 +8869,12 @@
       flashTBad(el);
       flashed = true;
       next = tState.tailMulHi;
+    }
+    /* Trần b: b·tailHi ≤ wtailHi — set cao hơn → nháy đỏ + kẹp về cap. */
+    if (bound === 'hi' && next != null && next > mulCap) {
+      flashTBad(el);
+      flashed = true;
+      next = mulCap;
     }
     tState[key] = next;
     el.value = next == null ? '' : String(next);
@@ -8859,7 +8941,7 @@
     );
   }
 
-  /** Spin 1 cận của [a;b]: a ∈ [0;b], b ∈ [a;1], bước 0.01. */
+  /** Spin 1 cận của [a;b]: a ∈ [0;b], b ∈ [a;1] và b·wtail ≤ trần wfreq, bước 0.01. */
   function stepTXBound(which, d) {
     const el = which === 'lo' ? tXLoEl : tXHiEl;
     if (!el || !d) return;
@@ -8871,14 +8953,17 @@
     }
     let next = Math.round((cur + d * 0.01) * 100) / 100;
     let flashed = false;
+    const xCap = tXHiCap();
     if (which === 'lo') {
-      const hiCap = isTXValid(tState.xHi) ? tState.xHi : 1;
+      const hiCap = isTXValid(tState.xHi) ? Math.min(tState.xHi, xCap) : xCap;
       /* a lỡ tăng quá b → nháy đỏ cảnh báo thoáng chốc, giữ a = b. */
       if (next > hiCap) { flashTBad(el); flashed = true; next = hiCap; }
       next = Math.max(0, Math.min(1, next));
       tState.xLo = next;
     } else {
       next = Math.max(0.01, Math.min(1, next));
+      /* Trần b: b·wtailHi ≤ wfreqHi — set cao hơn → nháy đỏ + kẹp về cap. */
+      if (next > xCap) { flashTBad(el); flashed = true; next = xCap; }
       tState.xHi = next;
       /* Giảm b xuống dưới a → a tụt theo b (giữ a ≤ b). */
       const loNow = Number.isFinite(tState.xLo) ? tState.xLo : 0;
@@ -8892,6 +8977,45 @@
     saveTFilterPrefs();
   }
 
+  /** Đổi trần wtail/wfreq/tail → kéo b liên quan xuống nếu đang vượt (nháy đỏ). */
+  function tEnforceConstraintCaps() {
+    /* tail.hi ≤ ⌊wtail.hi/2⌋ — làm trước vì mulCap phụ thuộc tailHi. */
+    const tailCap = tTailHiCap();
+    const tr = tState.ranges.tail;
+    if (tr && tr.on !== false && tr.hi != null && Number.isFinite(tr.hi) && tr.hi > tailCap) {
+      tr.hi = tailCap;
+      const inpHi = tRangesEl
+        ? tRangesEl.querySelector('[data-t-rng="tail"][data-t-bound="hi"]')
+        : null;
+      if (inpHi) { inpHi.value = String(tailCap); flashTBad(inpHi); }
+      if (tr.lo != null && Number.isFinite(tr.lo) && tr.lo > tailCap) {
+        tr.lo = tailCap;
+        const inpLo = tRangesEl
+          ? tRangesEl.querySelector('[data-t-rng="tail"][data-t-bound="lo"]')
+          : null;
+        if (inpLo) inpLo.value = String(tailCap);
+      }
+    }
+    const mulCap = tMulHiCap();
+    if (tState.xtOn !== false && tState.tailMulHi != null && tState.tailMulHi > mulCap) {
+      tState.tailMulHi = mulCap;
+      if (tTMulHiEl) { tTMulHiEl.value = String(mulCap); flashTBad(tTMulHiEl); }
+      if (tState.tailMulLo != null && tState.tailMulLo > mulCap) {
+        tState.tailMulLo = mulCap;
+        if (tTMulLoEl) tTMulLoEl.value = String(mulCap);
+      }
+    }
+    const xCap = tXHiCap();
+    if (tState.xOn !== false && isTXValid(tState.xHi) && tState.xHi > xCap + 1e-9) {
+      tState.xHi = xCap;
+      if (tXHiEl) { tXHiEl.value = formatTX(xCap); flashTBad(tXHiEl); }
+      if (Number.isFinite(tState.xLo) && tState.xLo > xCap) {
+        tState.xLo = xCap;
+        if (tXLoEl) tXLoEl.value = formatTX(xCap);
+      }
+    }
+  }
+
   /** Miền đầy đủ của 1 trường (ô trống = mép miền tương ứng). */
   function tDomainFor(key) {
     if (key === 'tail' || key === 'wtail' || key === 'wfreq') {
@@ -8899,6 +9023,7 @@
       return { lo: b.min, hi: b.max };
     }
     if (key === 'dBreak' || key === 'breakPct') return { lo: 0, hi: 100 };
+    if (T_COUNT_KEYS[key]) return { lo: 0, hi: 35 };
     return { lo: 0, hi: 999 };
   }
 
@@ -8922,6 +9047,15 @@
       flashed = true;
       next = other;
     }
+    /* Trần b của tail ≤ ⌊trần wtail / 2⌋ — set cao hơn → nháy đỏ + kẹp. */
+    if (key === 'tail' && bound === 'hi') {
+      const tailCap = tTailHiCap();
+      if (next > tailCap) {
+        flashTBad(inpFor('hi'));
+        flashed = true;
+        next = tailCap;
+      }
+    }
     tState.ranges[key][bound] = next;
     const inp = inpFor(bound);
     if (inp) { inp.value = String(next); if (!flashed) inp.classList.remove('is-bad'); }
@@ -8931,6 +9065,8 @@
       const inpLo = inpFor('lo');
       if (inpLo) { inpLo.value = String(next); clearTBad(inpLo); }
     }
+    /* Đổi trần tail/wtail/wfreq → kẹp lại b của ràng buộc tỉ lệ nếu đang vượt. */
+    if (key === 'tail' || key === 'wtail' || key === 'wfreq') tEnforceConstraintCaps();
     saveTFilterPrefs();
   }
 
@@ -9067,31 +9203,50 @@
     } else {
       const rawLo = tXLoEl ? String(tXLoEl.value || '').trim() : '';
       const rawHi = tXHiEl ? String(tXHiEl.value || '').trim() : '';
-      const lo = rawLo === '' ? 0 : parseTX(rawLo);
-      const hi = rawHi === '' ? 1 : parseTX(rawHi);
+      let lo = rawLo === '' ? 0 : parseTX(rawLo);
+      let hi = rawHi === '' ? 1 : parseTX(rawHi);
+      const xCap = tXHiCap();
       const loOk = Number.isFinite(lo) && lo >= 0 && lo <= 1;
-      const hiOk = isTXValid(hi);
+      let hiOk = isTXValid(hi);
+      /* b·wtail ≤ trần wfreq — gõ b cao hơn cap → nháy đỏ + kẹp. */
+      if (hiOk && hi > xCap + 1e-9) {
+        flashTBad(tXHiEl);
+        hi = xCap;
+        if (tXHiEl) tXHiEl.value = formatTX(hi);
+        ok = false;
+        hiOk = isTXValid(hi);
+      }
       if (loOk && hiOk && lo <= hi) {
         tState.xLo = lo;
         tState.xHi = hi;
-        if (tXLoEl) tXLoEl.classList.remove('is-bad');
-        if (tXHiEl) tXHiEl.classList.remove('is-bad');
+        if (tXLoEl) clearTBad(tXLoEl);
+        if (ok) clearTBad(tXHiEl);
       } else {
         if (!loOk || (loOk && hiOk && lo > hi)) flashTBad(tXLoEl); else clearTBad(tXLoEl);
-        if (!hiOk || (loOk && hiOk && lo > hi)) flashTBad(tXHiEl); else clearTBad(tXHiEl);
+        if (!hiOk || (loOk && hiOk && lo > hi)) flashTBad(tXHiEl); else if (ok) clearTBad(tXHiEl);
         ok = false;
       }
     }
     /* wtail∈[a;b]·tail: mỗi đầu trống = không giới hạn đầu đó; còn lại phải nguyên dương
-       và a ≤ b khi có cả hai. Toggle tắt → bỏ qua kiểm tra. */
+       và a ≤ b khi có cả hai; trần b ≤ ⌊wtailHi/tailHi⌋. Toggle tắt → bỏ qua. */
     if (tState.xtOn !== false && (tTMulLoEl || tTMulHiEl)) {
-      const lo = tTMulLoEl ? parseTPosInt(tTMulLoEl.value) : null;
-      const hi = tTMulHiEl ? parseTPosInt(tTMulHiEl.value) : null;
+      let lo = tTMulLoEl ? parseTPosInt(tTMulLoEl.value) : null;
+      let hi = tTMulHiEl ? parseTPosInt(tTMulHiEl.value) : null;
+      const mulCap = tMulHiCap();
       const badPair = !Number.isNaN(lo) && !Number.isNaN(hi) && lo != null && hi != null && lo > hi;
+      let hiOver = false;
+      if (!Number.isNaN(hi) && hi != null && hi > mulCap) {
+        flashTBad(tTMulHiEl);
+        hi = mulCap;
+        if (tTMulHiEl) tTMulHiEl.value = String(hi);
+        hiOver = true;
+        ok = false;
+        if (lo != null && !Number.isNaN(lo) && lo > hi) lo = hi;
+      }
       if (Number.isNaN(lo) || badPair) { flashTBad(tTMulLoEl); ok = false; }
       else clearTBad(tTMulLoEl);
       if (Number.isNaN(hi) || badPair) { flashTBad(tTMulHiEl); ok = false; }
-      else clearTBad(tTMulHiEl);
+      else if (!hiOver) clearTBad(tTMulHiEl);
       if (!Number.isNaN(lo)) tState.tailMulLo = lo;
       if (!Number.isNaN(hi)) tState.tailMulHi = hi;
     } else {
@@ -9104,42 +9259,53 @@
         const bound = inp.getAttribute('data-t-bound');
         const raw = String(inp.value || '').trim();
         if (!raw) { tState.ranges[key][bound] = null; return; }
-        const n = Number(raw.replace(',', '.'));
+        let n = Number(raw.replace(',', '.'));
         if (!Number.isFinite(n)) {
           tState.ranges[key][bound] = null;
           flashTBad(inp);
           ok = false;
           return;
         }
+        /* |Δi| · newlyin · i[n]: chỉ [0;35] — gõ ngoài miền thì ép về mép + nháy đỏ. */
+        if (T_COUNT_KEYS[key]) {
+          const rawN = n;
+          n = Math.max(0, Math.min(35, Math.floor(n)));
+          if (rawN < 0 || rawN > 35) {
+            flashTBad(inp);
+            inp.value = String(n);
+            ok = false;
+          } else {
+            clearTBad(inp);
+            if (n !== rawN) inp.value = String(n);
+          }
+        } else {
+          clearTBad(inp);
+        }
         tState.ranges[key][bound] = n;
-        inp.classList.remove('is-bad');
       });
     }
+    /* Sau khi đọc xong cả ranges: kẹp b ràng buộc nếu trần tail/wtail/wfreq vừa đổi. */
+    tEnforceConstraintCaps();
     return ok;
   }
 
   function tRangeResolve(key) {
     const r = tState.ranges[key] || { lo: null, hi: null };
-    let dom;
-    if (key === 'tail' || key === 'wtail' || key === 'wfreq') {
-      const b = iMaxDomainBounds(key);
-      dom = { lo: b.min, hi: b.max };
-    }
-    else if (key === 'dBreak' || key === 'breakPct') dom = { lo: 0, hi: 100 };
-    else dom = { lo: 0, hi: 35 };
+    const dom = tDomainFor(key);
     /* Tham số đang tắt (click tên) → không lọc theo nó = toàn miền. */
-    if (r.on === false) {
-      if (key === 'di' || key === 'newlyIn') return { lo: 0, hi: 999 };
-      return { lo: dom.lo, hi: dom.hi };
-    }
-    let lo = (r.lo == null || !Number.isFinite(r.lo)) ? dom.lo : Math.max(dom.lo, Math.min(dom.hi, Math.round(r.lo)));
-    let hi = (r.hi == null || !Number.isFinite(r.hi)) ? dom.hi : Math.max(dom.lo, Math.min(dom.hi, Math.round(r.hi)));
+    if (r.on === false) return { lo: dom.lo, hi: dom.hi };
+    let lo;
+    let hi;
     if (key === 'dBreak' || key === 'breakPct') {
       lo = (r.lo == null || !Number.isFinite(r.lo)) ? 0 : Math.max(0, Math.min(100, Number(r.lo)));
       hi = (r.hi == null || !Number.isFinite(r.hi)) ? 100 : Math.max(0, Math.min(100, Number(r.hi)));
-    } else if (key === 'di' || key === 'newlyIn') {
-      lo = (r.lo == null || !Number.isFinite(r.lo)) ? 0 : Math.max(0, Math.floor(Number(r.lo)));
-      hi = (r.hi == null || !Number.isFinite(r.hi)) ? 999 : Math.max(0, Math.floor(Number(r.hi)));
+    } else if (T_COUNT_KEYS[key]) {
+      /* |Δi| · newlyin · i[n]: chỉ [0;35]; ô trống = mép miền. */
+      lo = (r.lo == null || !Number.isFinite(r.lo)) ? 0 : Math.max(0, Math.min(35, Math.floor(Number(r.lo))));
+      hi = (r.hi == null || !Number.isFinite(r.hi)) ? 35 : Math.max(0, Math.min(35, Math.floor(Number(r.hi))));
+    } else {
+      lo = (r.lo == null || !Number.isFinite(r.lo)) ? dom.lo : Math.max(dom.lo, Math.min(dom.hi, Math.round(r.lo)));
+      hi = (r.hi == null || !Number.isFinite(r.hi)) ? dom.hi : Math.max(dom.lo, Math.min(dom.hi, Math.round(r.hi)));
     }
     if (lo > hi) { const tmp = lo; lo = hi; hi = tmp; }
     return { lo: lo, hi: hi };
@@ -9240,8 +9406,8 @@
     return !!(el && !el.hidden);
   }
 
-  /** Đo 1 combo: mốc có nhãn Δ, trend/|Δ%break| so mốc liền trước, |Δi| theo nút Δ. */
-  function tEvalOneCombo(combo, focus, trendWant, rb, rd, rdi, rni, live, seq, thThuan) {
+  /** Đo 1 combo: mốc có nhãn Δ, trend/|Δ%break| so mốc liền trước, |Δi|/newlyin/i[n]. */
+  function tEvalOneCombo(combo, focus, trendWant, rb, rd, rdi, rni, rpn, live, seq, thThuan) {
     if (seq !== tSeq || !dataCtx) return [];
     const { ids } = dataCtx;
     const prevTail = trialTail;
@@ -9294,10 +9460,13 @@
         const dBreak = Math.abs(pct - prevPct);
         if (dBreak < rd.lo || dBreak > rd.hi) continue;
         const prevPool = prevM ? (prevM.pool || []) : null;
-        const deltaNums = timelinePoolDeltaNums(m.pool || [], prevPool, m.newlyIn);
+        const poolArr = m.pool || [];
+        const deltaNums = timelinePoolDeltaNums(poolArr, prevPool, m.newlyIn);
         if (deltaNums.length < rdi.lo || deltaNums.length > rdi.hi) continue;
         const niCount = (m.newlyIn || []).length;
         if (niCount < rni.lo || niCount > rni.hi) continue;
+        const poolN = poolArr.length;
+        if (poolN < rpn.lo || poolN > rpn.hi) continue;
         hits.push({
           tail: combo.tail,
           wtail: combo.wtail,
@@ -9317,8 +9486,9 @@
           di: deltaNums.length,
           deltaNums: deltaNums.slice(),
           niCount: niCount,
-          sizeChg: !prevM || (prevM.pool || []).length !== (m.pool || []).length,
-          pool: (m.pool || []).slice(),
+          poolN: poolN,
+          sizeChg: !prevM || (prevM.pool || []).length !== poolArr.length,
+          pool: poolArr.slice(),
           newlyIn: (m.newlyIn || []).slice(),
           prevPool: prevPool ? prevPool.slice() : []
         });
@@ -9398,9 +9568,39 @@
     tMergeInfoEl = tMergeEl.querySelector('.t-merge-info');
   }
 
+  /**
+   * Đáp án (5 số chính) của id đang lọc T — chỉ khi id có result (không rỗng cuối / sim).
+   * null = không tô xanh trên Δimerge.
+   */
+  function tMergeAnswerSet() {
+    if (!dataCtx || !dataCtx.ids || !dataCtx.rowNums) return null;
+    let focusId = null;
+    let mode = '';
+    if (tResults.length) {
+      focusId = tResults[0].focusId;
+      mode = tResults[0].mode || '';
+    } else if (tLastJobInfo && tLastJobInfo.focusId != null) {
+      focusId = tLastJobInfo.focusId;
+    } else {
+      const n = Number(String(tState.id || '').trim());
+      if (Number.isFinite(n) && n > 0) focusId = n;
+    }
+    if (focusId == null) return null;
+    if (mode === 'sim') return null;
+    if (simState && focusId === simState.focusId) return null;
+    let idx = -1;
+    for (let i = 0; i < dataCtx.ids.length; i++) {
+      if (dataCtx.ids[i] === focusId) { idx = i; break; }
+    }
+    if (idx < 0) return null;
+    const ans = dataCtx.rowNums[idx];
+    if (!ans || !ans.length) return null;
+    return new Set(ans);
+  }
+
   /** Dòng Δimerge dưới hàng trạng thái: 35 ô CỐ ĐỊNH — số vào chuỗi thì ô sáng lên,
-      chưa vào thì mờ đậm. Mỗi lần cập nhật chỉ toggle class của vài ô + đổi [N],
-      bố cục đứng yên → không lag, tooltip không bao giờ mồ côi. */
+      chưa vào thì mờ đậm; trùng ĐA id → .is-hit (xanh lá). Mỗi lần cập nhật chỉ
+      toggle class + đổi [N], bố cục đứng yên. */
   function updateTMergeUi() {
     if (!tMergeEl) return;
     if (!tResults.length) {
@@ -9413,8 +9613,11 @@
     buildTMergeOnce();
     if (!tMergeChipEls) return;
     tMergeEl.hidden = false;
+    const ansSet = tMergeAnswerSet();
+    const ansSig = ansSet ? Array.from(ansSet).sort((a, b) => a - b).join(',') : '';
     const sig = nums.join(',') + '|' + tResults.length
-      + '|' + Array.from(tMergeSel).sort((a, b) => a - b).join(',');
+      + '|' + Array.from(tMergeSel).sort((a, b) => a - b).join(',')
+      + '|a:' + ansSig;
     const infoTxt = tMergeSel.size
       ? 'đang lọc: hiện ' + tMergeVisibleCount().toLocaleString('en-US')
         + '/' + tResults.length.toLocaleString('en-US') + ' hàng'
@@ -9435,6 +9638,9 @@
       if (el.classList.contains('is-in') !== isIn) el.classList.toggle('is-in', isIn);
       const isOn = tMergeSel.has(n);
       if (el.classList.contains('is-on') !== isOn) el.classList.toggle('is-on', isOn);
+      /* Trùng ĐA (id có result): luôn .is-hit — chưa vào Δimerge = xanh siêu mờ; đã vào = xanh đậm. */
+      const isHit = !!(ansSet && ansSet.has(n));
+      if (el.classList.contains('is-hit') !== isHit) el.classList.toggle('is-hit', isHit);
     }
   }
 
@@ -9456,8 +9662,10 @@
       + 'id ' + r.focusId + (r.mode === 'sim' ? ' (rỗng cuối)' : '')
       + ' · %break ' + r.prevPct.toFixed(1) + '% → ' + r.pct.toFixed(1) + '%'
       + ' <span class="t-trend-' + r.trend + '">' + (r.trend === 'up' ? '▲tăng' : '▼giảm') + '</span>'
-      + ' · |Δ%break|=' + r.dBreak.toFixed(1) + ' · |Δi|=' + r.di
+      + ' · |Δ%break|=<span class="t-dbreak t-trend-' + r.trend + '">'
+      + r.dBreak.toFixed(1) + '%</span> · |Δi|=' + r.di
       + ' · newlyin=' + r.niCount
+      + ' · i[n]=' + (r.poolN != null ? r.poolN : (r.pool ? r.pool.length : 0))
       + '</div>'
       + '<div class="th-tl-row">'
       + '<span class="tl-tr"><span class="tl-t">' + r.t + '%</span>'
@@ -9801,16 +10009,23 @@
       } else {
         tkYieldSince = 0;
       }
-      const budget = document.hidden ? 320 : 14;
+      if (tShouldYieldToUi()) {
+        const wait = Math.max(16, tUiPauseUntil - performance.now());
+        scheduleTWork(step, wait);
+        return;
+      }
+      /* Tab hiện + popup T mở: nhịp rất ngắn để click JSON/Δimerge không phải chờ. */
+      const budget = document.hidden ? 320 : (isTPopupOpen() ? 6 : 10);
       const t0 = performance.now();
       while (gc < total && !tStop && performance.now() - t0 < budget) {
+        if (tShouldYieldToUi()) break;
         const combo = plan.next();
         if (!combo) { gc = total; break; }
         const mine = tShardOwns(gc, total, sh.shardCount, deadShard);
         gc++;
         if (!mine) continue;
         localDone++;
-        const hits = tEvalOneCombo(combo, cfg.focus, cfg.trendWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, live, seq, cfg.thThuanSnap);
+        const hits = tEvalOneCombo(combo, cfg.focus, cfg.trendWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
         if ((localDone & 15) === 0) tTrimMemos();
         for (let h = 0; h < hits.length; h++) {
           const hit = hits[h];
@@ -9853,7 +10068,6 @@
          trạng thái tắt theo từng toggle ràng buộc ở dưới. */
       tBack.querySelectorAll('.t-form input, .t-form .tp-spin-btn, .t-form .t-seg button, .t-head .t-seg button')
         .forEach((el) => { el.disabled = false; });
-      if (tJsonBtn) tJsonBtn.disabled = false;
       if (tJsonText) tJsonText.disabled = false;
       [tThSegEl, tTrendSegEl].forEach((seg) => {
         if (seg) seg.querySelectorAll('button').forEach((b) => { b.disabled = false; });
@@ -9867,7 +10081,7 @@
     }
     tBack.querySelectorAll('.t-form input, .t-form .tp-spin-btn, .t-form .t-seg button, .t-head .t-seg button')
       .forEach((el) => { el.disabled = true; });
-    if (tJsonBtn) tJsonBtn.disabled = true;
+    /* Nút <> vẫn mở/đóng xem JSON được; chỉ khóa sửa nội dung JSON trong lúc lọc. */
     if (tJsonText) tJsonText.disabled = true;
   }
 
@@ -9901,6 +10115,7 @@
       rd: tRangeResolve('dBreak'),
       rdi: tRangeResolve('di'),
       rni: tRangeResolve('newlyIn'),
+      rpn: tRangeResolve('poolN'),
       xLo: tState.xLo,
       xHi: tState.xHi,
       mulLo: tState.tailMulLo,
@@ -9972,7 +10187,7 @@
           roster: roster,
           focus: cfgBase.focus,
           ranges: cfgBase.resolvedRanges,
-          rb: cfgBase.rb, rd: cfgBase.rd, rdi: cfgBase.rdi, rni: cfgBase.rni,
+          rb: cfgBase.rb, rd: cfgBase.rd, rdi: cfgBase.rdi, rni: cfgBase.rni, rpn: cfgBase.rpn,
           xLo: cfgBase.xLo, xHi: cfgBase.xHi, mulLo: cfgBase.mulLo, mulHi: cfgBase.mulHi,
           xOn: cfgBase.xOn, xtOn: cfgBase.xtOn, trend: cfgBase.trendWant, thThuan: cfgBase.thThuanSnap
         });
@@ -10026,6 +10241,7 @@
       focus: { mode: msg.focus.mode, focusIdx: fIdx, focusId: msg.focus.focusId },
       resolvedRanges: msg.ranges,
       rb: msg.rb, rd: msg.rd, rdi: msg.rdi, rni: msg.rni,
+      rpn: msg.rpn || { lo: 0, hi: 35 },
       xLo: tState.xLo,
       xHi: tState.xHi,
       mulLo: tState.tailMulLo,
@@ -10337,20 +10553,27 @@
       } else {
         yieldSince = 0;
       }
-      /* Ngân sách mỗi nhịp khi tab hiện: 14ms (trước 48ms) — nhịp ngắn thì nút Dừng
-         và click Δimerge mới chen vào được giữa các nhịp, UI không đơ. Tab ẩn giữ
-         nhịp dài cho nhanh. tStop kiểm tra NGAY trong vòng lặp: bấm Dừng là nhịp
-         đang chạy thoát sau combo hiện tại, không chờ hết ngân sách. */
-      const budget = document.hidden ? 320 : 14;
+      /* Đang chạm UI popup (JSON/Δimerge/…) hoặc trình duyệt báo có input chờ
+         → nhường ngay, hẹn lại sau khoảng pause để click không bị xếp sau combo nặng. */
+      if (tShouldYieldToUi()) {
+        const wait = Math.max(16, tUiPauseUntil - performance.now());
+        scheduleTWork(step, wait);
+        return;
+      }
+      /* Ngân sách mỗi nhịp khi tab hiện: ngắn (6–10ms). 1 combo vẫn có thể nặng hơn
+         ngân sách (chỉ cắt được giữa các combo) — nhờ tBumpUiPause + isInputPending
+         click vẫn chen vào được. Tab ẩn giữ nhịp dài. */
+      const budget = document.hidden ? 320 : (isTPopupOpen() ? 6 : 10);
       const t0 = performance.now();
       while (gc < total && !tStop && performance.now() - t0 < budget) {
+        if (tShouldYieldToUi()) break;
         const combo = plan.next();
         if (!combo) { gc = total; break; }
         const mine = tShardOwns(gc, total, shardCount, shardIndex);
         gc++;
         if (!mine) continue;
         localDone++;
-        const hits = tEvalOneCombo(combo, focus, cfg.trendWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, live, seq, cfg.thThuanSnap);
+        const hits = tEvalOneCombo(combo, focus, cfg.trendWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
         if ((localDone & 15) === 0) tTrimMemos();
         for (let h = 0; h < hits.length; h++) {
           const hit = hits[h];
@@ -10424,9 +10647,8 @@
     } catch (e) { /* ignore */ }
   }
 
-  function scheduleTWork(fn) {
+  function scheduleTWork(fn, delayMs) {
     tContinueJob = fn;
-    /* Hẹn kép rAF + timeout: rAF bị treo khi tab ẩn/popup đóng → đứt chuỗi; timeout dự phòng giữ job sống. */
     let fired = false;
     const go = () => {
       if (fired || tContinueJob !== fn) return;
@@ -10434,6 +10656,12 @@
       tContinueJob = null;
       fn();
     };
+    /* Nhường UI: chỉ setTimeout(delay) — đừng rAF ngay kẻo lại cướp khung hình của click. */
+    if (delayMs > 0) {
+      setTimeout(go, delayMs);
+      return;
+    }
+    /* Hẹn kép rAF + timeout: rAF bị treo khi tab ẩn/popup đóng → đứt chuỗi; timeout dự phòng giữ job sống. */
     requestAnimationFrame(go);
     setTimeout(go, 60);
   }
@@ -10539,12 +10767,15 @@
     });
   });
   if (tBack) {
+    /* Capture: vừa chạm UI popup là báo job nhường — trước cả lúc handler click chạy. */
+    tBack.addEventListener('pointerdown', () => { if (tJobActive) tBumpUiPause(180); }, true);
     tBack.addEventListener('keydown', (e) => {
+      if (tJobActive) tBumpUiPause(180);
       if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') {
         e.preventDefault();
         startTFilter();
       }
-    });
+    }, true);
   }
   window.addEventListener('resize', () => { if (isTPopupOpen()) placeTPopupTop(); });
   if (tRunBtn) tRunBtn.addEventListener('click', startTFilter);
@@ -10676,8 +10907,8 @@
   }
 
   /* Δimerge: click chữ Δimerge → copy chuỗi a,b,c tăng dần;
-     click [N] → copy mỗi số một hàng "số:số hàng chứa" — cả hai đều lấy số LIỆU TẠI ĐÚNG
-     THỜI ĐIỂM CLICK (kể cả lúc job đang chạy dở); click số → toggle lọc phụ. */
+     click [N] → copy mỗi số một hàng "số:số hàng chứa";
+     click số → chọn ĐÚNG 1 số (click lại = bỏ chọn; click số khác = đổi sang số đó). */
   if (tMergeEl) {
     tMergeEl.addEventListener('click', (e) => {
       const cntEl = e.target && e.target.closest ? e.target.closest('.t-merge-count') : null;
@@ -10704,14 +10935,19 @@
       if (!btn) return;
       const n = Number(btn.getAttribute('data-t-merge-num'));
       if (!Number.isFinite(n)) return;
-      if (tMergeSel.has(n)) tMergeSel.delete(n);
-      else {
+      if (tMergeSel.has(n)) {
+        tMergeSel.clear(); /* click lại số đang chọn → bỏ chọn */
+      } else {
         if (!tMergeCntMap.has(n)) return; /* ô mờ: chưa có trong Δimerge, không lọc được */
+        tMergeSel.clear(); /* chỉ 1 số: bỏ số cũ rồi chọn số mới */
         tMergeSel.add(n);
       }
       tMergeSig = '';
-      renderTResults();
-      updateTMergeUi(); /* click tay → cập nhật sáng/tắt ô ngay */
+      /* Highlight chip NGAY; vẽ lại bảng kết quả để khung sau — đang lọc thì cũng
+         tạm nhường job ~220ms để click không đợi hết combo + không đợi vẽ 400 hàng. */
+      updateTMergeUi();
+      tBumpUiPause(220);
+      requestAnimationFrame(() => { renderTResults(); });
     });
   }
   if (tResultsEl) {
@@ -18337,6 +18573,126 @@
         'Không đọc được data.json cùng cấp. Mở trang qua http (Live Server / python -m http.server) trong thư mục có file HTML + data.json.'
       );
     });
+
+  /**
+   * Quét lưới cấu hình T: tail cố định, max |Δimerge| và Δimerge ∩ đáp án = ∅.
+   * Dùng từ DevTools: await __tMergeOptSearch({ focusId: 964, tail: 8 })
+   * Trả về { best, top, answer, tried }.
+   */
+  window.__tMergeOptSearch = async function tMergeOptSearch(opts) {
+    opts = opts || {};
+    if (!dataCtx || !dataCtx.ids) throw new Error('Chưa có dataCtx — đợi trang load xong.');
+    const focusId = Number(opts.focusId != null ? opts.focusId : 964);
+    const tailFixed = Number(opts.tail != null ? opts.tail : 8);
+    let focusIdx = -1;
+    for (let i = 0; i < dataCtx.ids.length; i++) {
+      if (dataCtx.ids[i] === focusId) { focusIdx = i; break; }
+    }
+    if (focusIdx < 0) throw new Error('Không thấy id ' + focusId);
+    const answer = dataCtx.rowNums[focusIdx] || [];
+    if (!answer.length) throw new Error('Id ' + focusId + ' không có đáp án (rỗng).');
+    const ansSet = new Set(answer);
+    const focus = { mode: 'hist', focusIdx: focusIdx, focusId: focusId };
+    const live = tLiveSnapshot();
+    const thThuan = opts.threshold === '>=' ? true : false; /* mặc định <= */
+    const trendWant = opts.trend === 'up' ? 'up' : 'down';
+    const wMax = trialWtailMax();
+
+    const mulPairs = opts.mulPairs || [
+      [8, 16], [10, 18], [10, 20], [12, 20], [12, 24], [14, 22], [15, 25],
+      [8, 20], [10, 25], [6, 15], [5, 12], [16, 28], [18, 30], [10, 15]
+    ];
+    const xBands = opts.xBands || [
+      [0.25, 0.5], [0.3, 0.55], [0.35, 0.6], [0.4, 0.65], [0.2, 0.45],
+      [0.35, 0.55], [0.3, 0.6], [0.4, 0.7], [0.15, 0.4], [0.45, 0.7]
+    ];
+    const dBreakLos = opts.dBreakLos || [2, 3, 4, 5, 6, 8];
+    const rb = { lo: 0, hi: 100 };
+    const rdi = { lo: 1, hi: 1 };
+    const rni = { lo: 1, hi: 1 };
+    const rpn = { lo: 0, hi: 35 };
+
+    function evalCfg(mulLo, mulHi, xLo, xHi, dBreakLo) {
+      const resolved = {
+        tail: { lo: tailFixed, hi: tailFixed },
+        wtail: { lo: TRIAL_WTAIL_MIN, hi: wMax },
+        wfreq: { lo: TRIAL_WFREQ_MIN, hi: wMax }
+      };
+      const plan = makeTComboCursor(resolved, xLo, xHi, mulLo, mulHi);
+      const merge = new Set();
+      let hits = 0;
+      let overlap = false;
+      let combo = null;
+      const seq = tSeq;
+      const rd = { lo: dBreakLo, hi: 100 };
+      while ((combo = plan.next())) {
+        const hs = tEvalOneCombo(combo, focus, trendWant, rb, rd, rdi, rni, rpn, live, seq, thThuan);
+        for (let h = 0; h < hs.length; h++) {
+          hits++;
+          const dn = hs[h].deltaNums || [];
+          for (let k = 0; k < dn.length; k++) {
+            const n = dn[k];
+            if (ansSet.has(n)) { overlap = true; break; }
+            merge.add(n);
+          }
+          if (overlap) break;
+        }
+        if (overlap) break;
+      }
+      if (overlap) return null;
+      return {
+        mergeSize: merge.size,
+        hits: hits,
+        merge: Array.from(merge).sort((a, b) => a - b),
+        cfg: {
+          id: String(focusId),
+          threshold: thThuan ? '>=' : '<=',
+          trend: trendWant,
+          x: { lo: xLo, hi: xHi, on: true },
+          wtailMul: { lo: mulLo, hi: mulHi, on: true },
+          ranges: {
+            tail: { lo: tailFixed, hi: tailFixed, on: true },
+            wtail: { lo: TRIAL_WTAIL_MIN, hi: wMax, on: true },
+            wfreq: { lo: TRIAL_WFREQ_MIN, hi: wMax, on: true },
+            breakPct: { lo: null, hi: null, on: true },
+            dBreak: { lo: dBreakLo, hi: null, on: true },
+            di: { lo: 1, hi: 1, on: true },
+            newlyIn: { lo: 1, hi: 1, on: true },
+            poolN: { lo: 5, hi: 35, on: false }
+          }
+        }
+      };
+    }
+
+    const top = [];
+    let tried = 0;
+    const t0 = performance.now();
+    for (let mi = 0; mi < mulPairs.length; mi++) {
+      const mulLo = mulPairs[mi][0];
+      const mulHi = mulPairs[mi][1];
+      for (let xi = 0; xi < xBands.length; xi++) {
+        const xLo = xBands[xi][0];
+        const xHi = xBands[xi][1];
+        for (let di = 0; di < dBreakLos.length; di++) {
+          tried++;
+          const r = evalCfg(mulLo, mulHi, xLo, xHi, dBreakLos[di]);
+          if (!r || r.mergeSize <= 0) continue;
+          top.push(r);
+          /* Nhường UI mỗi vài chục lần */
+          if ((tried & 7) === 0) await new Promise((res) => setTimeout(res, 0));
+        }
+      }
+    }
+    top.sort((a, b) => (b.mergeSize - a.mergeSize) || (b.hits - a.hits));
+    const best = top[0] || null;
+    return {
+      answer: answer.slice(),
+      tried: tried,
+      ms: Math.round(performance.now() - t0),
+      best: best,
+      top: top.slice(0, 8)
+    };
+  };
 })();
 </script>
 <!-- Đồng hồ loading: cuối body, z-index trên mọi popup -->
