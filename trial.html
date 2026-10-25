@@ -2081,11 +2081,21 @@
       font-size: 11px;
       font-weight: 700;
       color: #334155;
-      padding: 4px 2px 6px;
+      padding: 10px 2px 12px; /* chừa chỗ scale(1.5) nổi lên, không clip */
       line-height: 1.9;
+      overflow: visible;
     }
 
-    /* 35 ô cố định 1..35: chưa vào Δimerge → mờ đậm; vào rồi → sáng rõ; đang chọn lọc → teal. */
+    /* Khung viền bọc Δimerge[N]={1..35} — outline/box-shadow không chiếm chỗ → không đổi bố cục. */
+    .t-merge-box {
+      display: block;
+      outline: 2px solid #0284c7;
+      outline-offset: 2px;
+      border-radius: 8px;
+      box-shadow: 0 0 0 1px rgba(2, 132, 199, .4), 0 0 12px rgba(2, 132, 199, .3);
+    }
+
+    /* 35 ô cố định 1..35: chưa vào Δimerge → mờ đậm; vào rồi → sáng rõ; đang chọn lọc → xanh dương nổi. */
     .t-merge-num {
       border: 1px solid #e2e8f0;
       background: #eef2f7;
@@ -2098,6 +2108,12 @@
       padding: 0;
       margin: 0 1px;
       cursor: pointer;
+      position: relative;
+      z-index: 0;
+      transform: none;
+      transform-origin: center center;
+      box-shadow: none;
+      transition: transform .12s ease, box-shadow .12s ease;
     }
 
     .t-merge-num.is-in {
@@ -2131,19 +2147,46 @@
       background: #15803d;
     }
 
-    .t-merge-num.is-on {
+    /* Chuột phải đánh dấu (đã append): nền đỏ chữ trắng — không ảnh hưởng lọc. */
+    .t-merge-num.is-mark {
       opacity: 1;
-      background: #0f766e;
-      border-color: #0f766e;
+      background: #dc2626;
+      border-color: #b91c1c;
       color: #fff;
     }
 
-    /* Đang chọn lọc + trùng ĐA → xanh đậm hơn (vẫn chữ trắng). */
-    .t-merge-num.is-on.is-hit {
+    .t-merge-num.is-mark:hover {
+      background: #b91c1c;
+    }
+
+    /* Đang chọn lọc: xanh dương + scale 1.5 nổi trên (transform không đẩy layout). */
+    .t-merge-num.is-on {
       opacity: 1;
-      background: #15803d;
-      border-color: #14532d;
+      background: #0284c7;
+      border-color: #0369a1;
       color: #fff;
+      z-index: 6;
+      transform: scale(1.5);
+      box-shadow: 0 2px 10px rgba(2, 132, 199, .55);
+    }
+
+    .t-merge-num.is-on:hover {
+      background: #0369a1;
+    }
+
+    /* Chọn lọc + trùng ĐA: giữ xanh dương (không lẫn xanh lá ĐA). */
+    .t-merge-num.is-on.is-hit {
+      background: #0284c7;
+      border-color: #0369a1;
+      color: #fff;
+    }
+
+    /* Chọn lọc + đánh dấu đỏ: đỏ + vẫn scale nổi. */
+    .t-merge-num.is-on.is-mark {
+      background: #dc2626;
+      border-color: #b91c1c;
+      color: #fff;
+      box-shadow: 0 2px 10px rgba(220, 38, 38, .5);
     }
 
     .t-merge-info {
@@ -4153,12 +4196,12 @@
               </div>
             </div>
             <div class="tp-item"
-              title="Cửa sổ lịch sử thu thập cạnh (lookback) cho [tail] · trần = ⌈id cuối có ĐA / 2⌉">
+              title="Cửa sổ lịch sử thu thập cạnh (lookback) cho [tail] · trần = id cuối có ĐA (≠ rỗng cuối)">
               <span class="tp-label">wtail</span>
               <input class="tp-val" id="trialWtailVal" type="number" min="4" max="9999" value="20" inputmode="numeric"
                 aria-label="wtail" />
               <div class="tp-spin" role="group" aria-label="Tăng giảm wtail">
-                <button type="button" class="tp-spin-btn" id="trialWtailInc" title="Tăng wtail (trần ⌈id cuối ĐA / 2⌉)"
+                <button type="button" class="tp-spin-btn" id="trialWtailInc" title="Tăng wtail (trần = id cuối ĐA)"
                   aria-label="tăng wtail">▴</button>
                 <button type="button" class="tp-spin-btn" id="trialWtailDec" title="Giảm wtail (tối thiểu 4)"
                   aria-label="giảm wtail">▾</button>
@@ -4543,7 +4586,7 @@
       let MIN_ID = trialWtail + 1;
       const TRIAL_TAIL_MIN = 2;
       const TRIAL_WTAIL_MIN = 4; /* đủ cho [tail]≥2 vì max=[wtail/2] */
-      /** Fallback trần wtail trước khi có data (vd 954 → ⌈954/2⌉=477). */
+      /** Fallback trần wtail trước khi có data. */
       const TRIAL_WTAIL_MAX_FALLBACK = 99;
       const TRIAL_WFREQ_MIN = 1;
 
@@ -4554,8 +4597,8 @@
         return Math.max(lo, Math.min(hi, v));
       }
       /**
-       * Trần wtail = ⌈id kỳ cuối có đáp án / 2⌉ (làm tròn lên).
-       * Thí dụ id=954 → 477.
+       * Trần wtail = id kỳ cuối có đáp án (≠ kỳ rỗng cuối).
+       * Thí dụ id ĐA mới nhất = 965 → trần wtail = 965.
        */
       function trialWtailMax() {
         let lastId = null;
@@ -4570,7 +4613,7 @@
         if (lastId == null || !(lastId > 0)) {
           return Math.max(TRIAL_WTAIL_MIN, TRIAL_WTAIL_MAX_FALLBACK);
         }
-        return Math.max(TRIAL_WTAIL_MIN, Math.ceil(lastId / 2));
+        return Math.max(TRIAL_WTAIL_MIN, lastId | 0);
       }
       function trialTailMax() {
         return Math.floor(trialWtail / 2);
@@ -9709,6 +9752,8 @@
       const tMergeTip = document.getElementById('tMergeTip');
       /** Số đang chọn ở dòng Δimerge — hàng hiện ra phải chứa TẤT CẢ số đã chọn. */
       const tMergeSel = new Set();
+      /** Số đã chuột phải đánh dấu đỏ (chỉ trên ô đã append .is-in) — không ảnh hưởng lọc. */
+      const tMergeMark = new Set();
       let tMergeSig = '';
       /** Chuỗi Δimerge hiện tại (sort tăng dần) để copy khi click chữ Δimerge. */
       let tMergeNumsCache = [];
@@ -9893,8 +9938,8 @@
             on: r.on !== false
           };
         });
+        /* Không ghi id: id là focus do người dùng chọn, không phải trọng số/cfg lọc. */
         return {
-          id: tState.id || '',
           threshold: tState.thThuan ? '>=' : '<=',
           trend: tState.trend,
           x: {
@@ -9915,7 +9960,7 @@
       /** Áp 1 object tham số (từ ô JSON hoặc tab khác) lên tState + bảng điều khiển. */
       function applyTParamsObj(p) {
         if (!p || typeof p !== 'object') return false;
-        if (typeof p.id === 'string' || typeof p.id === 'number') tState.id = String(p.id);
+        /* Bỏ qua p.id — id không thuộc JSON trọng số; giữ nguyên ô id hiện tại. */
         if (typeof p.thThuan === 'boolean') tState.thThuan = p.thThuan;
         else if (p.threshold != null) {
           const s = String(p.threshold).toLowerCase();
@@ -10838,6 +10883,8 @@
       let tRenderedCount = 0;
       let tRenderedVisible = 0;
       let tCapNoteShown = false;
+      /** data-t-idx hàng kết quả đang áp (nền xanh giữ đến khi click hàng khác / job mới). */
+      let tAppliedIdx = -1;
 
       /** Hàng có qua lọc phụ Δimerge không (chứa TẤT CẢ số đã chọn). */
       function tRowPassesMerge(r) {
@@ -10874,10 +10921,12 @@
           if (n > 1) chips += ',';
           chips += '<button type="button" class="t-merge-num" data-t-merge-num="' + n + '">' + n + '</button>';
         }
-        tMergeEl.innerHTML = '<span class="t-merge-label" title="Click: copy chuỗi Δimerge (a,b,c tăng dần)">Δimerge</span>'
+        tMergeEl.innerHTML = '<span class="t-merge-box">'
+          + '<span class="t-merge-label" title="Click: copy chuỗi Δimerge (a,b,c tăng dần)">Δimerge</span>'
           + '<span class="t-merge-count" title="Click: copy mỗi số một hàng (số:số hàng chứa) — sort giảm dần theo số hàng">[0]</span>={'
           + chips
-          + '}<span class="t-merge-info"></span>';
+          + '}</span>'
+          + '<span class="t-merge-info"></span>';
         tMergeChipEls = {};
         tMergeEl.querySelectorAll('[data-t-merge-num]').forEach((el) => {
           tMergeChipEls[el.getAttribute('data-t-merge-num')] = el;
@@ -10935,6 +10984,7 @@
         const ansSig = ansSet ? Array.from(ansSet).sort((a, b) => a - b).join(',') : '';
         const sig = nums.join(',') + '|' + tResults.length
           + '|' + Array.from(tMergeSel).sort((a, b) => a - b).join(',')
+          + '|m:' + Array.from(tMergeMark).sort((a, b) => a - b).join(',')
           + '|a:' + ansSig;
         const infoTxt = tMergeSel.size
           ? 'đang lọc: hiện ' + tMergeVisibleCount().toLocaleString('en-US')
@@ -10959,6 +11009,10 @@
           /* Trùng ĐA (id có result): luôn .is-hit — chưa vào Δimerge = xanh siêu mờ; đã vào = xanh đậm. */
           const isHit = !!(ansSet && ansSet.has(n));
           if (el.classList.contains('is-hit') !== isHit) el.classList.toggle('is-hit', isHit);
+          /* Đánh dấu đỏ chỉ hiện khi số đã append; rời chuỗi → gỡ khỏi set. */
+          if (!isIn && tMergeMark.has(n)) tMergeMark.delete(n);
+          const isMark = isIn && tMergeMark.has(n);
+          if (el.classList.contains('is-mark') !== isMark) el.classList.toggle('is-mark', isMark);
         }
       }
 
@@ -10974,7 +11028,8 @@
           r.pool, r.newlyIn, new Set(), r.prevPool, null, null, r.sizeChg, r.tlLabel,
           { trend: r.trend, prevPct: r.prevPct, pct: r.pct }
         );
-        return '<div class="t-result" data-t-idx="' + idx + '" title="Click: set header threshold + tail/wtail/wfreq của hàng này">'
+        return '<div class="t-result' + (idx === tAppliedIdx ? ' is-applied' : '')
+          + '" data-t-idx="' + idx + '" title="Click: set header threshold + tail/wtail/wfreq của hàng này">'
           + '<div class="t-result-head">'
           + '<span class="t-combo">' + r.tail + ',' + r.wtail + ',' + r.wfreq + '</span> · '
           + 'id ' + r.focusId + (r.mode === 'sim' ? ' (rỗng cuối)' : '')
@@ -11728,9 +11783,11 @@
         tRenderedVisible = 0;
         tCapNoteShown = false;
         tMergeSel.clear();
+        tMergeMark.clear();
         tMergeSig = '';
         tMergeCntMap = new Map();
         tMergeCountedIdx = 0;
+        tAppliedIdx = -1;
         tMergeLastRenderMs = 0;
         tMergeRenderPending = false;
         if (tMergeRenderTimer) { clearTimeout(tMergeRenderTimer); tMergeRenderTimer = null; }
@@ -12267,8 +12324,21 @@
 
       /* Δimerge: click chữ Δimerge → copy chuỗi a,b,c tăng dần;
          click [N] → copy mỗi số một hàng "số:số hàng chứa";
-         click số → chọn ĐÚNG 1 số (click lại = bỏ chọn; click số khác = đổi sang số đó). */
+         click số → chọn ĐÚNG 1 số (click lại = bỏ chọn; click số khác = đổi sang số đó);
+         chuột phải số đã append → bật/tắt nền đỏ (đánh dấu, không lọc). */
       if (tMergeEl) {
+        tMergeEl.addEventListener('contextmenu', (e) => {
+          const btn = e.target && e.target.closest ? e.target.closest('[data-t-merge-num]') : null;
+          if (!btn) return;
+          e.preventDefault();
+          const n = Number(btn.getAttribute('data-t-merge-num'));
+          if (!Number.isFinite(n)) return;
+          if (!tMergeCntMap.has(n)) return; /* ô mờ: chưa append → không đánh dấu */
+          if (tMergeMark.has(n)) tMergeMark.delete(n);
+          else tMergeMark.add(n);
+          tMergeSig = '';
+          updateTMergeUi();
+        });
         tMergeEl.addEventListener('click', (e) => {
           const cntEl = e.target && e.target.closest ? e.target.closest('.t-merge-count') : null;
           if (cntEl) {
@@ -12318,12 +12388,16 @@
         tResultsEl.addEventListener('click', (e) => {
           const row = e.target && e.target.closest ? e.target.closest('[data-t-idx]') : null;
           if (!row) return;
-          const r = tResults[Number(row.getAttribute('data-t-idx')) | 0];
-          if (r) {
-            applyTResult(r);
-            row.classList.add('is-applied');
-            setTimeout(() => row.classList.remove('is-applied'), 700);
+          const idx = Number(row.getAttribute('data-t-idx')) | 0;
+          const r = tResults[idx];
+          if (!r) return;
+          applyTResult(r);
+          if (tAppliedIdx >= 0 && tResultsEl) {
+            const prev = tResultsEl.querySelector('[data-t-idx="' + tAppliedIdx + '"]');
+            if (prev) prev.classList.remove('is-applied');
           }
+          tAppliedIdx = idx;
+          row.classList.add('is-applied');
         });
       }
 
@@ -19229,7 +19303,7 @@
         }
 
         dataCtx = { rows, rowNums, ids, candsCache, holdMasks, violateMasks };
-        /* Có id cuối ĐA → trần wtail = ⌈id/2⌉; siết UI. */
+        /* Có id cuối ĐA → trần wtail = id đó; siết UI. */
         enforceTrialConstraints();
         syncMinIdFromWtail();
         syncTrialParamUi();
@@ -19526,7 +19600,7 @@
         if (trialTailDecEl) trialTailDecEl.disabled = trialTail <= TRIAL_TAIL_MIN;
         if (trialWtailIncEl) {
           trialWtailIncEl.disabled = trialWtail >= wMax;
-          trialWtailIncEl.title = 'Tăng wtail (trần ⌈id cuối ĐA / 2⌉ = ' + wMax + ')';
+          trialWtailIncEl.title = 'Tăng wtail (trần = id cuối ĐA = ' + wMax + ')';
         }
         if (trialWtailDecEl) trialWtailDecEl.disabled = trialWtail <= TRIAL_WTAIL_MIN;
         if (trialWfreqIncEl) {
