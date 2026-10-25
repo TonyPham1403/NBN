@@ -1996,12 +1996,28 @@
 
     /* Progress lọc — dưới status, trên đồng hồ; chia đều theo số tab. */
     .t-progress {
+      position: relative;
       margin: 2px 0 4px;
       height: 10px;
     }
 
     .t-progress[hidden] {
       display: none;
+    }
+
+    /* % tổng — absolute dưới-phải thanh, không chiếm chỗ → không đổi bố cục. */
+    .t-progress-pct {
+      position: absolute;
+      right: 0;
+      top: calc(100% + 1px);
+      font-family: ui-monospace, Consolas, Menlo, monospace;
+      font-size: 10px;
+      font-weight: 800;
+      color: #0f766e;
+      line-height: 1;
+      white-space: nowrap;
+      pointer-events: none;
+      z-index: 2;
     }
 
     .t-progress-track {
@@ -4568,6 +4584,7 @@
       </div>
       <div class="t-progress" id="tProgress" hidden aria-hidden="true">
         <div class="t-progress-track" id="tProgressTrack"></div>
+        <span class="t-progress-pct" id="tProgressPct" aria-hidden="true">0%</span>
       </div>
       <div class="t-elapsed" id="tElapsed" hidden></div>
       <div class="t-merge" id="tMerge" hidden></div>
@@ -11374,6 +11391,7 @@
       const tElapsedEl = document.getElementById('tElapsed');
       const tProgressEl = document.getElementById('tProgress');
       const tProgressTrackEl = document.getElementById('tProgressTrack');
+      const tProgressPctEl = document.getElementById('tProgressPct');
       /** @type {{ total: number, shardCount: number, fills: HTMLElement[] } | null} */
       let tProgressMeta = null;
       /** Solo: tiến độ local (shared dùng tShared.progress). */
@@ -11453,9 +11471,20 @@
         if (tProgressTrackEl) tProgressTrackEl.innerHTML = '';
       }
 
+      /**
+       * Vẽ 2 phía mỗi đoạn theo progress thật.
+       * Chỉ khít 100% khi lọc xong thật (không phải dừng giữa chừng).
+       */
       function syncTProgress() {
         if (!tProgressMeta || !tProgressMeta.fills.length) return;
         const { total, shardCount, fills } = tProgressMeta;
+        let covered = 0;
+        const stopped = !!(tShared && tShared.reason === 'stopped');
+        /* Xong đủ: mọi shard done và không phải dừng giữa chừng. */
+        const fullyComplete = !stopped
+          && !!tShared
+          && tSharedDoneCount() >= shardCount
+          && (!!tShared.finalized || tSharedDoneCount() >= shardCount);
         for (let k = 0; k < fills.length; k++) {
           const slot = fills[k];
           const b = tShardBounds(total, shardCount, k);
@@ -11468,19 +11497,43 @@
           } else if (shardCount <= 1) {
             ownerDone = tSoloProgress;
           }
+          if (ownerDone > span) ownerDone = span;
+          if (helpDone > span) helpDone = span;
+          let sum = Math.min(span, ownerDone + helpDone);
+          /* Chỉ khi phủ đủ thật (hoặc job xong trọn) mới khít 2 phía — dừng giữa chừng giữ đúng chỗ cắt. */
+          const filled = sum >= span || (fullyComplete && !!tShared && tShared.done[k]);
+          if (filled && !stopped) {
+            covered += span;
+            if (helpDone < span - ownerDone) helpDone = span - ownerDone;
+            if (ownerDone + helpDone < span) ownerDone = span - helpDone;
+            sum = span;
+          } else {
+            covered += sum;
+          }
           const ownerPct = Math.max(0, Math.min(100, (100 * ownerDone) / span));
-          const helpPct = Math.max(0, Math.min(100, (100 * helpDone) / span));
+          let helpPct = Math.max(0, Math.min(100, (100 * helpDone) / span));
+          if (filled && !stopped && ownerPct + helpPct < 100) {
+            helpPct = Math.max(0, 100 - ownerPct);
+          }
           if (slot.ownerRev) {
             slot.rev.style.width = ownerPct.toFixed(2) + '%';
             slot.rev.classList.remove('is-help');
             slot.fwd.style.width = helpPct.toFixed(2) + '%';
-            slot.fwd.classList.toggle('is-help', helpDone > 0);
+            slot.fwd.classList.toggle('is-help', helpPct > 0);
           } else {
             slot.fwd.style.width = ownerPct.toFixed(2) + '%';
             slot.fwd.classList.remove('is-help');
             slot.rev.style.width = helpPct.toFixed(2) + '%';
-            slot.rev.classList.toggle('is-help', helpDone > 0);
+            slot.rev.classList.toggle('is-help', helpPct > 0);
           }
+        }
+        if (tProgressPctEl) {
+          const tot = Math.max(1, total | 0);
+          let pct = Math.max(0, Math.min(100, (100 * covered) / tot));
+          if (fullyComplete && !stopped) pct = 100;
+          tProgressPctEl.textContent = (pct >= 100 && fullyComplete && !stopped)
+            ? '100%'
+            : pct.toFixed(1) + '%';
         }
       }
 
@@ -11549,43 +11602,62 @@
         tContinueJob = null;
         if (tStopBtn) tStopBtn.hidden = true;
         if (tRunBtn) tRunBtn.hidden = false;
+        /* Snap progress đủ 100% + khít fill 2 phía (kể cả nghịch→thuận). */
+        syncTProgress();
         if (tStatusEl) tStatusEl.textContent = tSharedFinalText();
         tFreeMemos();
         renderTResults();
         if (pendingScanTlHighlight) refreshOpenPopupAfterThreshold();
       }
 
-      /** Tab xong phần mình ngay → hỗ trợ shard còn lại từ phía ĐỐI DIỆN (gặp nhau giữa đoạn).
-          Hit trùng với tab kia bị khử bằng tHitKey. */
+      /**
+       * Cặp hỗ trợ kề nhau: (0↔1) (2↔3) (4↔5)… — thuận1↔nghịch1, thuận2↔nghịch2…
+       * Tab lẻ cuối (vd 5 tab → shard 4) không có cặp → không hỗ trợ ai.
+       */
+      function tShardHelpPartner(shardIndex, shardCount) {
+        if (shardCount < 2) return -1;
+        if ((shardIndex % 2) === 0) {
+          const p = shardIndex + 1;
+          return p < shardCount ? p : -1;
+        }
+        return shardIndex - 1;
+      }
+
+      /** Tab xong phần mình → chỉ hỗ trợ ĐÚNG cặp kề (không lấn cặp khác). */
       function tSharedTryHelp() {
         const sh = tShared;
         if (!sh || sh.finalized || !sh.localDone || tStop) return;
         if (sh.helpingShard != null) return;
-        for (let k = 0; k < sh.shardCount; k++) {
-          if (k === sh.shardIndex) continue;
-          if (sh.done[k]) continue;
-          if (sh.helpClaimed[k] != null) continue;
-          if (sh.takeoverClaimed[k]) continue;
-          sh.helpClaimed[k] = sh.shardIndex;
-          sh.helpingShard = k;
-          publishScanBc({
-            type: 't-job-help', jobId: sh.jobId,
-            shardIndex: k, helper: sh.shardIndex
-          });
-          if (tStatusEl) {
-            tStatusEl.textContent = 'xong phần mình · đang hỗ trợ tab '
-              + (k + 1) + tShardDirNote(tShardBounds(sh.total, sh.shardCount, k).reverse)
-              + '…' + tElapsedSuffix();
-          }
+        const k = tShardHelpPartner(sh.shardIndex, sh.shardCount);
+        if (k < 0) return;
+        if (sh.done[k]) return;
+        if (sh.helpMet && sh.helpMet[k]) return; /* đã gặp giữa — không start lại từ biên */
+        if (sh.helpClaimed[k] != null && sh.helpClaimed[k] !== sh.shardIndex) return;
+        if (sh.takeoverClaimed[k]) return;
+        try {
           startTHelp(k);
-          return;
+        } catch (err) {
+          if (sh.helpClaimed[k] === sh.shardIndex) sh.helpClaimed[k] = null;
+          sh.helpingShard = null;
+          if (typeof console !== 'undefined' && console.error) console.error(err);
         }
       }
 
+      function tHelpClearClaim(sh, targetShard, opts) {
+        if (!sh) return;
+        if (sh.helpingShard === targetShard) sh.helpingShard = null;
+        /* met: giữ helpClaimed + helpProgress, đánh dấu đã gặp giữa — không tryHelp lại từ 0. */
+        if (opts && opts.met) {
+          if (!sh.helpMet) sh.helpMet = {};
+          sh.helpMet[targetShard] = true;
+          return;
+        }
+        if (sh.helpClaimed[targetShard] === sh.shardIndex) sh.helpClaimed[targetShard] = null;
+      }
+
       /**
-       * Hỗ trợ shard target từ phía ngược chủ shard:
-       * chủ nghịch (rev) → helper đi thuận từ lo; chủ thuận → helper đi nghịch từ hi.
-       * Chỉ làm phần chủ chưa phủ: stop khi helpDone + ownerDone ≥ span.
+       * Hỗ trợ shard target từ phía ngược chủ shard (stream — không gom full list trước).
+       * chủ nghịch → helper thuận từ lo; chủ thuận → helper nghịch từ hi (gom đoạn theo lô rồi đảo).
        */
       function startTHelp(targetShard) {
         const sh = tShared;
@@ -11596,22 +11668,36 @@
         const seq = tSeq;
         const bounds = tShardBounds(total, sh.shardCount, targetShard);
         const span = Math.max(0, bounds.hi - bounds.lo);
+        if (span <= 0) return;
+        if (sh.helpMet && sh.helpMet[targetShard]) return;
         /* Chủ nghịch → helper thuận (lo→); chủ thuận → helper nghịch (hi→). */
         const helpReverse = !bounds.reverse;
-        const plan2 = tCfgCursor(cfg);
-        const list = [];
-        let g = 0;
-        while (g < bounds.hi) {
-          const c = plan2.next();
-          if (!c) break;
-          if (g >= bounds.lo) list.push(c);
-          g++;
-        }
-        if (helpReverse) list.reverse();
-        let ci = 0;
-        let helpDone = 0;
+        sh.helpClaimed[targetShard] = sh.shardIndex;
+        sh.helpingShard = targetShard;
+        publishScanBc({
+          type: 't-job-help', jobId: sh.jobId,
+          shardIndex: targetShard, helper: sh.shardIndex
+        });
+
+        const plan = tCfgCursor(cfg);
+        /* Resume từ mức đã giúp — không về 0 khi gặp giữa / đổi tab / start lại. */
+        let helpDone = Math.max(0, Math.min(span, sh.helpProgress[targetShard] || 0));
+        let gc = 0;
         let peerOut = [];
         let lastHelpAt = 0;
+        let phase = helpReverse ? 'collect' : 'seek';
+        let buf = helpReverse ? [] : null;
+        let ci = 0;
+        const runFromGc = bounds.lo + helpDone;
+
+        if (tStatusEl) {
+          tStatusEl.textContent = 'xong phần mình · đang hỗ trợ tab '
+            + (targetShard + 1) + tShardDirNote(bounds.reverse)
+            + (helpDone ? (' · tiếp +' + helpDone.toLocaleString('en-US')) : '')
+            + '…' + tElapsedSuffix();
+        }
+        syncTProgress();
+
         const flush = (force) => {
           if (!peerOut.length) return;
           if (!force && peerOut.length < 20) return;
@@ -11624,8 +11710,10 @@
         };
         const broadcastHelp = (force) => {
           const now = performance.now();
-          if (!force && now - lastHelpAt < 700) return;
+          if (!force && now - lastHelpAt < 400) return;
           lastHelpAt = now;
+          const prev = sh.helpProgress[targetShard] || 0;
+          if (helpDone < prev) helpDone = prev; /* không bao giờ tụt progress */
           sh.helpProgress[targetShard] = helpDone;
           publishScanBc({
             type: 't-job-help-progress', jobId: sh.jobId,
@@ -11633,20 +11721,32 @@
           });
           syncTProgress();
         };
+        const remainOf = () => Math.max(0, span - (sh.progress[targetShard] || 0));
+        const endHelp = (note, opts) => {
+          flush(true);
+          broadcastHelp(true);
+          tHelpClearClaim(sh, targetShard, opts);
+          if (tStatusEl && !sh.finalized && note) {
+            tStatusEl.textContent = note + tElapsedSuffix();
+          }
+          if (!(opts && opts.met) && !tStop && !sh.finalized) {
+            tSharedTryHelp();
+            tSharedMaybeTakeover();
+          }
+        };
         let hpYieldSince = 0;
         const step = () => {
           if (!tShared || tShared.finalized || seq !== tSeq || tStop) {
             flush(true);
             broadcastHelp(true);
+            /* Ẩn tab: chỉ nhả helpingShard, giữ claim + progress để không start lại từ biên. */
             if (sh.helpingShard === targetShard) sh.helpingShard = null;
             return;
           }
+          sh.helpingShard = targetShard;
           if (sh.done[targetShard]) {
-            flush(true);
-            broadcastHelp(true);
-            sh.helpingShard = null;
+            endHelp('xong phần mình · tab ' + (targetShard + 1) + ' đã xong · chờ…');
             if (tSharedAllDone()) finalizeTShared();
-            else tSharedTryHelp();
             return;
           }
           if (tRebuildBusy()) {
@@ -11659,21 +11759,7 @@
             scheduleTWork(step, Math.max(16, tUiPauseUntil - performance.now()));
             return;
           }
-          const ownerDone = sh.progress[targetShard] || 0;
-          const remain = span - ownerDone;
-          if (helpDone >= remain || ci >= remain) {
-            flush(true);
-            broadcastHelp(true);
-            sh.helpingShard = null;
-            if (tStatusEl && !sh.finalized) {
-              tStatusEl.textContent = 'xong phần mình · đã hỗ trợ tab ' + (targetShard + 1)
-                + ' đến giữa · chờ…' + tElapsedSuffix();
-            }
-            tSharedTryHelp();
-            tSharedMaybeTakeover();
-            return;
-          }
-          const budget = document.hidden ? 320 : (isTPopupOpen() ? 6 : 10);
+          const budget = document.hidden ? 320 : (isTPopupOpen() ? 8 : 12);
           const t0 = performance.now();
           const pushHits = (hits) => {
             for (let h = 0; h < hits.length; h++) {
@@ -11686,15 +11772,69 @@
               peerOut.push(hit);
             }
           };
-          while (ci < list.length && ci < remain && helpDone < remain
-            && !tStop && performance.now() - t0 < budget) {
-            if (tShouldYieldToUi()) break;
-            const hits = tEvalOneCombo(list[ci], cfg.focus, cfg.trendWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
-            ci++;
-            helpDone++;
-            if ((helpDone & 15) === 0) tTrimMemos();
-            pushHits(hits);
+
+          if (phase === 'seek') {
+            while (gc < runFromGc && performance.now() - t0 < budget) {
+              if (!plan.next()) { gc = total; break; }
+              gc++;
+            }
+            if (gc < runFromGc) { scheduleTWork(step); return; }
+            phase = 'run';
           }
+
+          if (phase === 'collect') {
+            while (gc < bounds.hi && performance.now() - t0 < budget) {
+              const c = plan.next();
+              if (!c) { gc = total; break; }
+              if (gc >= bounds.lo) buf.push(c);
+              gc++;
+            }
+            if (gc < bounds.hi) {
+              if (tStatusEl && !sh.finalized) {
+                tStatusEl.textContent = 'chuẩn bị hỗ trợ tab ' + (targetShard + 1)
+                  + ' · ' + buf.length.toLocaleString('en-US') + '/' + span.toLocaleString('en-US')
+                  + '…' + tElapsedSuffix();
+              }
+              scheduleTWork(step);
+              return;
+            }
+            buf.reverse();
+            ci = Math.min(helpDone, buf.length);
+            phase = 'run';
+          }
+
+          if (helpDone >= remainOf()) {
+            endHelp(
+              'xong phần mình · đã hỗ trợ tab ' + (targetShard + 1) + ' đến giữa · chờ…',
+              { met: true }
+            );
+            return;
+          }
+
+          if (phase === 'run' && helpReverse) {
+            while (ci < buf.length && helpDone < remainOf()
+              && !tStop && performance.now() - t0 < budget) {
+              if (tShouldYieldToUi()) break;
+              const hits = tEvalOneCombo(buf[ci], cfg.focus, cfg.trendWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
+              ci++;
+              helpDone++;
+              if ((helpDone & 15) === 0) tTrimMemos();
+              pushHits(hits);
+            }
+          } else if (phase === 'run') {
+            while (gc < bounds.hi && helpDone < remainOf()
+              && !tStop && performance.now() - t0 < budget) {
+              if (tShouldYieldToUi()) break;
+              const combo = plan.next();
+              if (!combo) { gc = total; break; }
+              gc++;
+              helpDone++;
+              const hits = tEvalOneCombo(combo, cfg.focus, cfg.trendWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
+              if ((helpDone & 15) === 0) tTrimMemos();
+              pushHits(hits);
+            }
+          }
+
           flush(false);
           broadcastHelp(false);
           requestTResultsDomFlush();
@@ -11704,47 +11844,47 @@
               + ' · dò ' + tSharedGlobalDone().toLocaleString('en-US')
               + '/' + total.toLocaleString('en-US') + ' combo' + tElapsedSuffix();
           }
-          const remainNow = span - (sh.progress[targetShard] || 0);
-          if (helpDone < remainNow && ci < list.length && ci < remainNow && !tStop) {
-            scheduleTWork(step);
-            return;
-          }
-          flush(true);
-          broadcastHelp(true);
-          sh.helpingShard = null;
-          if (!tStop) tSharedTryHelp();
-          tSharedMaybeTakeover();
+          const more = helpDone < remainOf() && (
+            helpReverse ? ci < buf.length : gc < bounds.hi
+          );
+          if (more && !tStop) { scheduleTWork(step); return; }
+          endHelp(
+            'xong phần mình · đã hỗ trợ tab ' + (targetShard + 1) + ' đến giữa · chờ…',
+            { met: true }
+          );
         };
+        tJobActive = true;
         tTickerStart();
         scheduleTWork(step);
       }
 
-      /** Tab nào đó chết (không progress >12s) mà các shard khác đã xong → tab xong đầu tiên chạy bù. */
+      /* Tab ẩn (YouTube) bị Chrome bóp timer → progress thưa; 12s dễ nhận nhầm là chết.
+         Chỉ takeover khi im thật lâu VÀ không đang/không thể hỗ trợ cặp. */
+      const T_DEAD_MS = 90000;
+
+      /** Cặp kề im lâu → partner đã xong mới chạy bù (không cướp lúc đang help). */
       function tSharedMaybeTakeover() {
         const sh = tShared;
         if (!sh || sh.finalized || !sh.localDone || tStop) return;
+        const k = tShardHelpPartner(sh.shardIndex, sh.shardCount);
+        if (k < 0 || sh.done[k] || sh.takeoverClaimed[k]) return;
+        /* Đang hỗ trợ / đã claim / đã gặp giữa → không takeover / không start lại từ biên. */
+        if (sh.helpingShard === k) return;
+        if (sh.helpClaimed[k] === sh.shardIndex) return;
+        if (sh.helpMet && sh.helpMet[k]) return;
         const now = Date.now();
-        for (let k = 0; k < sh.shardCount; k++) {
-          if (sh.done[k] || sh.takeoverClaimed[k]) continue;
-          let othersAllDone = true;
-          for (let j = 0; j < sh.shardCount; j++) {
-            if (j !== k && !sh.done[j]) { othersAllDone = false; break; }
-          }
-          if (!othersAllDone) continue;
-          if (now - (sh.lastSeen[k] || sh.startedAt) < 12000) continue;
-          let cand = -1;
-          for (let j = 0; j < sh.shardCount; j++) {
-            if (j !== k && sh.done[j]) { cand = j; break; }
-          }
-          if (cand !== sh.shardIndex) continue;
-          sh.takeoverClaimed[k] = true;
-          publishScanBc({ type: 't-job-takeover', jobId: sh.jobId, shardIndex: k });
-          if (tStatusEl) {
-            tStatusEl.textContent = 'tab giữ shard ' + (k + 1) + ' không phản hồi — tab này chạy bù…';
-          }
-          startTTakeover(k);
+        if (now - (sh.lastSeen[k] || sh.startedAt) < T_DEAD_MS) return;
+        /* Còn cơ hội help (partner chưa done) → ưu tiên help, không takeover. */
+        if (!sh.done[k] && sh.helpClaimed[k] == null) {
+          tSharedTryHelp();
           return;
         }
+        sh.takeoverClaimed[k] = true;
+        publishScanBc({ type: 't-job-takeover', jobId: sh.jobId, shardIndex: k });
+        if (tStatusEl) {
+          tStatusEl.textContent = 'tab giữ shard ' + (k + 1) + ' không phản hồi — tab này chạy bù…';
+        }
+        startTTakeover(k);
       }
 
       /** Chạy bù toàn bộ 1 shard của tab chết (hits trùng đã gửi trước đó bị khử theo tHitKey). */
@@ -12112,7 +12252,8 @@
           sh.lastSeen[k] = Date.now();
           if (Number.isFinite(Number(msg.done))) sh.progress[k] = Number(msg.done);
           syncTProgress();
-          if (sh.localDone && !sh.finalized && tStatusEl) {
+          /* Đang hỗ trợ thì giữ status help — đừng ghi đè thành “chờ”. */
+          if (sh.localDone && !sh.finalized && sh.helpingShard == null && tStatusEl) {
             tStatusEl.textContent = tHitsNote() + ' · dò ' + tSharedGlobalDone().toLocaleString('en-US')
               + '/' + sh.total.toLocaleString('en-US') + ' combo'
               + ' · ' + sh.shardCount + ' tab · chờ ' + (sh.shardCount - tSharedDoneCount()) + ' tab nữa…'
@@ -12134,7 +12275,9 @@
           const target = Number(msg.shardIndex);
           if (Number.isFinite(target) && target >= 0 && target < sh.shardCount
             && Number.isFinite(Number(msg.done))) {
-            sh.helpProgress[target] = Number(msg.done);
+            const d = Number(msg.done);
+            /* Không bao giờ tụt helpProgress (tránh vẽ về biên khi peer gửi lại 0). */
+            if (d > (sh.helpProgress[target] || 0)) sh.helpProgress[target] = d;
             const helper = Number(msg.helper);
             if (Number.isFinite(helper)) sh.lastSeen[helper] = Date.now();
             syncTProgress();
@@ -12220,6 +12363,7 @@
             progress: {},
             helpProgress: {},
             helpClaimed: {},
+            helpMet: {},
             helpingShard: null,
             done: {},
             lastSeen: {},
@@ -12239,6 +12383,7 @@
             tShared.progress[k] = 0;
             tShared.helpProgress[k] = 0;
             tShared.helpClaimed[k] = null;
+            tShared.helpMet[k] = false;
             tShared.done[k] = false;
             tShared.lastSeen[k] = now;
           }
@@ -12247,6 +12392,15 @@
             /* Đang dừng mà chưa chốt được (tab nào đó lỡ lệnh dừng đầu tiên) → phát lại
                lệnh dừng mỗi nhịp cho tới khi cả nhóm chốt xong mới thôi. */
             if (tStop) publishScanBc({ type: 't-job-stop', jobId: tShared.jobId });
+            /* Heartbeat khi tab ẩn vẫn còn job (kể cả đã localDone nhưng đang help). */
+            if (tJobActive && document.hidden && !tShared.finalized) {
+              publishScanBc({
+                type: 't-job-progress',
+                jobId: tShared.jobId,
+                shardIndex: tShared.shardIndex,
+                done: tShared.progress[tShared.shardIndex] || 0
+              });
+            }
             if (tShared.localDone) tSharedMaybeTakeover();
           }, 4000);
         } else {
@@ -12279,7 +12433,9 @@
         function broadcastProgress(force) {
           if (!shared) return;
           const now = performance.now();
-          if (!force && now - lastProgressAt < 700) return;
+          /* Tab ẩn: heartbeat dày hơn (3s) để partner không tưởng chết khi sang YouTube. */
+          const minGap = document.hidden ? 3000 : 700;
+          if (!force && now - lastProgressAt < minGap) return;
           lastProgressAt = now;
           tShared.progress[shardIndex] = localDone;
           tShared.lastSeen[shardIndex] = Date.now();
@@ -12321,10 +12477,13 @@
             type: 't-job-done', jobId: cfg.jobId, shardIndex: shardIndex,
             done: localDone, reason: reason
           });
-          tFreeMemos();
-          renderTResults();
-          if (pendingScanTlHighlight) refreshOpenPopupAfterThreshold();
-          if (tSharedAllDone()) { finalizeTShared(); return; }
+          if (tSharedAllDone()) {
+            tFreeMemos();
+            renderTResults();
+            if (pendingScanTlHighlight) refreshOpenPopupAfterThreshold();
+            finalizeTShared();
+            return;
+          }
           if (tStatusEl) {
             tStatusEl.textContent = 'tab này xong phần của mình · '
               + tHitsNote() + ' · dò '
@@ -12332,9 +12491,12 @@
               + shardCount + ' tab' + tShardDirNote(shardBounds.reverse) + ' · chờ '
               + (shardCount - tSharedDoneCount()) + ' tab nữa…' + tElapsedSuffix();
           }
-          /* Xong sớm → hỗ trợ shard còn lại ngay (lấn progress); tab chết vẫn có takeover 12s. */
+          /* Hỗ trợ TRƯỚC render nặng — tránh đơ UI / mất nhịp help. */
           if (reason === 'done') tSharedTryHelp();
           tSharedMaybeTakeover();
+          tFreeMemos();
+          renderTResults();
+          if (pendingScanTlHighlight) refreshOpenPopupAfterThreshold();
         }
 
         /* Bọc lỗi: 1 combo ném exception mà không bắt thì chuỗi step đứt im lặng → popup treo
@@ -12389,6 +12551,20 @@
              click vẫn chen vào được. Tab ẩn giữ nhịp dài. */
           const budget = document.hidden ? 320 : (isTPopupOpen() ? 6 : 10);
           const t0 = performance.now();
+          const shardSpan = shared ? Math.max(0, shardBounds.hi - shardBounds.lo) : total;
+          /* Tab kia đã hỗ trợ lấn sang → chỉ làm phần còn lại; đủ phủ thì dừng sớm. */
+          const helpCovered = () => shared
+            ? ((tShared.helpProgress[shardIndex] || 0) + localDone >= shardSpan)
+            : false;
+          const ownerRemain = () => {
+            if (!shared) return Infinity;
+            return Math.max(0, shardSpan - (tShared.helpProgress[shardIndex] || 0));
+          };
+          if (helpCovered()) {
+            if (shared) tShared.progress[shardIndex] = localDone;
+            finishLocal('done');
+            return;
+          }
           const takeHits = (hits) => {
             for (let h = 0; h < hits.length; h++) {
               const hit = hits[h];
@@ -12402,8 +12578,9 @@
             }
           };
           if (myCombos) {
-            /* Shard chẵn: đã đảo sẵn — duyệt từ cuối miền về giữa. */
-            while (ci < myCombos.length && !tStop && performance.now() - t0 < budget) {
+            /* Shard chẵn: đã đảo sẵn — duyệt từ cuối miền về giữa; dừng khi gặp phần helper đã phủ. */
+            while (ci < myCombos.length && localDone < ownerRemain()
+              && !tStop && performance.now() - t0 < budget) {
               if (tShouldYieldToUi()) break;
               localDone++;
               const hits = tEvalOneCombo(myCombos[ci++], focus, cfg.trendWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
@@ -12411,7 +12588,8 @@
               takeHits(hits);
             }
           } else {
-            while (gc < total && !tStop && performance.now() - t0 < budget) {
+            while (gc < total && localDone < ownerRemain()
+              && !tStop && performance.now() - t0 < budget) {
               if (tShouldYieldToUi()) break;
               const combo = plan.next();
               if (!combo) { gc = total; break; }
@@ -12429,6 +12607,10 @@
           tJobDoneN = shared ? tSharedGlobalDone() : gc;
           tTrimMemos();
           if (tStop) { finishLocal('stopped'); return; }
+          if (helpCovered() || (shared && localDone >= ownerRemain())) {
+            finishLocal('done');
+            return;
+          }
           if (tStatusEl) {
             tStatusEl.textContent = shared
               ? tHitsNote() + ' · dò ' + tJobDoneN.toLocaleString('en-US') + '/' + totalNote
@@ -12447,7 +12629,9 @@
           requestTResultsDomFlush();
           flushPeerHits(false);
           broadcastProgress(false);
-          const more = myCombos ? (ci < myCombos.length) : (gc < total);
+          const more = shared
+            ? (localDone < ownerRemain() && (myCombos ? ci < myCombos.length : gc < total))
+            : (myCombos ? ci < myCombos.length : gc < total);
           if (more) {
             scheduleTWork(step);
             return;
@@ -12513,6 +12697,10 @@
         if (fn && tJobActive) {
           tContinueJob = null;
           requestAnimationFrame(() => fn());
+        } else if (tShared && tShared.localDone && !tShared.finalized && !tStop
+          && tShared.helpingShard == null) {
+          /* Step help đứt lúc ẩn → resume từ helpProgress (không về biên). */
+          tSharedTryHelp();
         }
       });
 
