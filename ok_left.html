@@ -359,6 +359,31 @@
             cursor: context-menu;
         }
 
+        /* Ô đếm block trong header "Các số": RMB = thay bằng clipboard; dblclick = xóa hết. */
+        #manualBlockCountLabel {
+            font-weight: bold;
+            text-align: right;
+            cursor: context-menu;
+            user-select: none;
+            min-width: 1.2em;
+        }
+
+        #manualBlockCountLabel.is-bad {
+            color: #ff0000 !important;
+            animation: manual-block-count-bad-flash 0.28s ease-in-out 4;
+        }
+
+        @keyframes manual-block-count-bad-flash {
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.25;
+            }
+        }
+
         .cell.num.blocked {
             border-radius: 0;
         }
@@ -8144,6 +8169,109 @@
             manualUiBlockedSet.clear();
         }
 
+        function syncManualBlockCountLabel() {
+            try {
+                const el = document.getElementById('manualBlockCountLabel');
+                if (el) el.textContent = String(manualUiBlockedSet.size);
+            } catch (e) { /* ignore */ }
+        }
+
+        function flashManualBlockCountBad() {
+            const el = document.getElementById('manualBlockCountLabel');
+            if (!el) return;
+            el.classList.remove('is-bad');
+            void el.offsetWidth;
+            el.classList.add('is-bad');
+            if (el._badTimer) clearTimeout(el._badTimer);
+            el._badTimer = setTimeout(function () {
+                el.classList.remove('is-bad');
+                el._badTimer = 0;
+            }, 1200);
+        }
+
+        /** Chuỗi clipboard hợp lệ: "1,3,11,26,27" — mỗi token số nguyên 1–35. */
+        function parseManualBlockClipboard(text) {
+            if (text == null) return null;
+            const s = String(text).trim();
+            if (!s) return null;
+            const parts = s.split(',');
+            const nums = [];
+            const seen = new Set();
+            for (let i = 0; i < parts.length; i++) {
+                const tok = parts[i].trim();
+                if (!/^\d+$/.test(tok)) return null;
+                const n = parseInt(tok, 10);
+                if (!Number.isFinite(n) || n < 1 || n > 35) return null;
+                if (!seen.has(n)) {
+                    seen.add(n);
+                    nums.push(n);
+                }
+            }
+            return nums.length ? nums : null;
+        }
+
+        function refreshManualUiBlockedUi() {
+            try { updateBlocked(); } catch (eB) { /* ignore */ }
+            try { applySelectionAndBlockedInDOM(); } catch (eD) { /* ignore */ }
+            try { updateFloatingCopyButtons(); } catch (eF) { /* ignore */ }
+            try { refreshLeftPickSelectionUi(); } catch (eR) { /* ignore */ }
+            syncManualBlockCountLabel();
+        }
+
+        /** Thay thế hoàn toàn manual block bằng danh sách số (đã validate). */
+        function replaceManualUiBlockedWith(nums) {
+            if (submitActive) return false;
+            const list = Array.isArray(nums) ? nums : [];
+            manualUiBlockedSet.clear();
+            for (let i = 0; i < list.length; i++) {
+                const num = list[i];
+                if (!Number.isFinite(num) || num < 1 || num > 35) continue;
+                manualUiBlockedSet.add(num);
+                try {
+                    if (selected.has(num)) {
+                        selected.delete(num);
+                        transientSelected.delete(num);
+                        simulatedSelected.delete(num);
+                        pickOrder = pickOrder.filter(function (x) { return x !== num; });
+                    }
+                } catch (eSel) { /* ignore */ }
+            }
+            refreshManualUiBlockedUi();
+            return true;
+        }
+
+        async function replaceManualUiBlockedFromClipboard() {
+            if (submitActive) return;
+            let text = '';
+            try {
+                if (navigator.clipboard && navigator.clipboard.readText) {
+                    text = await navigator.clipboard.readText();
+                } else {
+                    flashManualBlockCountBad();
+                    return;
+                }
+            } catch (eRead) {
+                flashManualBlockCountBad();
+                return;
+            }
+            const nums = parseManualBlockClipboard(text);
+            if (!nums) {
+                flashManualBlockCountBad();
+                return;
+            }
+            replaceManualUiBlockedWith(nums);
+        }
+
+        function clearAllManualUiBlockedFromHeader() {
+            if (submitActive) return;
+            if (!manualUiBlockedSet.size) {
+                syncManualBlockCountLabel();
+                return;
+            }
+            clearManualUiBlocked();
+            refreshManualUiBlockedUi();
+        }
+
         /** Chuột phải số: bật/tắt UI blocked (nền đen). */
         function toggleManualUiBlocked(n) {
             if (submitActive) return false;
@@ -8161,10 +8289,7 @@
                     }
                 } catch (eSel) { /* ignore */ }
             }
-            try { updateBlocked(); } catch (eB) { /* ignore */ }
-            try { applySelectionAndBlockedInDOM(); } catch (eD) { /* ignore */ }
-            try { updateFloatingCopyButtons(); } catch (eF) { /* ignore */ }
-            try { refreshLeftPickSelectionUi(); } catch (eR) { /* ignore */ }
+            refreshManualUiBlockedUi();
             return true;
         }
 
@@ -10352,7 +10477,8 @@
             let blockCount = manualUiBlockedSet.size;
             let blockLabel = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
                 + '<span>Các số</span>'
-                + '<span style="font-weight:bold;text-align:right;">' + blockCount + '</span></div>';
+                + '<span id="manualBlockCountLabel" title="Chuột phải: block theo clipboard · Double-click: bỏ hết block">'
+                + blockCount + '</span></div>';
             let html = `<table><tr><th>Số lần</th><th>${blockLabel}</th><th>Tổng</th></tr>`;
             let groups = {};
             Object.entries(freq).forEach(([n, f]) => { if (!groups[f]) groups[f] = []; groups[f].push(parseInt(n)); });
@@ -15107,7 +15233,25 @@
                 var leftRoot = document.getElementById('left');
                 if (leftRoot) {
                     leftRoot.addEventListener('contextmenu', function (ev) {
+                        try {
+                            var countEl = findClosestCell(ev.target, '#manualBlockCountLabel');
+                            if (countEl) {
+                                ev.preventDefault();
+                                ev.stopPropagation();
+                                replaceManualUiBlockedFromClipboard();
+                                return;
+                            }
+                        } catch (eHdr) { /* ignore */ }
                         onNumberContextMenu(ev, 'left');
+                    });
+                    leftRoot.addEventListener('dblclick', function (ev) {
+                        try {
+                            var countEl = findClosestCell(ev.target, '#manualBlockCountLabel');
+                            if (!countEl) return;
+                            ev.preventDefault();
+                            ev.stopPropagation();
+                            clearAllManualUiBlockedFromHeader();
+                        } catch (eDbl) { /* ignore */ }
                     });
                     leftRoot.addEventListener('click', function (ev) {
                         try {
