@@ -1991,7 +1991,84 @@
       display: flex;
       align-items: center;
       gap: 8px;
-      margin: 2px 0 6px;
+      margin: 2px 0 2px;
+    }
+
+    /* Progress lọc — dưới status, trên đồng hồ; chia đều theo số tab. */
+    .t-progress {
+      margin: 2px 0 4px;
+      height: 10px;
+    }
+
+    .t-progress[hidden] {
+      display: none;
+    }
+
+    .t-progress-track {
+      display: flex;
+      width: 100%;
+      height: 10px;
+      border-radius: 5px;
+      overflow: hidden;
+      background: #e2e8f0;
+      box-shadow: inset 0 0 0 1px #cbd5e1;
+    }
+
+    .t-progress-seg {
+      position: relative;
+      flex: 1 1 0;
+      min-width: 0;
+      height: 100%;
+      background: #e8eef5;
+      overflow: hidden;
+    }
+
+    .t-progress-seg + .t-progress-seg {
+      box-shadow: inset 2px 0 0 #94a3b8; /* ranh giới 1/2 · 1/3… */
+    }
+
+    .t-progress-fill {
+      position: absolute;
+      top: 0;
+      bottom: 0;
+      width: 0%;
+      transition: width .12s linear;
+      pointer-events: none;
+    }
+
+    /* Thuận / hỗ trợ từ trái: đầy trái → phải (có thể lấn sang đoạn bên khi hỗ trợ). */
+    .t-progress-fill.is-fwd {
+      left: 0;
+      z-index: 1;
+      background: linear-gradient(90deg, #0284c7, #38bdf8);
+    }
+
+    /* Nghịch / hỗ trợ từ phải: đầy phải → trái. */
+    .t-progress-fill.is-rev {
+      right: 0;
+      z-index: 1;
+      background: linear-gradient(270deg, #ea580c, #fb923c);
+    }
+
+    /* Phần hỗ trợ (tab kia lấn sang): hơi sáng hơn để thấy đang “xâm” ranh. */
+    .t-progress-fill.is-help {
+      z-index: 2;
+      opacity: .92;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .35);
+    }
+
+    /* Đồng hồ lọc — hàng riêng dưới progress. */
+    .t-elapsed {
+      font-family: ui-monospace, Consolas, Menlo, monospace;
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f766e;
+      margin: 0 0 6px;
+      min-height: 1.1em;
+    }
+
+    .t-elapsed[hidden] {
+      display: none;
     }
 
     /* Nút tải file kết quả (thay nút Đóng cũ): icon download + chữ, khóa khi đang lọc/chưa có kết quả. */
@@ -2034,6 +2111,7 @@
       padding: 6px 8px;
       border-bottom: 1px solid #eef2f7;
       cursor: pointer;
+      overflow: visible;
     }
 
     .t-result:hover {
@@ -2050,10 +2128,32 @@
       font-weight: 700;
       color: #334155;
       margin-bottom: 3px;
+      overflow: visible;
     }
 
     .t-result-head .t-combo {
+      position: relative;
       color: #b45309;
+    }
+
+    /* Tỉ số nổi trên dấu phẩy (wtail/tail · wfreq/wtail) — absolute, không đẩy layout. */
+    .t-result-head .t-combo-gap {
+      position: relative;
+      display: inline;
+    }
+
+    .t-result-head .t-combo-r {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% - 1px);
+      transform: translateX(-50%);
+      font-size: 8px;
+      font-weight: 800;
+      line-height: 1;
+      color: #0369a1;
+      pointer-events: none;
+      white-space: nowrap;
+      letter-spacing: -0.02em;
     }
 
     .t-result-head .t-trend-up {
@@ -2159,7 +2259,7 @@
       background: #b91c1c;
     }
 
-    /* Đang chọn lọc: xanh dương + scale 1.5 nổi trên (transform không đẩy layout). */
+    /* Đang chọn lọc (không phải ĐA): xanh dương + scale 1.5 nổi trên. */
     .t-merge-num.is-on {
       opacity: 1;
       background: #0284c7;
@@ -2174,11 +2274,16 @@
       background: #0369a1;
     }
 
-    /* Chọn lọc + trùng ĐA: giữ xanh dương (không lẫn xanh lá ĐA). */
+    /* Chọn lọc + trùng ĐA: giữ xanh lá ĐA, chỉ scale nổi (không đổi sang #0284c7). */
     .t-merge-num.is-on.is-hit {
-      background: #0284c7;
-      border-color: #0369a1;
+      background: #16a34a;
+      border-color: #15803d;
       color: #fff;
+      box-shadow: 0 2px 10px rgba(22, 163, 74, .55);
+    }
+
+    .t-merge-num.is-on.is-hit:hover {
+      background: #15803d;
     }
 
     /* Chọn lọc + đánh dấu đỏ: đỏ + vẫn scale nổi. */
@@ -4449,8 +4554,6 @@
           </span>
         </div>
         <div class="t-ranges trial-params" id="tRanges"></div>
-        <div class="t-hint">ô trống = không giới hạn đầu đó · |Δi|/newlyin/i[n] ∈ [0;35] · |Δi| = |pool hiện \ pool liền trước| (gap phần tử thật, KHÔNG lấy newlyIn như nút Δ copy) · newlyin = số mới vào pool · i[n] = tổng phần tử pool tại mốc i · trend/%break so mốc liền trước
-        </div>
       </div>
       <div class="t-actions">
         <button type="button" class="t-run" id="tRun">Lọc</button>
@@ -4463,6 +4566,10 @@
             <path fill="currentColor" d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z" />
           </svg><span>Tải file</span></button>
       </div>
+      <div class="t-progress" id="tProgress" hidden aria-hidden="true">
+        <div class="t-progress-track" id="tProgressTrack"></div>
+      </div>
+      <div class="t-elapsed" id="tElapsed" hidden></div>
       <div class="t-merge" id="tMerge" hidden></div>
       <div class="t-merge-tip" id="tMergeTip" hidden></div>
       <div class="t-results" id="tResults"></div>
@@ -11028,10 +11135,24 @@
           r.pool, r.newlyIn, new Set(), r.prevPool, null, null, r.sizeChg, r.tlLabel,
           { trend: r.trend, prevPct: r.prevPct, pct: r.pct }
         );
+        /* Tỉ số nổi trên dấu phẩy: wtail/tail (1 chữ số thập phân) · wfreq/wtail (3 chữ số). */
+        const rWt = (r.tail > 0)
+          ? (Math.round((r.wtail / r.tail) * 10) / 10).toFixed(1)
+          : '—';
+        const rWf = (r.wtail > 0)
+          ? (Math.round((r.wfreq / r.wtail) * 1000) / 1000).toFixed(3)
+          : '—';
+        const comboHtml = '<span class="t-combo">'
+          + r.tail
+          + '<span class="t-combo-gap">,<span class="t-combo-r" title="wtail/tail">' + rWt + '</span></span>'
+          + r.wtail
+          + '<span class="t-combo-gap">,<span class="t-combo-r" title="wfreq/wtail">' + rWf + '</span></span>'
+          + r.wfreq
+          + '</span>';
         return '<div class="t-result' + (idx === tAppliedIdx ? ' is-applied' : '')
           + '" data-t-idx="' + idx + '" title="Click: set header threshold + tail/wtail/wfreq của hàng này">'
           + '<div class="t-result-head">'
-          + '<span class="t-combo">' + r.tail + ',' + r.wtail + ',' + r.wfreq + '</span> · '
+          + comboHtml + ' · '
           + 'id ' + r.focusId + (r.mode === 'sim' ? ' (rỗng cuối)' : '')
           + ' · %break ' + r.prevPct.toFixed(1) + '% → ' + r.pct.toFixed(1) + '%'
           + ' <span class="t-trend-' + r.trend + '">' + (r.trend === 'up' ? '▲tăng' : '▼giảm') + '</span>'
@@ -11248,9 +11369,15 @@
             : '');
       }
 
-      /* Thời gian thực hiện quá trình lọc: mốc bắt đầu (Date.now) set khi job chạy,
-         mọi dòng status đều gắn hậu tố ⏱ m:ss cập nhật theo từng chunk → chạy trực tiếp. */
+      /* Thời gian lọc: hiện ở hàng #tElapsed dưới status (không chen vào dòng status). */
       let tJobStartedAt = 0;
+      const tElapsedEl = document.getElementById('tElapsed');
+      const tProgressEl = document.getElementById('tProgress');
+      const tProgressTrackEl = document.getElementById('tProgressTrack');
+      /** @type {{ total: number, shardCount: number, fills: HTMLElement[] } | null} */
+      let tProgressMeta = null;
+      /** Solo: tiến độ local (shared dùng tShared.progress). */
+      let tSoloProgress = 0;
       function fmtTElapsed(ms) {
         const s = Math.max(0, Math.floor(ms / 1000));
         const h = Math.floor(s / 3600);
@@ -11260,8 +11387,101 @@
         const sss = ss < 10 ? '0' + ss : '' + ss;
         return h > 0 ? h + ':' + mm + ':' + sss : mm + ':' + sss;
       }
+      function syncTElapsed() {
+        if (!tElapsedEl) return;
+        if (!tJobStartedAt) {
+          tElapsedEl.textContent = '';
+          tElapsedEl.hidden = true;
+          return;
+        }
+        tElapsedEl.hidden = false;
+        tElapsedEl.textContent = '⏱ ' + fmtTElapsed(Date.now() - tJobStartedAt);
+      }
+      /* Giữ tên cũ: chỗ gọi vẫn gọi khi cập nhật status; giờ chỉ sync hàng đồng hồ, không append. */
       function tElapsedSuffix() {
-        return tJobStartedAt ? ' · ⏱ ' + fmtTElapsed(Date.now() - tJobStartedAt) : '';
+        syncTElapsed();
+        syncTProgress();
+        return '';
+      }
+      /* Solo: theo ngưỡng thuận≥ / nghịch≤. Chia tab: theo hướng duyệt shard
+         (tab lẻ thuận, tab chẵn nghịch) — không lấy chung thThuan. */
+      function tFilterModeNote(thThuan) {
+        return ' · lọc ' + (thThuan ? 'thuận' : 'nghịch');
+      }
+      function tShardDirNote(reverse) {
+        return ' · lọc ' + (reverse ? 'nghịch' : 'thuận');
+      }
+
+      /** Dựng thanh: mỗi đoạn có 2 fill (trái→phải + phải→trái) để tab hỗ trợ lấn ranh. */
+      function setupTProgress(total, shardCount, thThuan) {
+        if (!tProgressEl || !tProgressTrackEl) return;
+        const n = Math.max(1, shardCount | 0);
+        tProgressTrackEl.innerHTML = '';
+        const fills = [];
+        for (let k = 0; k < n; k++) {
+          const seg = document.createElement('div');
+          seg.className = 't-progress-seg';
+          const fwd = document.createElement('div');
+          fwd.className = 't-progress-fill is-fwd';
+          fwd.style.width = '0%';
+          const rev = document.createElement('div');
+          rev.className = 't-progress-fill is-rev';
+          rev.style.width = '0%';
+          seg.appendChild(fwd);
+          seg.appendChild(rev);
+          tProgressTrackEl.appendChild(seg);
+          /* Solo: 1 hướng theo ngưỡng; multi: chủ shard lẻ=fwd, chẵn=rev. */
+          fills.push({
+            fwd: fwd,
+            rev: rev,
+            ownerRev: n > 1 ? ((k % 2) === 1) : !thThuan
+          });
+        }
+        tProgressMeta = { total: total, shardCount: n, fills: fills };
+        tSoloProgress = 0;
+        tProgressEl.hidden = false;
+        tProgressEl.setAttribute('aria-hidden', 'false');
+        syncTProgress();
+      }
+
+      function hideTProgress() {
+        if (tProgressEl) {
+          tProgressEl.hidden = true;
+          tProgressEl.setAttribute('aria-hidden', 'true');
+        }
+        tProgressMeta = null;
+        if (tProgressTrackEl) tProgressTrackEl.innerHTML = '';
+      }
+
+      function syncTProgress() {
+        if (!tProgressMeta || !tProgressMeta.fills.length) return;
+        const { total, shardCount, fills } = tProgressMeta;
+        for (let k = 0; k < fills.length; k++) {
+          const slot = fills[k];
+          const b = tShardBounds(total, shardCount, k);
+          const span = Math.max(1, b.hi - b.lo);
+          let ownerDone = 0;
+          let helpDone = 0;
+          if (shardCount > 1 && tShared) {
+            ownerDone = tShared.progress[k] || 0;
+            helpDone = tShared.helpProgress[k] || 0;
+          } else if (shardCount <= 1) {
+            ownerDone = tSoloProgress;
+          }
+          const ownerPct = Math.max(0, Math.min(100, (100 * ownerDone) / span));
+          const helpPct = Math.max(0, Math.min(100, (100 * helpDone) / span));
+          if (slot.ownerRev) {
+            slot.rev.style.width = ownerPct.toFixed(2) + '%';
+            slot.rev.classList.remove('is-help');
+            slot.fwd.style.width = helpPct.toFixed(2) + '%';
+            slot.fwd.classList.toggle('is-help', helpDone > 0);
+          } else {
+            slot.fwd.style.width = ownerPct.toFixed(2) + '%';
+            slot.fwd.classList.remove('is-help');
+            slot.rev.style.width = helpPct.toFixed(2) + '%';
+            slot.rev.classList.toggle('is-help', helpDone > 0);
+          }
+        }
       }
 
       function tSharedDoneCount() {
@@ -11271,10 +11491,20 @@
         return n;
       }
 
+      /** Số combo đã phủ trên 1 shard (chủ + hỗ trợ, không double-count quá span). */
+      function tSharedShardCovered(k) {
+        if (!tShared) return 0;
+        const b = tShardBounds(tShared.total, tShared.shardCount, k);
+        const span = Math.max(0, b.hi - b.lo);
+        const a = tShared.progress[k] || 0;
+        const h = tShared.helpProgress[k] || 0;
+        return Math.min(span, a + h);
+      }
+
       function tSharedGlobalDone() {
         if (!tShared) return tJobDoneN;
         let s = 0;
-        for (let k = 0; k < tShared.shardCount; k++) s += (tShared.progress[k] || 0);
+        for (let k = 0; k < tShared.shardCount; k++) s += tSharedShardCovered(k);
         return s;
       }
 
@@ -11301,8 +11531,7 @@
         }
         return head + ' · ' + tHitsNote() + ' · '
           + comboTxt + ' · ' + sh.shardCount + ' tab'
-          + ' · id ' + sh.focus.focusId + (sh.focus.mode === 'sim' ? ' (rỗng cuối)' : '')
-          + ' · ' + (sh.thThuanSnap ? 'thuận' : 'nghịch') + ' · trend ' + sh.trendWant
+          + tFilterModeNote(sh.thThuanSnap) + ' · trend ' + sh.trendWant
           + ' · chia việc: ' + perTab.join(' + ')
           + tElapsedSuffix();
       }
@@ -11324,6 +11553,170 @@
         tFreeMemos();
         renderTResults();
         if (pendingScanTlHighlight) refreshOpenPopupAfterThreshold();
+      }
+
+      /** Tab xong phần mình ngay → hỗ trợ shard còn lại từ phía ĐỐI DIỆN (gặp nhau giữa đoạn).
+          Hit trùng với tab kia bị khử bằng tHitKey. */
+      function tSharedTryHelp() {
+        const sh = tShared;
+        if (!sh || sh.finalized || !sh.localDone || tStop) return;
+        if (sh.helpingShard != null) return;
+        for (let k = 0; k < sh.shardCount; k++) {
+          if (k === sh.shardIndex) continue;
+          if (sh.done[k]) continue;
+          if (sh.helpClaimed[k] != null) continue;
+          if (sh.takeoverClaimed[k]) continue;
+          sh.helpClaimed[k] = sh.shardIndex;
+          sh.helpingShard = k;
+          publishScanBc({
+            type: 't-job-help', jobId: sh.jobId,
+            shardIndex: k, helper: sh.shardIndex
+          });
+          if (tStatusEl) {
+            tStatusEl.textContent = 'xong phần mình · đang hỗ trợ tab '
+              + (k + 1) + tShardDirNote(tShardBounds(sh.total, sh.shardCount, k).reverse)
+              + '…' + tElapsedSuffix();
+          }
+          startTHelp(k);
+          return;
+        }
+      }
+
+      /**
+       * Hỗ trợ shard target từ phía ngược chủ shard:
+       * chủ nghịch (rev) → helper đi thuận từ lo; chủ thuận → helper đi nghịch từ hi.
+       * Chỉ làm phần chủ chưa phủ: stop khi helpDone + ownerDone ≥ span.
+       */
+      function startTHelp(targetShard) {
+        const sh = tShared;
+        if (!sh || !sh.cfg) return;
+        const cfg = sh.cfg;
+        const total = sh.total;
+        const live = tLiveSnapshot();
+        const seq = tSeq;
+        const bounds = tShardBounds(total, sh.shardCount, targetShard);
+        const span = Math.max(0, bounds.hi - bounds.lo);
+        /* Chủ nghịch → helper thuận (lo→); chủ thuận → helper nghịch (hi→). */
+        const helpReverse = !bounds.reverse;
+        const plan2 = tCfgCursor(cfg);
+        const list = [];
+        let g = 0;
+        while (g < bounds.hi) {
+          const c = plan2.next();
+          if (!c) break;
+          if (g >= bounds.lo) list.push(c);
+          g++;
+        }
+        if (helpReverse) list.reverse();
+        let ci = 0;
+        let helpDone = 0;
+        let peerOut = [];
+        let lastHelpAt = 0;
+        const flush = (force) => {
+          if (!peerOut.length) return;
+          if (!force && peerOut.length < 20) return;
+          const batch = peerOut;
+          peerOut = [];
+          publishScanBc({
+            type: 't-peer-hits', jobId: sh.jobId,
+            shardIndex: sh.shardIndex, hits: batch
+          });
+        };
+        const broadcastHelp = (force) => {
+          const now = performance.now();
+          if (!force && now - lastHelpAt < 700) return;
+          lastHelpAt = now;
+          sh.helpProgress[targetShard] = helpDone;
+          publishScanBc({
+            type: 't-job-help-progress', jobId: sh.jobId,
+            shardIndex: targetShard, helper: sh.shardIndex, done: helpDone
+          });
+          syncTProgress();
+        };
+        let hpYieldSince = 0;
+        const step = () => {
+          if (!tShared || tShared.finalized || seq !== tSeq || tStop) {
+            flush(true);
+            broadcastHelp(true);
+            if (sh.helpingShard === targetShard) sh.helpingShard = null;
+            return;
+          }
+          if (sh.done[targetShard]) {
+            flush(true);
+            broadcastHelp(true);
+            sh.helpingShard = null;
+            if (tSharedAllDone()) finalizeTShared();
+            else tSharedTryHelp();
+            return;
+          }
+          if (tRebuildBusy()) {
+            if (!hpYieldSince) hpYieldSince = Date.now();
+            if (Date.now() - hpYieldSince < 10000) { scheduleTWork(step); return; }
+          } else {
+            hpYieldSince = 0;
+          }
+          if (tShouldYieldToUi()) {
+            scheduleTWork(step, Math.max(16, tUiPauseUntil - performance.now()));
+            return;
+          }
+          const ownerDone = sh.progress[targetShard] || 0;
+          const remain = span - ownerDone;
+          if (helpDone >= remain || ci >= remain) {
+            flush(true);
+            broadcastHelp(true);
+            sh.helpingShard = null;
+            if (tStatusEl && !sh.finalized) {
+              tStatusEl.textContent = 'xong phần mình · đã hỗ trợ tab ' + (targetShard + 1)
+                + ' đến giữa · chờ…' + tElapsedSuffix();
+            }
+            tSharedTryHelp();
+            tSharedMaybeTakeover();
+            return;
+          }
+          const budget = document.hidden ? 320 : (isTPopupOpen() ? 6 : 10);
+          const t0 = performance.now();
+          const pushHits = (hits) => {
+            for (let h = 0; h < hits.length; h++) {
+              const hit = hits[h];
+              const key = tHitKey(hit);
+              if (tSeenHitKeys.has(key)) continue;
+              tSeenHitKeys.add(key);
+              tHitsTotal++;
+              if (tResults.length < T_STORE_CAP) tResults.push(hit);
+              peerOut.push(hit);
+            }
+          };
+          while (ci < list.length && ci < remain && helpDone < remain
+            && !tStop && performance.now() - t0 < budget) {
+            if (tShouldYieldToUi()) break;
+            const hits = tEvalOneCombo(list[ci], cfg.focus, cfg.trendWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
+            ci++;
+            helpDone++;
+            if ((helpDone & 15) === 0) tTrimMemos();
+            pushHits(hits);
+          }
+          flush(false);
+          broadcastHelp(false);
+          requestTResultsDomFlush();
+          if (tStatusEl && !sh.finalized) {
+            tStatusEl.textContent = 'hỗ trợ tab ' + (targetShard + 1)
+              + ' · +' + helpDone.toLocaleString('en-US') + ' combo'
+              + ' · dò ' + tSharedGlobalDone().toLocaleString('en-US')
+              + '/' + total.toLocaleString('en-US') + ' combo' + tElapsedSuffix();
+          }
+          const remainNow = span - (sh.progress[targetShard] || 0);
+          if (helpDone < remainNow && ci < list.length && ci < remainNow && !tStop) {
+            scheduleTWork(step);
+            return;
+          }
+          flush(true);
+          broadcastHelp(true);
+          sh.helpingShard = null;
+          if (!tStop) tSharedTryHelp();
+          tSharedMaybeTakeover();
+        };
+        tTickerStart();
+        scheduleTWork(step);
       }
 
       /** Tab nào đó chết (không progress >12s) mà các shard khác đã xong → tab xong đầu tiên chạy bù. */
@@ -11718,11 +12111,33 @@
         if (msg.type === 't-job-progress') {
           sh.lastSeen[k] = Date.now();
           if (Number.isFinite(Number(msg.done))) sh.progress[k] = Number(msg.done);
+          syncTProgress();
           if (sh.localDone && !sh.finalized && tStatusEl) {
             tStatusEl.textContent = tHitsNote() + ' · dò ' + tSharedGlobalDone().toLocaleString('en-US')
               + '/' + sh.total.toLocaleString('en-US') + ' combo'
               + ' · ' + sh.shardCount + ' tab · chờ ' + (sh.shardCount - tSharedDoneCount()) + ' tab nữa…'
               + tElapsedSuffix();
+          }
+          return;
+        }
+        if (msg.type === 't-job-help') {
+          /* Tab khác nhận hỗ trợ shard k — đánh dấu đã claim để mình không claim trùng. */
+          const target = Number(msg.shardIndex);
+          const helper = Number(msg.helper);
+          if (Number.isFinite(target) && target >= 0 && target < sh.shardCount) {
+            sh.helpClaimed[target] = Number.isFinite(helper) ? helper : k;
+            sh.lastSeen[Number.isFinite(helper) ? helper : k] = Date.now();
+          }
+          return;
+        }
+        if (msg.type === 't-job-help-progress') {
+          const target = Number(msg.shardIndex);
+          if (Number.isFinite(target) && target >= 0 && target < sh.shardCount
+            && Number.isFinite(Number(msg.done))) {
+            sh.helpProgress[target] = Number(msg.done);
+            const helper = Number(msg.helper);
+            if (Number.isFinite(helper)) sh.lastSeen[helper] = Date.now();
+            syncTProgress();
           }
           return;
         }
@@ -11735,6 +12150,7 @@
           sh.lastSeen[k] = Date.now();
           if (Number.isFinite(Number(msg.done))) sh.progress[k] = Number(msg.done);
           sh.done[k] = true;
+          syncTProgress();
           if (msg.reason === 'stopped') sh.reason = 'stopped';
           if (sh.localDone) {
             if (tSharedAllDone()) finalizeTShared();
@@ -11755,6 +12171,7 @@
         tFreeMemos();
         if (!total) {
           tJobActive = false;
+          hideTProgress();
           if (tStatusEl) tStatusEl.textContent = 'Khoảng tail/wtail/wfreq không có combo hợp lệ nào.';
           renderTResults();
           syncTParamsLock();
@@ -11801,6 +12218,9 @@
             shardCount: shardCount,
             roster: cfg.roster || [],
             progress: {},
+            helpProgress: {},
+            helpClaimed: {},
+            helpingShard: null,
             done: {},
             lastSeen: {},
             takeoverClaimed: {},
@@ -11817,6 +12237,8 @@
           };
           for (let k = 0; k < shardCount; k++) {
             tShared.progress[k] = 0;
+            tShared.helpProgress[k] = 0;
+            tShared.helpClaimed[k] = null;
             tShared.done[k] = false;
             tShared.lastSeen[k] = now;
           }
@@ -11830,6 +12252,7 @@
         } else {
           tShared = null;
         }
+        setupTProgress(total, shardCount, cfg.thThuanSnap);
         const totalNote = total.toLocaleString('en-US');
         const shardBounds = tShardBounds(total, shardCount, shardIndex);
         /* Tab chẵn (index 1,3,…): gom đoạn rồi duyệt nghịch; tab lẻ / solo: thuận streaming. */
@@ -11880,10 +12303,9 @@
               tStatusEl.textContent = reason === 'stopped'
                 ? 'Đã dừng · ' + tHitsNote() + ' · đã quét '
                 + tJobDoneN.toLocaleString('en-US') + '/' + totalNote + ' combo'
-                + tElapsedSuffix()
-                : 'xong · ' + tHitsNote() + ' · ' + totalNote + ' combo · id ' + focus.focusId
-                + (focus.mode === 'sim' ? ' (rỗng cuối)' : '')
-                + ' · ' + (cfg.thThuanSnap ? 'thuận' : 'nghịch') + ' · trend ' + cfg.trendWant
+                + tFilterModeNote(cfg.thThuanSnap) + tElapsedSuffix()
+                : 'xong · ' + tHitsNote() + ' · ' + totalNote + ' combo'
+                + tFilterModeNote(cfg.thThuanSnap) + ' · trend ' + cfg.trendWant
                 + tElapsedSuffix();
             }
             tFreeMemos();
@@ -11907,9 +12329,11 @@
             tStatusEl.textContent = 'tab này xong phần của mình · '
               + tHitsNote() + ' · dò '
               + tSharedGlobalDone().toLocaleString('en-US') + '/' + totalNote + ' combo · '
-              + shardCount + ' tab · chờ '
+              + shardCount + ' tab' + tShardDirNote(shardBounds.reverse) + ' · chờ '
               + (shardCount - tSharedDoneCount()) + ' tab nữa…' + tElapsedSuffix();
           }
+          /* Xong sớm → hỗ trợ shard còn lại ngay (lấn progress); tab chết vẫn có takeover 12s. */
+          if (reason === 'done') tSharedTryHelp();
           tSharedMaybeTakeover();
         }
 
@@ -11968,12 +12392,11 @@
           const takeHits = (hits) => {
             for (let h = 0; h < hits.length; h++) {
               const hit = hits[h];
-              if (shared) {
-                const key = tHitKey(hit);
-                if (tSeenHitKeys.has(key)) continue;
-                tSeenHitKeys.add(key);
-                peerOut.push(hit);
-              }
+              /* Luôn khử trùng theo tHitKey (kể cả solo) — chia tab/hỗ trợ không nhân đôi hàng. */
+              const key = tHitKey(hit);
+              if (tSeenHitKeys.has(key)) continue;
+              tSeenHitKeys.add(key);
+              if (shared) peerOut.push(hit);
               tHitsTotal++;
               if (tResults.length < T_STORE_CAP) tResults.push(hit);
             }
@@ -12002,23 +12425,24 @@
             }
           }
           if (shared) tShared.progress[shardIndex] = localDone;
+          else tSoloProgress = gc;
           tJobDoneN = shared ? tSharedGlobalDone() : gc;
           tTrimMemos();
           if (tStop) { finishLocal('stopped'); return; }
-          const dirNote = (shared && shardBounds.reverse) ? ' · nghịch' : (shared ? ' · thuận' : '');
           if (tStatusEl) {
             tStatusEl.textContent = shared
               ? tHitsNote() + ' · dò ' + tJobDoneN.toLocaleString('en-US') + '/' + totalNote
               + ' combo · ' + shardCount + ' tab (tab này '
-              + localDone.toLocaleString('en-US') + ')' + dirNote
-              + ' · id ' + focus.focusId + (focus.mode === 'sim' ? ' (rỗng cuối)' : '')
-              + ' · ' + (cfg.thThuanSnap ? 'thuận ≥' : 'nghịch ≤') + ' · trend ' + cfg.trendWant
+              + localDone.toLocaleString('en-US') + ')'
+              + tShardDirNote(shardBounds.reverse) + ' · trend ' + cfg.trendWant
               + tElapsedSuffix()
               : tHitsNote() + ' · dò ' + gc.toLocaleString('en-US') + '/' + totalNote
               + ' combo'
-              + ' · id ' + focus.focusId + (focus.mode === 'sim' ? ' (rỗng cuối)' : '')
-              + ' · ' + (cfg.thThuanSnap ? 'thuận ≥' : 'nghịch ≤') + ' · trend ' + cfg.trendWant
+              + tFilterModeNote(cfg.thThuanSnap) + ' · trend ' + cfg.trendWant
               + tElapsedSuffix();
+          } else {
+            syncTElapsed();
+            syncTProgress();
           }
           requestTResultsDomFlush();
           flushPeerHits(false);
@@ -16790,7 +17214,8 @@
           || msg.type === 't-job-recruit' || msg.type === 't-job-ready'
           || msg.type === 't-job-start' || msg.type === 't-peer-hits'
           || msg.type === 't-job-progress' || msg.type === 't-job-done'
-          || msg.type === 't-job-stop' || msg.type === 't-job-takeover') {
+          || msg.type === 't-job-stop' || msg.type === 't-job-takeover'
+          || msg.type === 't-job-help' || msg.type === 't-job-help-progress') {
           handleTSharedMsg(msg);
           return;
         }
