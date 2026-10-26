@@ -374,19 +374,76 @@
       overflow: visible;
     }
 
-    /* Tỉ số nổi trên nhãn wtail/wfreq (wtail/tail · wfreq/wtail) — absolute, không đẩy layout. */
+    /* Tỉ số nổi — chân số đụng sát đỉnh chữ wtail/wfreq; ⌊/⌉ absolute ngoài ô, không đẩy layout. */
     .trial-params .tp-label .tp-ratio {
       position: absolute;
       left: 50%;
-      bottom: calc(100% + 1px);
+      bottom: calc(100% - 3px);
       transform: translateX(-50%);
+      display: block;
+      width: 2.8em;
+      height: 9px;
       font-size: 8px;
       font-weight: 800;
       line-height: 1;
       color: #0369a1;
-      pointer-events: none;
+      pointer-events: auto;
       white-space: nowrap;
       letter-spacing: -0.02em;
+      z-index: 1;
+    }
+
+    .trial-params .tp-label .tp-ratio-mark {
+      position: absolute;
+      top: 0;
+      height: 9px;
+      font-size: 9px;
+      font-weight: 900;
+      line-height: 9px;
+      color: #0369a1;
+      pointer-events: none;
+    }
+
+    .trial-params .tp-label .tp-ratio-floor {
+      right: 100%;
+      margin-right: 1px;
+    }
+
+    .trial-params .tp-label .tp-ratio-ceil {
+      left: 100%;
+      margin-left: 1px;
+    }
+
+    .trial-params .tp-label .tp-ratio-mark[hidden] {
+      display: none !important;
+    }
+
+    .trial-params .tp-label .tp-ratio-val {
+      display: block;
+      width: 100%;
+      height: 9px;
+      min-width: 0;
+      min-height: 0;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      border-radius: 2px;
+      background: transparent;
+      color: inherit;
+      font: inherit;
+      font-size: 8px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      text-align: center;
+      line-height: 9px;
+      box-sizing: border-box;
+      appearance: textfield;
+      outline: none;
+    }
+
+    .trial-params .tp-label .tp-ratio-val:focus {
+      background: #e0f2fe;
+      box-shadow: 0 0 0 1px #0284c7;
     }
 
     .trial-params .tp-val {
@@ -4336,7 +4393,13 @@
             </div>
             <div class="tp-item"
               title="Cửa sổ lịch sử thu thập cạnh (lookback) cho tail · trần = id cuối có ĐA (≠ rỗng cuối)">
-              <span class="tp-label">wtail<span class="tp-ratio" id="trialWtailRatio" title="wtail/tail">—</span></span>
+              <span class="tp-label">wtail<span class="tp-ratio" id="trialWtailRatioWrap"
+                  title="wtail/tail — sửa tỉ số → tính lại wtail (làm tròn gần nhất)">
+                  <span class="tp-ratio-mark tp-ratio-floor" id="trialWtailRatioFloor" hidden>⌊</span>
+                  <input class="tp-ratio-val" id="trialWtailRatio" type="text" inputmode="decimal"
+                    aria-label="wtail/tail" value="—" />
+                  <span class="tp-ratio-mark tp-ratio-ceil" id="trialWtailRatioCeil" hidden>⌉</span>
+                </span></span>
               <input class="tp-val" id="trialWtailVal" type="number" min="4" max="9999" value="20" inputmode="numeric"
                 aria-label="wtail" />
               <div class="tp-spin" role="group" aria-label="Tăng giảm wtail">
@@ -4347,7 +4410,13 @@
               </div>
             </div>
             <div class="tp-item" title="Cửa sổ tần suất derive/peer (Wfreq) · ≤ wtail">
-              <span class="tp-label">wfreq<span class="tp-ratio" id="trialWfreqRatio" title="wfreq/wtail">—</span></span>
+              <span class="tp-label">wfreq<span class="tp-ratio" id="trialWfreqRatioWrap"
+                  title="wfreq/wtail — sửa tỉ số → tính lại wfreq (làm tròn gần nhất)">
+                  <span class="tp-ratio-mark tp-ratio-floor" id="trialWfreqRatioFloor" hidden>⌊</span>
+                  <input class="tp-ratio-val" id="trialWfreqRatio" type="text" inputmode="decimal"
+                    aria-label="wfreq/wtail" value="—" />
+                  <span class="tp-ratio-mark tp-ratio-ceil" id="trialWfreqRatioCeil" hidden>⌉</span>
+                </span></span>
               <input class="tp-val" id="trialWfreqVal" type="number" min="1" max="20" value="10" inputmode="numeric"
                 aria-label="wfreq" title="Tối đa = wtail" />
               <div class="tp-spin" role="group" aria-label="Tăng giảm wfreq">
@@ -4763,10 +4832,12 @@
       function trialWfreqMax() {
         return trialWtail;
       }
-      /** Khi wtail đổi: kéo [tail]/wfreq xuống nếu vượt trần. */
+      /** Khi wtail đổi: chỉ siết wfreq theo trần mới — không kéo tail (tail chỉ đổi khi user chỉnh trực tiếp / paste / sync triple). */
       function enforceTrialConstraints() {
         trialWtail = clampInt(trialWtail, TRIAL_WTAIL_MIN, trialWtailMax());
-        trialTail = clampInt(trialTail, TRIAL_TAIL_MIN, trialTailMax());
+        if (!(Number.isFinite(trialTail)) || trialTail < TRIAL_TAIL_MIN) {
+          trialTail = TRIAL_TAIL_MIN;
+        }
         trialWfreq = clampInt(trialWfreq, TRIAL_WFREQ_MIN, trialWfreqMax());
       }
       function syncMinIdFromWtail() {
@@ -6369,6 +6440,7 @@
           trialWtail = wtail;
           trialTail = tail;
           trialWfreq = nextWfreq;
+          clearTrialRatioMarks();
           scheduleTrialRebuild();
         } finally {
           requestAnimationFrame(() => { trialParamsSyncApplying = false; });
@@ -9836,6 +9908,7 @@
         trialWtail = clampInt(wtail, TRIAL_WTAIL_MIN, wMax);
         trialTail = clampInt(tail, TRIAL_TAIL_MIN, Math.floor(trialWtail / 2));
         trialWfreq = clampInt(wfreq, TRIAL_WFREQ_MIN, trialWtail);
+        clearTrialRatioMarks();
         syncTrialParamUi();
         schedulePublishTrialParams();
         scheduleTrialRebuild();
@@ -11185,7 +11258,7 @@
           + r.wfreq
           + '</span>';
         return '<div class="t-result' + (idx === tAppliedIdx ? ' is-applied' : '')
-          + '" data-t-idx="' + idx + '" title="Click: set header threshold + tail/wtail/wfreq của hàng này">'
+          + '" data-t-idx="' + idx + '" title="Click: áp tail/wtail/wfreq + dấu threshold · % ngưỡng: ≤ chỉ nâng khi row>header · ≥ chỉ hạ khi row<header">'
           + '<div class="t-result-head">'
           + comboHtml + ' · '
           + 'id ' + r.focusId + (r.mode === 'sim' ? ' (rỗng cuối)' : '')
@@ -11341,12 +11414,17 @@
         setTimeout(() => URL.revokeObjectURL(url), 4000);
       }
 
-      /** Áp row lên header + focus kỳ đó + viền xanh hàng timeline — KHÔNG đóng popup T, KHÔNG dừng lọc. */
+      /** Áp row lên header + focus kỳ đó + viền xanh hàng timeline — KHÔNG đóng popup T, KHÔNG dừng lọc.
+       * 3 trọng số + dấu threshold. % ngưỡng: nghịch≤ chỉ nâng khi row > header; thuận≥ chỉ hạ khi row < header. */
       function applyTResult(r, opts) {
         if (!r) return;
         const remote = !!(opts && opts.remote);
-        thOp = r.op;
-        thVal = clampTh(r.t);
+        if (r.op === '>=' || r.op === '<=' || r.op === '=') thOp = r.op;
+        const rowT = clampTh(r.t);
+        if (Number.isFinite(rowT)) {
+          if (thOp === '<=' && rowT > thVal) thVal = rowT;
+          else if (thOp === '>=' && rowT < thVal) thVal = rowT;
+        }
         applyThresholdToUi();
         saveThresholdPrefs();
         applyTrialParamsTriple(r.tail, r.wtail, r.wfreq);
@@ -11439,11 +11517,8 @@
         syncTProgress();
         return '';
       }
-      /* Solo: theo ngưỡng thuận≥ / nghịch≤. Chia tab: theo hướng duyệt shard
-         (tab lẻ thuận, tab chẵn nghịch) — không lấy chung thThuan. */
-      function tFilterModeNote(thThuan) {
-        return ' · lọc ' + (thThuan ? 'thuận' : 'nghịch');
-      }
+      /* "lọc thuận/nghịch" = hướng duyệt combo shard (không theo ngưỡng ≥/≤).
+         1 tab luôn thuận; multi: tab lẻ thuận, tab chẵn nghịch. */
       function tShardDirNote(reverse) {
         return ' · lọc ' + (reverse ? 'nghịch' : 'thuận');
       }
@@ -11466,11 +11541,11 @@
           seg.appendChild(fwd);
           seg.appendChild(rev);
           tProgressTrackEl.appendChild(seg);
-          /* Solo: 1 hướng theo ngưỡng; multi: chủ shard lẻ=fwd, chẵn=rev. */
+          /* Solo: luôn thuận (L→R); multi: chủ shard lẻ=fwd, chẵn=rev. */
           fills.push({
             fwd: fwd,
             rev: rev,
-            ownerRev: n > 1 ? ((k % 2) === 1) : !thThuan
+            ownerRev: n > 1 ? ((k % 2) === 1) : false
           });
         }
         tProgressMeta = { total: total, shardCount: n, fills: fills };
@@ -11602,7 +11677,7 @@
         }
         return head + ' · ' + tHitsNote() + ' · '
           + comboTxt + ' · ' + sh.shardCount + ' tab'
-          + tFilterModeNote(sh.thThuanSnap) + ' · trend ' + sh.trendWant
+          + ' · trend ' + sh.trendWant
           + ' · chia việc: ' + perTab.join(' + ')
           + tElapsedSuffix();
       }
@@ -12474,12 +12549,13 @@
             if (tStopBtn) tStopBtn.hidden = true;
             if (tRunBtn) tRunBtn.hidden = false;
             if (tStatusEl) {
+              /* Solo: hướng duyệt luôn thuận (shardCount≤1 → reverse=false). */
               tStatusEl.textContent = reason === 'stopped'
                 ? 'Đã dừng · ' + tHitsNote() + ' · đã quét '
                 + tJobDoneN.toLocaleString('en-US') + '/' + totalNote + ' combo'
-                + tFilterModeNote(cfg.thThuanSnap) + tElapsedSuffix()
+                + tShardDirNote(false) + tElapsedSuffix()
                 : 'xong · ' + tHitsNote() + ' · ' + totalNote + ' combo'
-                + tFilterModeNote(cfg.thThuanSnap) + ' · trend ' + cfg.trendWant
+                + tShardDirNote(false) + ' · trend ' + cfg.trendWant
                 + tElapsedSuffix();
             }
             tFreeMemos();
@@ -12638,7 +12714,7 @@
               + tElapsedSuffix()
               : tHitsNote() + ' · dò ' + gc.toLocaleString('en-US') + '/' + totalNote
               + ' combo'
-              + tFilterModeNote(cfg.thThuanSnap) + ' · trend ' + cfg.trendWant
+              + tShardDirNote(false) + ' · trend ' + cfg.trendWant
               + tElapsedSuffix();
           } else {
             syncTElapsed();
@@ -20168,12 +20244,37 @@
       const chipViolRateEl = document.getElementById('chipViolRate');
       const chipRestRateEl = document.getElementById('chipRestRate');
 
-      /** Dbclick trong thanh 3 trọng số, ngoài ô nhập / nút spin → paste "3,196,14". */
+      /** ⌊ = tròn xuống · ⌉ = tròn lên (từ tỉ số → wtail/wfreq nguyên). */
+      let trialWtailRatioMark = null;
+      let trialWfreqRatioMark = null;
+
+      function clearTrialRatioMarks() {
+        trialWtailRatioMark = null;
+        trialWfreqRatioMark = null;
+      }
+
+      function trialRatioRoundMark(exact, rounded) {
+        if (!Number.isFinite(exact) || !Number.isFinite(rounded)) return null;
+        if (Math.abs(exact - rounded) < 1e-9) return null;
+        return rounded < exact ? 'floor' : 'ceil';
+      }
+
+      function paintTrialRatioMarks(kind) {
+        const isW = kind === 'wtail';
+        const mark = isW ? trialWtailRatioMark : trialWfreqRatioMark;
+        const floorEl = document.getElementById(isW ? 'trialWtailRatioFloor' : 'trialWfreqRatioFloor');
+        const ceilEl = document.getElementById(isW ? 'trialWtailRatioCeil' : 'trialWfreqRatioCeil');
+        if (floorEl) floorEl.hidden = mark !== 'floor';
+        if (ceilEl) ceilEl.hidden = mark !== 'ceil';
+      }
+
+      /** Dbclick trong thanh 3 trọng số, ngoài ô nhập / nút spin / tỉ số nổi → paste "3,196,14". */
       if (trialParamsBarEl && !trialParamsBarEl._trialPasteBound) {
         trialParamsBarEl._trialPasteBound = true;
         trialParamsBarEl.addEventListener('dblclick', (e) => {
           if (e.target && e.target.closest) {
-            if (e.target.closest('.tp-val') || e.target.closest('.tp-spin-btn')) return;
+            if (e.target.closest('.tp-val') || e.target.closest('.tp-spin-btn')
+              || e.target.closest('.tp-ratio')) return;
           }
           e.preventDefault();
           const applyTxt = (text) => {
@@ -20204,40 +20305,39 @@
       function syncTrialParamUi() {
         const tMax = trialTailMax();
         const fMax = trialWfreqMax();
+        /* Luôn ghi value kể cả khi ô đang focus — W/S/↑/↓ phải thấy số đổi ngay.
+           (Ô chỉ commit khi change/Enter, không rebuild từng phím gõ.) */
         if (trialTailValEl) {
           trialTailValEl.min = String(TRIAL_TAIL_MIN);
           trialTailValEl.max = String(tMax);
-          if (document.activeElement !== trialTailValEl) {
-            trialTailValEl.value = String(trialTail);
-          }
+          trialTailValEl.value = String(trialTail);
         }
         const wMax = trialWtailMax();
         if (trialWtailValEl) {
           trialWtailValEl.min = String(TRIAL_WTAIL_MIN);
           trialWtailValEl.max = String(wMax);
-          if (document.activeElement !== trialWtailValEl) {
-            trialWtailValEl.value = String(trialWtail);
-          }
+          trialWtailValEl.value = String(trialWtail);
         }
         if (trialWfreqValEl) {
           trialWfreqValEl.min = String(TRIAL_WFREQ_MIN);
           trialWfreqValEl.max = String(fMax);
-          if (document.activeElement !== trialWfreqValEl) {
-            trialWfreqValEl.value = String(trialWfreq);
-          }
+          trialWfreqValEl.value = String(trialWfreq);
         }
         const wtailRatioEl = document.getElementById('trialWtailRatio');
         const wfreqRatioEl = document.getElementById('trialWfreqRatio');
-        if (wtailRatioEl) {
-          wtailRatioEl.textContent = (trialTail > 0)
+        /* Ratio: giữ nguyên khi đang gõ; còn lại (kể cả ± phím trên ô số nguyên) thì sync. */
+        if (wtailRatioEl && document.activeElement !== wtailRatioEl) {
+          wtailRatioEl.value = (trialTail > 0)
             ? (Math.round((trialWtail / trialTail) * 10) / 10).toFixed(1)
             : '—';
         }
-        if (wfreqRatioEl) {
-          wfreqRatioEl.textContent = (trialWtail > 0)
+        if (wfreqRatioEl && document.activeElement !== wfreqRatioEl) {
+          wfreqRatioEl.value = (trialWtail > 0)
             ? (Math.round((trialWfreq / trialWtail) * 1000) / 1000).toFixed(3)
             : '—';
         }
+        paintTrialRatioMarks('wtail');
+        paintTrialRatioMarks('wfreq');
         if (trialTailIncEl) {
           trialTailIncEl.disabled = trialTail >= tMax;
           trialTailIncEl.title = 'Tăng tail (tối đa ⌊wtail/2⌋ = ' + tMax + ')';
@@ -20516,19 +20616,22 @@
         const next = clampInt(trialTail + delta, TRIAL_TAIL_MIN, trialTailMax());
         if (next === trialTail) return;
         trialTail = next;
+        clearTrialRatioMarks();
         scheduleTrialRebuild();
       }
       function stepTrialWtail(delta) {
         const next = clampInt(trialWtail + delta, TRIAL_WTAIL_MIN, trialWtailMax());
         if (next === trialWtail) return;
         trialWtail = next;
-        /* wtail↓ → có thể kéo [tail]/wfreq xuống theo trần mới */
+        /* wtail↓ chỉ siết wfreq; tail giữ nguyên (user chỉnh riêng). */
+        clearTrialRatioMarks();
         scheduleTrialRebuild();
       }
       function stepTrialWfreq(delta) {
         const next = clampInt(trialWfreq + delta, TRIAL_WFREQ_MIN, trialWfreqMax());
         if (next === trialWfreq) return;
         trialWfreq = next;
+        clearTrialRatioMarks();
         scheduleTrialRebuild();
       }
 
@@ -20540,8 +20643,81 @@
         } else if (kind === 'wfreq' && trialWfreqValEl) {
           trialWfreq = clampInt(trialWfreqValEl.value, TRIAL_WFREQ_MIN, trialWfreqMax());
         } else return;
+        clearTrialRatioMarks();
         scheduleTrialRebuild();
       }
+
+      /** Sửa tỉ số nổi → wtail = round(r·tail) · wfreq = round(r·wtail); ⌊/⌉ theo hướng làm tròn. */
+      function commitTrialRatio(kind) {
+        const el = document.getElementById(kind === 'wtail' ? 'trialWtailRatio' : 'trialWfreqRatio');
+        if (!el) return;
+        const raw = String(el.value || '').trim().replace(',', '.');
+        const ratio = Number(raw);
+        if (!Number.isFinite(ratio) || ratio <= 0) {
+          syncTrialParamUi();
+          return;
+        }
+        if (kind === 'wtail') {
+          if (!(trialTail > 0)) { syncTrialParamUi(); return; }
+          const exact = ratio * trialTail;
+          const rounded = Math.round(exact);
+          trialWtailRatioMark = trialRatioRoundMark(exact, rounded);
+          trialWtail = clampInt(rounded, TRIAL_WTAIL_MIN, trialWtailMax());
+          trialWfreq = clampInt(trialWfreq, TRIAL_WFREQ_MIN, trialWfreqMax());
+        } else {
+          if (!(trialWtail > 0)) { syncTrialParamUi(); return; }
+          const exact = ratio * trialWtail;
+          const rounded = Math.round(exact);
+          trialWfreqRatioMark = trialRatioRoundMark(exact, rounded);
+          trialWfreq = clampInt(rounded, TRIAL_WFREQ_MIN, trialWfreqMax());
+        }
+        paintTrialRatioMarks(kind);
+        if (trialWtailValEl) trialWtailValEl.value = String(trialWtail);
+        if (trialWfreqValEl) trialWfreqValEl.value = String(trialWfreq);
+        schedulePublishTrialParams();
+        scheduleTrialRebuild();
+      }
+
+      function stepTrialRatioField(kind, dir) {
+        const el = document.getElementById(kind === 'wtail' ? 'trialWtailRatio' : 'trialWfreqRatio');
+        if (!el || !dir) return;
+        let cur = Number(String(el.value || '').trim().replace(',', '.'));
+        if (!Number.isFinite(cur) || cur <= 0) {
+          cur = kind === 'wtail'
+            ? (trialTail > 0 ? trialWtail / trialTail : 1)
+            : (trialWtail > 0 ? trialWfreq / trialWtail : 0.5);
+        }
+        /* wtail/tail: ±0.1 (1 chữ số) · wfreq/wtail: ±0.01 (2 chữ số). */
+        const decimals = kind === 'wtail' ? 1 : 2;
+        const step = decimals === 1 ? 0.1 : 0.01;
+        const scale = decimals === 1 ? 10 : 100;
+        let next = Math.round((cur + dir * step) * scale) / scale;
+        if (!(next > 0)) next = step;
+        el.value = next.toFixed(decimals);
+        commitTrialRatio(kind);
+      }
+
+      function bindTrialRatioInput(kind) {
+        const el = document.getElementById(kind === 'wtail' ? 'trialWtailRatio' : 'trialWfreqRatio');
+        if (!el || el._trialRatioBound) return;
+        el._trialRatioBound = true;
+        el.addEventListener('change', () => commitTrialRatio(kind));
+        el.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            commitTrialRatio(kind);
+            el.blur();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            syncTrialParamUi();
+            el.blur();
+          }
+        });
+        el.addEventListener('click', (e) => { e.stopPropagation(); });
+        el.addEventListener('dblclick', (e) => { e.stopPropagation(); });
+      }
+      bindTrialRatioInput('wtail');
+      bindTrialRatioInput('wfreq');
 
       function bindTrialInput(el, kind) {
         if (!el) return;
@@ -20551,22 +20727,260 @@
             e.preventDefault();
             commitTrialInput(kind);
             el.blur();
-          } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            if (kind === 'tail') stepTrialTail(1);
-            else if (kind === 'wtail') stepTrialWtail(1);
-            else stepTrialWfreq(1);
-          } else if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            if (kind === 'tail') stepTrialTail(-1);
-            else if (kind === 'wtail') stepTrialWtail(-1);
-            else stepTrialWfreq(-1);
           }
         });
       }
       bindTrialInput(trialTailValEl, 'tail');
       bindTrialInput(trialWtailValEl, 'wtail');
       bindTrialInput(trialWfreqValEl, 'wfreq');
+
+      /** W/S/↑/↓ khi focus ô số → ± ngay.
+       * Tiếng Việt (Unikey/Telex): e.key hay = Process/ư… — bắt phím vật lý e.code / keyCode;
+       * Telex W → ư/Ư…; S thường chỉ thêm dấu (không có chữ s) nên bắt buộc dựa vào code. */
+      const FIELD_STEP_VN_W = /[wWưƯứỪửỮữỰ]/;
+      const FIELD_STEP_VN_S = /[sS]/;
+
+      function fieldStepDirFromKey(e) {
+        if (!e || e.ctrlKey || e.metaKey || e.altKey) return 0;
+        if (e.key === 'ArrowUp') return 1;
+        if (e.key === 'ArrowDown') return -1;
+        const code = e.code || '';
+        const key = e.key || '';
+        const kc = e.keyCode || e.which || 0;
+        /* Phím vật lý — chịu IME key=Process / keyCode 229. */
+        if (code === 'KeyW' || kc === 87) return 1;
+        if (code === 'KeyS' || kc === 83) return -1;
+        if (key === 'w' || key === 'W' || FIELD_STEP_VN_W.test(key)) return 1;
+        if (key === 's' || key === 'S' || FIELD_STEP_VN_S.test(key)) return -1;
+        return 0;
+      }
+
+      function fieldStepDirFromText(data) {
+        const s = String(data == null ? '' : data);
+        if (!s) return 0;
+        if (FIELD_STEP_VN_W.test(s)) return 1;
+        if (FIELD_STEP_VN_S.test(s)) return -1;
+        return 0;
+      }
+
+      function isNumericSteppableInput(el) {
+        if (!el || el.disabled || el.readOnly) return false;
+        if (el.tagName !== 'INPUT') return false;
+        const type = String(el.type || 'text').toLowerCase();
+        if (type === 'checkbox' || type === 'radio' || type === 'button' || type === 'submit'
+          || type === 'reset' || type === 'file' || type === 'hidden' || type === 'password'
+          || type === 'email' || type === 'search' || type === 'url' || type === 'tel'
+          || type === 'color' || type === 'date' || type === 'time') {
+          return false;
+        }
+        if (el.id === 'simRoomTag') return false;
+        if (type === 'number') return true;
+        if (el.id === 'thVal' || el.id === 'tId' || el.id === 'tXLo' || el.id === 'tXHi'
+          || el.id === 'tTMulLo' || el.id === 'tTMulHi'
+          || el.id === 'trialWtailRatio' || el.id === 'trialWfreqRatio') {
+          return true;
+        }
+        if (el.classList && (el.classList.contains('tp-val') || el.classList.contains('tp-ratio-val'))) {
+          return true;
+        }
+        if (el.hasAttribute('data-t-rng') || el.hasAttribute('data-scan-bound')
+          || el.hasAttribute('data-imax-bound')) {
+          return true;
+        }
+        const mode = String(el.getAttribute('inputmode') || '').toLowerCase();
+        return mode === 'numeric' || mode === 'decimal';
+      }
+
+      function stepFocusedNumericField(el, dir) {
+        if (!el || !dir) return false;
+        const id = el.id || '';
+        if (id === 'thVal') { stepThreshold(dir); return true; }
+        if (id === 'trialTailVal') { stepTrialTail(dir); return true; }
+        if (id === 'trialWtailVal') { stepTrialWtail(dir); return true; }
+        if (id === 'trialWfreqVal') { stepTrialWfreq(dir); return true; }
+        if (id === 'trialWtailRatio') { stepTrialRatioField('wtail', dir); return true; }
+        if (id === 'trialWfreqRatio') { stepTrialRatioField('wfreq', dir); return true; }
+        if (id === 'tId') { stepTId(dir); return true; }
+        if (id === 'tXLo') { stepTXBound('lo', dir); return true; }
+        if (id === 'tXHi') { stepTXBound('hi', dir); return true; }
+        if (id === 'tTMulLo') { stepTMulBound('lo', dir); return true; }
+        if (id === 'tTMulHi') { stepTMulBound('hi', dir); return true; }
+        if (el.hasAttribute('data-t-rng')) {
+          stepTBound(el.getAttribute('data-t-rng'), el.getAttribute('data-t-bound'), dir);
+          return true;
+        }
+        if (el.hasAttribute('data-scan-bound')) {
+          const wrap = el.closest('[data-scan-range]');
+          if (!wrap) return false;
+          stepScanBound(wrap.getAttribute('data-scan-range'), el.getAttribute('data-scan-bound'), dir);
+          return true;
+        }
+        if (el.hasAttribute('data-imax-bound')) {
+          const wrap = el.closest('[data-imax-range]');
+          if (!wrap) return false;
+          stepIMaxBound(wrap.getAttribute('data-imax-range'), el.getAttribute('data-imax-bound'), dir);
+          return true;
+        }
+        if (String(el.type || '').toLowerCase() === 'number') {
+          const stepAttr = Number(el.step);
+          const step = (Number.isFinite(stepAttr) && stepAttr > 0) ? stepAttr : 1;
+          let cur = Number(el.value);
+          if (!Number.isFinite(cur)) cur = Number(el.min);
+          if (!Number.isFinite(cur)) cur = 0;
+          let next = cur + dir * step;
+          const min = el.min !== '' ? Number(el.min) : NaN;
+          const max = el.max !== '' ? Number(el.max) : NaN;
+          if (Number.isFinite(min) && next < min) next = min;
+          if (Number.isFinite(max) && next > max) next = max;
+          if (Math.abs(step - Math.round(step)) < 1e-9) next = Math.round(next);
+          else next = Math.round(next / step) * step;
+          el.value = String(next);
+          try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (e0) { /* ignore */ }
+          try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch (e1) { /* ignore */ }
+          return true;
+        }
+        if (el.classList && el.classList.contains('tp-val')) {
+          let cur = Number(String(el.value || '').replace(',', '.'));
+          if (!Number.isFinite(cur)) cur = 0;
+          el.value = String(Math.round(cur + dir));
+          try { el.dispatchEvent(new Event('input', { bubbles: true })); } catch (e2) { /* ignore */ }
+          try { el.dispatchEvent(new Event('change', { bubbles: true })); } catch (e3) { /* ignore */ }
+          return true;
+        }
+        return false;
+      }
+
+      let fieldStepGuardUntil = 0;
+      let fieldStepSawKeyDown = false;
+      /** Giá trị số đã ± — khóa trong lúc IME còn cố nhét w/ư vào ô (tránh flash "12w"). */
+      let fieldStepLockEl = null;
+      let fieldStepLockValue = null;
+
+      function armFieldStepLock(el) {
+        if (!el) return;
+        fieldStepLockEl = el;
+        fieldStepLockValue = String(el.value || '');
+        fieldStepGuardUntil = performance.now() + 200;
+      }
+
+      function applyFieldStepLock(el) {
+        if (!el || el !== fieldStepLockEl || fieldStepLockValue == null) return false;
+        if (performance.now() >= fieldStepGuardUntil) {
+          fieldStepLockEl = null;
+          fieldStepLockValue = null;
+          return false;
+        }
+        if (el.value !== fieldStepLockValue) el.value = fieldStepLockValue;
+        return true;
+      }
+
+      function blockFieldEvent(e) {
+        try { e.preventDefault(); } catch (e0) { /* ignore */ }
+        try { e.stopImmediatePropagation(); } catch (e1) {
+          try { e.stopPropagation(); } catch (e2) { /* ignore */ }
+        }
+      }
+
+      function handleFieldStepKeys(e, dir, opts) {
+        if (!dir) return false;
+        const el = e.target;
+        if (!isNumericSteppableInput(el)) return false;
+        const now = performance.now();
+        const dup = now < fieldStepGuardUntil;
+        if (!dup) {
+          if (!stepFocusedNumericField(el, dir)) return false;
+          armFieldStepLock(el);
+        } else if (!(opts && opts.allowBlockOnly)) {
+          return false;
+        } else {
+          applyFieldStepLock(el);
+        }
+        blockFieldEvent(e);
+        return true;
+      }
+
+      document.addEventListener('keydown', (e) => {
+        const dir = fieldStepDirFromKey(e);
+        if (!dir) return;
+        if (handleFieldStepKeys(e, dir)) fieldStepSawKeyDown = true;
+      }, true);
+
+      document.addEventListener('keyup', (e) => {
+        const dir = fieldStepDirFromKey(e);
+        if (!dir) {
+          fieldStepSawKeyDown = false;
+          return;
+        }
+        if (!fieldStepSawKeyDown) handleFieldStepKeys(e, dir);
+        fieldStepSawKeyDown = false;
+      }, true);
+
+      document.addEventListener('beforeinput', (e) => {
+        const el = e && e.target;
+        if (!isNumericSteppableInput(el)) return;
+        /* Đang khóa sau W/S: chặn mọi insert của IME — không cho hiện "12w". */
+        if (applyFieldStepLock(el)) {
+          blockFieldEvent(e);
+          return;
+        }
+        const dir = fieldStepDirFromText(e.data);
+        if (!dir) return;
+        handleFieldStepKeys(e, dir, { allowBlockOnly: true });
+      }, true);
+
+      document.addEventListener('keypress', (e) => {
+        const dir = fieldStepDirFromText(e && e.key) || fieldStepDirFromKey(e);
+        if (!dir) return;
+        handleFieldStepKeys(e, dir, { allowBlockOnly: true });
+      }, true);
+
+      /* IME composition: gỡ chữ ngay khi update, giữ số đã ±. */
+      function onFieldStepComposition(e) {
+        const el = e && e.target;
+        if (!isNumericSteppableInput(el)) return;
+        if (applyFieldStepLock(el)) {
+          blockFieldEvent(e);
+          return;
+        }
+        const raw = String(el.value || '');
+        if (!FIELD_STEP_VN_W.test(raw) && !FIELD_STEP_VN_S.test(raw) && !/[^\d.\/\-]/.test(raw)) {
+          return;
+        }
+        let dir = 0;
+        if (FIELD_STEP_VN_W.test(raw)) dir = 1;
+        else if (FIELD_STEP_VN_S.test(raw)) dir = -1;
+        if (dir && performance.now() >= fieldStepGuardUntil) {
+          el.value = raw.replace(/[^\d.\/\-]/g, '');
+          if (stepFocusedNumericField(el, dir)) armFieldStepLock(el);
+        } else {
+          el.value = raw.replace(/[^\d.\/\-]/g, '');
+        }
+        blockFieldEvent(e);
+      }
+      document.addEventListener('compositionstart', onFieldStepComposition, true);
+      document.addEventListener('compositionupdate', onFieldStepComposition, true);
+      document.addEventListener('compositionend', onFieldStepComposition, true);
+
+      document.addEventListener('input', (e) => {
+        const el = e && e.target;
+        if (!isNumericSteppableInput(el)) return;
+        if (applyFieldStepLock(el)) return;
+        const raw = String(el.value || '');
+        if (!/[^\d.\/\-eE]/.test(raw) && !FIELD_STEP_VN_W.test(raw) && !FIELD_STEP_VN_S.test(raw)) {
+          return;
+        }
+        let dir = 0;
+        if (FIELD_STEP_VN_W.test(raw)) dir = 1;
+        else if (FIELD_STEP_VN_S.test(raw)) dir = -1;
+        /* Một lần ghi: thẳng tới giá trị sau ± — không dừng ở "12" rồi mới "13". */
+        if (dir && performance.now() >= fieldStepGuardUntil) {
+          el.value = raw.replace(/[^\d.\/\-]/g, '');
+          if (stepFocusedNumericField(el, dir)) armFieldStepLock(el);
+        } else {
+          const cleaned = raw.replace(/[^\d.\/\-]/g, '');
+          if (cleaned !== raw) el.value = cleaned;
+        }
+      }, true);
 
       /** Giống threshold: giữ để spam nhanh; pointer capture — nút nhỏ không bị mouseleave cắt. */
       function bindTrialHoldStep(btn, stepFn) {
