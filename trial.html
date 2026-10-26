@@ -4382,10 +4382,10 @@
             title="Tham số thử nghiệm · đổi → tính lại toàn bảng · Dbclick ngoài ô nhập = paste tail,wtail,wfreq (vd 3,196,14)">
             <div class="tp-item" title="Số lượng tail muốn tính (k-tail)">
               <span class="tp-label">tail</span>
-              <input class="tp-val" id="trialTailVal" type="number" min="2" max="10" value="3" inputmode="numeric"
-                aria-label="tail" title="Tối đa ⌊wtail/2⌋" />
+              <input class="tp-val" id="trialTailVal" type="number" min="2" max="9999" value="3" inputmode="numeric"
+                aria-label="tail" title="Tối đa ⌊trần wtail/2⌋ (cùng miền tail trên T-popup)" />
               <div class="tp-spin" role="group" aria-label="Tăng giảm tail">
-                <button type="button" class="tp-spin-btn" id="trialTailInc" title="Tăng tail (tối đa ⌊wtail/2⌋)"
+                <button type="button" class="tp-spin-btn" id="trialTailInc" title="Tăng tail (tối đa ⌊trần wtail/2⌋)"
                   aria-label="tăng tail">▴</button>
                 <button type="button" class="tp-spin-btn" id="trialTailDec" title="Giảm tail (tối thiểu 2)"
                   aria-label="giảm tail">▾</button>
@@ -4826,8 +4826,9 @@
         }
         return Math.max(TRIAL_WTAIL_MIN, lastId | 0);
       }
+      /** Trần tail header = miền tail trên T-popup/scan: ⌊trialWtailMax()/2⌋ (không kẹp theo wtail đang chọn). */
       function trialTailMax() {
-        return Math.floor(trialWtail / 2);
+        return Math.max(TRIAL_TAIL_MIN, Math.floor(trialWtailMax() / 2));
       }
       function trialWfreqMax() {
         return trialWtail;
@@ -20340,7 +20341,7 @@
         paintTrialRatioMarks('wfreq');
         if (trialTailIncEl) {
           trialTailIncEl.disabled = trialTail >= tMax;
-          trialTailIncEl.title = 'Tăng tail (tối đa ⌊wtail/2⌋ = ' + tMax + ')';
+          trialTailIncEl.title = 'Tăng tail (tối đa ⌊trần wtail/2⌋ = ' + tMax + ')';
         }
         if (trialTailDecEl) trialTailDecEl.disabled = trialTail <= TRIAL_TAIL_MIN;
         if (trialWtailIncEl) {
