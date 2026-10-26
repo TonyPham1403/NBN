@@ -4382,8 +4382,8 @@
             title="Tham số thử nghiệm · đổi → tính lại toàn bảng · Dbclick ngoài ô nhập = paste tail,wtail,wfreq (vd 3,196,14)">
             <div class="tp-item" title="Số lượng tail muốn tính (k-tail)">
               <span class="tp-label">tail</span>
-              <input class="tp-val" id="trialTailVal" type="number" min="2" max="9999" value="3" inputmode="numeric"
-                aria-label="tail" title="Tối đa ⌊trần wtail/2⌋ (cùng miền tail trên T-popup)" />
+              <input class="tp-val" id="trialTailVal" type="text" inputmode="numeric" autocomplete="off" spellcheck="false"
+                aria-label="tail" title="Tối đa ⌊trần wtail/2⌋ (cùng miền tail trên T-popup)" value="3" />
               <div class="tp-spin" role="group" aria-label="Tăng giảm tail">
                 <button type="button" class="tp-spin-btn" id="trialTailInc" title="Tăng tail (tối đa ⌊trần wtail/2⌋)"
                   aria-label="tăng tail">▴</button>
@@ -4396,12 +4396,12 @@
               <span class="tp-label">wtail<span class="tp-ratio" id="trialWtailRatioWrap"
                   title="wtail/tail — sửa tỉ số → tính lại wtail (làm tròn gần nhất)">
                   <span class="tp-ratio-mark tp-ratio-floor" id="trialWtailRatioFloor" hidden>⌊</span>
-                  <input class="tp-ratio-val" id="trialWtailRatio" type="text" inputmode="decimal"
-                    aria-label="wtail/tail" value="—" />
+                  <input class="tp-ratio-val" id="trialWtailRatio" type="text" inputmode="decimal" autocomplete="off"
+                    spellcheck="false" aria-label="wtail/tail" value="—" />
                   <span class="tp-ratio-mark tp-ratio-ceil" id="trialWtailRatioCeil" hidden>⌉</span>
                 </span></span>
-              <input class="tp-val" id="trialWtailVal" type="number" min="4" max="9999" value="20" inputmode="numeric"
-                aria-label="wtail" />
+              <input class="tp-val" id="trialWtailVal" type="text" inputmode="numeric" autocomplete="off" spellcheck="false"
+                aria-label="wtail" value="20" />
               <div class="tp-spin" role="group" aria-label="Tăng giảm wtail">
                 <button type="button" class="tp-spin-btn" id="trialWtailInc" title="Tăng wtail (trần = id cuối ĐA)"
                   aria-label="tăng wtail">▴</button>
@@ -4413,12 +4413,12 @@
               <span class="tp-label">wfreq<span class="tp-ratio" id="trialWfreqRatioWrap"
                   title="wfreq/wtail — sửa tỉ số → tính lại wfreq (làm tròn gần nhất)">
                   <span class="tp-ratio-mark tp-ratio-floor" id="trialWfreqRatioFloor" hidden>⌊</span>
-                  <input class="tp-ratio-val" id="trialWfreqRatio" type="text" inputmode="decimal"
-                    aria-label="wfreq/wtail" value="—" />
+                  <input class="tp-ratio-val" id="trialWfreqRatio" type="text" inputmode="decimal" autocomplete="off"
+                    spellcheck="false" aria-label="wfreq/wtail" value="—" />
                   <span class="tp-ratio-mark tp-ratio-ceil" id="trialWfreqRatioCeil" hidden>⌉</span>
                 </span></span>
-              <input class="tp-val" id="trialWfreqVal" type="number" min="1" max="20" value="10" inputmode="numeric"
-                aria-label="wfreq" title="Tối đa = wtail" />
+              <input class="tp-val" id="trialWfreqVal" type="text" inputmode="numeric" autocomplete="off" spellcheck="false"
+                aria-label="wfreq" title="Tối đa = wtail" value="10" />
               <div class="tp-spin" role="group" aria-label="Tăng giảm wfreq">
                 <button type="button" class="tp-spin-btn" id="trialWfreqInc" title="Tăng wfreq"
                   aria-label="tăng wfreq">▴</button>
@@ -20303,36 +20303,47 @@
         });
       }
 
+      /** Ô đang gõ tay (Backspace/số) — cấm sync/IME-lock/W·S ghi đè đến khi blur. */
+      let trialParamTypingEl = null;
+
+      function markTrialParamTyping(el) {
+        if (!el || !isNumericSteppableInput(el)) return;
+        trialParamTypingEl = el;
+        clearFieldStepLock();
+      }
+
+      function clearTrialParamTyping(el) {
+        if (!el || trialParamTypingEl === el) trialParamTypingEl = null;
+      }
+
+      function isTrialParamTyping(el) {
+        return !!(el && trialParamTypingEl === el);
+      }
+
       function syncTrialParamUi() {
         const tMax = trialTailMax();
         const fMax = trialWfreqMax();
-        /* Luôn ghi value kể cả khi ô đang focus — W/S/↑/↓ phải thấy số đổi ngay.
-           (Ô chỉ commit khi change/Enter, không rebuild từng phím gõ.) */
-        if (trialTailValEl) {
-          trialTailValEl.min = String(TRIAL_TAIL_MIN);
-          trialTailValEl.max = String(tMax);
+        const active = document.activeElement;
+        const skipWrite = (el) => el && (active === el || isTrialParamTyping(el));
+        /* Không ghi đè ô đang focus / đang gõ dở. ± phím tự ghi value trước khi gọi sync. */
+        if (trialTailValEl && !skipWrite(trialTailValEl)) {
           trialTailValEl.value = String(trialTail);
         }
         const wMax = trialWtailMax();
-        if (trialWtailValEl) {
-          trialWtailValEl.min = String(TRIAL_WTAIL_MIN);
-          trialWtailValEl.max = String(wMax);
+        if (trialWtailValEl && !skipWrite(trialWtailValEl)) {
           trialWtailValEl.value = String(trialWtail);
         }
-        if (trialWfreqValEl) {
-          trialWfreqValEl.min = String(TRIAL_WFREQ_MIN);
-          trialWfreqValEl.max = String(fMax);
+        if (trialWfreqValEl && !skipWrite(trialWfreqValEl)) {
           trialWfreqValEl.value = String(trialWfreq);
         }
         const wtailRatioEl = document.getElementById('trialWtailRatio');
         const wfreqRatioEl = document.getElementById('trialWfreqRatio');
-        /* Ratio: giữ nguyên khi đang gõ; còn lại (kể cả ± phím trên ô số nguyên) thì sync. */
-        if (wtailRatioEl && document.activeElement !== wtailRatioEl) {
+        if (wtailRatioEl && !skipWrite(wtailRatioEl)) {
           wtailRatioEl.value = (trialTail > 0)
             ? (Math.round((trialWtail / trialTail) * 10) / 10).toFixed(1)
             : '—';
         }
-        if (wfreqRatioEl && document.activeElement !== wfreqRatioEl) {
+        if (wfreqRatioEl && !skipWrite(wfreqRatioEl)) {
           wfreqRatioEl.value = (trialWtail > 0)
             ? (Math.round((trialWfreq / trialWtail) * 1000) / 1000).toFixed(3)
             : '—';
@@ -20618,6 +20629,8 @@
         if (next === trialTail) return;
         trialTail = next;
         clearTrialRatioMarks();
+        clearTrialParamTyping(trialTailValEl);
+        if (trialTailValEl) trialTailValEl.value = String(trialTail);
         scheduleTrialRebuild();
       }
       function stepTrialWtail(delta) {
@@ -20626,6 +20639,12 @@
         trialWtail = next;
         /* wtail↓ chỉ siết wfreq; tail giữ nguyên (user chỉnh riêng). */
         clearTrialRatioMarks();
+        clearTrialParamTyping(trialWtailValEl);
+        if (trialWtailValEl) trialWtailValEl.value = String(trialWtail);
+        if (trialWfreqValEl && document.activeElement !== trialWfreqValEl
+          && !isTrialParamTyping(trialWfreqValEl)) {
+          trialWfreqValEl.value = String(trialWfreq);
+        }
         scheduleTrialRebuild();
       }
       function stepTrialWfreq(delta) {
@@ -20633,6 +20652,8 @@
         if (next === trialWfreq) return;
         trialWfreq = next;
         clearTrialRatioMarks();
+        clearTrialParamTyping(trialWfreqValEl);
+        if (trialWfreqValEl) trialWfreqValEl.value = String(trialWfreq);
         scheduleTrialRebuild();
       }
 
@@ -20653,28 +20674,43 @@
         const el = document.getElementById(kind === 'wtail' ? 'trialWtailRatio' : 'trialWfreqRatio');
         if (!el) return;
         const raw = String(el.value || '').trim().replace(',', '.');
+        /* Đang gõ dở / xóa trắng — đừng cướp UI; blur (change) mới sync lại số cũ. */
+        if (raw === '' || raw === '.' || raw === '-') {
+          if (document.activeElement !== el) syncTrialParamUi();
+          return;
+        }
         const ratio = Number(raw);
         if (!Number.isFinite(ratio) || ratio <= 0) {
-          syncTrialParamUi();
+          if (document.activeElement !== el) syncTrialParamUi();
           return;
         }
         if (kind === 'wtail') {
-          if (!(trialTail > 0)) { syncTrialParamUi(); return; }
+          if (!(trialTail > 0)) {
+            if (document.activeElement !== el) syncTrialParamUi();
+            return;
+          }
           const exact = ratio * trialTail;
           const rounded = Math.round(exact);
           trialWtailRatioMark = trialRatioRoundMark(exact, rounded);
           trialWtail = clampInt(rounded, TRIAL_WTAIL_MIN, trialWtailMax());
           trialWfreq = clampInt(trialWfreq, TRIAL_WFREQ_MIN, trialWfreqMax());
         } else {
-          if (!(trialWtail > 0)) { syncTrialParamUi(); return; }
+          if (!(trialWtail > 0)) {
+            if (document.activeElement !== el) syncTrialParamUi();
+            return;
+          }
           const exact = ratio * trialWtail;
           const rounded = Math.round(exact);
           trialWfreqRatioMark = trialRatioRoundMark(exact, rounded);
           trialWfreq = clampInt(rounded, TRIAL_WFREQ_MIN, trialWfreqMax());
         }
         paintTrialRatioMarks(kind);
-        if (trialWtailValEl) trialWtailValEl.value = String(trialWtail);
-        if (trialWfreqValEl) trialWfreqValEl.value = String(trialWfreq);
+        if (trialWtailValEl && document.activeElement !== trialWtailValEl) {
+          trialWtailValEl.value = String(trialWtail);
+        }
+        if (trialWfreqValEl && document.activeElement !== trialWfreqValEl) {
+          trialWfreqValEl.value = String(trialWfreq);
+        }
         schedulePublishTrialParams();
         scheduleTrialRebuild();
       }
@@ -20695,6 +20731,7 @@
         let next = Math.round((cur + dir * step) * scale) / scale;
         if (!(next > 0)) next = step;
         el.value = next.toFixed(decimals);
+        clearTrialParamTyping(el);
         commitTrialRatio(kind);
       }
 
@@ -20702,14 +20739,23 @@
         const el = document.getElementById(kind === 'wtail' ? 'trialWtailRatio' : 'trialWfreqRatio');
         if (!el || el._trialRatioBound) return;
         el._trialRatioBound = true;
-        el.addEventListener('change', () => commitTrialRatio(kind));
+        el.addEventListener('change', () => {
+          clearTrialParamTyping(el);
+          commitTrialRatio(kind);
+        });
+        el.addEventListener('blur', () => {
+          clearTrialParamTyping(el);
+          commitTrialRatio(kind);
+        });
         el.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') {
             e.preventDefault();
+            clearTrialParamTyping(el);
             commitTrialRatio(kind);
             el.blur();
           } else if (e.key === 'Escape') {
             e.preventDefault();
+            clearTrialParamTyping(el);
             syncTrialParamUi();
             el.blur();
           }
@@ -20722,11 +20768,24 @@
 
       function bindTrialInput(el, kind) {
         if (!el) return;
-        el.addEventListener('change', () => commitTrialInput(kind));
+        el.addEventListener('change', () => {
+          clearTrialParamTyping(el);
+          commitTrialInput(kind);
+        });
+        el.addEventListener('blur', () => {
+          clearTrialParamTyping(el);
+          commitTrialInput(kind);
+        });
         el.addEventListener('keydown', (e) => {
           if (e.key === 'Enter') {
             e.preventDefault();
+            clearTrialParamTyping(el);
             commitTrialInput(kind);
+            el.blur();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            clearTrialParamTyping(el);
+            syncTrialParamUi();
             el.blur();
           }
         });
@@ -20743,12 +20802,19 @@
 
       function fieldStepDirFromKey(e) {
         if (!e || e.ctrlKey || e.metaKey || e.altKey) return 0;
-        if (e.key === 'ArrowUp') return 1;
-        if (e.key === 'ArrowDown') return -1;
         const code = e.code || '';
         const key = e.key || '';
         const kc = e.keyCode || e.which || 0;
-        /* Phím vật lý — chịu IME key=Process / keyCode 229. */
+        /* ←→ chỉ rê caret trong ô — không bao giờ ± giá trị. */
+        if (key === 'ArrowLeft' || key === 'ArrowRight'
+          || code === 'ArrowLeft' || code === 'ArrowRight'
+          || kc === 37 || kc === 39) {
+          return 0;
+        }
+        /* Chỉ ↑↓ + W/S được ±. */
+        if (key === 'ArrowUp' || code === 'ArrowUp' || kc === 38) return 1;
+        if (key === 'ArrowDown' || code === 'ArrowDown' || kc === 40) return -1;
+        /* Phím vật lý W/S — chịu IME key=Process / keyCode 229. */
         if (code === 'KeyW' || kc === 87) return 1;
         if (code === 'KeyS' || kc === 83) return -1;
         if (key === 'w' || key === 'W' || FIELD_STEP_VN_W.test(key)) return 1;
@@ -20853,26 +20919,51 @@
 
       let fieldStepGuardUntil = 0;
       let fieldStepSawKeyDown = false;
-      /** Giá trị số đã ± — khóa trong lúc IME còn cố nhét w/ư vào ô (tránh flash "12w"). */
+      /** Giá trị số đã ± — khóa insert của IME trong chốc lát (tránh flash "12w"); không chặn Backspace. */
       let fieldStepLockEl = null;
       let fieldStepLockValue = null;
+
+      function clearFieldStepLock() {
+        fieldStepLockEl = null;
+        fieldStepLockValue = null;
+      }
 
       function armFieldStepLock(el) {
         if (!el) return;
         fieldStepLockEl = el;
         fieldStepLockValue = String(el.value || '');
-        fieldStepGuardUntil = performance.now() + 200;
+        fieldStepGuardUntil = performance.now() + 120;
       }
 
       function applyFieldStepLock(el) {
         if (!el || el !== fieldStepLockEl || fieldStepLockValue == null) return false;
+        if (isTrialParamTyping(el)) {
+          clearFieldStepLock();
+          return false;
+        }
         if (performance.now() >= fieldStepGuardUntil) {
-          fieldStepLockEl = null;
-          fieldStepLockValue = null;
+          clearFieldStepLock();
           return false;
         }
         if (el.value !== fieldStepLockValue) el.value = fieldStepLockValue;
         return true;
+      }
+
+      function isFieldDeleteInputType(inputType) {
+        const t = String(inputType || '');
+        return t.indexOf('delete') === 0 || t === 'historyUndo' || t === 'historyRedo';
+      }
+
+      function isFieldTypingKey(e) {
+        if (!e) return false;
+        if (e.key === 'Backspace' || e.key === 'Delete'
+          || e.code === 'Backspace' || e.code === 'Delete') return true;
+        if (e.key >= '0' && e.key <= '9') return true;
+        if (e.code && /^Digit[0-9]$/.test(e.code)) return true;
+        if (e.code && /^Numpad[0-9]$/.test(e.code)) return true;
+        if (e.key === '.' || e.key === ',' || e.code === 'Period' || e.code === 'Comma'
+          || e.code === 'NumpadDecimal') return true;
+        return false;
       }
 
       function blockFieldEvent(e) {
@@ -20886,6 +20977,8 @@
         if (!dir) return false;
         const el = e.target;
         if (!isNumericSteppableInput(el)) return false;
+        /* Đang gõ tay số mới → tuyệt đối không ± / không restore số cũ. */
+        if (isTrialParamTyping(el)) return false;
         const now = performance.now();
         const dup = now < fieldStepGuardUntil;
         if (!dup) {
@@ -20901,12 +20994,25 @@
       }
 
       document.addEventListener('keydown', (e) => {
+        const el = e.target;
+        /* ←→ trong ô số: luôn để rê caret, không ±. */
+        if (isNumericSteppableInput(el)
+          && (e.key === 'ArrowLeft' || e.key === 'ArrowRight'
+            || e.code === 'ArrowLeft' || e.code === 'ArrowRight')) {
+          markTrialParamTyping(el);
+          return;
+        }
+        if (isNumericSteppableInput(el) && isFieldTypingKey(e)) {
+          markTrialParamTyping(el);
+          return;
+        }
         const dir = fieldStepDirFromKey(e);
         if (!dir) return;
         if (handleFieldStepKeys(e, dir)) fieldStepSawKeyDown = true;
       }, true);
 
       document.addEventListener('keyup', (e) => {
+        if (isFieldTypingKey(e)) return;
         const dir = fieldStepDirFromKey(e);
         if (!dir) {
           fieldStepSawKeyDown = false;
@@ -20919,7 +21025,17 @@
       document.addEventListener('beforeinput', (e) => {
         const el = e && e.target;
         if (!isNumericSteppableInput(el)) return;
-        /* Đang khóa sau W/S: chặn mọi insert của IME — không cho hiện "12w". */
+        if (isFieldDeleteInputType(e.inputType)) {
+          markTrialParamTyping(el);
+          return;
+        }
+        const data = String(e.data || '');
+        if (data && /^[\d.,]+$/.test(data)) {
+          markTrialParamTyping(el);
+          return;
+        }
+        if (isTrialParamTyping(el)) return;
+        /* Đang khóa sau W/S: chỉ chặn insert chữ của IME. */
         if (applyFieldStepLock(el)) {
           blockFieldEvent(e);
           return;
@@ -20930,23 +21046,24 @@
       }, true);
 
       document.addEventListener('keypress', (e) => {
+        if (isFieldTypingKey(e)) return;
+        if (isTrialParamTyping(e.target)) return;
         const dir = fieldStepDirFromText(e && e.key) || fieldStepDirFromKey(e);
         if (!dir) return;
         handleFieldStepKeys(e, dir, { allowBlockOnly: true });
       }, true);
 
-      /* IME composition: gỡ chữ ngay khi update, giữ số đã ±. */
+      /* IME composition: gỡ chữ w/ư… — bỏ qua khi đang gõ số. */
       function onFieldStepComposition(e) {
         const el = e && e.target;
         if (!isNumericSteppableInput(el)) return;
+        if (isTrialParamTyping(el)) return;
         if (applyFieldStepLock(el)) {
           blockFieldEvent(e);
           return;
         }
         const raw = String(el.value || '');
-        if (!FIELD_STEP_VN_W.test(raw) && !FIELD_STEP_VN_S.test(raw) && !/[^\d.\/\-]/.test(raw)) {
-          return;
-        }
+        if (!FIELD_STEP_VN_W.test(raw) && !FIELD_STEP_VN_S.test(raw)) return;
         let dir = 0;
         if (FIELD_STEP_VN_W.test(raw)) dir = 1;
         else if (FIELD_STEP_VN_S.test(raw)) dir = -1;
@@ -20965,15 +21082,13 @@
       document.addEventListener('input', (e) => {
         const el = e && e.target;
         if (!isNumericSteppableInput(el)) return;
+        if (isTrialParamTyping(el)) return;
         if (applyFieldStepLock(el)) return;
         const raw = String(el.value || '');
-        if (!/[^\d.\/\-eE]/.test(raw) && !FIELD_STEP_VN_W.test(raw) && !FIELD_STEP_VN_S.test(raw)) {
-          return;
-        }
+        if (!FIELD_STEP_VN_W.test(raw) && !FIELD_STEP_VN_S.test(raw)) return;
         let dir = 0;
         if (FIELD_STEP_VN_W.test(raw)) dir = 1;
         else if (FIELD_STEP_VN_S.test(raw)) dir = -1;
-        /* Một lần ghi: thẳng tới giá trị sau ± — không dừng ở "12" rồi mới "13". */
         if (dir && performance.now() >= fieldStepGuardUntil) {
           el.value = raw.replace(/[^\d.\/\-]/g, '');
           if (stepFocusedNumericField(el, dir)) armFieldStepLock(el);
