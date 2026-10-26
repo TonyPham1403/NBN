@@ -353,6 +353,7 @@
       /* Trên popup (50) + loading (20000) — giống threshold / ticks. */
       position: relative;
       z-index: 20010;
+      overflow: visible;
     }
 
     body.modal-open .trial-params {
@@ -366,9 +367,26 @@
     }
 
     .trial-params .tp-label {
+      position: relative;
       font-weight: 700;
       color: #374151;
       white-space: nowrap;
+      overflow: visible;
+    }
+
+    /* Tỉ số nổi trên nhãn wtail/wfreq (wtail/tail · wfreq/wtail) — absolute, không đẩy layout. */
+    .trial-params .tp-label .tp-ratio {
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 1px);
+      transform: translateX(-50%);
+      font-size: 8px;
+      font-weight: 800;
+      line-height: 1;
+      color: #0369a1;
+      pointer-events: none;
+      white-space: nowrap;
+      letter-spacing: -0.02em;
     }
 
     .trial-params .tp-val {
@@ -4304,12 +4322,12 @@
             <span class="unit">%</span>
           </div>
           <div class="trial-params" id="trialParamsBar"
-            title="Tham số thử nghiệm · đổi → tính lại toàn bảng · Dbclick = paste tail,wtail,wfreq (vd 3,196,14)">
+            title="Tham số thử nghiệm · đổi → tính lại toàn bảng · Dbclick ngoài ô nhập = paste tail,wtail,wfreq (vd 3,196,14)">
             <div class="tp-item" title="Số lượng tail muốn tính (k-tail)">
-              <span class="tp-label">[tail]</span>
+              <span class="tp-label">tail</span>
               <input class="tp-val" id="trialTailVal" type="number" min="2" max="10" value="3" inputmode="numeric"
-                aria-label="[tail]" title="Tối đa ⌊wtail/2⌋" />
-              <div class="tp-spin" role="group" aria-label="Tăng giảm [tail]">
+                aria-label="tail" title="Tối đa ⌊wtail/2⌋" />
+              <div class="tp-spin" role="group" aria-label="Tăng giảm tail">
                 <button type="button" class="tp-spin-btn" id="trialTailInc" title="Tăng tail (tối đa ⌊wtail/2⌋)"
                   aria-label="tăng tail">▴</button>
                 <button type="button" class="tp-spin-btn" id="trialTailDec" title="Giảm tail (tối thiểu 2)"
@@ -4317,8 +4335,8 @@
               </div>
             </div>
             <div class="tp-item"
-              title="Cửa sổ lịch sử thu thập cạnh (lookback) cho [tail] · trần = id cuối có ĐA (≠ rỗng cuối)">
-              <span class="tp-label">wtail</span>
+              title="Cửa sổ lịch sử thu thập cạnh (lookback) cho tail · trần = id cuối có ĐA (≠ rỗng cuối)">
+              <span class="tp-label">wtail<span class="tp-ratio" id="trialWtailRatio" title="wtail/tail">—</span></span>
               <input class="tp-val" id="trialWtailVal" type="number" min="4" max="9999" value="20" inputmode="numeric"
                 aria-label="wtail" />
               <div class="tp-spin" role="group" aria-label="Tăng giảm wtail">
@@ -4329,7 +4347,7 @@
               </div>
             </div>
             <div class="tp-item" title="Cửa sổ tần suất derive/peer (Wfreq) · ≤ wtail">
-              <span class="tp-label">wfreq</span>
+              <span class="tp-label">wfreq<span class="tp-ratio" id="trialWfreqRatio" title="wfreq/wtail">—</span></span>
               <input class="tp-val" id="trialWfreqVal" type="number" min="1" max="20" value="10" inputmode="numeric"
                 aria-label="wfreq" title="Tối đa = wtail" />
               <div class="tp-spin" role="group" aria-label="Tăng giảm wfreq">
@@ -20150,11 +20168,13 @@
       const chipViolRateEl = document.getElementById('chipViolRate');
       const chipRestRateEl = document.getElementById('chipRestRate');
 
-      /** Dbclick vùng 3 tham số header → paste "3,196,14". */
+      /** Dbclick trong thanh 3 trọng số, ngoài ô nhập / nút spin → paste "3,196,14". */
       if (trialParamsBarEl && !trialParamsBarEl._trialPasteBound) {
         trialParamsBarEl._trialPasteBound = true;
         trialParamsBarEl.addEventListener('dblclick', (e) => {
-          if (e.target && e.target.closest && e.target.closest('.tp-spin-btn')) return;
+          if (e.target && e.target.closest) {
+            if (e.target.closest('.tp-val') || e.target.closest('.tp-spin-btn')) return;
+          }
           e.preventDefault();
           const applyTxt = (text) => {
             const parsed = parseTrialParamsCsv(text);
@@ -20205,6 +20225,18 @@
           if (document.activeElement !== trialWfreqValEl) {
             trialWfreqValEl.value = String(trialWfreq);
           }
+        }
+        const wtailRatioEl = document.getElementById('trialWtailRatio');
+        const wfreqRatioEl = document.getElementById('trialWfreqRatio');
+        if (wtailRatioEl) {
+          wtailRatioEl.textContent = (trialTail > 0)
+            ? (Math.round((trialWtail / trialTail) * 10) / 10).toFixed(1)
+            : '—';
+        }
+        if (wfreqRatioEl) {
+          wfreqRatioEl.textContent = (trialWtail > 0)
+            ? (Math.round((trialWfreq / trialWtail) * 1000) / 1000).toFixed(3)
+            : '—';
         }
         if (trialTailIncEl) {
           trialTailIncEl.disabled = trialTail >= tMax;
