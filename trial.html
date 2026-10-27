@@ -1412,6 +1412,11 @@
       font-size: 15px;
     }
 
+    /* Kỳ đang focus: ô luật không ✓ (trong threshold) → viền đỏ hướng vào trong. */
+    td.is-focus-untick:not(.col-off):not(.ok):not(.nop) {
+      box-shadow: inset 0 0 0 2px #dc2626;
+    }
+
     td.nop {
       background: #111827 !important;
       border-color: #0b1220;
@@ -20084,12 +20089,48 @@
           td.textContent = '';
           td.title = 'Giả lập phá: mở popup id kỳ rỗng → click số đậm trên pool';
         });
+        syncFocusUntickLawBorders();
       }
 
       function syncHistIdDom() {
         wrap.querySelectorAll('td.hist-id').forEach((td) => {
           const idx = Number(td.getAttribute('data-idx'));
           td.classList.toggle('is-on', histIdOnIdx === idx);
+        });
+        syncFocusUntickLawBorders();
+      }
+
+      /**
+       * Kỳ đang focus: mỗi cột luật đang hiện (threshold) mà không có ✓
+       * → class is-focus-untick (viền đỏ inset). Bỏ nop / cột ẩn.
+       */
+      function syncFocusUntickLawBorders() {
+        if (!wrap) return;
+        wrap.querySelectorAll('td.is-focus-untick').forEach((td) => {
+          td.classList.remove('is-focus-untick');
+        });
+        const active = new Set(activePairIndices());
+        if (simIdOn && simState) {
+          const tr = wrap.querySelector('tr.sim-row');
+          if (!tr) return;
+          tr.querySelectorAll('td.sim-cell[data-pi]').forEach((td) => {
+            if (td.classList.contains('col-off') || td.classList.contains('nop')) return;
+            const pi = Number(td.getAttribute('data-pi'));
+            if (!Number.isFinite(pi) || !active.has(pi)) return;
+            td.classList.add('is-focus-untick');
+          });
+          return;
+        }
+        if (histIdOnIdx == null) return;
+        const idTd = wrap.querySelector('td.hist-id[data-idx="' + histIdOnIdx + '"]');
+        const tr = idTd && idTd.closest('tr');
+        if (!tr) return;
+        tr.querySelectorAll('td[data-pi]').forEach((td) => {
+          if (td.classList.contains('col-off') || td.classList.contains('nop')) return;
+          if (td.classList.contains('ok')) return;
+          const pi = Number(td.getAttribute('data-pi'));
+          if (!Number.isFinite(pi) || !active.has(pi)) return;
+          td.classList.add('is-focus-untick');
         });
       }
 
@@ -21253,6 +21294,7 @@
         prevThresholdActiveSet = activeSet;
         if (light) {
           /* Spam ±: chỉ ẩn/hiện cột — status/sim sync để heavy settle. */
+          syncFocusUntickLawBorders();
           return;
         }
         updateStatusLine(active.length);
@@ -21327,9 +21369,12 @@
       function paintTable(opts) {
         if (!tableBundle || !simState) return;
         const keepScroll = !!(opts && opts.keepScroll);
+        const forceRebuild = !!(opts && opts.rebuild);
         const hasTable = !!wrap.querySelector('table.dc-table');
-        // Đổi threshold: chỉ ẩn/hiện cột. Chỉ dựng lại bảng khi chưa có table.
-        if (!keepScroll || !hasTable) {
+        /* Đổi threshold: chỉ ẩn/hiện cột (không rebuild).
+           Đổi tail/wtail/wfreq: BẮT BUỘC rebuild — tập cột applicable đổi,
+           không dựng lại thì luật mới (vd (9,4)) có trong popup nhưng không có cột trên lưới. */
+        if (forceRebuild || !keepScroll || !hasTable) {
           buildFullTable();
         }
         applyThresholdColumns();
@@ -21985,7 +22030,8 @@
         trialAppliedWtail = trialWtail;
         trialAppliedWfreq = trialWfreq;
         syncTrialParamUi();
-        paintTable({ keepScroll: true });
+        /* rebuild: true — dựng lại cột theo stats mới; scroll vẫn giữ bằng keepScrollTop bên dưới. */
+        paintTable({ keepScroll: true, rebuild: true });
         const pasteFocus = pendingTrialFocusAfterRebuild;
         if (pasteFocus) pendingTrialFocusAfterRebuild = null;
         if (wrap) {
