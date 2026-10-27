@@ -2388,6 +2388,44 @@
       cursor: pointer;
     }
 
+    .t-cont {
+      background: #86efac;
+      border: 1px solid #22c55e;
+      color: #14532d;
+      font-weight: 800;
+      padding: 5px 10px;
+      border-radius: 6px;
+      cursor: pointer;
+      white-space: nowrap;
+      line-height: 1;
+      font-size: 13px;
+      min-width: 2em;
+    }
+
+    .t-cont:hover {
+      background: #4ade80;
+    }
+
+    .t-cont:disabled {
+      opacity: .5;
+      cursor: not-allowed;
+    }
+
+    .t-actions #tStop {
+      font-weight: 800;
+      padding: 5px 14px;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #fecaca;
+      border: 1px solid #f87171;
+      color: #7f1d1d;
+    }
+
+    .t-actions #tStop:disabled {
+      opacity: .55;
+      cursor: wait;
+    }
+
     .t-results {
       overflow: auto;
       border-top: 1px solid #e2e8f0;
@@ -4907,6 +4945,9 @@
       <div class="t-actions">
         <button type="button" class="t-run" id="tRun">Lọc</button>
         <button type="button" id="tStop" hidden>Dừng</button>
+        <button type="button" class="t-cont" id="tCont" hidden
+          aria-label="Tiếp tục"
+          title="Tiếp tục từ điểm dừng (giữ kết quả) · 1 tab hoặc đủ n tab cùng mã như lúc dừng">▶</button>
         <span class="t-hint" id="tStatus">Nhấn Lọc để chạy.</span>
         <span style="flex:1"></span>
         <button type="button" id="tClose" class="t-download"
@@ -10191,7 +10232,13 @@
         scheduleTrialRebuild();
       }
 
-      /** Sau paste a,b,c|id → nhảy focus + mở popup kỳ đó. */
+      /**
+       * Sau paste a,b,c|id: mở popup ngay; ghi nhớ id để sau rebuild bảng
+       * align lại (tránh restore scrollTop cũ → giật về cuối trang).
+       * @type {{ id: number, mode: 'hist'|'sim' }|null}
+       */
+      let pendingTrialFocusAfterRebuild = null;
+
       function focusFromTrialPaste(parsed) {
         if (!parsed || parsed.id == null) return false;
         const n = Number(parsed.id);
@@ -10199,25 +10246,28 @@
         const wantSim = parsed.mode === 'sim'
           || !!(simState && simState.focusId === n && parsed.mode !== 'hist');
         if (wantSim && simState && simState.focusId === n) {
-          alignRowIntoView(n, { instant: false });
+          pendingTrialFocusAfterRebuild = { id: n, mode: 'sim' };
           openSimElim();
           publishSharedFocus(n, { popup: true, mode: 'sim', force: true });
+          alignRowIntoView(n, { instant: true });
           return true;
         }
         const idx = findHistIdxById(n);
         if (idx < 0) {
           if (simState && simState.focusId === n) {
-            alignRowIntoView(n, { instant: false });
+            pendingTrialFocusAfterRebuild = { id: n, mode: 'sim' };
             openSimElim();
             publishSharedFocus(n, { popup: true, mode: 'sim', force: true });
+            alignRowIntoView(n, { instant: true });
             return true;
           }
           return false;
         }
+        pendingTrialFocusAfterRebuild = { id: n, mode: 'hist' };
         rememberHistFocusClick(n);
-        alignRowIntoView(n, { instant: false });
         openHistElim(idx);
         publishSharedFocus(n, { popup: true, mode: 'hist', force: true });
+        alignRowIntoView(n, { instant: true });
         return true;
       }
 
@@ -10268,6 +10318,7 @@
       const tRangesEl = document.getElementById('tRanges');
       const tRunBtn = document.getElementById('tRun');
       const tStopBtn = document.getElementById('tStop');
+      const tContBtn = document.getElementById('tCont');
       const tStatusEl = document.getElementById('tStatus');
       const tResultsEl = document.getElementById('tResults');
       const tMergeEl = document.getElementById('tMerge');
@@ -10339,6 +10390,8 @@
       let tLastJobInfo = null;
       let tJobDoneN = 0;
       let tContinueJob = null;
+      /** Snapshot job bị Dừng giữa chừng (solo hoặc shared) — bấm Tiếp tục để chạy nốt (giữ hits). */
+      let tResumeState = null;
       /* Chia việc cho n tab cùng mã phòng: tShared != null khi job đang chạy dạng shard.
          progress/done/lastSeen theo shardIndex; cfg giữ tham số để chạy bù shard của tab chết. */
       let tShared = null;
@@ -10727,7 +10780,16 @@
           }
           return null;
         }
-        return { total: total, next: next };
+        function skip(n) {
+          let skipped = 0;
+          const want = Math.max(0, n | 0);
+          while (skipped < want) {
+            if (!next()) break;
+            skipped++;
+          }
+          return skipped;
+        }
+        return { total: total, next: next, skip: skip };
       }
 
       /** Slot lịch đang hiện trên UI lúc lọc (−1 = idle / icon). */
@@ -11440,11 +11502,82 @@
         }
         syncTUiFromState();
         tBack.hidden = false;
-        /* Job đang chạy nền → hiện nút Dừng; xong rồi → nút Lọc. */
-        if (tStopBtn) tStopBtn.hidden = !tJobActive;
-        if (tRunBtn) tRunBtn.hidden = tJobActive;
+        /* Job đang chạy nền → hiện nút Dừng; xong rồi → nút Lọc (+ Tiếp tục nếu dừng dở). */
+        syncTActionButtons();
         syncTParamsLock();
         if (tStatusEl && !tJobActive && !tResults.length) tStatusEl.textContent = 'Nhấn Lọc để chạy.';
+      }
+
+      /** Còn việc dở trong snapshot Tiếp tục? */
+      function tResumeHasWork(snap) {
+        if (!snap || !(snap.total > 0)) return false;
+        if (snap.shared) {
+          if (!snap.progress || !(snap.shardCount > 1)) return false;
+          let covered = 0;
+          for (let k = 0; k < snap.shardCount; k++) {
+            const b = tShardBounds(snap.total, snap.shardCount, k);
+            const span = Math.max(0, b.hi - b.lo);
+            const a = snap.progress[k] | 0;
+            const h = (snap.helpProgress && snap.helpProgress[k]) | 0;
+            covered += Math.min(span, a + h);
+          }
+          return covered < snap.total;
+        }
+        return Number.isFinite(snap.gc) && snap.gc < snap.total;
+      }
+
+      function syncTContUi() {
+        const can = !tJobActive && tResumeHasWork(tResumeState);
+        if (tContBtn) {
+          tContBtn.hidden = !can;
+          tContBtn.disabled = false;
+        }
+      }
+
+      /** Chụp resume sau khi dừng job chia tab (progress/help theo từng shard). */
+      function buildTSharedResumeSnap(sh) {
+        if (!sh || sh.reason !== 'stopped' || !(sh.total > 0) || !(sh.shardCount > 1)) return null;
+        let covered = 0;
+        const progress = {};
+        const helpProgress = {};
+        for (let k = 0; k < sh.shardCount; k++) {
+          progress[k] = sh.progress[k] | 0;
+          helpProgress[k] = sh.helpProgress[k] | 0;
+          const b = tShardBounds(sh.total, sh.shardCount, k);
+          const span = Math.max(0, b.hi - b.lo);
+          covered += Math.min(span, progress[k] + helpProgress[k]);
+        }
+        if (covered >= sh.total) return null;
+        const c = sh.cfg || {};
+        return {
+          shared: true,
+          shardCount: sh.shardCount,
+          total: sh.total,
+          progress: progress,
+          helpProgress: helpProgress,
+          startedAt: sh.startedAt || tJobStartedAt,
+          cfg: {
+            focus: c.focus,
+            resolvedRanges: c.resolvedRanges,
+            rb: c.rb, rd: c.rd, rdi: c.rdi, rni: c.rni,
+            rpn: c.rpn || { lo: 0, hi: 35 },
+            xLo: c.xLo, xHi: c.xHi, mulLo: c.mulLo, mulHi: c.mulHi,
+            xOn: c.xOn !== false, xtOn: c.xtOn !== false,
+            trendWant: c.trendWant || sh.trendWant,
+            thThuanSnap: c.thThuanSnap != null ? c.thThuanSnap : sh.thThuanSnap,
+            schedSlots: c.schedSlots || null
+          },
+          schedText: tSchedText ? String(tSchedText.value || '') : ''
+        };
+      }
+
+      function syncTActionButtons() {
+        if (tStopBtn) {
+          tStopBtn.hidden = !tJobActive;
+          if (!tJobActive) tStopBtn.disabled = false;
+        }
+        if (tRunBtn) tRunBtn.hidden = !!tJobActive;
+        syncTContUi();
       }
 
       /** Đóng popup KHÔNG dừng lọc — job chạy tiếp đến hết combo hoặc bấm Dừng. */
@@ -11645,7 +11778,17 @@
           }
           return null;
         }
-        return { total: total, next: next };
+        /** Bỏ qua n combo (dùng khi Tiếp tục từ điểm dừng) — O(n) nhẹ, không eval. */
+        function skip(n) {
+          let skipped = 0;
+          const want = Math.max(0, n | 0);
+          while (skipped < want) {
+            if (!next()) break;
+            skipped++;
+          }
+          return skipped;
+        }
+        return { total: total, next: next, skip: skip };
       }
 
       /**
@@ -12391,11 +12534,23 @@
         if (tLastJobInfo) { tLastJobInfo.done = tSharedGlobalDone(); tLastJobInfo.stopped = sh.reason === 'stopped'; }
         tTickerStop();
         tContinueJob = null;
-        if (tStopBtn) tStopBtn.hidden = true;
-        if (tRunBtn) tRunBtn.hidden = false;
+        if (sh.reason === 'stopped') {
+          tResumeState = buildTSharedResumeSnap(sh);
+          if (tResumeState) {
+            try {
+              publishScanBc({ type: 't-job-resume-state', snap: tResumeState });
+            } catch (ePub) { /* ignore */ }
+          }
+        } else {
+          tResumeState = null;
+        }
+        syncTActionButtons();
         /* Snap progress đủ 100% + khít fill 2 phía (kể cả nghịch→thuận). */
         syncTProgress();
-        if (tStatusEl) tStatusEl.textContent = tSharedFinalText();
+        if (tStatusEl) {
+          tStatusEl.textContent = tSharedFinalText()
+            + (tResumeState ? ' · bấm Tiếp tục (cần đủ ' + tResumeState.shardCount + ' tab)' : '');
+        }
         tFreeMemos();
         renderTResults();
         if (pendingScanTlHighlight) refreshOpenPopupAfterThreshold();
@@ -12855,6 +13010,8 @@
           if (tStatusEl) tStatusEl.textContent = 'Scan đang chạy — đợi scan xong rồi lọc.';
           return;
         }
+        tResumeState = null;
+        syncTContUi();
         closeTAuxPanels();
         if (!readTStateFromUi()) {
           if (tStatusEl) tStatusEl.textContent = 'Có ô nhập không phải số (đỏ) — sửa lại.';
@@ -12931,6 +13088,7 @@
         tJobActive = true;
         if (tStopBtn) { tStopBtn.hidden = false; tStopBtn.disabled = false; }
         if (tRunBtn) tRunBtn.hidden = true;
+        if (tContBtn) tContBtn.hidden = true;
         syncTParamsLock();
         if (tStatusEl) {
           tStatusEl.textContent = 'ghép tab cùng mã «' + simRoomTag + '»…';
@@ -12950,8 +13108,7 @@
           if (rec.cancelled) {
             tJobActive = false;
             clearTSchedRunningUi();
-            if (tStopBtn) tStopBtn.hidden = true;
-            if (tRunBtn) tRunBtn.hidden = false;
+            syncTActionButtons();
             if (tStatusEl) tStatusEl.textContent = 'Đã hủy ghép tab.';
             syncTParamsLock();
             return;
@@ -13023,6 +13180,17 @@
         saveTFilterPrefs();
         tParamsApplyingRemote = false;
         tParamsLastSent = JSON.stringify(tParamsSnapshotObj());
+        const resumeOpts = msg.resume
+          ? {
+            shared: true,
+            keepHits: true,
+            localDone: (msg.resumeProgress && msg.resumeProgress[myIdx]) | 0,
+            allProgress: msg.resumeProgress || null,
+            helpProgress: msg.resumeHelpProgress || null,
+            startedAt: msg.resumeStartedAt || null
+          }
+          : null;
+        if (msg.resume) tResumeState = null;
         runTJobLocal({
           role: 'worker',
           jobId: msg.jobId,
@@ -13042,7 +13210,7 @@
           trendWant: tState.trend,
           thThuanSnap: tState.thThuan,
           schedSlots: remoteSched
-        });
+        }, resumeOpts ? { resume: resumeOpts } : undefined);
       }
 
       /** Nhận hits/progress/done/stop của job T chia shard từ tab khác (gọi từ onScanBcMessage). */
@@ -13070,6 +13238,15 @@
         }
         if (msg.type === 't-job-start') {
           startTJobFromRemote(msg);
+          return;
+        }
+        /* Tab khác chốt dừng → đồng bộ snapshot Tiếp tục (progress đủ n shard). */
+        if (msg.type === 't-job-resume-state') {
+          if (tJobActive) return;
+          if (msg.snap && msg.snap.shared && tResumeHasWork(msg.snap)) {
+            tResumeState = msg.snap;
+            syncTContUi();
+          }
           return;
         }
         const sh = tShared;
@@ -13170,25 +13347,35 @@
         }
       }
 
-      /** Chạy phần việc của tab này (toàn bộ nếu solo, 1/n combo nếu chia shard). */
-      function runTJobLocal(cfg) {
+      /** Chạy phần việc của tab này (toàn bộ nếu solo, 1/n combo nếu chia shard).
+          opts.resume = { gc, ci, localDone, startedAt } → Tiếp tục từ điểm dừng (giữ hits). */
+      function runTJobLocal(cfg, opts) {
+        const resume = (opts && opts.resume) || null;
         const focus = cfg.focus;
         const plan = tCfgCursor(cfg);
         const total = plan.total;
-        tResults = [];
-        tHitsTotal = 0;
-        tJobStartedAt = Date.now();
-        tFreeMemos();
+        if (!resume) {
+          tResults = [];
+          tHitsTotal = 0;
+          tJobStartedAt = Date.now();
+          tFreeMemos();
+        } else {
+          tJobStartedAt = resume.startedAt || tJobStartedAt || Date.now();
+          tFreeMemos();
+        }
         if (!total) {
           tJobActive = false;
+          tResumeState = null;
           hideTProgress();
           if (tStatusEl) tStatusEl.textContent = 'Khoảng tail/wtail/wfreq không có combo hợp lệ nào.';
           renderTResults();
           syncTParamsLock();
+          syncTActionButtons();
           return;
         }
         tStop = false;
         tJobActive = true;
+        tResumeState = null;
         tSchedUiSlot = -1;
         tActiveSchedSlots = (cfg.schedSlots && cfg.schedSlots.length)
           ? cfg.schedSlots.slice() : null;
@@ -13208,28 +13395,37 @@
             ? schedTails[schedTails.length - 1] : cfg.resolvedRanges.tail.hi,
           tailList: schedTails,
           schedN: cfg.schedSlots ? cfg.schedSlots.length : 0,
-          total: total
+          total: total,
+          stopped: false
         };
-        tJobDoneN = 0;
         const shardIndex = cfg.shardIndex || 0;
         const shardCount = cfg.shardCount || 1;
         const shared = shardCount > 1;
+        tJobDoneN = resume
+          ? (shared
+            ? ((resume.localDone | 0) /* tạm; sync lại sau khi seed tShared */)
+            : (resume.gc | 0))
+          : 0;
         if (tStopBtn) { tStopBtn.hidden = false; tStopBtn.disabled = false; }
         if (tRunBtn) tRunBtn.hidden = true;
-        if (tResultsEl) tResultsEl.innerHTML = '';
-        tRenderedCount = 0;
-        tRenderedVisible = 0;
-        tCapNoteShown = false;
-        tMergeSel.clear();
-        tMergeMark.clear();
-        tMergeSig = '';
-        tMergeCntMap = new Map();
-        tMergeCountedIdx = 0;
-        tAppliedIdx = -1;
-        tMergeLastRenderMs = 0;
-        tMergeRenderPending = false;
-        if (tMergeRenderTimer) { clearTimeout(tMergeRenderTimer); tMergeRenderTimer = null; }
-        tSeenHitKeys = new Set();
+        if (tContBtn) tContBtn.hidden = true;
+        /* keepHits / solo-resume: giữ kết quả; job mới mới xóa. */
+        if (!resume) {
+          if (tResultsEl) tResultsEl.innerHTML = '';
+          tRenderedCount = 0;
+          tRenderedVisible = 0;
+          tCapNoteShown = false;
+          tMergeSel.clear();
+          tMergeMark.clear();
+          tMergeSig = '';
+          tMergeCntMap = new Map();
+          tMergeCountedIdx = 0;
+          tAppliedIdx = -1;
+          tMergeLastRenderMs = 0;
+          tMergeRenderPending = false;
+          if (tMergeRenderTimer) { clearTimeout(tMergeRenderTimer); tMergeRenderTimer = null; }
+          tSeenHitKeys = new Set();
+        }
         if (shared) {
           const now = Date.now();
           tShared = {
@@ -13254,12 +13450,16 @@
             trendWant: cfg.trendWant,
             thThuanSnap: cfg.thThuanSnap,
             cfg: cfg,
-            startedAt: now,
+            startedAt: (resume && resume.startedAt) || now,
             deadTimer: null
           };
           for (let k = 0; k < shardCount; k++) {
-            tShared.progress[k] = 0;
-            tShared.helpProgress[k] = 0;
+            const seedP = resume && resume.allProgress ? (resume.allProgress[k] | 0) : 0;
+            const seedH = resume && resume.helpProgress ? (resume.helpProgress[k] | 0) : 0;
+            tShared.progress[k] = (k === shardIndex && resume)
+              ? Math.max(seedP, resume.localDone | 0)
+              : seedP;
+            tShared.helpProgress[k] = seedH;
             tShared.helpClaimed[k] = null;
             tShared.helpMet[k] = false;
             tShared.done[k] = false;
@@ -13285,18 +13485,51 @@
           tShared = null;
         }
         setupTProgress(total, shardCount, cfg.thThuanSnap);
+        if (shared && resume) {
+          tJobStartedAt = tShared.startedAt;
+          tJobDoneN = tSharedGlobalDone();
+          syncTProgress();
+        }
         const totalNote = total.toLocaleString('en-US');
         const shardBounds = tShardBounds(total, shardCount, shardIndex);
         /* Tab chẵn (index 1,3,…): gom đoạn rồi duyệt nghịch; tab lẻ / solo: thuận streaming. */
         const myCombos = (shared && shardBounds.reverse)
           ? tCollectShardCombos(plan, total, shardCount, shardIndex)
           : null;
+        /* Resume solo: skipLeft next() toàn cục. Resume shared thuận: skipOwnedLeft combo thuộc shard. */
         let gc = 0;
-        let ci = 0;
-        let localDone = 0;
+        let localDone = resume ? (resume.localDone | 0) : 0;
+        let ci = myCombos
+          ? Math.min(localDone, myCombos.length)
+          : (resume ? (resume.ci | 0) : 0);
+        let skipLeft = (resume && !myCombos && !shared) ? (resume.gc | 0) : 0;
+        let skipOwnedLeft = (resume && shared && !myCombos) ? localDone : 0;
         let yieldSince = 0;
         let peerOut = [];
         let lastProgressAt = 0;
+        if (resume && !shared) {
+          tSoloProgress = resume.gc | 0;
+          tJobDoneN = resume.gc | 0;
+          syncTProgress();
+          if (tStatusEl) {
+            tStatusEl.textContent = skipLeft > 0
+              ? ('Tiếp tục · nhảy tới ' + (resume.gc | 0).toLocaleString('en-US')
+                + '/' + totalNote + '…')
+              : ('Tiếp tục · ' + tHitsNote() + ' · dò '
+                + (resume.gc | 0).toLocaleString('en-US') + '/' + totalNote + ' combo'
+                + tShardDirNote(false) + ' · trend ' + cfg.trendWant
+                + tElapsedSuffix());
+          }
+        } else if (resume && shared) {
+          if (tStatusEl) {
+            tStatusEl.textContent = 'Tiếp tục · ' + tHitsNote() + ' · dò '
+              + tSharedGlobalDone().toLocaleString('en-US') + '/' + totalNote
+              + ' combo · ' + shardCount + ' tab'
+              + tShardDirNote(shardBounds.reverse)
+              + (skipOwnedLeft > 0 ? ' · nhảy shard…' : '')
+              + tElapsedSuffix();
+          }
+        }
 
         function flushPeerHits(force) {
           if (!shared || !peerOut.length) return;
@@ -13331,15 +13564,31 @@
             tJobActive = false;
             clearTSchedRunningUi();
             syncTParamsLock();
-            if (tLastJobInfo) { tLastJobInfo.done = tJobDoneN; tLastJobInfo.stopped = reason === 'stopped'; }
-            if (tStopBtn) tStopBtn.hidden = true;
-            if (tRunBtn) tRunBtn.hidden = false;
+            /* Khớp điểm thật (kể cả dừng giữa lúc nhảy resume). */
+            tJobDoneN = gc;
+            tSoloProgress = gc;
+            if (tLastJobInfo) { tLastJobInfo.done = gc; tLastJobInfo.stopped = reason === 'stopped'; }
+            if (reason === 'stopped' && gc < total) {
+              tResumeState = {
+                cfg: cfg,
+                gc: gc,
+                ci: ci,
+                /* Solo: localDone ≡ gc; nếu dừng lúc đang nhảy resume thì kẹp theo gc. */
+                localDone: gc,
+                total: total,
+                startedAt: tJobStartedAt
+              };
+            } else {
+              tResumeState = null;
+            }
+            syncTActionButtons();
             if (tStatusEl) {
               /* Solo: hướng duyệt luôn thuận (shardCount≤1 → reverse=false). */
               tStatusEl.textContent = reason === 'stopped'
                 ? 'Đã dừng · ' + tHitsNote() + ' · đã quét '
-                + tJobDoneN.toLocaleString('en-US') + '/' + totalNote + ' combo'
+                + gc.toLocaleString('en-US') + '/' + totalNote + ' combo'
                 + tShardDirNote(false) + tElapsedSuffix()
+                + (tResumeState ? ' · bấm Tiếp tục để chạy nốt' : '')
                 : 'xong · ' + tHitsNote() + ' · ' + totalNote + ' combo'
                 + tShardDirNote(false) + ' · trend ' + cfg.trendWant
                 + tElapsedSuffix();
@@ -13391,13 +13640,27 @@
             tJobActive = false;
             clearTSchedRunningUi();
             syncTParamsLock();
-            if (tStopBtn) tStopBtn.hidden = true;
-            if (tRunBtn) tRunBtn.hidden = false;
+            /* Giữ điểm dừng nếu còn combo — vẫn cho Tiếp tục thử lại từ đây. */
+            if (!shared && gc < total) {
+              tResumeState = {
+                cfg: cfg,
+                gc: gc,
+                ci: ci,
+                localDone: gc,
+                total: total,
+                startedAt: tJobStartedAt
+              };
+            } else {
+              tResumeState = null;
+            }
+            syncTActionButtons();
             if (typeof console !== 'undefined' && console.error) console.error(err);
             if (tStatusEl) {
               tStatusEl.textContent = 'Lỗi khi lọc: '
                 + (err && err.message ? err.message : String(err))
-                + ' — đã dừng, chỉnh tham số rồi lọc lại.';
+                + (tResumeState
+                  ? ' — bấm Tiếp tục hoặc Lọc lại.'
+                  : ' — đã dừng, chỉnh tham số rồi lọc lại.');
             }
           }
         };
@@ -13469,7 +13732,23 @@
               takeHits(hits);
             }
           } else {
-            while (gc < total && localDone < ownerRemain()
+            /* Resume solo: bỏ qua combo đã quét (chỉ next, không eval). */
+            while (skipLeft > 0 && !tStop && performance.now() - t0 < budget) {
+              if (tShouldYieldToUi()) break;
+              if (!plan.next()) { skipLeft = 0; gc = total; break; }
+              skipLeft--;
+              gc++;
+            }
+            /* Resume shared thuận: bỏ qua đúng số combo thuộc shard đã làm. */
+            while (skipLeft <= 0 && skipOwnedLeft > 0 && gc < total
+              && !tStop && performance.now() - t0 < budget) {
+              if (tShouldYieldToUi()) break;
+              if (!plan.next()) { skipOwnedLeft = 0; gc = total; break; }
+              const mineSkip = tShardOwns(gc, total, shardCount, shardIndex);
+              gc++;
+              if (mineSkip) skipOwnedLeft--;
+            }
+            while (skipLeft <= 0 && skipOwnedLeft <= 0 && gc < total && localDone < ownerRemain()
               && !tStop && performance.now() - t0 < budget) {
               if (tShouldYieldToUi()) break;
               const combo = plan.next();
@@ -13484,8 +13763,10 @@
             }
           }
           if (shared) tShared.progress[shardIndex] = localDone;
-          else tSoloProgress = gc;
-          tJobDoneN = shared ? tSharedGlobalDone() : gc;
+          else tSoloProgress = skipLeft > 0 ? (gc + skipLeft) : gc;
+          /* Đang nhảy resume: giữ % tại điểm dừng cũ (gc+skipLeft cố định). */
+          tJobDoneN = shared ? tSharedGlobalDone()
+            : (skipLeft > 0 ? (gc + skipLeft) : gc);
           tTrimMemos();
           if (tStop) { finishLocal('stopped'); return; }
           if (helpCovered() || (shared && localDone >= ownerRemain())) {
@@ -13493,16 +13774,26 @@
             return;
           }
           if (tStatusEl) {
-            tStatusEl.textContent = shared
-              ? tHitsNote() + ' · dò ' + tJobDoneN.toLocaleString('en-US') + '/' + totalNote
-              + ' combo · ' + shardCount + ' tab (tab này '
-              + localDone.toLocaleString('en-US') + ')'
-              + tShardDirNote(shardBounds.reverse) + ' · trend ' + cfg.trendWant
-              + tElapsedSuffix()
-              : tHitsNote() + ' · dò ' + gc.toLocaleString('en-US') + '/' + totalNote
-              + ' combo'
-              + tShardDirNote(false) + ' · trend ' + cfg.trendWant
-              + tElapsedSuffix();
+            if (skipLeft > 0 && !shared) {
+              tStatusEl.textContent = 'Tiếp tục · nhảy tới '
+                + (gc + skipLeft).toLocaleString('en-US') + '/' + totalNote + '…'
+                + tElapsedSuffix();
+            } else if (skipOwnedLeft > 0 && shared) {
+              tStatusEl.textContent = 'Tiếp tục · nhảy shard… còn '
+                + skipOwnedLeft.toLocaleString('en-US') + ' · '
+                + tHitsNote() + tElapsedSuffix();
+            } else {
+              tStatusEl.textContent = shared
+                ? tHitsNote() + ' · dò ' + tJobDoneN.toLocaleString('en-US') + '/' + totalNote
+                + ' combo · ' + shardCount + ' tab (tab này '
+                + localDone.toLocaleString('en-US') + ')'
+                + tShardDirNote(shardBounds.reverse) + ' · trend ' + cfg.trendWant
+                + tElapsedSuffix()
+                : tHitsNote() + ' · dò ' + gc.toLocaleString('en-US') + '/' + totalNote
+                + ' combo'
+                + tShardDirNote(false) + ' · trend ' + cfg.trendWant
+                + tElapsedSuffix();
+            }
           } else {
             syncTElapsed();
             syncTProgress();
@@ -13511,8 +13802,9 @@
           flushPeerHits(false);
           broadcastProgress(false);
           const more = shared
-            ? (localDone < ownerRemain() && (myCombos ? ci < myCombos.length : gc < total))
-            : (myCombos ? ci < myCombos.length : gc < total);
+            ? ((skipOwnedLeft > 0 || localDone < ownerRemain())
+              && (myCombos ? ci < myCombos.length : gc < total))
+            : (myCombos ? ci < myCombos.length : (skipLeft > 0 || gc < total));
           if (more) {
             scheduleTWork(step);
             return;
@@ -13687,7 +13979,143 @@
         }, true);
       }
       window.addEventListener('resize', () => { if (isTPopupOpen()) placeTPopupTop(); });
+      /** Tiếp tục từ điểm Dừng — solo hoặc đủ n tab cùng mã (giữ hits, dùng cfg cũ). */
+      function continueTFilter() {
+        if (!dataCtx || tJobActive || !tResumeHasWork(tResumeState)) return;
+        if (typeof scanRunning !== 'undefined' && scanRunning) {
+          if (tStatusEl) tStatusEl.textContent = 'Scan đang chạy — đợi scan xong rồi tiếp tục.';
+          return;
+        }
+        const snap = tResumeState;
+        if (!snap || !snap.cfg) {
+          tResumeState = null;
+          syncTContUi();
+          return;
+        }
+        closeTAuxPanels();
+        if (snap.shared) {
+          continueTSharedFilter(snap);
+          return;
+        }
+        if (tStatusEl) {
+          tStatusEl.textContent = 'Tiếp tục từ '
+            + snap.gc.toLocaleString('en-US') + '/'
+            + snap.total.toLocaleString('en-US') + ' combo…';
+        }
+        runTJobLocal(Object.assign({}, snap.cfg, {
+          role: 'solo', jobId: null, shardIndex: 0, shardCount: 1, roster: []
+        }), {
+          resume: {
+            gc: snap.gc,
+            ci: snap.ci | 0,
+            localDone: snap.localDone | 0,
+            startedAt: snap.startedAt
+          }
+        });
+      }
+
+      /** Tiếp tục job chia tab: ghép đủ đúng shardCount tab rồi start kèm progress cũ. */
+      function continueTSharedFilter(snap) {
+        if (!simRoomTag) {
+          if (tStatusEl) {
+            tStatusEl.textContent = 'Tiếp tục chia tab cần mã phòng «'
+              + snap.shardCount + ' tab» — nhập mã rồi bấm lại.';
+          }
+          return;
+        }
+        const need = snap.shardCount | 0;
+        if (!(need > 1)) {
+          tResumeState = null;
+          syncTContUi();
+          return;
+        }
+        initScanBc();
+        const jobId = 'tj-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
+        const cfgBase = snap.cfg;
+        tResumeState = null;
+        tJobActive = true;
+        if (tStopBtn) { tStopBtn.hidden = false; tStopBtn.disabled = false; }
+        if (tRunBtn) tRunBtn.hidden = true;
+        if (tContBtn) tContBtn.hidden = true;
+        syncTParamsLock();
+        if (tStatusEl) {
+          tStatusEl.textContent = 'Tiếp tục · ghép đủ ' + need + ' tab cùng mã «' + simRoomTag + '»…';
+        }
+        tRecruitState = {
+          jobId: jobId, peers: [], cfg: cfgBase, cancelled: false, resumeSnap: snap
+        };
+        publishScanBc({ type: 't-job-recruit', jobId: jobId });
+        const pulse = setTimeout(() => {
+          if (tRecruitState && tRecruitState.jobId === jobId && !tRecruitState.cancelled) {
+            publishScanBc({ type: 't-job-recruit', jobId: jobId });
+          }
+        }, 220);
+        setTimeout(() => {
+          clearTimeout(pulse);
+          if (!tRecruitState || tRecruitState.jobId !== jobId) return;
+          const rec = tRecruitState;
+          tRecruitState = null;
+          if (rec.cancelled) {
+            tJobActive = false;
+            tResumeState = snap;
+            clearTSchedRunningUi();
+            syncTActionButtons();
+            if (tStatusEl) tStatusEl.textContent = 'Đã hủy ghép tab — vẫn có thể Tiếp tục.';
+            syncTParamsLock();
+            return;
+          }
+          const roster = [ensureSimTabId()].concat(rec.peers);
+          if (roster.length < need) {
+            tJobActive = false;
+            tResumeState = snap;
+            clearTSchedRunningUi();
+            syncTActionButtons();
+            if (tStatusEl) {
+              tStatusEl.textContent = 'Tiếp tục cần đủ ' + need + ' tab (hiện '
+                + roster.length + ') — mở thêm tab cùng mã rồi bấm lại.';
+            }
+            syncTParamsLock();
+            return;
+          }
+          const useRoster = roster.slice(0, need);
+          publishScanBc({
+            type: 't-job-start',
+            jobId: jobId,
+            roster: useRoster,
+            focus: cfgBase.focus,
+            ranges: cfgBase.resolvedRanges,
+            rb: cfgBase.rb, rd: cfgBase.rd, rdi: cfgBase.rdi, rni: cfgBase.rni, rpn: cfgBase.rpn,
+            xLo: cfgBase.xLo, xHi: cfgBase.xHi, mulLo: cfgBase.mulLo, mulHi: cfgBase.mulHi,
+            xOn: cfgBase.xOn, xtOn: cfgBase.xtOn, trend: cfgBase.trendWant, thThuan: cfgBase.thThuanSnap,
+            schedSlots: cfgBase.schedSlots || null,
+            schedOn: !!(cfgBase.schedSlots && cfgBase.schedSlots.length),
+            schedText: snap.schedText != null ? snap.schedText : (tSchedText ? String(tSchedText.value || '') : ''),
+            resume: true,
+            resumeProgress: snap.progress,
+            resumeHelpProgress: snap.helpProgress,
+            resumeStartedAt: snap.startedAt || null
+          });
+          runTJobLocal(Object.assign({}, cfgBase, {
+            role: 'coord',
+            jobId: jobId,
+            shardIndex: 0,
+            shardCount: need,
+            roster: useRoster
+          }), {
+            resume: {
+              shared: true,
+              keepHits: true,
+              localDone: (snap.progress && snap.progress[0]) | 0,
+              allProgress: snap.progress,
+              helpProgress: snap.helpProgress,
+              startedAt: snap.startedAt
+            }
+          });
+        }, 700);
+      }
+
       if (tRunBtn) tRunBtn.addEventListener('click', startTFilter);
+      if (tContBtn) tContBtn.addEventListener('click', continueTFilter);
       if (tStopBtn) {
         tStopBtn.addEventListener('click', () => {
           /* Đang ghép tab → hủy ghép; đang chạy shard → dừng CẢ nhóm. */
@@ -18416,7 +18844,8 @@
           || msg.type === 't-job-start' || msg.type === 't-peer-hits'
           || msg.type === 't-job-progress' || msg.type === 't-job-done'
           || msg.type === 't-job-stop' || msg.type === 't-job-takeover'
-          || msg.type === 't-job-help' || msg.type === 't-job-help-progress') {
+          || msg.type === 't-job-help' || msg.type === 't-job-help-progress'
+          || msg.type === 't-job-resume-state') {
           handleTSharedMsg(msg);
           return;
         }
@@ -21557,12 +21986,26 @@
         trialAppliedWfreq = trialWfreq;
         syncTrialParamUi();
         paintTable({ keepScroll: true });
+        const pasteFocus = pendingTrialFocusAfterRebuild;
+        if (pasteFocus) pendingTrialFocusAfterRebuild = null;
         if (wrap) {
-          /* Giống ticks: giữ pixel tuyệt đối; chặn publish echo khi gán scroll. */
+          /* Giống ticks: giữ pixel tuyệt đối; chặn publish echo khi gán scroll.
+             Paste a,b,c|id: không restore scroll cũ (hay ở cuối) — align lại kỳ sau paint. */
           scrollSyncApplying = true;
-          wrap.scrollTop = keepScrollTop;
-          wrap.scrollLeft = keepScrollLeft;
-          requestAnimationFrame(() => { scrollSyncApplying = false; });
+          if (!pasteFocus) {
+            wrap.scrollTop = keepScrollTop;
+            wrap.scrollLeft = keepScrollLeft;
+          } else {
+            wrap.scrollLeft = keepScrollLeft;
+          }
+          requestAnimationFrame(() => {
+            if (pasteFocus) alignRowIntoView(pasteFocus.id, { instant: true });
+            scrollSyncApplying = false;
+          });
+        } else if (pasteFocus) {
+          requestAnimationFrame(() => {
+            alignRowIntoView(pasteFocus.id, { instant: true });
+          });
         }
         /* Đổi tail/wtail/wfreq: cập nhật popup đang mở (không phải tắt/bật lại). */
         refreshOpenPopupAfterThreshold();
