@@ -4609,7 +4609,7 @@
             <span class="unit">%</span>
           </div>
           <div class="trial-params" id="trialParamsBar"
-            title="Tham số thử nghiệm · đổi → tính lại toàn bảng · Dbclick ngoài ô nhập = paste tail,wtail,wfreq (vd 3,196,14)">
+            title="Tham số thử nghiệm · đổi → tính lại toàn bảng · Dbclick vùng trống/nhãn (không phải ô nhập hay ▴▾) = paste a,b,c hoặc a,b,c|id (vd 3,196,14|958)">
             <div class="tp-item" title="Số lượng tail muốn tính (k-tail)">
               <span class="tp-label">tail</span>
               <input class="tp-val" id="trialTailVal" type="text" inputmode="numeric" autocomplete="off" spellcheck="false"
@@ -10138,10 +10138,15 @@
         syncIBreakToolsUi();
       }
 
-      /** Parse "3,196,14" → {tail,wtail,wfreq} hoặc null. */
+      /**
+       * Parse "3,196,14" hoặc "3,196,14|958" / "3,196,14|958|sim"
+       * → {tail,wtail,wfreq, id?:number, mode?:'hist'|'sim'} hoặc null.
+       */
       function parseTrialParamsCsv(raw) {
         const s = String(raw == null ? '' : raw).trim();
-        const m = s.match(/^(\d+)\s*[,;\/\s]\s*(\d+)\s*[,;\/\s]\s*(\d+)\s*$/);
+        const m = s.match(
+          /^(\d+)\s*[,;\/\s]\s*(\d+)\s*[,;\/\s]\s*(\d+)(?:\s*[|@#]\s*(\d+)(?:\s*[|@#]\s*(sim))?)?\s*$/i
+        );
         if (!m) return null;
         const tail = parseInt(m[1], 10);
         const wtail = parseInt(m[2], 10);
@@ -10153,7 +10158,26 @@
         if (tMax < TRIAL_TAIL_MIN) return null;
         const t = clampInt(tail, TRIAL_TAIL_MIN, tMax);
         const f = clampInt(wfreq, TRIAL_WFREQ_MIN, w);
-        return { tail: t, wtail: w, wfreq: f };
+        const out = { tail: t, wtail: w, wfreq: f };
+        if (m[4]) {
+          const id = parseInt(m[4], 10);
+          if (Number.isFinite(id) && id > 0) {
+            out.id = id;
+            out.mode = (m[5] && String(m[5]).toLowerCase() === 'sim') ? 'sim' : 'hist';
+          }
+        }
+        return out;
+      }
+
+      /** Chuỗi copy từ T-row: a,b,c|id · kèm |sim nếu rỗng cuối. */
+      function formatTrialParamsCsv(tail, wtail, wfreq, id, mode) {
+        let s = String(tail) + ',' + String(wtail) + ',' + String(wfreq);
+        const n = Number(id);
+        if (Number.isFinite(n) && n > 0) {
+          s += '|' + n;
+          if (mode === 'sim') s += '|sim';
+        }
+        return s;
       }
 
       function applyTrialParamsTriple(tail, wtail, wfreq) {
@@ -10165,6 +10189,36 @@
         syncTrialParamUi();
         schedulePublishTrialParams();
         scheduleTrialRebuild();
+      }
+
+      /** Sau paste a,b,c|id → nhảy focus + mở popup kỳ đó. */
+      function focusFromTrialPaste(parsed) {
+        if (!parsed || parsed.id == null) return false;
+        const n = Number(parsed.id);
+        if (!Number.isFinite(n) || n <= 0) return false;
+        const wantSim = parsed.mode === 'sim'
+          || !!(simState && simState.focusId === n && parsed.mode !== 'hist');
+        if (wantSim && simState && simState.focusId === n) {
+          alignRowIntoView(n, { instant: false });
+          openSimElim();
+          publishSharedFocus(n, { popup: true, mode: 'sim', force: true });
+          return true;
+        }
+        const idx = findHistIdxById(n);
+        if (idx < 0) {
+          if (simState && simState.focusId === n) {
+            alignRowIntoView(n, { instant: false });
+            openSimElim();
+            publishSharedFocus(n, { popup: true, mode: 'sim', force: true });
+            return true;
+          }
+          return false;
+        }
+        rememberHistFocusClick(n);
+        alignRowIntoView(n, { instant: false });
+        openHistElim(idx);
+        publishSharedFocus(n, { popup: true, mode: 'hist', force: true });
+        return true;
       }
 
       function applyIMaxBest() {
@@ -11893,7 +11947,7 @@
           + '<span class="t-combo-gap">,<span class="t-combo-r" title="wfreq/wtail">' + rWf + '</span></span>'
           + r.wfreq
           + '</span>';
-        const csvAbc = r.tail + ',' + r.wtail + ',' + r.wfreq;
+        const csvAbc = formatTrialParamsCsv(r.tail, r.wtail, r.wfreq, r.focusId, r.mode);
         return '<div class="t-result' + (idx === tAppliedIdx ? ' is-applied' : '')
           + '" data-t-idx="' + idx + '" data-t-csv="' + csvAbc + '"'
           + ' title="Click: áp tail/wtail/wfreq + dấu threshold · Chuột phải: copy ' + csvAbc
@@ -13908,8 +13962,7 @@
           tAppliedIdx = idx;
           row.classList.add('is-applied');
         });
-        /* Chuột phải row → copy tail,wtail,wfreq dạng a,b,c (không mở menu trình duyệt).
-           capture: bắt trước, không phụ thuộc bubble qua nút timeline (pointer-events). */
+        /* Chuột phải row → copy a,b,c|id (paste thanh trọng số → áp + focus kỳ). */
         tResultsEl.addEventListener('contextmenu', (e) => {
           const row = e.target && e.target.closest ? e.target.closest('.t-result[data-t-csv]') : null;
           if (!row || !tResultsEl.contains(row)) return;
@@ -13919,7 +13972,7 @@
           if (!csv) {
             const idx = Number(row.getAttribute('data-t-idx')) | 0;
             const r = tResults[idx];
-            if (r) csv = r.tail + ',' + r.wtail + ',' + r.wfreq;
+            if (r) csv = formatTrialParamsCsv(r.tail, r.wtail, r.wfreq, r.focusId, r.mode);
           }
           if (!csv) return;
           copyTextToClipboard(csv);
@@ -21160,37 +21213,44 @@
         if (ceilEl) ceilEl.hidden = mark !== 'ceil';
       }
 
-      /** Dbclick trong thanh 3 trọng số, ngoài ô nhập / nút spin / tỉ số nổi → paste "3,196,14". */
+      /** Dbclick vùng trống/nhãn trên thanh 3 trọng số → paste a,b,c hoặc a,b,c|id.
+          Không paste khi đụng ô nhập / ▴▾ / tỉ số; spam spin không bị hiểu nhầm dblclick. */
       if (trialParamsBarEl && !trialParamsBarEl._trialPasteBound) {
         trialParamsBarEl._trialPasteBound = true;
-        trialParamsBarEl.addEventListener('dblclick', (e) => {
-          if (e.target && e.target.closest) {
-            if (e.target.closest('.tp-val') || e.target.closest('.tp-spin-btn')
-              || e.target.closest('.tp-ratio')) return;
+        let trialParamsControlAt = 0;
+        const isTrialParamsControlTarget = (node) => !!(node && node.closest
+          && node.closest('input, button, .tp-spin, .tp-val, .tp-ratio'));
+        trialParamsBarEl.addEventListener('pointerdown', (e) => {
+          if (isTrialParamsControlTarget(e.target)) {
+            trialParamsControlAt = performance.now();
           }
+        }, true);
+        trialParamsBarEl.addEventListener('dblclick', (e) => {
+          if (isTrialParamsControlTarget(e.target)) return;
+          /* Spam ▴▾: click thứ 2 có thể trúng nhãn/khe → vẫn chặn nếu vừa chạm control. */
+          if (performance.now() - trialParamsControlAt < 550) return;
           e.preventDefault();
+          e.stopPropagation();
           const applyTxt = (text) => {
             const parsed = parseTrialParamsCsv(text);
             if (!parsed) return false;
             applyTrialParamsTriple(parsed.tail, parsed.wtail, parsed.wfreq);
+            focusFromTrialPaste(parsed);
             trialParamsBarEl.classList.add('is-paste-flash');
             setTimeout(() => trialParamsBarEl.classList.remove('is-paste-flash'), 500);
             return true;
           };
+          const promptPaste = () => {
+            const manual = window.prompt('Paste a,b,c hoặc a,b,c|id (vd 3,196,14|958)', '');
+            if (manual) applyTxt(manual);
+          };
           if (navigator.clipboard && navigator.clipboard.readText) {
             navigator.clipboard.readText().then((text) => {
-              if (!applyTxt(text)) {
-                const manual = window.prompt('Paste tail,wtail,wfreq (vd 3,196,14)', '');
-                if (manual) applyTxt(manual);
-              }
-            }).catch(() => {
-              const manual = window.prompt('Paste tail,wtail,wfreq (vd 3,196,14)', '');
-              if (manual) applyTxt(manual);
-            });
+              if (!applyTxt(text)) promptPaste();
+            }).catch(promptPaste);
             return;
           }
-          const manual = window.prompt('Paste tail,wtail,wfreq (vd 3,196,14)', '');
-          if (manual) applyTxt(manual);
+          promptPaste();
         });
       }
 
