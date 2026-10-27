@@ -1966,7 +1966,7 @@
       line-height: 1.2;
     }
 
-    /* Nút <> mở JSON: canh giữa hàng tiêu đề tuyệt đối (icon SVG, không dính baseline chữ). */
+    /* Nút <> mở JSON / Lịch: canh giữa hàng tiêu đề tuyệt đối (icon SVG, không dính baseline chữ). */
     .t-json-btn {
       align-self: center;
       display: inline-flex;
@@ -1990,13 +1990,209 @@
       color: #fff;
     }
 
-    .t-json-wrap {
+    /* Icon lịch + chữ Lịch dính thành 1 khối */
+    .t-sched-group {
+      align-self: center;
+      display: inline-flex;
+      align-items: stretch;
+      gap: 0;
+      border-radius: 4px;
+      overflow: hidden;
+      border: 1px solid #94a3b8;
+      background: #fff;
+      line-height: 0;
+    }
+
+    .t-sched-group .t-sched-tog,
+    .t-sched-group .t-sched-btn {
+      border: 0;
+      border-radius: 0;
+      height: 24px;
+      margin: 0;
+      background: transparent;
+    }
+
+    .t-sched-tog {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 22px;
+      padding: 0;
+      color: #64748b;
+      cursor: pointer;
+      line-height: 0;
+      flex-shrink: 0;
+      border-right: 1px solid #cbd5e1 !important;
+    }
+
+    .t-sched-tog svg {
+      width: 13px;
+      height: 13px;
+      display: block;
+    }
+
+    .t-sched-tog:hover {
+      background: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .t-sched-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 28px;
+      padding: 0 6px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      color: #334155;
+      cursor: pointer;
+    }
+
+    .t-sched-btn:hover {
+      background: #e2e8f0;
+    }
+
+    /* Cả khối sáng khi lịch đang áp dụng */
+    .t-sched-group.is-sched-on {
+      border-color: #0f766e;
+      background: #0f766e;
+    }
+
+    .t-sched-group.is-sched-on .t-sched-tog {
+      color: #fff;
+      border-right-color: rgba(255, 255, 255, 0.35) !important;
+    }
+
+    .t-sched-group.is-sched-on .t-sched-tog:hover,
+    .t-sched-group.is-sched-on .t-sched-btn:hover {
+      background: rgba(255, 255, 255, 0.14);
+    }
+
+    .t-sched-group.is-sched-on .t-sched-btn {
+      color: #fff;
+    }
+
+    /* Panel Lịch đang mở (chưa chắc ON): nhấn nút chữ */
+    .t-sched-group.is-panel-on:not(.is-sched-on) .t-sched-btn {
+      background: #0f766e;
+      color: #fff;
+    }
+
+    .t-json-wrap,
+    .t-sched-wrap {
       margin: 2px 0 6px;
       position: relative;
     }
 
-    .t-json-wrap[hidden] {
+    .t-json-wrap[hidden],
+    .t-sched-wrap[hidden] {
       display: none;
+    }
+
+    .t-sched-text {
+      width: 100%;
+      box-sizing: border-box;
+      height: 190px;
+      resize: vertical;
+      font-family: ui-monospace, Consolas, Menlo, monospace;
+      font-size: 11px;
+      line-height: 1.45;
+      padding: 6px 8px;
+      border: 1px solid #cbd5e1;
+      border-radius: 6px;
+      background: #f8fafc;
+      color: #0f172a;
+    }
+
+    .t-sched-text.is-bad {
+      border-color: #dc2626;
+      animation: t-bad-blink .3s ease-in-out 4;
+    }
+
+    /* Lịch ON: viền khối; mỗi ô a/b có 1 icon lịch căn giữa trường điền; ẩn số. */
+    .scan-param.is-sched-locked,
+    .t-xt-wrap.is-sched-locked {
+      outline: 2px solid #0f766e;
+      outline-offset: 3px;
+      border-radius: 4px;
+      box-shadow: 0 0 0 1px rgba(15, 118, 110, 0.35), 0 0 10px rgba(15, 118, 110, 0.45);
+      background: rgba(15, 118, 110, 0.06);
+    }
+
+    .scan-param.is-sched-locked .tp-label,
+    .t-xt-wrap.is-sched-locked .tp-label {
+      pointer-events: none;
+      cursor: default;
+    }
+
+    .scan-param.is-sched-locked .tp-item,
+    .t-xt-wrap.is-sched-locked .tp-item {
+      position: relative;
+    }
+
+    /* Trường điền = ô input — icon căn giữa đúng ô này; ẩn số cả khi :disabled (đang lọc). */
+    .scan-param.is-sched-locked .tp-item > input.tp-val,
+    .t-xt-wrap.is-sched-locked .tp-item > input.tp-val,
+    .scan-param.is-sched-locked .tp-item > input.tp-val:disabled,
+    .t-xt-wrap.is-sched-locked .tp-item > input.tp-val:disabled,
+    #tBack.is-t-locked .scan-param.is-sched-locked .tp-item > input.tp-val:disabled,
+    #tBack.is-t-locked .t-xt-wrap.is-sched-locked .tp-item > input.tp-val:disabled {
+      position: relative;
+      cursor: not-allowed;
+      background: #ecfdf5 !important;
+      color: transparent !important;
+      caret-color: transparent !important;
+      -webkit-text-fill-color: transparent !important;
+      opacity: 1 !important;
+    }
+
+    .scan-param.is-sched-locked .tp-spin-btn,
+    .t-xt-wrap.is-sched-locked .tp-spin-btn {
+      cursor: not-allowed;
+    }
+
+    .scan-param.is-sched-locked .tp-spin,
+    .t-xt-wrap.is-sched-locked .tp-spin {
+      visibility: hidden;
+    }
+
+    .t-sched-lock-ic {
+      position: absolute;
+      left: 0;
+      top: 0;
+      z-index: 3;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0;
+      padding: 0;
+      pointer-events: none;
+      color: #0f766e;
+    }
+
+    .t-sched-lock-ic svg {
+      width: 14px;
+      height: 14px;
+      display: block;
+    }
+
+    /* Đang lọc: hiện số đúng slot đang chạy — ẩn icon lịch trên ô a/b */
+    .scan-param.is-sched-locked.is-sched-running .t-sched-lock-ic,
+    .t-xt-wrap.is-sched-locked.is-sched-running .t-sched-lock-ic {
+      display: none;
+    }
+
+    .scan-param.is-sched-locked.is-sched-running .tp-item > input.tp-val,
+    .t-xt-wrap.is-sched-locked.is-sched-running .tp-item > input.tp-val,
+    .scan-param.is-sched-locked.is-sched-running .tp-item > input.tp-val:disabled,
+    .t-xt-wrap.is-sched-locked.is-sched-running .tp-item > input.tp-val:disabled,
+    #tBack.is-t-locked .scan-param.is-sched-locked.is-sched-running .tp-item > input.tp-val:disabled,
+    #tBack.is-t-locked .t-xt-wrap.is-sched-locked.is-sched-running .tp-item > input.tp-val:disabled {
+      color: #0f172a !important;
+      -webkit-text-fill-color: #0f172a !important;
+      caret-color: #0f172a !important;
+      background: #fff !important;
     }
 
     /* Icon copy nằm TRONG góc phải-trên của textarea (tránh đè thanh cuộn + chừa chỗ cho text). */
@@ -2266,6 +2462,20 @@
       font-weight: 700;
     }
 
+    /* |Δi|=N trên head — nổi hơn newlyin / i[n]. */
+    .t-result-head .t-di {
+      display: inline-block;
+      margin: 0 1px;
+      padding: 0 5px;
+      border-radius: 4px;
+      background: #ccfbf1;
+      color: #0f766e;
+      border: 1px solid #5eead4;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: .01em;
+    }
+
     /* Δimerge: hợp nhất các số trong mọi chuỗi Δi — click số để lọc phụ (đa chọn, click lại để tắt). */
     .t-merge {
       font-family: ui-monospace, Consolas, Menlo, monospace;
@@ -2441,12 +2651,32 @@
     }
 
     .t-result .t-dseq {
-      padding-left: 10px;
+      margin-left: 8px;
+      padding: 2px 8px;
+      border-radius: 6px;
       font-family: ui-monospace, Consolas, Menlo, monospace;
-      font-size: 11px;
-      font-weight: 700;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: .01em;
       color: #0f766e;
+      background: #ccfbf1;
+      border: 1px solid #2dd4bf;
+      box-shadow: 0 1px 0 rgba(13, 148, 136, .2);
       white-space: nowrap;
+      align-self: center;
+    }
+
+    .t-result .t-dseq .t-dseq-lab {
+      color: #115e59;
+      font-weight: 800;
+      margin-right: 2px;
+    }
+
+    .t-result.is-copied {
+      outline: 2px solid #0d9488;
+      outline-offset: -2px;
+      background: #a7f3d0 !important;
+      box-shadow: inset 0 0 0 1px #0d9488;
     }
 
     .modal h2 {
@@ -4571,6 +4801,18 @@
               d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z" />
           </svg>
         </button>
+        <span class="t-sched-group" title="Lịch: đè tail + wtail theo từng slot; tham số khác lấy từ JSON/bảng">
+          <button type="button" class="t-sched-tog" id="tSchedTog"
+            title="Bật/tắt áp dụng lịch khi Lọc" aria-pressed="false" aria-label="Áp dụng lịch">
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path fill="currentColor"
+                d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z" />
+            </svg>
+          </button>
+          <button type="button" class="t-sched-btn" id="tSchedBtn"
+            title="Soạn lịch: mỗi slot = tail rồi wtail (khoảng a-b); ngăn cách bằng --------"
+            aria-label="Soạn lịch" aria-pressed="false">Lịch</button>
+        </span>
         <span class="t-seg" id="tThSeg">
           <button type="button" data-t-th="1" class="is-on">thuận ≥</button>
           <button type="button" data-t-th="0">nghịch ≤</button>
@@ -4586,6 +4828,10 @@
               d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
           </svg>
         </button>
+      </div>
+      <div class="t-sched-wrap" id="tSchedWrap" hidden>
+        <textarea class="t-sched-text" id="tSchedText" spellcheck="false" autocomplete="off"
+          placeholder="15&#10;27-38&#10;------------------------&#10;16&#10;28-39"></textarea>
       </div>
       <div class="t-form">
         <div class="t-row trial-params">
@@ -4631,7 +4877,7 @@
           </span>
           <span class="t-x-wrap scan-param" id="tXBandWrap">
             <span class="t-lbl tp-label scan-param-tog" data-t-ctog="x" role="button" tabindex="0" style="min-width:0"
-              title="Click: bật/tắt ràng buộc a·wtail ≤ wfreq ≤ b·wtail · trần b ≤ trần wfreq / trần wtail (ô a trống = 0, ô b trống = 1)">wfreq∈[</span>
+              title="Click: bật/tắt ràng buộc a·wtail ≤ wfreq ≤ b·wtail · a,b ∈ [0;1] (ô a trống = 0, ô b trống = 1) — không phụ thuộc khoảng wfreq">wfreq∈[</span>
             <span class="tp-item">
               <input class="tp-val t-x-val" id="tXLo" type="text" inputmode="decimal" autocomplete="off"
                 spellcheck="false" placeholder="0.00">
@@ -5738,24 +5984,30 @@
           if (btn) btn.title = 'Copy thất bại';
         };
         const plain = text || '';
+        const copyViaExec = () => {
+          try {
+            const ta = document.createElement('textarea');
+            ta.value = plain;
+            ta.setAttribute('readonly', '');
+            ta.style.position = 'fixed';
+            ta.style.left = '-9999px';
+            document.body.appendChild(ta);
+            ta.focus();
+            ta.select();
+            ta.setSelectionRange(0, plain.length);
+            const ok = document.execCommand('copy');
+            document.body.removeChild(ta);
+            if (ok) { done(); return true; }
+          } catch (e) { /* fall through */ }
+          fail();
+          return false;
+        };
+        /* Clipboard API hay reject trên file:// / ngữ cảnh không đủ quyền → luôn fallback execCommand. */
         if (navigator.clipboard && navigator.clipboard.writeText) {
-          navigator.clipboard.writeText(plain).then(done).catch(fail);
+          navigator.clipboard.writeText(plain).then(done).catch(() => { copyViaExec(); });
           return;
         }
-        try {
-          const ta = document.createElement('textarea');
-          ta.value = plain;
-          ta.setAttribute('readonly', '');
-          ta.style.position = 'fixed';
-          ta.style.left = '-9999px';
-          document.body.appendChild(ta);
-          ta.select();
-          document.execCommand('copy');
-          document.body.removeChild(ta);
-          done();
-        } catch (e) {
-          fail();
-        }
+        copyViaExec();
       }
 
       function wrapDeriveMarkHtml(innerHtml, num, deriveSet) {
@@ -10000,6 +10252,19 @@
       const tJsonText = document.getElementById('tJsonText');
       const tJsonCopyBtn = document.getElementById('tJsonCopy');
       const tJsonMsg = document.getElementById('tJsonMsg');
+      const tSchedTog = document.getElementById('tSchedTog');
+      const tSchedBtn = document.getElementById('tSchedBtn');
+      const tSchedWrap = document.getElementById('tSchedWrap');
+      const tSchedText = document.getElementById('tSchedText');
+      const T_SCHED_DEFAULT =
+        '15\n27-38\n------------------------\n'
+        + '16\n28-39\n------------------------\n'
+        + '17\n29-39\n------------------------\n'
+        + '18\n29-39\n------------------------\n'
+        + '19\n30-40\n------------------------\n'
+        + '20\n30-40\n------------------------\n'
+        + '21\n30-39';
+      let tSchedOn = false;
       let tJsonApplyTimer = null;
       let tParamsBcTimer = null;
       let tParamsLastSent = '';
@@ -10097,7 +10362,9 @@
             tailMulHi: tState.tailMulHi,
             xOn: tState.xOn !== false,
             xtOn: tState.xtOn !== false,
-            ranges: ranges
+            ranges: ranges,
+            schedOn: !!tSchedOn,
+            schedText: tSchedText ? String(tSchedText.value || '') : ''
           }));
         } catch (e) { /* ignore */ }
         /* Bảng tham số vừa đổi → ô JSON (nếu đang mở) và các tab cùng mã phòng đổi theo. */
@@ -10139,8 +10406,331 @@
               tState.ranges[k].on = r.on !== false;
             });
           }
+          if (typeof p.schedOn === 'boolean') tSchedOn = p.schedOn;
+          if (typeof p.schedText === 'string' && tSchedText) tSchedText.value = p.schedText;
+          syncTSchedUi();
           return true;
         } catch (e) { return false; }
+      }
+
+      /** Lịch đè: tail (khoảng) + ràng buộc wtail∈[a;b]·tail — không đè khoảng wtail hoạt động. */
+      const T_SCHED_LOCK_KEYS = ['tail'];
+      const T_SCHED_LOCK_IC_SVG =
+        '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+        + '<path fill="currentColor" d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>'
+        + '</svg>';
+
+      function tSchedLocksKey(key) {
+        return !!tSchedOn && T_SCHED_LOCK_KEYS.indexOf(key) >= 0;
+      }
+
+      function tSchedLocksMul() {
+        return !!tSchedOn;
+      }
+
+      function tSchedPutLockIcons(wrap) {
+        if (!wrap) return;
+        wrap.querySelectorAll('.t-sched-lock-ic').forEach((el) => el.remove());
+        wrap.querySelectorAll('.tp-item').forEach((item) => {
+          const inp = item.querySelector('input.tp-val');
+          if (!inp) return;
+          const ic = document.createElement('span');
+          ic.className = 't-sched-lock-ic';
+          ic.title = 'Theo lịch — không sửa tay; JSON không đè được';
+          ic.setAttribute('aria-hidden', 'true');
+          ic.innerHTML = T_SCHED_LOCK_IC_SVG;
+          item.appendChild(ic);
+          /* Căn giữa đúng hộp input (không tính cụm spin đang ẩn). */
+          const place = () => {
+            const ir = inp.getBoundingClientRect();
+            const pr = item.getBoundingClientRect();
+            if (!(ir.width > 0) || !(pr.width > 0)) return;
+            ic.style.width = ir.width + 'px';
+            ic.style.height = ir.height + 'px';
+            ic.style.left = (ir.left - pr.left) + 'px';
+            ic.style.top = (ir.top - pr.top) + 'px';
+          };
+          place();
+          requestAnimationFrame(place);
+        });
+      }
+
+      /** Preview hợp tail + hợp [a;b] ràng buộc wtail lên UI (số bị ẩn; job chạy từng slot). */
+      function previewSchedOntoLockedRanges() {
+        if (!tSchedOn || !tSchedText) return false;
+        const parsed = parseTScheduleText(tSchedText.value);
+        if (parsed.error || !parsed.slots.length) return false;
+        let tLo = Infinity;
+        let tHi = -Infinity;
+        let mLo = Infinity;
+        let mHi = -Infinity;
+        for (let i = 0; i < parsed.slots.length; i++) {
+          const s = parsed.slots[i];
+          if (s.tailLo < tLo) tLo = s.tailLo;
+          if (s.tailHi > tHi) tHi = s.tailHi;
+          if (s.mulLo < mLo) mLo = s.mulLo;
+          if (s.mulHi > mHi) mHi = s.mulHi;
+        }
+        if (!(tLo <= tHi) || !(mLo <= mHi)) return false;
+        tState.ranges.tail.lo = tLo;
+        tState.ranges.tail.hi = tHi;
+        tState.ranges.tail.on = true;
+        tState.tailMulLo = mLo;
+        tState.tailMulHi = mHi;
+        tState.xtOn = true;
+        if (tRangesEl) {
+          const setBound = (key, bound, v) => {
+            const inp = tRangesEl.querySelector('[data-t-rng="' + key + '"][data-t-bound="' + bound + '"]');
+            if (inp) {
+              inp.value = String(v);
+              inp.classList.remove('is-bad');
+            }
+          };
+          setBound('tail', 'lo', tLo);
+          setBound('tail', 'hi', tHi);
+        }
+        if (tTMulLoEl) {
+          tTMulLoEl.value = String(mLo);
+          tTMulLoEl.classList.remove('is-bad');
+        }
+        if (tTMulHiEl) {
+          tTMulHiEl.value = String(mHi);
+          tTMulHiEl.classList.remove('is-bad');
+        }
+        return true;
+      }
+
+      function syncTSchedParamLock() {
+        /* tail ∈ [a;b] */
+        if (tRangesEl) {
+          T_SCHED_LOCK_KEYS.forEach((key) => {
+            const wrap = tRangesEl.querySelector('[data-t-range="' + key + '"]');
+            if (!wrap) return;
+            wrap.classList.toggle('is-sched-locked', !!tSchedOn);
+            wrap.querySelectorAll('.t-sched-lock-ic').forEach((el) => el.remove());
+            if (tSchedOn) {
+              wrap.classList.remove('is-off');
+              tSchedPutLockIcons(wrap);
+              wrap.querySelectorAll('input, .tp-spin-btn').forEach((el) => {
+                el.disabled = true;
+              });
+            } else {
+              syncTRangeOnUi(key);
+            }
+          });
+          /* Đảm bảo khoảng wtail hoạt động không còn khóa lịch cũ */
+          const wWrap = tRangesEl.querySelector('[data-t-range="wtail"]');
+          if (wWrap) {
+            wWrap.classList.remove('is-sched-locked');
+            wWrap.querySelectorAll('.t-sched-lock-ic').forEach((el) => el.remove());
+            if (!tJobActive) syncTRangeOnUi('wtail');
+          }
+        }
+        /* ràng buộc wtail∈[a;b]·tail */
+        if (tXTailWrap) {
+          tXTailWrap.classList.toggle('is-sched-locked', !!tSchedOn);
+          tXTailWrap.querySelectorAll('.t-sched-lock-ic').forEach((el) => el.remove());
+          if (tSchedOn) {
+            tXTailWrap.classList.remove('is-off');
+            tState.xtOn = true;
+            tSchedPutLockIcons(tXTailWrap);
+            tXTailWrap.querySelectorAll('input, .tp-spin-btn').forEach((el) => {
+              el.disabled = true;
+            });
+          } else if (!tJobActive) {
+            syncTConstraintToggleUi();
+          }
+        }
+      }
+
+      function syncTSchedUi() {
+        const group = document.querySelector('.t-sched-group');
+        const panelOpen = !!(tSchedWrap && !tSchedWrap.hidden);
+        if (group) {
+          group.classList.toggle('is-sched-on', !!tSchedOn);
+          group.classList.toggle('is-panel-on', panelOpen);
+        }
+        if (tSchedTog) {
+          tSchedTog.classList.toggle('is-on', !!tSchedOn);
+          tSchedTog.setAttribute('aria-pressed', tSchedOn ? 'true' : 'false');
+          tSchedTog.title = tSchedOn
+            ? 'Đang áp lịch khi Lọc (ưu tiên hơn JSON) — bấm để tắt'
+            : 'Chưa áp lịch — bấm để bật (dùng text trong ô Lịch)';
+        }
+        if (tSchedBtn) {
+          tSchedBtn.classList.toggle('is-on', panelOpen);
+          tSchedBtn.setAttribute('aria-pressed', panelOpen ? 'true' : 'false');
+        }
+        if (tSchedOn) previewSchedOntoLockedRanges();
+        syncTSchedParamLock();
+      }
+
+      /** Parse "15" hoặc "27-38" → {lo,hi} hoặc null. */
+      function parseTSchedBound(line) {
+        const s = String(line || '').trim();
+        if (!s) return null;
+        let m = s.match(/^(\d+)\s*[-–—]\s*(\d+)$/);
+        if (m) {
+          let lo = parseInt(m[1], 10);
+          let hi = parseInt(m[2], 10);
+          if (!Number.isFinite(lo) || !Number.isFinite(hi)) return null;
+          if (lo > hi) { const t = lo; lo = hi; hi = t; }
+          return { lo: lo, hi: hi };
+        }
+        if (/^\d+$/.test(s)) {
+          const n = parseInt(s, 10);
+          if (!Number.isFinite(n)) return null;
+          return { lo: n, hi: n };
+        }
+        return null;
+      }
+
+      /**
+       * Text lịch: mỗi slot 2 dòng (tail, ràng buộc wtail∈[a;b]·tail), ngăn bằng --------.
+       * @returns {{slots: {tailLo:number,tailHi:number,mulLo:number,mulHi:number}[], error?: string}}
+       */
+      function parseTScheduleText(text) {
+        const raw = String(text == null ? '' : text).replace(/^\uFEFF/, '');
+        if (!raw.trim()) return { slots: [], error: 'Lịch trống.' };
+        const blocks = raw.split(/\r?\n[-=_]{3,}\s*\r?\n/);
+        const slots = [];
+        for (let bi = 0; bi < blocks.length; bi++) {
+          const lines = blocks[bi].split(/\r?\n/)
+            .map((l) => l.trim())
+            .filter((l) => l && !/^[-=_]{3,}$/.test(l));
+          if (!lines.length) continue;
+          if (lines.length < 2) {
+            return {
+              slots: [],
+              error: 'Slot ' + (slots.length + 1) + ': cần 2 dòng (tail, wtail∈[a;b]).'
+            };
+          }
+          const tail = parseTSchedBound(lines[0]);
+          const mul = parseTSchedBound(lines[1]);
+          if (!tail) {
+            return { slots: [], error: 'Slot ' + (slots.length + 1) + ': tail không hợp lệ «' + lines[0] + '».' };
+          }
+          if (!mul || mul.lo < 1) {
+            return {
+              slots: [],
+              error: 'Slot ' + (slots.length + 1) + ': ràng buộc wtail∈ không hợp lệ «' + lines[1] + '».'
+            };
+          }
+          slots.push({
+            tailLo: tail.lo, tailHi: tail.hi,
+            mulLo: mul.lo, mulHi: mul.hi
+          });
+        }
+        if (!slots.length) return { slots: [], error: 'Lịch không có slot nào.' };
+        return { slots: slots };
+      }
+
+      function tSchedTailList(slots) {
+        const set = new Set();
+        (slots || []).forEach((s) => {
+          for (let t = s.tailLo; t <= s.tailHi; t++) set.add(t);
+        });
+        return [...set].sort((a, b) => a - b);
+      }
+
+      /** Tên phần tail trong file: 12 | 11-12 | 11+13+15 */
+      function formatTTailFilePart(tails) {
+        const u = (tails || []).filter((n) => Number.isFinite(n)).map((n) => n | 0);
+        const uniq = [...new Set(u)].sort((a, b) => a - b);
+        if (!uniq.length) return '0';
+        if (uniq.length === 1) return String(uniq[0]);
+        let contig = true;
+        for (let i = 1; i < uniq.length; i++) {
+          if (uniq[i] !== uniq[i - 1] + 1) { contig = false; break; }
+        }
+        if (contig) return uniq[0] + '-' + uniq[uniq.length - 1];
+        return uniq.join('+');
+      }
+
+      /**
+       * Cursor hợp các slot lịch: mỗi slot đè tail + mul a/b;
+       * khoảng wtail/wfreq/x lấy base (JSON/bảng).
+       */
+      function makeTScheduleCursor(slots, baseResolved, xLo, xHi) {
+        const rw = baseResolved.wtail;
+        const rf = baseResolved.wfreq;
+        const plans = (slots || []).map((s) => makeTComboCursor({
+          tail: { lo: s.tailLo, hi: s.tailHi },
+          wtail: { lo: rw.lo, hi: rw.hi },
+          wfreq: { lo: rf.lo, hi: rf.hi }
+        }, xLo, xHi, s.mulLo, s.mulHi));
+        let total = 0;
+        for (let i = 0; i < plans.length; i++) total += plans[i].total;
+        let si = 0;
+        function next() {
+          while (si < plans.length) {
+            const c = plans[si].next();
+            if (c) {
+              c._schedSlot = si;
+              return c;
+            }
+            si++;
+          }
+          return null;
+        }
+        return { total: total, next: next };
+      }
+
+      /** Slot lịch đang hiện trên UI lúc lọc (−1 = idle / icon). */
+      let tSchedUiSlot = -1;
+      let tActiveSchedSlots = null;
+
+      function tSchedSetRunningClass(on) {
+        const tailWrap = tRangesEl
+          ? tRangesEl.querySelector('[data-t-range="tail"]') : null;
+        if (tailWrap) tailWrap.classList.toggle('is-sched-running', !!on);
+        if (tXTailWrap) tXTailWrap.classList.toggle('is-sched-running', !!on);
+      }
+
+      /** Trong lúc lọc: ghi số a/b đúng slot đang chạy lên ô tham số. */
+      function showTSchedSlotOnUi(slotIdx) {
+        if (!tSchedOn || !tJobActive) return;
+        const slots = tActiveSchedSlots;
+        if (!slots || !slots.length) return;
+        const i = slotIdx | 0;
+        if (i < 0 || i >= slots.length) return;
+        if (i === tSchedUiSlot) return;
+        tSchedUiSlot = i;
+        const s = slots[i];
+        tState.ranges.tail.lo = s.tailLo;
+        tState.ranges.tail.hi = s.tailHi;
+        tState.ranges.tail.on = true;
+        tState.tailMulLo = s.mulLo;
+        tState.tailMulHi = s.mulHi;
+        tState.xtOn = true;
+        if (tRangesEl) {
+          const setBound = (bound, v) => {
+            const inp = tRangesEl.querySelector(
+              '[data-t-rng="tail"][data-t-bound="' + bound + '"]'
+            );
+            if (inp) inp.value = String(v);
+          };
+          setBound('lo', s.tailLo);
+          setBound('hi', s.tailHi);
+        }
+        if (tTMulLoEl) tTMulLoEl.value = String(s.mulLo);
+        if (tTMulHiEl) tTMulHiEl.value = String(s.mulHi);
+        tSchedSetRunningClass(true);
+      }
+
+      function noteTSchedComboUi(combo) {
+        if (!combo || combo._schedSlot == null) return;
+        showTSchedSlotOnUi(combo._schedSlot);
+      }
+
+      function clearTSchedRunningUi() {
+        tSchedUiSlot = -1;
+        tActiveSchedSlots = null;
+        tSchedSetRunningClass(false);
+        if (tSchedOn) {
+          previewSchedOntoLockedRanges();
+          syncTSchedParamLock();
+        }
       }
 
       /** Snapshot tham số dạng JSON thân thiện (đây cũng là payload sync sang tab cùng mã). */
@@ -10169,13 +10759,43 @@
             hi: tState.tailMulHi == null ? null : tState.tailMulHi,
             on: tState.xtOn !== false
           },
-          ranges: ranges
+          ranges: ranges,
+          /* Lịch sync giữa tab cùng mã phòng (không bắt buộc khi paste JSON tay). */
+          schedule: {
+            on: !!tSchedOn,
+            text: tSchedText ? String(tSchedText.value || '') : ''
+          }
         };
       }
 
       /** Áp 1 object tham số (từ ô JSON hoặc tab khác) lên tState + bảng điều khiển. */
       function applyTParamsObj(p) {
         if (!p || typeof p !== 'object') return false;
+        /* Lịch trước — để khóa tail/wtailMul đúng khi áp ranges phía dưới. */
+        let schedTouched = false;
+        if (p.schedule != null && typeof p.schedule === 'object') {
+          if (typeof p.schedule.on === 'boolean') {
+            tSchedOn = p.schedule.on;
+            schedTouched = true;
+          }
+          if (typeof p.schedule.text === 'string' && tSchedText) {
+            if (tParamsApplyingRemote || document.activeElement !== tSchedText) {
+              tSchedText.value = p.schedule.text;
+              schedTouched = true;
+            }
+          }
+        } else {
+          if (typeof p.schedOn === 'boolean') {
+            tSchedOn = p.schedOn;
+            schedTouched = true;
+          }
+          if (typeof p.schedText === 'string' && tSchedText) {
+            if (tParamsApplyingRemote || document.activeElement !== tSchedText) {
+              tSchedText.value = p.schedText;
+              schedTouched = true;
+            }
+          }
+        }
         /* Bỏ qua p.id — id không thuộc JSON trọng số; giữ nguyên ô id hiện tại. */
         if (typeof p.thThuan === 'boolean') tState.thThuan = p.thThuan;
         else if (p.threshold != null) {
@@ -10205,8 +10825,8 @@
         if (p.x && typeof p.x === 'object' && !Array.isArray(p.x) && typeof p.x.on === 'boolean') {
           tState.xOn = p.x.on;
         }
-        /* wtail∈[a;b]·tail: {lo,hi,on} hoặc [a,b]; null/"" mỗi đầu = không giới hạn đầu đó. */
-        if (p.wtailMul != null) {
+        /* wtail∈[a;b]·tail — lịch ON thì bỏ qua (lịch đè ràng buộc này). */
+        if (!tSchedLocksMul() && p.wtailMul != null) {
           let mLo = null;
           let mHi = null;
           let mOn = null;
@@ -10225,14 +10845,16 @@
           if (mOn != null) tState.xtOn = mOn;
         }
         /* JSON cũ (wtail ≥ x·tail) → a = x. */
-        if ('wtailPerTail' in p) {
+        if (!tSchedLocksMul() && ('wtailPerTail' in p)) {
           const xv = (p.wtailPerTail === '' || p.wtailPerTail == null) ? null : Number(p.wtailPerTail);
           tState.tailMulLo = (xv != null && Number.isFinite(xv) && xv >= 1) ? Math.floor(xv) : null;
           tState.tailMulHi = null;
         }
-        if (typeof p.wtailPerTailOn === 'boolean') tState.xtOn = p.wtailPerTailOn;
+        if (!tSchedLocksMul() && typeof p.wtailPerTailOn === 'boolean') tState.xtOn = p.wtailPerTailOn;
         if (p.ranges && typeof p.ranges === 'object') {
           Object.keys(tState.ranges).forEach((k) => {
+            /* Lịch ON → tail/wtail do lịch quyết; JSON/remote không đè. */
+            if (tSchedLocksKey(k)) return;
             const r = p.ranges[k];
             if (!r || typeof r !== 'object') return;
             const lo = (r.lo === '' || r.lo == null) ? null : Number(r.lo);
@@ -10244,6 +10866,7 @@
         }
         renderTRangeControls();
         syncTUiFromState();
+        if (schedTouched || tSchedOn) syncTSchedUi();
         saveTFilterPrefs();
         return true;
       }
@@ -10348,6 +10971,15 @@
         if (!tRangesEl || !tState.ranges[key]) return;
         const wrap = tRangesEl.querySelector('[data-t-range="' + key + '"]');
         if (!wrap) return;
+        if (tSchedLocksKey(key)) {
+          wrap.classList.remove('is-off');
+          wrap.classList.add('is-sched-locked');
+          wrap.querySelectorAll('input, .tp-spin-btn').forEach((el) => { el.disabled = true; });
+          tSchedPutLockIcons(wrap);
+          return;
+        }
+        wrap.classList.remove('is-sched-locked');
+        wrap.querySelectorAll('.t-sched-lock-ic').forEach((el) => el.remove());
         const on = tState.ranges[key].on !== false;
         wrap.classList.toggle('is-off', !on);
         wrap.querySelectorAll('input, .tp-spin-btn').forEach((el) => { el.disabled = !on; });
@@ -10355,6 +10987,7 @@
 
       function toggleTRange(key) {
         if (!tState.ranges[key]) return;
+        if (tSchedLocksKey(key)) return;
         tState.ranges[key].on = tState.ranges[key].on === false;
         syncTRangeOnUi(key);
         saveTFilterPrefs();
@@ -10406,7 +11039,7 @@
       }
 
       /* wtail∈[a;b]·tail: b·tail ≤ trần wtail → b ≤ ⌊wtailHi/tailHi⌋.
-         wfreq∈[a;b]wtail: b·wtail ≤ trần wfreq → b ≤ wfreqHi/wtailHi (2 chữ số).
+         wfreq∈[a;b]wtail: b ∈ (0;1] — độc lập khoảng hoạt động wfreq (combo vẫn bị cắt bởi wfreq.lo/.hi).
          Trần b của tail: tail ≤ ⌊wtail/2⌋ → tailHi ≤ ⌊wtailHi/2⌋. */
       function tTailHiCap() {
         const wtailHi = tRangeHiEff('wtail');
@@ -10418,15 +11051,10 @@
         if (!(tailHi > 0)) return 999;
         return Math.max(1, Math.floor(wtailHi / tailHi));
       }
-      function tXHiCap() {
-        const wtailHi = tRangeHiEff('wtail');
-        const wfreqHi = tRangeHiEff('wfreq');
-        if (!(wtailHi > 0)) return 1;
-        return Math.max(0.01, Math.min(1, Math.floor((wfreqHi / wtailHi) * 100 + 1e-9) / 100));
-      }
 
       /** Spin 1 đầu [a;b]·tail: trống + ▴ = 1 · đang 1 mà ▾ = về trống · trần theo wtail/tail. */
       function stepTMulBound(bound, d) {
+        if (tSchedLocksMul()) return;
         const el = bound === 'lo' ? tTMulLoEl : tTMulHiEl;
         if (!el || !d) return;
         const key = bound === 'lo' ? 'tailMulLo' : 'tailMulHi';
@@ -10472,6 +11100,15 @@
           tXBandWrap.querySelectorAll('input, .tp-spin-btn').forEach((el) => { el.disabled = off; });
         }
         if (tXTailWrap) {
+          if (tSchedLocksMul()) {
+            tXTailWrap.classList.remove('is-off');
+            tXTailWrap.classList.add('is-sched-locked');
+            tXTailWrap.querySelectorAll('input, .tp-spin-btn').forEach((el) => { el.disabled = true; });
+            tSchedPutLockIcons(tXTailWrap);
+            return;
+          }
+          tXTailWrap.classList.remove('is-sched-locked');
+          tXTailWrap.querySelectorAll('.t-sched-lock-ic').forEach((el) => el.remove());
           const off = tState.xtOn === false;
           tXTailWrap.classList.toggle('is-off', off);
           tXTailWrap.querySelectorAll('input, .tp-spin-btn').forEach((el) => { el.disabled = off; });
@@ -10479,9 +11116,11 @@
       }
 
       function toggleTConstraint(which) {
+        if (which === 'xt' && tSchedLocksMul()) return;
         if (which === 'x') tState.xOn = tState.xOn === false;
         else tState.xtOn = tState.xtOn === false;
         syncTConstraintToggleUi();
+        if (tSchedOn) syncTSchedParamLock();
         saveTFilterPrefs();
       }
 
@@ -10509,16 +11148,17 @@
 
       /** Cursor combo từ cfg của job (áp toggle theo cfg — tab phụ/takeover dùng chung). */
       function tCfgCursor(cfg) {
-        return makeTComboCursor(
-          cfg.resolvedRanges,
-          cfg.xOn === false ? 0 : cfg.xLo,
-          cfg.xOn === false ? 1 : cfg.xHi,
-          cfg.xtOn === false ? null : cfg.mulLo,
-          cfg.xtOn === false ? null : cfg.mulHi
-        );
+        const xLo = cfg.xOn === false ? 0 : cfg.xLo;
+        const xHi = cfg.xOn === false ? 1 : cfg.xHi;
+        const mulLo = cfg.xtOn === false ? null : cfg.mulLo;
+        const mulHi = cfg.xtOn === false ? null : cfg.mulHi;
+        if (cfg.schedSlots && cfg.schedSlots.length) {
+          return makeTScheduleCursor(cfg.schedSlots, cfg.resolvedRanges, xLo, xHi);
+        }
+        return makeTComboCursor(cfg.resolvedRanges, xLo, xHi, mulLo, mulHi);
       }
 
-      /** Spin 1 cận của [a;b]: a ∈ [0;b], b ∈ [a;1] và b·wtail ≤ trần wfreq, bước 0.01. */
+      /** Spin 1 cận của [a;b]: a ∈ [0;b], b ∈ [a;1], bước 0.01 — không kẹp theo khoảng wfreq. */
       function stepTXBound(which, d) {
         const el = which === 'lo' ? tXLoEl : tXHiEl;
         if (!el || !d) return;
@@ -10530,17 +11170,14 @@
         }
         let next = Math.round((cur + d * 0.01) * 100) / 100;
         let flashed = false;
-        const xCap = tXHiCap();
         if (which === 'lo') {
-          const hiCap = isTXValid(tState.xHi) ? Math.min(tState.xHi, xCap) : xCap;
+          const hiCap = isTXValid(tState.xHi) ? tState.xHi : 1;
           /* a lỡ tăng quá b → nháy đỏ cảnh báo thoáng chốc, giữ a = b. */
           if (next > hiCap) { flashTBad(el); flashed = true; next = hiCap; }
           next = Math.max(0, Math.min(1, next));
           tState.xLo = next;
         } else {
           next = Math.max(0.01, Math.min(1, next));
-          /* Trần b: b·wtailHi ≤ wfreqHi — set cao hơn → nháy đỏ + kẹp về cap. */
-          if (next > xCap) { flashTBad(el); flashed = true; next = xCap; }
           tState.xHi = next;
           /* Giảm b xuống dưới a → a tụt theo b (giữ a ≤ b). */
           const loNow = Number.isFinite(tState.xLo) ? tState.xLo : 0;
@@ -10554,41 +11191,37 @@
         saveTFilterPrefs();
       }
 
-      /** Đổi trần wtail/wfreq/tail → kéo b liên quan xuống nếu đang vượt (nháy đỏ). */
+      /** Đổi trần wtail/tail → kéo b wtail∈ xuống nếu đang vượt (nháy đỏ). Không đụng wfreq∈. */
       function tEnforceConstraintCaps() {
-        /* tail.hi ≤ ⌊wtail.hi/2⌋ — làm trước vì mulCap phụ thuộc tailHi. */
-        const tailCap = tTailHiCap();
-        const tr = tState.ranges.tail;
-        if (tr && tr.on !== false && tr.hi != null && Number.isFinite(tr.hi) && tr.hi > tailCap) {
-          tr.hi = tailCap;
-          const inpHi = tRangesEl
-            ? tRangesEl.querySelector('[data-t-rng="tail"][data-t-bound="hi"]')
-            : null;
-          if (inpHi) { inpHi.value = String(tailCap); flashTBad(inpHi); }
-          if (tr.lo != null && Number.isFinite(tr.lo) && tr.lo > tailCap) {
-            tr.lo = tailCap;
-            const inpLo = tRangesEl
-              ? tRangesEl.querySelector('[data-t-rng="tail"][data-t-bound="lo"]')
+        /* tail.hi ≤ ⌊wtail.hi/2⌋ — làm trước vì mulCap phụ thuộc tailHi.
+           Lịch ON: không kẹp tail/wtail (do lịch quyết từng slot). */
+        if (!tSchedOn) {
+          const tailCap = tTailHiCap();
+          const tr = tState.ranges.tail;
+          if (tr && tr.on !== false && tr.hi != null && Number.isFinite(tr.hi) && tr.hi > tailCap) {
+            tr.hi = tailCap;
+            const inpHi = tRangesEl
+              ? tRangesEl.querySelector('[data-t-rng="tail"][data-t-bound="hi"]')
               : null;
-            if (inpLo) inpLo.value = String(tailCap);
+            if (inpHi) { inpHi.value = String(tailCap); flashTBad(inpHi); }
+            if (tr.lo != null && Number.isFinite(tr.lo) && tr.lo > tailCap) {
+              tr.lo = tailCap;
+              const inpLo = tRangesEl
+                ? tRangesEl.querySelector('[data-t-rng="tail"][data-t-bound="lo"]')
+                : null;
+              if (inpLo) inpLo.value = String(tailCap);
+            }
           }
         }
-        const mulCap = tMulHiCap();
-        if (tState.xtOn !== false && tState.tailMulHi != null && tState.tailMulHi > mulCap) {
-          tState.tailMulHi = mulCap;
-          if (tTMulHiEl) { tTMulHiEl.value = String(mulCap); flashTBad(tTMulHiEl); }
-          if (tState.tailMulLo != null && tState.tailMulLo > mulCap) {
-            tState.tailMulLo = mulCap;
-            if (tTMulLoEl) tTMulLoEl.value = String(mulCap);
-          }
-        }
-        const xCap = tXHiCap();
-        if (tState.xOn !== false && isTXValid(tState.xHi) && tState.xHi > xCap + 1e-9) {
-          tState.xHi = xCap;
-          if (tXHiEl) { tXHiEl.value = formatTX(xCap); flashTBad(tXHiEl); }
-          if (Number.isFinite(tState.xLo) && tState.xLo > xCap) {
-            tState.xLo = xCap;
-            if (tXLoEl) tXLoEl.value = formatTX(xCap);
+        if (!tSchedOn) {
+          const mulCap = tMulHiCap();
+          if (tState.xtOn !== false && tState.tailMulHi != null && tState.tailMulHi > mulCap) {
+            tState.tailMulHi = mulCap;
+            if (tTMulHiEl) { tTMulHiEl.value = String(mulCap); flashTBad(tTMulHiEl); }
+            if (tState.tailMulLo != null && tState.tailMulLo > mulCap) {
+              tState.tailMulLo = mulCap;
+              if (tTMulLoEl) tTMulLoEl.value = String(mulCap);
+            }
           }
         }
       }
@@ -10606,6 +11239,7 @@
 
       function stepTBound(key, bound, d) {
         if (!d || !tState.ranges[key]) return;
+        if (tSchedLocksKey(key)) return;
         if (tState.ranges[key].on === false) return;
         readTStateFromUi();
         const dom = tDomainFor(key);
@@ -10642,8 +11276,8 @@
           const inpLo = inpFor('lo');
           if (inpLo) { inpLo.value = String(next); clearTBad(inpLo); }
         }
-        /* Đổi trần tail/wtail/wfreq → kẹp lại b của ràng buộc tỉ lệ nếu đang vượt. */
-        if (key === 'tail' || key === 'wtail' || key === 'wfreq') tEnforceConstraintCaps();
+        /* Đổi trần tail/wtail → kẹp lại b của wtail∈ nếu đang vượt (wfreq∈ độc lập khoảng wfreq). */
+        if (key === 'tail' || key === 'wtail') tEnforceConstraintCaps();
         saveTFilterPrefs();
       }
 
@@ -10722,6 +11356,10 @@
           });
           T_RANGE_DEFS.forEach(([key]) => syncTRangeOnUi(key));
         }
+        if (tSchedOn) {
+          previewSchedOntoLockedRanges();
+          syncTSchedParamLock();
+        }
       }
 
       /** Popup T bắt đầu ngay dưới hàng tiêu đề + threshold + 3 tham số (đè lên hàng % của header). */
@@ -10780,33 +11418,26 @@
         } else {
           const rawLo = tXLoEl ? String(tXLoEl.value || '').trim() : '';
           const rawHi = tXHiEl ? String(tXHiEl.value || '').trim() : '';
-          let lo = rawLo === '' ? 0 : parseTX(rawLo);
-          let hi = rawHi === '' ? 1 : parseTX(rawHi);
-          const xCap = tXHiCap();
+          const lo = rawLo === '' ? 0 : parseTX(rawLo);
+          const hi = rawHi === '' ? 1 : parseTX(rawHi);
           const loOk = Number.isFinite(lo) && lo >= 0 && lo <= 1;
-          let hiOk = isTXValid(hi);
-          /* b·wtail ≤ trần wfreq — gõ b cao hơn cap → nháy đỏ + kẹp. */
-          if (hiOk && hi > xCap + 1e-9) {
-            flashTBad(tXHiEl);
-            hi = xCap;
-            if (tXHiEl) tXHiEl.value = formatTX(hi);
-            ok = false;
-            hiOk = isTXValid(hi);
-          }
+          const hiOk = isTXValid(hi);
           if (loOk && hiOk && lo <= hi) {
             tState.xLo = lo;
             tState.xHi = hi;
             if (tXLoEl) clearTBad(tXLoEl);
-            if (ok) clearTBad(tXHiEl);
+            if (tXHiEl) clearTBad(tXHiEl);
           } else {
             if (!loOk || (loOk && hiOk && lo > hi)) flashTBad(tXLoEl); else clearTBad(tXLoEl);
-            if (!hiOk || (loOk && hiOk && lo > hi)) flashTBad(tXHiEl); else if (ok) clearTBad(tXHiEl);
+            if (!hiOk || (loOk && hiOk && lo > hi)) flashTBad(tXHiEl); else clearTBad(tXHiEl);
             ok = false;
           }
         }
-        /* wtail∈[a;b]·tail: mỗi đầu trống = không giới hạn đầu đó; còn lại phải nguyên dương
-           và a ≤ b khi có cả hai; trần b ≤ ⌊wtailHi/tailHi⌋. Toggle tắt → bỏ qua. */
-        if (tState.xtOn !== false && (tTMulLoEl || tTMulHiEl)) {
+        /* wtail∈[a;b]·tail — lịch ON: không đọc từ ô (giữ preview/slot). */
+        if (tSchedLocksMul()) {
+          if (tTMulLoEl) tTMulLoEl.classList.remove('is-bad');
+          if (tTMulHiEl) tTMulHiEl.classList.remove('is-bad');
+        } else if (tState.xtOn !== false && (tTMulLoEl || tTMulHiEl)) {
           let lo = tTMulLoEl ? parseTPosInt(tTMulLoEl.value) : null;
           let hi = tTMulHiEl ? parseTPosInt(tTMulHiEl.value) : null;
           const mulCap = tMulHiCap();
@@ -10833,6 +11464,8 @@
         if (tRangesEl) {
           tRangesEl.querySelectorAll('[data-t-rng]').forEach((inp) => {
             const key = inp.getAttribute('data-t-rng');
+            /* Lịch ON: tail/wtail không đọc từ ô (giữ preview/slot). */
+            if (tSchedLocksKey(key)) return;
             const bound = inp.getAttribute('data-t-bound');
             const raw = String(inp.value || '').trim();
             if (!raw) { tState.ranges[key][bound] = null; return; }
@@ -10861,7 +11494,8 @@
             tState.ranges[key][bound] = n;
           });
         }
-        /* Sau khi đọc xong cả ranges: kẹp b ràng buộc nếu trần tail/wtail/wfreq vừa đổi. */
+        if (tSchedOn) previewSchedOntoLockedRanges();
+        /* Sau khi đọc xong cả ranges: kẹp b wtail∈ nếu trần tail/wtail vừa đổi. */
         tEnforceConstraintCaps();
         return ok;
       }
@@ -10986,6 +11620,7 @@
       /** Đo 1 combo: mốc có nhãn Δ, trend/|Δ%break| so mốc liền trước, |Δi|/newlyin/i[n]. */
       function tEvalOneCombo(combo, focus, trendWant, rb, rd, rdi, rni, rpn, live, seq, thThuan) {
         if (seq !== tSeq || !dataCtx) return [];
+        noteTSchedComboUi(combo);
         const { ids } = dataCtx;
         const prevTail = trialTail;
         const prevWtail = trialWtail;
@@ -11258,15 +11893,19 @@
           + '<span class="t-combo-gap">,<span class="t-combo-r" title="wfreq/wtail">' + rWf + '</span></span>'
           + r.wfreq
           + '</span>';
+        const csvAbc = r.tail + ',' + r.wtail + ',' + r.wfreq;
         return '<div class="t-result' + (idx === tAppliedIdx ? ' is-applied' : '')
-          + '" data-t-idx="' + idx + '" title="Click: áp tail/wtail/wfreq + dấu threshold · % ngưỡng: ≤ chỉ nâng khi row>header · ≥ chỉ hạ khi row<header">'
+          + '" data-t-idx="' + idx + '" data-t-csv="' + csvAbc + '"'
+          + ' title="Click: áp tail/wtail/wfreq + dấu threshold · Chuột phải: copy ' + csvAbc
+          + ' · % ngưỡng: ≤ chỉ nâng khi row>header · ≥ chỉ hạ khi row<header">'
           + '<div class="t-result-head">'
           + comboHtml + ' · '
           + 'id ' + r.focusId + (r.mode === 'sim' ? ' (rỗng cuối)' : '')
           + ' · %break ' + r.prevPct.toFixed(1) + '% → ' + r.pct.toFixed(1) + '%'
           + ' <span class="t-trend-' + r.trend + '">' + (r.trend === 'up' ? '▲tăng' : '▼giảm') + '</span>'
           + ' · |Δ%break|=<span class="t-dbreak t-trend-' + r.trend + '">'
-          + r.dBreak.toFixed(1) + '%</span> · |Δi|=' + r.di
+          + r.dBreak.toFixed(1) + '%</span>'
+          + ' · <span class="t-di" title="|Δi| = số phần tử pool\\prev">|Δi|=' + r.di + '</span>'
           + ' · newlyin=' + r.niCount
           + ' · i[n]=' + (r.poolN != null ? r.poolN : (r.pool ? r.pool.length : 0))
           + '</div>'
@@ -11274,7 +11913,8 @@
           + '<span class="tl-tr"><span class="tl-t">' + r.t + '%</span>'
           + '<span class="tl-rate" title="%break tại threshold này">' + r.pct.toFixed(1) + '%</span></span>'
           + '<span class="tl-pool">' + trendHtml + '</span>'
-          + '<span class="t-dseq" title="Chuỗi pool hiện \\ pool liền trước (gap thật — khác nút Δ copy khi chỉ có newlyIn)">Δi: '
+          + '<span class="t-dseq" title="Chuỗi pool hiện \\ pool liền trước (gap thật — khác nút Δ copy khi chỉ có newlyIn)">'
+          + '<span class="t-dseq-lab">Δi</span> '
           + (r.deltaNums.length ? r.deltaNums.join(',') : '—') + '</span>'
           + '</div>'
           + '</div>';
@@ -11396,13 +12036,15 @@
         return head + '\n\n' + summary + '\n\n' + sections.join('\n\n') + '\n';
       }
 
-      /** Tải file {id}_{tail}tail.txt — tail là khoảng tail của job (1 số nếu lo=hi, dạng a-b nếu khác). */
+      /** Tải file {id}_{tail}tail.txt — tail job (1 số / a-b / a+c+e nếu lịch không liền). */
       function downloadTResultsFile() {
         if (tJobActive || !tResults.length || !tLastJobInfo) return;
         const info = tLastJobInfo;
-        const tailTxt = info.tailLo === info.tailHi
-          ? String(info.tailLo)
-          : info.tailLo + '-' + info.tailHi;
+        const tailTxt = (info.tailList && info.tailList.length)
+          ? formatTTailFilePart(info.tailList)
+          : (info.tailLo === info.tailHi
+            ? String(info.tailLo)
+            : info.tailLo + '-' + info.tailHi);
         const name = info.focusId + '_' + tailTxt + 'tail.txt';
         const blob = new Blob([buildTResultsFileText()], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
@@ -11690,6 +12332,7 @@
         sh.finalized = true;
         if (sh.deadTimer) { clearInterval(sh.deadTimer); sh.deadTimer = null; }
         tJobActive = false;
+        clearTSchedRunningUi();
         syncTParamsLock();
         if (tLastJobInfo) { tLastJobInfo.done = tSharedGlobalDone(); tLastJobInfo.stopped = sh.reason === 'stopped'; }
         tTickerStop();
@@ -12088,6 +12731,8 @@
           tBack.querySelectorAll('.t-form input, .t-form .tp-spin-btn, .t-form .t-seg button, .t-head .t-seg button')
             .forEach((el) => { el.disabled = false; });
           if (tJsonText) tJsonText.disabled = false;
+          if (tSchedText) tSchedText.disabled = false;
+          if (tSchedTog) tSchedTog.disabled = false;
           [tThSegEl, tTrendSegEl].forEach((seg) => {
             if (seg) seg.querySelectorAll('button').forEach((b) => { b.disabled = false; });
           });
@@ -12096,12 +12741,54 @@
           }
           syncTConstraintToggleUi();
           if (tRangesEl) T_RANGE_DEFS.forEach(([key]) => syncTRangeOnUi(key));
+          syncTSchedParamLock();
           return;
         }
         tBack.querySelectorAll('.t-form input, .t-form .tp-spin-btn, .t-form .t-seg button, .t-head .t-seg button')
           .forEach((el) => { el.disabled = true; });
-        /* Nút <> vẫn mở/đóng xem JSON được; chỉ khóa sửa nội dung JSON trong lúc lọc. */
+        /* Nút <> / Lịch vẫn mở xem được; chỉ khóa sửa nội dung trong lúc lọc. */
         if (tJsonText) tJsonText.disabled = true;
+        if (tSchedText) tSchedText.disabled = true;
+        if (tSchedTog) tSchedTog.disabled = true;
+        /* Lịch: giữ khóa + viền; số slot hiện khi đang chạy (is-sched-running). */
+        if (tSchedOn) {
+          if (tSchedUiSlot < 0) {
+            previewSchedOntoLockedRanges();
+            syncTSchedParamLock();
+          } else {
+            /* Đang hiện số slot — chỉ đảm bảo còn khóa/icon lớp nền */
+            const tailWrap = tRangesEl
+              ? tRangesEl.querySelector('[data-t-range="tail"]') : null;
+            if (tailWrap) {
+              tailWrap.classList.add('is-sched-locked');
+              tailWrap.querySelectorAll('input, .tp-spin-btn').forEach((el) => {
+                el.disabled = true;
+              });
+            }
+            if (tXTailWrap) {
+              tXTailWrap.classList.add('is-sched-locked');
+              tXTailWrap.querySelectorAll('input, .tp-spin-btn').forEach((el) => {
+                el.disabled = true;
+              });
+            }
+            tSchedSetRunningClass(true);
+          }
+        }
+      }
+
+      /** Đóng panel JSON / Lịch (giữ toggle lịch ON). */
+      function closeTAuxPanels() {
+        let changed = false;
+        if (tJsonWrap && !tJsonWrap.hidden) {
+          tJsonWrap.hidden = true;
+          if (tJsonBtn) tJsonBtn.classList.remove('is-on');
+          changed = true;
+        }
+        if (tSchedWrap && !tSchedWrap.hidden) {
+          tSchedWrap.hidden = true;
+          changed = true;
+        }
+        if (changed) syncTSchedUi();
       }
 
       function startTFilter() {
@@ -12114,6 +12801,7 @@
           if (tStatusEl) tStatusEl.textContent = 'Scan đang chạy — đợi scan xong rồi lọc.';
           return;
         }
+        closeTAuxPanels();
         if (!readTStateFromUi()) {
           if (tStatusEl) tStatusEl.textContent = 'Có ô nhập không phải số (đỏ) — sửa lại.';
           return;
@@ -12142,8 +12830,19 @@
           xOn: tState.xOn !== false,
           xtOn: tState.xtOn !== false,
           trendWant: tState.trend,
-          thThuanSnap: tState.thThuan
+          thThuanSnap: tState.thThuan,
+          schedSlots: null
         };
+        if (tSchedOn) {
+          const parsed = parseTScheduleText(tSchedText ? tSchedText.value : '');
+          if (parsed.error) {
+            if (tSchedText) flashTBad(tSchedText);
+            if (tStatusEl) tStatusEl.textContent = parsed.error;
+            setTJsonMsg(parsed.error, false);
+            return;
+          }
+          cfgBase.schedSlots = parsed.slots;
+        }
         saveTFilterPrefs();
         /* Lọc lần mới: xóa sạch kết quả + cache memo của lần trước NGAY từ lúc bấm Lọc
            (thay vì chờ job bắt đầu) → bộ nhớ được giải phóng sớm, lần lọc sau không ì. */
@@ -12155,9 +12854,13 @@
         tFreeMemos();
         if (tResultsEl) tResultsEl.innerHTML = '';
         updateTMergeUi();
-        const probe = makeTComboCursor(cfgBase.resolvedRanges, tEffXLo(), tEffXHi(), tEffMulLo(), tEffMulHi());
+        const probe = tCfgCursor(cfgBase);
         if (!probe.total) {
-          if (tStatusEl) tStatusEl.textContent = 'Khoảng tail/wtail/wfreq không có combo hợp lệ nào.';
+          if (tStatusEl) {
+            tStatusEl.textContent = tSchedOn
+              ? 'Lịch không cho combo hợp lệ nào (kiểm tra tail/wtail + ràng buộc x/wtail∈).'
+              : 'Khoảng tail/wtail/wfreq không có combo hợp lệ nào.';
+          }
           tResults = [];
           renderTResults();
           return;
@@ -12192,6 +12895,7 @@
           tRecruitState = null;
           if (rec.cancelled) {
             tJobActive = false;
+            clearTSchedRunningUi();
             if (tStopBtn) tStopBtn.hidden = true;
             if (tRunBtn) tRunBtn.hidden = false;
             if (tStatusEl) tStatusEl.textContent = 'Đã hủy ghép tab.';
@@ -12208,7 +12912,10 @@
               ranges: cfgBase.resolvedRanges,
               rb: cfgBase.rb, rd: cfgBase.rd, rdi: cfgBase.rdi, rni: cfgBase.rni, rpn: cfgBase.rpn,
               xLo: cfgBase.xLo, xHi: cfgBase.xHi, mulLo: cfgBase.mulLo, mulHi: cfgBase.mulHi,
-              xOn: cfgBase.xOn, xtOn: cfgBase.xtOn, trend: cfgBase.trendWant, thThuan: cfgBase.thThuanSnap
+              xOn: cfgBase.xOn, xtOn: cfgBase.xtOn, trend: cfgBase.trendWant, thThuan: cfgBase.thThuanSnap,
+              schedSlots: cfgBase.schedSlots || null,
+              schedOn: !!(cfgBase.schedSlots && cfgBase.schedSlots.length),
+              schedText: tSchedText ? String(tSchedText.value || '') : ''
             });
           }
           runTJobLocal(Object.assign({}, cfgBase, {
@@ -12230,6 +12937,9 @@
           const ix = findHistIdxById(msg.focus.focusId);
           if (ix >= 0) fIdx = ix;
         }
+        const remoteSched = Array.isArray(msg.schedSlots) && msg.schedSlots.length
+          ? msg.schedSlots
+          : null;
         tState.thThuan = !!msg.thThuan;
         tState.trend = msg.trend === 'up' ? 'up' : 'down';
         tState.xLo = (Number.isFinite(msg.xLo) && msg.xLo >= 0 && msg.xLo <= 1) ? msg.xLo : 0;
@@ -12244,10 +12954,18 @@
             tState.ranges[k] = { lo: msg.ranges[k].lo, hi: msg.ranges[k].hi, on: true };
           }
         });
+        /* Job có lịch → bật lịch trên tab phụ (cùng text) để UI slot + cursor khớp trưởng. */
+        if (remoteSched) {
+          tSchedOn = true;
+          if (typeof msg.schedText === 'string' && tSchedText) tSchedText.value = msg.schedText;
+        } else if (msg.schedOn === false) {
+          tSchedOn = false;
+        }
         /* Tham số theo job từ tab trưởng: áp tại chỗ, KHÔNG phát lại dạng t-params
            (đây là khoảng đã resolve — phát ra sẽ ghi đè ô trống gốc ở tab trưởng). */
         tParamsApplyingRemote = true;
         syncTUiFromState();
+        syncTSchedUi();
         saveTFilterPrefs();
         tParamsApplyingRemote = false;
         tParamsLastSent = JSON.stringify(tParamsSnapshotObj());
@@ -12268,7 +12986,8 @@
           xOn: tState.xOn !== false,
           xtOn: tState.xtOn !== false,
           trendWant: tState.trend,
-          thThuanSnap: tState.thThuan
+          thThuanSnap: tState.thThuan,
+          schedSlots: remoteSched
         });
       }
 
@@ -12416,14 +13135,25 @@
         }
         tStop = false;
         tJobActive = true;
+        tSchedUiSlot = -1;
+        tActiveSchedSlots = (cfg.schedSlots && cfg.schedSlots.length)
+          ? cfg.schedSlots.slice() : null;
         syncTParamsLock();
+        /* Hiện sẵn số slot đầu trước khi combo đầu kịp eval. */
+        if (tActiveSchedSlots && tActiveSchedSlots.length) showTSchedSlotOnUi(0);
         const seq = ++tSeq;
         const live = tLiveSnapshot();
         tJobSize = total;
+        const schedTails = (cfg.schedSlots && cfg.schedSlots.length)
+          ? tSchedTailList(cfg.schedSlots) : null;
         tLastJobInfo = {
           focusId: focus.focusId,
-          tailLo: cfg.resolvedRanges.tail.lo,
-          tailHi: cfg.resolvedRanges.tail.hi,
+          tailLo: schedTails && schedTails.length
+            ? schedTails[0] : cfg.resolvedRanges.tail.lo,
+          tailHi: schedTails && schedTails.length
+            ? schedTails[schedTails.length - 1] : cfg.resolvedRanges.tail.hi,
+          tailList: schedTails,
+          schedN: cfg.schedSlots ? cfg.schedSlots.length : 0,
           total: total
         };
         tJobDoneN = 0;
@@ -12545,6 +13275,7 @@
           tContinueJob = null;
           if (!shared) {
             tJobActive = false;
+            clearTSchedRunningUi();
             syncTParamsLock();
             if (tLastJobInfo) { tLastJobInfo.done = tJobDoneN; tLastJobInfo.stopped = reason === 'stopped'; }
             if (tStopBtn) tStopBtn.hidden = true;
@@ -12604,6 +13335,7 @@
             tTickerStop();
             /* Job chết giữa chừng → mở khóa tham số ngay để còn chỉnh rồi lọc lại. */
             tJobActive = false;
+            clearTSchedRunningUi();
             syncTParamsLock();
             if (tStopBtn) tStopBtn.hidden = true;
             if (tRunBtn) tRunBtn.hidden = false;
@@ -12962,6 +13694,8 @@
           tJsonWrap.hidden = !open;
           tJsonBtn.classList.toggle('is-on', open);
           if (open) {
+            if (tSchedWrap) tSchedWrap.hidden = true;
+            syncTSchedUi();
             tJsonText.value = JSON.stringify(tParamsSnapshotObj(), null, 2);
             tJsonText.classList.remove('is-bad');
             setTJsonMsg('');
@@ -12974,6 +13708,74 @@
         tJsonText.addEventListener('blur', applyTJsonText);
         /* Enter trong các ô tham số = chạy Lọc; riêng ô JSON thì giữ nguyên hành vi xuống dòng. */
         tJsonText.addEventListener('keydown', (e) => { e.stopPropagation(); });
+      }
+      if (tSchedText && !String(tSchedText.value || '').trim()) {
+        tSchedText.value = T_SCHED_DEFAULT;
+      }
+      syncTSchedUi();
+      if (tSchedTog) {
+        tSchedTog.addEventListener('click', () => {
+          if (tJobActive) return;
+          tSchedOn = !tSchedOn;
+          syncTSchedUi();
+          saveTFilterPrefs();
+          if (tSchedOn) {
+            const parsed = parseTScheduleText(tSchedText ? tSchedText.value : '');
+            if (parsed.error) {
+              setTJsonMsg(parsed.error, false);
+              if (tSchedText) flashTBad(tSchedText);
+            } else {
+              setTJsonMsg('Lịch ON · ' + parsed.slots.length + ' slot', true);
+            }
+          } else {
+            setTJsonMsg('Lịch OFF', true);
+          }
+        });
+      }
+      if (tSchedBtn && tSchedWrap) {
+        tSchedBtn.addEventListener('click', () => {
+          const open = tSchedWrap.hidden;
+          tSchedWrap.hidden = !open;
+          if (open) {
+            if (tJsonWrap) {
+              tJsonWrap.hidden = true;
+              if (tJsonBtn) tJsonBtn.classList.remove('is-on');
+            }
+            if (tSchedText && !String(tSchedText.value || '').trim()) {
+              tSchedText.value = T_SCHED_DEFAULT;
+            }
+            tSchedText.classList.remove('is-bad');
+            const parsed = parseTScheduleText(tSchedText.value);
+            if (parsed.error) setTJsonMsg(parsed.error, false);
+            else setTJsonMsg(parsed.slots.length + ' slot lịch', true);
+          }
+          syncTSchedUi();
+        });
+      }
+      if (tSchedText) {
+        tSchedText.addEventListener('input', () => {
+          tSchedText.classList.remove('is-bad');
+          if (tSchedOn) {
+            previewSchedOntoLockedRanges();
+            syncTSchedParamLock();
+          }
+          saveTFilterPrefs();
+        });
+        tSchedText.addEventListener('blur', () => {
+          const parsed = parseTScheduleText(tSchedText.value);
+          if (parsed.error) {
+            flashTBad(tSchedText);
+            setTJsonMsg(parsed.error, false);
+          } else {
+            setTJsonMsg(parsed.slots.length + ' slot lịch', true);
+            if (tSchedOn) {
+              previewSchedOntoLockedRanges();
+              syncTSchedParamLock();
+            }
+          }
+          saveTFilterPrefs();
+        });
+        tSchedText.addEventListener('keydown', (e) => { e.stopPropagation(); });
       }
       /* Copy nhanh: copy đúng nội dung JSON đang nằm trong ô (icon trong textarea → ✓ khi xong). */
       if (tJsonCopyBtn && tJsonText) {
@@ -13106,6 +13908,31 @@
           tAppliedIdx = idx;
           row.classList.add('is-applied');
         });
+        /* Chuột phải row → copy tail,wtail,wfreq dạng a,b,c (không mở menu trình duyệt).
+           capture: bắt trước, không phụ thuộc bubble qua nút timeline (pointer-events). */
+        tResultsEl.addEventListener('contextmenu', (e) => {
+          const row = e.target && e.target.closest ? e.target.closest('.t-result[data-t-csv]') : null;
+          if (!row || !tResultsEl.contains(row)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          let csv = row.getAttribute('data-t-csv') || '';
+          if (!csv) {
+            const idx = Number(row.getAttribute('data-t-idx')) | 0;
+            const r = tResults[idx];
+            if (r) csv = r.tail + ',' + r.wtail + ',' + r.wfreq;
+          }
+          if (!csv) return;
+          copyTextToClipboard(csv);
+          row.classList.remove('is-copied');
+          void row.offsetWidth;
+          row.classList.add('is-copied');
+          if (row._tCopyFlash) clearTimeout(row._tCopyFlash);
+          row._tCopyFlash = setTimeout(() => {
+            row.classList.remove('is-copied');
+            row._tCopyFlash = 0;
+          }, 900);
+          if (tStatusEl) tStatusEl.textContent = 'Đã copy ' + csv;
+        }, true);
       }
 
       /* T: bật/tắt popup lọc trend tại i (capture — không gõ vào ô input). */
@@ -13340,6 +14167,44 @@
         if (wasElim && closeId != null) {
           publishSharedFocus(closeId, { popup: false, mode: closingSim ? 'sim' : 'hist' });
         }
+      }
+
+      /** Ctrl (nhả, không kèm phím khác): mở/đóng popup kỳ đang focus. */
+      function toggleFocusElimPopup() {
+        if (!modalBack.hidden && popupKind === 'elim') {
+          hidePopup();
+          return true;
+        }
+        if (simIdOn && simState) {
+          openSimElim();
+          publishSharedFocus(simState.focusId, { popup: true, mode: 'sim', force: true });
+          return true;
+        }
+        if (histIdOnIdx != null && dataCtx && dataCtx.ids) {
+          const id = dataCtx.ids[histIdOnIdx];
+          openHistElim(histIdOnIdx);
+          publishSharedFocus(id, { popup: true, mode: 'hist', force: true });
+          return true;
+        }
+        let seedId = null;
+        try {
+          const st = window.FocusSync && typeof window.FocusSync.get === 'function'
+            ? window.FocusSync.get()
+            : null;
+          if (st && st.id != null) seedId = Number(st.id);
+        } catch (eSeed) { /* ignore */ }
+        if (!(seedId != null && Number.isFinite(seedId) && seedId > 0)) return false;
+        if (simState && simState.focusId === seedId) {
+          openSimElim();
+          publishSharedFocus(seedId, { popup: true, mode: 'sim', force: true });
+          return true;
+        }
+        const idx = findHistIdxById(seedId);
+        if (idx < 0) return false;
+        rememberHistFocusClick(seedId);
+        openHistElim(idx);
+        publishSharedFocus(seedId, { popup: true, mode: 'hist', force: true });
+        return true;
       }
 
       /** Popup đang mở: đổi threshold / trial params → cập nhật nội dung (giữ scroll). */
@@ -18595,6 +19460,32 @@
           }
         }
       });
+
+      /* Ctrl nhả (không kèm phím khác): mở/đóng popup kỳ đang focus. */
+      let ctrlAloneArmed = false;
+      document.addEventListener('keydown', (e) => {
+        if (!e) return;
+        if (e.key === 'Control' || e.code === 'ControlLeft' || e.code === 'ControlRight') {
+          if (!e.repeat) ctrlAloneArmed = true;
+          return;
+        }
+        if (e.ctrlKey) ctrlAloneArmed = false;
+      }, true);
+      document.addEventListener('keyup', (e) => {
+        if (!e) return;
+        if (!(e.key === 'Control' || e.code === 'ControlLeft' || e.code === 'ControlRight')) return;
+        if (!ctrlAloneArmed) return;
+        ctrlAloneArmed = false;
+        if (e.ctrlKey) return;
+        const t = e.target;
+        const typing = t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA'
+          || t.tagName === 'SELECT' || t.isContentEditable);
+        if (typing) return;
+        if (toggleFocusElimPopup()) {
+          e.preventDefault();
+          e.stopPropagation();
+        }
+      }, true);
       btnFullList.addEventListener('click', () => showIdListPopup('full'));
       btnZeroList.addEventListener('click', () => showIdListPopup('zero'));
       if (btnDerivePhaList) btnDerivePhaList.addEventListener('click', () => showIdListPopup('derivePha'));
