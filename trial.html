@@ -2432,13 +2432,14 @@
     }
 
     .t-results {
-      overflow: auto;
+      overflow-x: hidden;
+      overflow-y: auto;
       border-top: 1px solid #e2e8f0;
       min-height: 60px;
     }
 
     .t-result {
-      padding: 6px 8px;
+      padding: 11px 8px 6px;
       border-bottom: 1px solid #eef2f7;
       cursor: pointer;
       overflow: visible;
@@ -2459,6 +2460,7 @@
       color: #334155;
       margin-bottom: 3px;
       overflow: visible;
+      white-space: nowrap;
     }
 
     .t-result-head .t-combo {
@@ -2494,6 +2496,10 @@
       color: #e90f31;
     }
 
+    .t-result-head .t-trend-flat {
+      color: #64748b;
+    }
+
     /* |Δ%break|=x.x% — cùng màu trend (giảm=đỏ, tăng=xanh). */
     .t-result-head .t-dbreak.t-trend-down {
       color: #e90f31;
@@ -2502,6 +2508,11 @@
 
     .t-result-head .t-dbreak.t-trend-up {
       color: #00ad45;
+      font-weight: 700;
+    }
+
+    .t-result-head .t-dbreak.t-trend-flat {
+      color: #64748b;
       font-weight: 700;
     }
 
@@ -2641,6 +2652,27 @@
     .t-merge-info {
       color: #0f766e;
       margin-left: 8px;
+    }
+
+    .t-merge-info .t-pt-up {
+      color: #00ad45;
+      font-weight: 800;
+    }
+
+    .t-merge-info .t-pt-down {
+      color: #e90f31;
+      font-weight: 800;
+    }
+
+    /* Tỉ số y/x (▼/▲): >1.5 đỏ như y, <1.5 xanh như x. */
+    .t-merge-info .t-pt-ratio.t-pt-up {
+      color: #00ad45;
+      font-weight: 800;
+    }
+
+    .t-merge-info .t-pt-ratio.t-pt-down {
+      color: #e90f31;
+      font-weight: 800;
     }
 
     /* Tooltip số hàng chứa 1 số trong Δimerge — bám góc trên-trái con trỏ. */
@@ -2968,10 +3000,12 @@
 
     /* T% + %phá: sát tối đa (split view), bề ngang cố định → thẳng cột */
     .modal .th-tl-row .tl-tr {
+      position: relative;
       display: inline-flex;
       align-items: baseline;
       gap: 2px;
       white-space: nowrap;
+      overflow: visible;
     }
 
     .modal .th-tl-row .tl-t {
@@ -2989,6 +3023,50 @@
       color: #ef4444;
       text-align: right;
       white-space: nowrap;
+    }
+
+    /* Mũi tên: absolute giữa khe column-gap (3px) của %break ↔ Δi — không chiếm chỗ. */
+    .modal .th-tl-row .tl-wtrend {
+      position: absolute;
+      left: 100%;
+      top: 50%;
+      width: 0;
+      height: 0;
+      margin: 0;
+      padding: 0;
+      overflow: visible;
+      line-height: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .modal .th-tl-row .tl-wtrend svg {
+      position: absolute;
+      /* Tâm ngang = giữa column-gap 3px; tâm dọc = giữa hàng. */
+      left: 1.5px;
+      top: 0;
+      display: block;
+      width: 8px;
+      height: 14px;
+      overflow: visible;
+      transform: translate(-50%, -50%);
+      filter: drop-shadow(0 1px 1px rgba(15, 23, 42, .35));
+      pointer-events: auto;
+    }
+
+    .modal .th-tl-row .tl-wtrend svg path {
+      stroke: #0b1220;
+      stroke-width: 1.3;
+      stroke-linejoin: round;
+      paint-order: stroke;
+    }
+
+    .modal .th-tl-row .tl-wtrend.is-up svg path {
+      fill: #00ad45;
+    }
+
+    .modal .th-tl-row .tl-wtrend.is-down svg path {
+      fill: #e90f31;
     }
 
     /* Δ + nhãn i/j/k dính liền; nhãn hẹp cố định (pool[0] thẳng hàng) */
@@ -4887,10 +4965,13 @@
               <button type="button" class="tp-spin-btn" data-t-id-d="-1" title="Giảm id" aria-label="giảm id">▾</button>
             </span>
           </span>
-          <span class="t-lbl" style="min-width:0">trend tại i</span>
-          <span class="t-seg" id="tTrendSeg">
-            <button type="button" data-t-trend="up" class="is-up">▲ up</button>
-            <button type="button" data-t-trend="down" class="is-on is-down">▼ down</button>
+          <span class="scan-param" id="tTrendWrap">
+            <span class="t-lbl tp-label scan-param-tog" data-t-ctog="trend" role="button" tabindex="0"
+              style="min-width:0" title="Click: bật/tắt lọc theo chiều %break tại mốc Δ">trend</span>
+            <span class="t-seg" id="tTrendSeg">
+              <button type="button" data-t-trend="up" class="is-up" title="Lọc ▲up">▲ up</button>
+              <button type="button" data-t-trend="down" class="is-on is-down" title="Lọc ▼down">▼ down</button>
+            </span>
           </span>
           <span class="t-xt-wrap scan-param" id="tXTailWrap">
             <span class="t-lbl tp-label scan-param-tog" data-t-ctog="xt" role="button" tabindex="0" style="min-width:0"
@@ -8015,6 +8096,31 @@
       }
 
       /**
+       * Mũi tên point giữa cột %break và Δi.
+       * th,%break ∈ [0;1]: d = (th/100)(pct/100) − prev → ≥0 up, <0 down.
+       * @param {{trend:'up'|'down', prevTh:number, prevPct:number, th:number, pct:number, dPoint?:number}|null} info
+       */
+      function formatTlWeightTrendHtml(info) {
+        const trend = info && (info.trend === 'up' || info.trend === 'down') ? info.trend : '';
+        if (!trend) {
+          return '<span class="tl-wtrend" aria-hidden="true"></span>';
+        }
+        /* SVG y↓: tip up = y nhỏ; tip down = y lớn — hơi thon, cao hơn hàng. */
+        const path = trend === 'down'
+          ? 'M5 13 L1 8 L3.4 8 L3.4 1 L6.6 1 L6.6 8 L9 8 Z'
+          : 'M5 1 L9 6 L6.6 6 L6.6 13 L3.4 13 L3.4 6 L1 6 Z';
+        const w0 = ((info.prevTh / 100) * (info.prevPct / 100)).toFixed(4);
+        const w1 = ((info.th / 100) * (info.pct / 100)).toFixed(4);
+        const dp = Number.isFinite(info.dPoint) ? info.dPoint.toFixed(4) : '';
+        const title = 'point ' + w0 + ' → ' + w1
+          + (dp ? (' · |Δ|=' + dp) : '')
+          + ' (' + (trend === 'up' ? 'tăng' : 'giảm') + ')';
+        return '<span class="tl-wtrend is-' + trend + '" title="' + escapeAttr(title) + '" aria-hidden="true">'
+          + '<svg viewBox="0 0 10 14" focusable="false"><path d="' + path + '"/></svg>'
+          + '</span>';
+      }
+
+      /**
        * @param {object} [pickOpts] sim/học: { pickable, pickedSet }
        * @param {Set|null} [poolGreenSet] viền xanh pool — chỉ tại mốc in đậm đầu tiên
        * @param {boolean} [sizeChg] |pool| khác mốc kề → nổi số trong pool[N]
@@ -8211,8 +8317,10 @@
         const deltaLabels = buildTimelineDeltaLabels(milestones);
         let html = '';
         if (milestones.length > 1) html += '<div class="th-tl-flow" aria-hidden="true"></div>';
-        /* Icon pool: từ mốc Δ thứ 2 trở đi, so %break với mốc Δ liền trước. */
+        /* Icon pool: từ mốc Δ thứ 2 trở đi, so %break với mốc Δ liền trước.
+         * Mũi tên th×%break: cùng chuỗi nhãn i1… — so th·%break với mốc Δ liền trước. */
         let prevLblPct = null;
+        let prevLblTh = null;
         let lblSeen = 0;
         for (let i = 0; i < milestones.length; i++) {
           const m = milestones[i];
@@ -8262,23 +8370,41 @@
             : '—';
           const tlLbl = deltaLabels[i] || '';
           let trendInfo = null;
+          let wTrendInfo = null;
           const pctNow = Number.isFinite(m.violPct) ? m.violPct : null;
+          const thNow = Number.isFinite(m.t) ? m.t : null;
           if (tlLbl && pctNow != null) {
-            if (lblSeen >= 1 && prevLblPct != null && pctNow !== prevLblPct) {
-              trendInfo = {
-                trend: pctNow > prevLblPct ? 'up' : 'down',
-                prevPct: prevLblPct,
-                pct: pctNow
-              };
+            if (lblSeen >= 1 && prevLblPct != null) {
+              if (pctNow !== prevLblPct) {
+                trendInfo = {
+                  trend: pctNow > prevLblPct ? 'up' : 'down',
+                  prevPct: prevLblPct,
+                  pct: pctNow
+                };
+              }
+              if (prevLblTh != null && thNow != null) {
+                /* th,%break dạng tỉ lệ [0;1]. */
+                const d = (thNow / 100) * (pctNow / 100) - (prevLblTh / 100) * (prevLblPct / 100);
+                wTrendInfo = {
+                  trend: d < 0 ? 'down' : 'up',
+                  prevTh: prevLblTh,
+                  prevPct: prevLblPct,
+                  th: thNow,
+                  pct: pctNow,
+                  dPoint: Math.abs(d)
+                };
+              }
             }
             lblSeen++;
             prevLblPct = pctNow;
+            if (thNow != null) prevLblTh = thNow;
           }
           html += '<div class="th-tl-row" data-tl-label="' + escapeAttr(tlLbl) + '"'
             + (tlLbl ? ' data-tl-i="' + escapeAttr(tlLbl) + '"' : '') + '>'
             + '<span class="tl-tr">'
             + '<span class="tl-t">' + m.t + '%</span>'
             + '<span class="tl-rate" title="%break tại threshold này">' + rateTxt + '</span>'
+            + formatTlWeightTrendHtml(wTrendInfo)
             + '</span>'
             + '<span class="tl-pool">'
             + formatTimelinePoolHtml(
@@ -10287,7 +10413,12 @@
       const T_RENDER_CAP = 400;
       const tState = {
         thThuan: true,
+        /* Chiều lọc %break tại mốc Δ; trendOn=false = không lọc theo trend (click nhãn). */
         trend: 'down',
+        trendOn: true,
+        /* point = mũi tên th×%break trên timeline (so mốc Δ liền trước); pointOn=false = không lọc. */
+        point: 'up',
+        pointOn: false,
         id: '',
         /* Ràng buộc tỉ lệ: a·wtail ≤ wfreq ≤ b·wtail (a,b ∈ [0;1], làm tròn 2 chữ số thập phân). */
         xLo: 0,
@@ -10311,6 +10442,7 @@
         }
       };
       const tBack = document.getElementById('tBack');
+      const tTrendWrap = document.getElementById('tTrendWrap');
       const tIdEl = document.getElementById('tId');
       const tXLoEl = document.getElementById('tXLo');
       const tXHiEl = document.getElementById('tXHi');
@@ -10467,6 +10599,9 @@
           localStorage.setItem(T_LS_KEY, JSON.stringify({
             thThuan: tState.thThuan,
             trend: tState.trend,
+            trendOn: tState.trendOn !== false,
+            point: tState.point,
+            pointOn: tState.pointOn !== false,
             id: tState.id || '',
             xLo: tState.xLo,
             xHi: tState.xHi,
@@ -10493,6 +10628,11 @@
           if (!p || typeof p !== 'object') return false;
           if (typeof p.thThuan === 'boolean') tState.thThuan = p.thThuan;
           if (p.trend === 'up' || p.trend === 'down') tState.trend = p.trend;
+          if (typeof p.trendOn === 'boolean') tState.trendOn = p.trendOn;
+          else if (p.trend === null || p.trend === '' || p.trend === 'off' || p.trend === false) tState.trendOn = false;
+          if (p.point === 'up' || p.point === 'down') tState.point = p.point;
+          if (typeof p.pointOn === 'boolean') tState.pointOn = p.pointOn;
+          else if (p.point === null || p.point === '' || p.point === 'off' || p.point === false) tState.pointOn = false;
           if (typeof p.id === 'string') tState.id = p.id;
           /* x cũ (1 số) = cận trên b, cận dưới a = 0. */
           if (Number.isFinite(p.x) && p.x > 0) tState.xHi = Math.min(1, Math.round(p.x * 100) / 100);
@@ -10868,7 +11008,10 @@
         /* Không ghi id: id là focus do người dùng chọn, không phải trọng số/cfg lọc. */
         return {
           threshold: tState.thThuan ? '>=' : '<=',
-          trend: tState.trend,
+          trend: tState.trendOn === false ? null : tState.trend,
+          trendOn: tState.trendOn !== false,
+          point: tState.pointOn === false ? null : tState.point,
+          pointOn: tState.pointOn !== false,
           x: {
             lo: Number.isFinite(tState.xLo) ? tState.xLo : 0,
             hi: isTXValid(tState.xHi) ? tState.xHi : 0.5,
@@ -10924,7 +11067,20 @@
           tState.thThuan = !(s.indexOf('<') >= 0 || s.indexOf('nghịch') >= 0
             || s === 'nghich' || s === '0' || s === 'false');
         }
-        if (p.trend === 'up' || p.trend === 'down') tState.trend = p.trend;
+        if (p.trend === 'up' || p.trend === 'down') {
+          tState.trend = p.trend;
+          if (typeof p.trendOn !== 'boolean') tState.trendOn = true;
+        } else if (p.trend === null || p.trend === '' || p.trend === 'off' || p.trend === false) {
+          tState.trendOn = false;
+        }
+        if (typeof p.trendOn === 'boolean') tState.trendOn = p.trendOn;
+        if (p.point === 'up' || p.point === 'down') {
+          tState.point = p.point;
+          if (typeof p.pointOn !== 'boolean') tState.pointOn = true;
+        } else if (p.point === null || p.point === '' || p.point === 'off' || p.point === false) {
+          tState.pointOn = false;
+        }
+        if (typeof p.pointOn === 'boolean') tState.pointOn = p.pointOn;
         /* x chấp nhận: 1 số (cận trên, a=0) · [a,b] · {lo,hi} · "a/b" dạng phân số cho từng cận. */
         if (p.x != null) {
           let lo = null;
@@ -11052,16 +11208,27 @@
       function renderTRangeControls() {
         if (!tRangesEl || tControlsRendered) return;
         tControlsRendered = true;
-        tRangesEl.innerHTML = T_RANGE_DEFS.map(([key, label]) =>
-          '<div class="scan-param" data-t-range="' + key + '">'
-          + '<span class="tp-label scan-param-tog" role="button" tabindex="0" title="Click: bật/tắt lọc theo tham số này">' + label + '</span>'
-          + '<span class="scan-in" aria-hidden="true">∈</span>'
-          + '<span class="scan-br">[</span>'
-          + makeTBoundHtml(key, 'lo')
-          + '<span class="scan-sep">;</span>'
-          + makeTBoundHtml(key, 'hi')
-          + '<span class="scan-br">]</span></div>'
-        ).join('');
+        /* point (mũi tên th×%break) nằm ngay sau |Δ%break|, UI up/down như trend. */
+        const pointHtml = '<span class="scan-param" id="tPointWrap">'
+          + '<span class="tp-label scan-param-tog" data-t-ctog="point" role="button" tabindex="0"'
+          + ' title="Click: bật/tắt lọc theo mũi tên th×%break trên timeline">'
+          + 'point</span>'
+          + '<span class="t-seg" id="tPointSeg">'
+          + '<button type="button" data-t-point="up" class="is-up is-on" title="Lọc ▲up">▲ up</button>'
+          + '<button type="button" data-t-point="down" class="is-down" title="Lọc ▼down">▼ down</button>'
+          + '</span></span>';
+        tRangesEl.innerHTML = T_RANGE_DEFS.map(([key, label]) => {
+          let html = '<div class="scan-param" data-t-range="' + key + '">'
+            + '<span class="tp-label scan-param-tog" role="button" tabindex="0" title="Click: bật/tắt lọc theo tham số này">' + label + '</span>'
+            + '<span class="scan-in" aria-hidden="true">∈</span>'
+            + '<span class="scan-br">[</span>'
+            + makeTBoundHtml(key, 'lo')
+            + '<span class="scan-sep">;</span>'
+            + makeTBoundHtml(key, 'hi')
+            + '<span class="scan-br">]</span></div>';
+          if (key === 'dBreak') html += pointHtml;
+          return html;
+        }).join('');
         tRangesEl.querySelectorAll('.tp-spin-btn').forEach((btn) => {
           const wrap = btn.closest('[data-t-range]');
           const item = btn.closest('.tp-item');
@@ -11074,6 +11241,16 @@
         });
         /* Click tên tham số → bật/tắt áp dụng lọc theo tham số đó (như scanpopup). */
         tRangesEl.querySelectorAll('.scan-param-tog').forEach((lbl) => {
+          if (lbl.getAttribute('data-t-ctog') === 'point') {
+            lbl.addEventListener('click', () => toggleTConstraint('point'));
+            lbl.addEventListener('keydown', (e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                toggleTConstraint('point');
+              }
+            });
+            return;
+          }
           const wrap = lbl.closest('[data-t-range]');
           if (!wrap) return;
           const key = wrap.getAttribute('data-t-range');
@@ -11085,7 +11262,19 @@
             }
           });
         });
+        const pointSeg = document.getElementById('tPointSeg');
+        if (pointSeg) {
+          pointSeg.addEventListener('click', (e) => {
+            const b = e.target && e.target.closest ? e.target.closest('[data-t-point]') : null;
+            if (!b || b.disabled) return;
+            tState.point = b.getAttribute('data-t-point') === 'up' ? 'up' : 'down';
+            tState.pointOn = true;
+            syncTUiFromState();
+            saveTFilterPrefs();
+          });
+        }
         T_RANGE_DEFS.forEach(([key]) => syncTRangeOnUi(key));
+        syncTConstraintToggleUi();
       }
 
       function syncTRangeOnUi(key) {
@@ -11213,12 +11402,28 @@
         saveTFilterPrefs();
       }
 
-      /* Toggle bật/tắt 2 ràng buộc (click nhãn wtail∈[ / wfreq∈[): tắt → mờ + khóa ô, không áp khi lọc. */
+      /* Toggle bật/tắt ràng buộc (click nhãn): tắt → mờ + khóa ô/nút, không áp khi lọc. */
       function syncTConstraintToggleUi() {
         if (tXBandWrap) {
           const off = tState.xOn === false;
           tXBandWrap.classList.toggle('is-off', off);
           tXBandWrap.querySelectorAll('input, .tp-spin-btn').forEach((el) => { el.disabled = off; });
+        }
+        if (tTrendWrap) {
+          const off = tState.trendOn === false;
+          tTrendWrap.classList.toggle('is-off', off);
+          if (tTrendSegEl && !tJobActive) {
+            tTrendSegEl.querySelectorAll('button').forEach((el) => { el.disabled = off; });
+          }
+        }
+        const tPointWrapEl = document.getElementById('tPointWrap');
+        const tPointSegEl = document.getElementById('tPointSeg');
+        if (tPointWrapEl) {
+          const off = tState.pointOn === false;
+          tPointWrapEl.classList.toggle('is-off', off);
+          if (tPointSegEl && !tJobActive) {
+            tPointSegEl.querySelectorAll('button').forEach((el) => { el.disabled = off; });
+          }
         }
         if (tXTailWrap) {
           if (tSchedLocksMul()) {
@@ -11239,10 +11444,24 @@
       function toggleTConstraint(which) {
         if (which === 'xt' && tSchedLocksMul()) return;
         if (which === 'x') tState.xOn = tState.xOn === false;
+        else if (which === 'trend') tState.trendOn = tState.trendOn === false;
+        else if (which === 'point') tState.pointOn = tState.pointOn === false;
         else tState.xtOn = tState.xtOn === false;
         syncTConstraintToggleUi();
         if (tSchedOn) syncTSchedParamLock();
         saveTFilterPrefs();
+      }
+
+      /** Chiều trend thực áp khi lọc (null = không lọc). */
+      function tEffTrendWant() {
+        return tState.trendOn === false ? null
+          : (tState.trend === 'up' || tState.trend === 'down' ? tState.trend : null);
+      }
+
+      /** Chiều point (mũi tên th×%break) thực áp khi lọc (null = không lọc). */
+      function tEffPointWant() {
+        return tState.pointOn === false ? null
+          : (tState.point === 'up' || tState.point === 'down' ? tState.point : null);
       }
 
       /* Nháy đỏ cảnh báo nhập sai trong thoáng chốc: gắn .is-bad (CSS nháy 4 nhịp ≈ 1.2s)
@@ -11449,6 +11668,12 @@
             b.classList.toggle('is-on', b.getAttribute('data-t-trend') === tState.trend);
           });
         }
+        const tPointSegSync = document.getElementById('tPointSeg');
+        if (tPointSegSync) {
+          tPointSegSync.querySelectorAll('[data-t-point]').forEach((b) => {
+            b.classList.toggle('is-on', b.getAttribute('data-t-point') === tState.point);
+          });
+        }
         if (tIdEl) tIdEl.value = tState.id || '';
         if (tXLoEl) {
           tXLoEl.value = Number.isFinite(tState.xLo) ? formatTX(tState.xLo) : '';
@@ -11568,7 +11793,12 @@
             rpn: c.rpn || { lo: 0, hi: 35 },
             xLo: c.xLo, xHi: c.xHi, mulLo: c.mulLo, mulHi: c.mulHi,
             xOn: c.xOn !== false, xtOn: c.xtOn !== false,
-            trendWant: c.trendWant || sh.trendWant,
+            trendWant: (c.trendWant === 'up' || c.trendWant === 'down')
+              ? c.trendWant
+              : (sh.trendWant === 'up' || sh.trendWant === 'down' ? sh.trendWant : null),
+            pointWant: (c.pointWant === 'up' || c.pointWant === 'down')
+              ? c.pointWant
+              : (sh.pointWant === 'up' || sh.pointWant === 'down' ? sh.pointWant : null),
             thThuanSnap: c.thThuanSnap != null ? c.thThuanSnap : sh.thThuanSnap,
             schedSlots: c.schedSlots || null
           },
@@ -11819,8 +12049,8 @@
         return !!(el && !el.hidden);
       }
 
-      /** Đo 1 combo: mốc có nhãn Δ, trend/|Δ%break| so mốc liền trước, |Δi|/newlyin/i[n]. */
-      function tEvalOneCombo(combo, focus, trendWant, rb, rd, rdi, rni, rpn, live, seq, thThuan) {
+      /** Đo 1 combo: mốc có nhãn Δ, trend/point/|Δ%break| so mốc trước, |Δi|/newlyin/i[n]. */
+      function tEvalOneCombo(combo, focus, trendWant, pointWant, rb, rd, rdi, rni, rpn, live, seq, thThuan) {
         if (seq !== tSeq || !dataCtx) return [];
         noteTSchedComboUi(combo);
         const { ids } = dataCtx;
@@ -11858,31 +12088,98 @@
           const labels = buildTimelineDeltaLabels(milestones);
           const iOrds = buildTimelineDeltaIOrdinals(milestones);
           let labeledSeen = 0;
+          /* point = mũi tên timeline: so th×%break với mốc Δ liền trước (không phải mốc timeline kề). */
+          let prevLblTh = null;
+          let prevLblPct = null;
           for (let mi = 0; mi < milestones.length; mi++) {
             const iNum = iOrds[mi] | 0;
             if (!iNum) continue;
-            labeledSeen++;
-            if (labeledSeen <= 1) continue; /* mốc có nhãn đầu tiên: chưa có mốc trước để xét trend */
             const m = milestones[mi];
-            const prevM = milestones[mi - 1];
             const pct = Number.isFinite(m.violPct) ? m.violPct : null;
+            const thNow = Number.isFinite(m.t) ? m.t : null;
+            let pointDir = null;
+            let dPoint = null;
+            if (prevLblTh != null && prevLblPct != null && thNow != null && pct != null) {
+              /* th,%break dạng tỉ lệ [0;1]: (th/100)×(pct/100). */
+              const d = (thNow / 100) * (pct / 100) - (prevLblTh / 100) * (prevLblPct / 100);
+              pointDir = d < 0 ? 'down' : 'up';
+              dPoint = Math.abs(d);
+            }
+            labeledSeen++;
+            if (labeledSeen <= 1) {
+              if (thNow != null && pct != null) {
+                prevLblTh = thNow;
+                prevLblPct = pct;
+              }
+              continue; /* mốc có nhãn đầu tiên: chưa có mốc trước để xét trend/point */
+            }
+            const prevM = milestones[mi - 1];
             const prevPct = prevM && Number.isFinite(prevM.violPct) ? prevM.violPct : null;
-            if (pct == null || prevPct == null) continue;
+            if (pct == null || prevPct == null) {
+              if (thNow != null && pct != null) {
+                prevLblTh = thNow;
+                prevLblPct = pct;
+              }
+              continue;
+            }
             const trend = pct > prevPct ? 'up' : (pct < prevPct ? 'down' : 'flat');
-            if (trend !== trendWant) continue;
-            if (pct < rb.lo || pct > rb.hi) continue;
+            if ((trendWant === 'up' || trendWant === 'down') && trend !== trendWant) {
+              if (thNow != null && pct != null) {
+                prevLblTh = thNow;
+                prevLblPct = pct;
+              }
+              continue;
+            }
+            if ((pointWant === 'up' || pointWant === 'down') && pointDir !== pointWant) {
+              if (thNow != null && pct != null) {
+                prevLblTh = thNow;
+                prevLblPct = pct;
+              }
+              continue;
+            }
+            if (pct < rb.lo || pct > rb.hi) {
+              if (thNow != null && pct != null) {
+                prevLblTh = thNow;
+                prevLblPct = pct;
+              }
+              continue;
+            }
             const dBreak = Math.abs(pct - prevPct);
-            if (dBreak < rd.lo || dBreak > rd.hi) continue;
+            if (dBreak < rd.lo || dBreak > rd.hi) {
+              if (thNow != null && pct != null) {
+                prevLblTh = thNow;
+                prevLblPct = pct;
+              }
+              continue;
+            }
             const prevPool = prevM ? (prevM.pool || []) : null;
             const poolArr = m.pool || [];
             /* |Δi| = gap phần tử thật poolCurr\prev — KHÔNG fallback newlyIn như nút Δ copy. */
             const deltaNums = poolDiffFromPrev(poolArr, prevPool);
             if (deltaNums.length > 1) deltaNums.sort((a, b) => a - b);
-            if (deltaNums.length < rdi.lo || deltaNums.length > rdi.hi) continue;
+            if (deltaNums.length < rdi.lo || deltaNums.length > rdi.hi) {
+              if (thNow != null && pct != null) {
+                prevLblTh = thNow;
+                prevLblPct = pct;
+              }
+              continue;
+            }
             const niCount = (m.newlyIn || []).length;
-            if (niCount < rni.lo || niCount > rni.hi) continue;
+            if (niCount < rni.lo || niCount > rni.hi) {
+              if (thNow != null && pct != null) {
+                prevLblTh = thNow;
+                prevLblPct = pct;
+              }
+              continue;
+            }
             const poolN = poolArr.length;
-            if (poolN < rpn.lo || poolN > rpn.hi) continue;
+            if (poolN < rpn.lo || poolN > rpn.hi) {
+              if (thNow != null && pct != null) {
+                prevLblTh = thNow;
+                prevLblPct = pct;
+              }
+              continue;
+            }
             hits.push({
               tail: combo.tail,
               wtail: combo.wtail,
@@ -11896,6 +12193,8 @@
               tlPopupLabel: buildTimelineDeltaLabels(milestones.slice(0, mi + 1))[mi] || (labels[mi] || ('i' + iNum)),
               i: iNum,
               trend: trend,
+              point: pointDir,
+              dPoint: dPoint,
               pct: pct,
               prevPct: prevPct,
               dBreak: dBreak,
@@ -11908,6 +12207,10 @@
               newlyIn: (m.newlyIn || []).slice(),
               prevPool: prevPool ? prevPool.slice() : []
             });
+            if (thNow != null && pct != null) {
+              prevLblTh = thNow;
+              prevLblPct = pct;
+            }
           }
           return hits;
         } finally {
@@ -11975,7 +12278,9 @@
           chips += '<button type="button" class="t-merge-num" data-t-merge-num="' + n + '">' + n + '</button>';
         }
         tMergeEl.innerHTML = '<span class="t-merge-box">'
-          + '<span class="t-merge-label" title="Click: copy chuỗi Δimerge (a,b,c tăng dần)">Δimerge</span>'
+          + '<span class="t-merge-label"'
+          + ' title="Click: copy cả chuỗi · Chuột phải: copy số có point▼ &gt; 1.5×point▲ (trên các hàng chứa số đó)">'
+          + 'Δimerge</span>'
           + '<span class="t-merge-count" title="Click: copy mỗi số một hàng (số:số hàng chứa) — sort giảm dần theo số hàng">[0]</span>={'
           + chips
           + '}</span>'
@@ -12039,12 +12344,29 @@
           + '|' + Array.from(tMergeSel).sort((a, b) => a - b).join(',')
           + '|m:' + Array.from(tMergeMark).sort((a, b) => a - b).join(',')
           + '|a:' + ansSig;
-        const infoTxt = tMergeSel.size
-          ? 'đang lọc: hiện ' + tMergeVisibleCount().toLocaleString('en-US')
-          + '/' + tResults.length.toLocaleString('en-US') + ' hàng'
-          : '';
-        if (tMergeInfoEl && tMergeInfoEl.textContent !== infoTxt) {
-          tMergeInfoEl.textContent = infoTxt;
+        if (tMergeInfoEl) {
+          if (!tMergeSel.size) {
+            if (tMergeInfoEl.innerHTML) tMergeInfoEl.innerHTML = '';
+          } else {
+            const selCsv = Array.from(tMergeSel).sort((a, b) => a - b).join(',');
+            const vis = tMergeVisibleCount();
+            const pt = tMergePointStats();
+            /* (x,y) = (▲,▼); tỉ số = y/x — >1.5 đỏ, <1.5 xanh. */
+            let ratioHtml = '';
+            if (pt.up > 0) {
+              const ratio = pt.down / pt.up;
+              const cls = ratio > 1.5 ? 't-pt-down' : 't-pt-up';
+              ratioHtml = ' <span class="t-pt-ratio ' + cls + '">' + ratio.toFixed(3) + '</span>';
+            } else if (pt.down > 0) {
+              ratioHtml = ' <span class="t-pt-ratio t-pt-down">∞</span>';
+            }
+            const infoHtml = 'đang lọc ' + selCsv + ': hiện '
+              + vis.toLocaleString('en-US') + '/' + tResults.length.toLocaleString('en-US')
+              + ' hàng (<span class="t-pt-up">' + pt.up.toLocaleString('en-US') + '</span>,'
+              + '<span class="t-pt-down">' + pt.down.toLocaleString('en-US') + '</span>)'
+              + ratioHtml;
+            if (tMergeInfoEl.innerHTML !== infoHtml) tMergeInfoEl.innerHTML = infoHtml;
+          }
         }
         if (sig === tMergeSig) return;
         tMergeSig = sig;
@@ -12075,6 +12397,48 @@
         return v;
       }
 
+      /** Trong các hàng đang hiện (qua lọc Δimerge): đếm point ▲ / ▼. */
+      function tMergePointStats() {
+        let up = 0;
+        let down = 0;
+        for (let i = 0; i < tResults.length; i++) {
+          const r = tResults[i];
+          if (!tRowPassesMerge(r)) continue;
+          if (r.point === 'up') up++;
+          else if (r.point === 'down') down++;
+        }
+        return { up: up, down: down };
+      }
+
+      /**
+       * Point stats của 1 số n trên mọi hàng có n ∈ Δi:
+       * x = số hàng point ▲ (tăng), y = số hàng point ▼ (giảm).
+       */
+      function tMergePointStatsForNum(n) {
+        let x = 0;
+        let y = 0;
+        for (let i = 0; i < tResults.length; i++) {
+          const r = tResults[i];
+          const dn = r.deltaNums || [];
+          if (dn.indexOf(n) < 0) continue;
+          if (r.point === 'up') x++;
+          else if (r.point === 'down') y++;
+        }
+        return { x: x, y: y };
+      }
+
+      /** Chuỗi RMB Δimerge: số thỏa y > 1.5x (x=point▲, y=point▼; x=0 & y>0 cũng lọt). */
+      function tMergeRmbQualifyNums() {
+        const nums = tMergeSyncCounts();
+        const out = [];
+        for (let i = 0; i < nums.length; i++) {
+          const n = nums[i];
+          const st = tMergePointStatsForNum(n);
+          if (st.y > 1.5 * st.x) out.push(n);
+        }
+        return out;
+      }
+
       function buildTResultRowHtml(r, idx) {
         /* Hàng timeline y như popup kỳ (t% · %break · Δ+nút copy · nhãn i · pool[N]{…} + icon trend), bỏ cột break. */
         const trendHtml = formatTimelinePoolHtml(
@@ -12102,10 +12466,18 @@
           + ' · % ngưỡng: ≤ chỉ nâng khi row>header · ≥ chỉ hạ khi row<header">'
           + '<div class="t-result-head">'
           + comboHtml + ' · '
-          + 'id ' + r.focusId + (r.mode === 'sim' ? ' (rỗng cuối)' : '')
-          + ' · %break ' + r.prevPct.toFixed(1) + '% → ' + r.pct.toFixed(1) + '%'
-          + ' <span class="t-trend-' + r.trend + '">' + (r.trend === 'up' ? '▲tăng' : '▼giảm') + '</span>'
-          + ' · |Δ%break|=<span class="t-dbreak t-trend-' + r.trend + '">'
+          + '%break ' + r.prevPct.toFixed(1) + '% → ' + r.pct.toFixed(1) + '%'
+          + ' <span class="t-trend-' + (r.trend === 'up' || r.trend === 'down' ? r.trend : 'flat') + '">'
+          + (r.trend === 'up' ? '▲tăng' : (r.trend === 'down' ? '▼giảm' : '═')) + '</span>'
+          + (r.point === 'up' || r.point === 'down'
+            ? (' · point <span class="t-trend-' + r.point + '"'
+              + ' title="|(th/100)×(%break/100) − prev|">'
+              + (r.point === 'up' ? '▲' : '▼') + ' '
+              + (Number.isFinite(r.dPoint) ? r.dPoint.toFixed(4) : '—')
+              + ' điểm</span>')
+            : '')
+          + ' · |Δ%break|=<span class="t-dbreak t-trend-'
+          + (r.trend === 'up' || r.trend === 'down' ? r.trend : 'flat') + '">'
           + r.dBreak.toFixed(1) + '%</span>'
           + ' · <span class="t-di" title="|Δi| = số phần tử pool\\prev">|Δi|=' + r.di + '</span>'
           + ' · newlyin=' + r.niCount
@@ -12522,7 +12894,7 @@
         }
         return head + ' · ' + tHitsNote() + ' · '
           + comboTxt + ' · ' + sh.shardCount + ' tab'
-          + ' · trend ' + sh.trendWant
+          + ' · trend ' + (sh.trendWant === 'up' || sh.trendWant === 'down' ? sh.trendWant : 'off')
           + ' · chia việc: ' + perTab.join(' + ')
           + tElapsedSuffix();
       }
@@ -12766,7 +13138,7 @@
             while (ci < buf.length && helpDone < remainOf()
               && !tStop && performance.now() - t0 < budget) {
               if (tShouldYieldToUi()) break;
-              const hits = tEvalOneCombo(buf[ci], cfg.focus, cfg.trendWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
+              const hits = tEvalOneCombo(buf[ci], cfg.focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
               ci++;
               helpDone++;
               if ((helpDone & 15) === 0) tTrimMemos();
@@ -12780,7 +13152,7 @@
               if (!combo) { gc = total; break; }
               gc++;
               helpDone++;
-              const hits = tEvalOneCombo(combo, cfg.focus, cfg.trendWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
+              const hits = tEvalOneCombo(combo, cfg.focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
               if ((helpDone & 15) === 0) tTrimMemos();
               pushHits(hits);
             }
@@ -12894,7 +13266,7 @@
             while (ci < myCombos.length && !tStop && performance.now() - t0 < budget) {
               if (tShouldYieldToUi()) break;
               localDone++;
-              const hits = tEvalOneCombo(myCombos[ci++], cfg.focus, cfg.trendWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
+              const hits = tEvalOneCombo(myCombos[ci++], cfg.focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
               if ((localDone & 15) === 0) tTrimMemos();
               pushHits(hits);
             }
@@ -12907,7 +13279,7 @@
               gc++;
               if (!mine) continue;
               localDone++;
-              const hits = tEvalOneCombo(combo, cfg.focus, cfg.trendWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
+              const hits = tEvalOneCombo(combo, cfg.focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
               if ((localDone & 15) === 0) tTrimMemos();
               pushHits(hits);
             }
@@ -13045,7 +13417,8 @@
           mulHi: tState.tailMulHi,
           xOn: tState.xOn !== false,
           xtOn: tState.xtOn !== false,
-          trendWant: tState.trend,
+          trendWant: tEffTrendWant(),
+          pointWant: tEffPointWant(),
           thThuanSnap: tState.thThuan,
           schedSlots: null
         };
@@ -13128,7 +13501,8 @@
               ranges: cfgBase.resolvedRanges,
               rb: cfgBase.rb, rd: cfgBase.rd, rdi: cfgBase.rdi, rni: cfgBase.rni, rpn: cfgBase.rpn,
               xLo: cfgBase.xLo, xHi: cfgBase.xHi, mulLo: cfgBase.mulLo, mulHi: cfgBase.mulHi,
-              xOn: cfgBase.xOn, xtOn: cfgBase.xtOn, trend: cfgBase.trendWant, thThuan: cfgBase.thThuanSnap,
+              xOn: cfgBase.xOn, xtOn: cfgBase.xtOn, trend: cfgBase.trendWant, point: cfgBase.pointWant,
+              thThuan: cfgBase.thThuanSnap,
               schedSlots: cfgBase.schedSlots || null,
               schedOn: !!(cfgBase.schedSlots && cfgBase.schedSlots.length),
               schedText: tSchedText ? String(tSchedText.value || '') : ''
@@ -13157,7 +13531,18 @@
           ? msg.schedSlots
           : null;
         tState.thThuan = !!msg.thThuan;
-        tState.trend = msg.trend === 'up' ? 'up' : 'down';
+        if (msg.trend === 'up' || msg.trend === 'down') {
+          tState.trend = msg.trend;
+          tState.trendOn = true;
+        } else {
+          tState.trendOn = false;
+        }
+        if (msg.point === 'up' || msg.point === 'down') {
+          tState.point = msg.point;
+          tState.pointOn = true;
+        } else {
+          tState.pointOn = false;
+        }
         tState.xLo = (Number.isFinite(msg.xLo) && msg.xLo >= 0 && msg.xLo <= 1) ? msg.xLo : 0;
         tState.xHi = isTXValid(msg.xHi) ? msg.xHi : (isTXValid(msg.x) ? msg.x : 0.5);
         tState.tailMulLo = (Number.isFinite(msg.mulLo) && msg.mulLo >= 1) ? Math.floor(msg.mulLo) : null;
@@ -13212,7 +13597,8 @@
           mulHi: tState.tailMulHi,
           xOn: tState.xOn !== false,
           xtOn: tState.xtOn !== false,
-          trendWant: tState.trend,
+          trendWant: tEffTrendWant(),
+          pointWant: tEffPointWant(),
           thThuanSnap: tState.thThuan,
           schedSlots: remoteSched
         }, resumeOpts ? { resume: resumeOpts } : undefined);
@@ -13453,6 +13839,7 @@
             total: total,
             focus: focus,
             trendWant: cfg.trendWant,
+            pointWant: cfg.pointWant,
             thThuanSnap: cfg.thThuanSnap,
             cfg: cfg,
             startedAt: (resume && resume.startedAt) || now,
@@ -13522,7 +13909,7 @@
                 + '/' + totalNote + '…')
               : ('Tiếp tục · ' + tHitsNote() + ' · dò '
                 + (resume.gc | 0).toLocaleString('en-US') + '/' + totalNote + ' combo'
-                + tShardDirNote(false) + ' · trend ' + cfg.trendWant
+                + tShardDirNote(false) + ' · trend ' + (cfg.trendWant === 'up' || cfg.trendWant === 'down' ? cfg.trendWant : 'off')
                 + tElapsedSuffix());
           }
         } else if (resume && shared) {
@@ -13595,7 +13982,7 @@
                 + tShardDirNote(false) + tElapsedSuffix()
                 + (tResumeState ? ' · bấm Tiếp tục để chạy nốt' : '')
                 : 'xong · ' + tHitsNote() + ' · ' + totalNote + ' combo'
-                + tShardDirNote(false) + ' · trend ' + cfg.trendWant
+                + tShardDirNote(false) + ' · trend ' + (cfg.trendWant === 'up' || cfg.trendWant === 'down' ? cfg.trendWant : 'off')
                 + tElapsedSuffix();
             }
             tFreeMemos();
@@ -13732,7 +14119,7 @@
               && !tStop && performance.now() - t0 < budget) {
               if (tShouldYieldToUi()) break;
               localDone++;
-              const hits = tEvalOneCombo(myCombos[ci++], focus, cfg.trendWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
+              const hits = tEvalOneCombo(myCombos[ci++], focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
               if ((localDone & 15) === 0) tTrimMemos();
               takeHits(hits);
             }
@@ -13762,7 +14149,7 @@
               gc++;
               if (!mine) continue;
               localDone++;
-              const hits = tEvalOneCombo(combo, focus, cfg.trendWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
+              const hits = tEvalOneCombo(combo, focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
               if ((localDone & 15) === 0) tTrimMemos();
               takeHits(hits);
             }
@@ -13792,11 +14179,12 @@
                 ? tHitsNote() + ' · dò ' + tJobDoneN.toLocaleString('en-US') + '/' + totalNote
                 + ' combo · ' + shardCount + ' tab (tab này '
                 + localDone.toLocaleString('en-US') + ')'
-                + tShardDirNote(shardBounds.reverse) + ' · trend ' + cfg.trendWant
+                + tShardDirNote(shardBounds.reverse) + ' · trend '
+                + (cfg.trendWant === 'up' || cfg.trendWant === 'down' ? cfg.trendWant : 'off')
                 + tElapsedSuffix()
                 : tHitsNote() + ' · dò ' + gc.toLocaleString('en-US') + '/' + totalNote
                 + ' combo'
-                + tShardDirNote(false) + ' · trend ' + cfg.trendWant
+                + tShardDirNote(false) + ' · trend ' + (cfg.trendWant === 'up' || cfg.trendWant === 'down' ? cfg.trendWant : 'off')
                 + tElapsedSuffix();
             }
           } else {
@@ -13894,8 +14282,9 @@
       if (tTrendSegEl) {
         tTrendSegEl.addEventListener('click', (e) => {
           const b = e.target && e.target.closest ? e.target.closest('[data-t-trend]') : null;
-          if (!b) return;
+          if (!b || b.disabled) return;
           tState.trend = b.getAttribute('data-t-trend') === 'up' ? 'up' : 'down';
+          tState.trendOn = true;
           syncTUiFromState();
           saveTFilterPrefs();
         });
@@ -14091,7 +14480,8 @@
             ranges: cfgBase.resolvedRanges,
             rb: cfgBase.rb, rd: cfgBase.rd, rdi: cfgBase.rdi, rni: cfgBase.rni, rpn: cfgBase.rpn,
             xLo: cfgBase.xLo, xHi: cfgBase.xHi, mulLo: cfgBase.mulLo, mulHi: cfgBase.mulHi,
-            xOn: cfgBase.xOn, xtOn: cfgBase.xtOn, trend: cfgBase.trendWant, thThuan: cfgBase.thThuanSnap,
+            xOn: cfgBase.xOn, xtOn: cfgBase.xtOn, trend: cfgBase.trendWant, point: cfgBase.pointWant,
+            thThuan: cfgBase.thThuanSnap,
             schedSlots: cfgBase.schedSlots || null,
             schedOn: !!(cfgBase.schedSlots && cfgBase.schedSlots.length),
             schedText: snap.schedText != null ? snap.schedText : (tSchedText ? String(tSchedText.value || '') : ''),
@@ -14319,11 +14709,23 @@
       }
 
       /* Δimerge: click chữ Δimerge → copy chuỗi a,b,c tăng dần;
+         chuột phải chữ Δimerge → copy số thỏa point▼ > 1.5×point▲ (trên hàng chứa số đó);
          click [N] → copy mỗi số một hàng "số:số hàng chứa";
          click số → chọn ĐÚNG 1 số (click lại = bỏ chọn; click số khác = đổi sang số đó);
          chuột phải số đã append → bật/tắt nền đỏ (đánh dấu, không lọc). */
       if (tMergeEl) {
         tMergeEl.addEventListener('contextmenu', (e) => {
+          const lbl = e.target && e.target.closest ? e.target.closest('.t-merge-label') : null;
+          if (lbl) {
+            e.preventDefault();
+            const nums = tMergeRmbQualifyNums();
+            if (nums.length) {
+              copyTextToClipboard(nums.join(','));
+              lbl.classList.add('is-ok');
+              setTimeout(() => lbl.classList.remove('is-ok'), 700);
+            }
+            return;
+          }
           const btn = e.target && e.target.closest ? e.target.closest('[data-t-merge-num]') : null;
           if (!btn) return;
           e.preventDefault();
