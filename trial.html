@@ -10469,10 +10469,16 @@
       let tMergeNumsCache = [];
       /** Số đang được tooltip Δimerge chụp snapshot (null = không hiện). */
       let tTipNum = null;
-      /* Đếm số hàng chứa mỗi số Δi TĂNG DẦN theo tResults (không quét lại toàn bộ mỗi chunk → hết lag).
-         tMergeCountedIdx = số hàng đầu của tResults đã được cộng vào tMergeCntMap. */
+      /* Chỉ mục Δimerge TĂNG DẦN theo tResults (không quét lại toàn bộ mỗi chunk):
+         cnt / danh sách row index / point▲▼ theo từng số 1..35. */
       let tMergeCntMap = new Map();
+      /** @type {Map<number, number[]>} */
+      let tMergeRowsByNum = new Map();
+      /** @type {Map<number, {x:number, y:number}>} x=point▲, y=point▼ */
+      let tMergePtByNum = new Map();
       let tMergeCountedIdx = 0;
+      const tMergeSeenStamp = new Uint32Array(36);
+      let tMergeSeenGen = 1;
       let tMergeLastRenderMs = 0;
       let tMergeRenderTimer = null;
       let tMergeHovering = false;
@@ -10521,7 +10527,7 @@
       /** Tổng số kết quả khớp (kể cả phần vượt cap lưu). */
       let tHitsTotal = 0;
       /** Chỉ lưu tối đa ngần này kết quả trong RAM (tránh phình khi khớp quá nhiều). */
-      const T_STORE_CAP = 5000;
+      const T_STORE_CAP = 50000;
       let tJobSize = 0;
       /** Thông tin job gần nhất (cho tên file tải xuống) — chụp theo cfg lúc job bắt đầu. */
       let tLastJobInfo = null;
@@ -12252,20 +12258,71 @@
         return true;
       }
 
-      /** Cộng dồn các hàng tResults MỚI vào tMergeCntMap (rẻ — không quét lại từ đầu). */
+      function tMergeResetIndex() {
+        tMergeCntMap = new Map();
+        tMergeRowsByNum = new Map();
+        tMergePtByNum = new Map();
+        tMergeCountedIdx = 0;
+        tMergeNumsCache = [];
+      }
+
+      /** Cộng dồn 1 hàng vào chỉ mục Δimerge (cnt + row-list + point▲▼). */
+      function tMergeIngestRow(idx) {
+        const r = tResults[idx];
+        if (!r) return;
+        const dn = r.deltaNums || [];
+        if (!dn.length) return;
+        let gen = tMergeSeenGen++;
+        if (gen > 0xfffffffe) {
+          tMergeSeenStamp.fill(0);
+          tMergeSeenGen = 2;
+          gen = 1;
+        }
+        const isUp = r.point === 'up';
+        const isDown = r.point === 'down';
+        for (let j = 0; j < dn.length; j++) {
+          const n = dn[j] | 0;
+          if (n < 1 || n > 35) continue;
+          if (tMergeSeenStamp[n] === gen) continue;
+          tMergeSeenStamp[n] = gen;
+          tMergeCntMap.set(n, (tMergeCntMap.get(n) || 0) + 1);
+          let rows = tMergeRowsByNum.get(n);
+          if (!rows) {
+            rows = [];
+            tMergeRowsByNum.set(n, rows);
+          }
+          rows.push(idx);
+          let pt = tMergePtByNum.get(n);
+          if (!pt) {
+            pt = { x: 0, y: 0 };
+            tMergePtByNum.set(n, pt);
+          }
+          if (isUp) pt.x++;
+          else if (isDown) pt.y++;
+        }
+      }
+
+      /** Cộng dồn các hàng tResults MỚI vào chỉ mục (rẻ — không quét lại từ đầu). */
       function tMergeSyncCounts() {
-        if (tMergeCountedIdx > tResults.length) {
-          tMergeCntMap = new Map();
-          tMergeCountedIdx = 0;
-        }
+        if (tMergeCountedIdx > tResults.length) tMergeResetIndex();
+        let grew = false;
         while (tMergeCountedIdx < tResults.length) {
-          const dn = tResults[tMergeCountedIdx].deltaNums || [];
-          const seen = new Set(dn);
-          seen.forEach((n) => tMergeCntMap.set(n, (tMergeCntMap.get(n) || 0) + 1));
+          tMergeIngestRow(tMergeCountedIdx);
           tMergeCountedIdx++;
+          grew = true;
         }
-        tMergeNumsCache = Array.from(tMergeCntMap.keys()).sort((a, b) => a - b);
+        if (grew || !tMergeNumsCache.length) {
+          tMergeNumsCache = Array.from(tMergeCntMap.keys()).sort((a, b) => a - b);
+        }
         return tMergeNumsCache;
+      }
+
+      /** Khi chọn đúng 1 số: danh sách index hàng chứa số đó (sau sync). */
+      function tMergeSelRowList() {
+        if (tMergeSel.size !== 1) return null;
+        tMergeSyncCounts();
+        const n = tMergeSel.values().next().value;
+        return tMergeRowsByNum.get(n) || [];
       }
 
       /** Dựng 1 lần duy nhất: Δimerge[N]={35 ô số 1..35} — sau đó không bao giờ dựng lại DOM. */
@@ -12392,6 +12449,8 @@
       }
 
       function tMergeVisibleCount() {
+        const rows = tMergeSelRowList();
+        if (rows) return rows.length;
         let v = 0;
         for (let i = 0; i < tResults.length; i++) if (tRowPassesMerge(tResults[i])) v++;
         return v;
@@ -12399,6 +12458,12 @@
 
       /** Trong các hàng đang hiện (qua lọc Δimerge): đếm point ▲ / ▼. */
       function tMergePointStats() {
+        if (tMergeSel.size === 1) {
+          tMergeSyncCounts();
+          const n = tMergeSel.values().next().value;
+          const pt = tMergePtByNum.get(n);
+          return pt ? { up: pt.x, down: pt.y } : { up: 0, down: 0 };
+        }
         let up = 0;
         let down = 0;
         for (let i = 0; i < tResults.length; i++) {
@@ -12415,16 +12480,9 @@
        * x = số hàng point ▲ (tăng), y = số hàng point ▼ (giảm).
        */
       function tMergePointStatsForNum(n) {
-        let x = 0;
-        let y = 0;
-        for (let i = 0; i < tResults.length; i++) {
-          const r = tResults[i];
-          const dn = r.deltaNums || [];
-          if (dn.indexOf(n) < 0) continue;
-          if (r.point === 'up') x++;
-          else if (r.point === 'down') y++;
-        }
-        return { x: x, y: y };
+        tMergeSyncCounts();
+        const pt = tMergePtByNum.get(n);
+        return pt ? { x: pt.x, y: pt.y } : { x: 0, y: 0 };
       }
 
       /** Chuỗi RMB Δimerge: số thỏa y > 1.5x (x=point▲, y=point▼; x=0 & y>0 cũng lọt). */
@@ -12516,14 +12574,18 @@
       /** Append các kết quả mới quét được (chạy đến đâu hiện đến đó, qua lọc phụ Δimerge). */
       function renderTResultsAppend() {
         if (!tResultsEl) return;
+        /* Chọn 1 số: duyệt theo chỉ mục row (O(khớp)), không quét cả tResults. */
+        const src = tMergeSelRowList();
+        const srcLen = src ? src.length : tResults.length;
         let html = '';
         let renderedHere = 0;
-        while (tRenderedCount < tResults.length && tRenderedVisible < T_RENDER_CAP
+        while (tRenderedCount < srcLen && tRenderedVisible < T_RENDER_CAP
           && renderedHere < T_RENDER_BATCH) {
-          const idx = tRenderedCount;
-          const r = tResults[idx];
+          const idx = src ? src[tRenderedCount] : tRenderedCount;
           tRenderedCount++;
-          if (!tRowPassesMerge(r)) continue;
+          const r = tResults[idx];
+          if (!r) continue;
+          if (!src && !tRowPassesMerge(r)) continue;
           html += buildTResultRowHtml(r, idx);
           tRenderedVisible++;
           renderedHere++;
@@ -12536,9 +12598,9 @@
             + ' hàng đầu khớp — thu hẹp khoảng lọc / lọc phụ Δimerge để xem tiếp.</div>');
         }
         updateTMergeUi();
-        if (tRenderedCount < tResults.length && tRenderedVisible < T_RENDER_CAP) {
+        if (tRenderedCount < srcLen && tRenderedVisible < T_RENDER_CAP) {
           scheduleTRenderMore();
-        } else if (tRenderedCount >= tResults.length && !tRenderedVisible
+        } else if (tRenderedCount >= srcLen && !tRenderedVisible
           && !tJobActive && tResults.length && tMergeSel.size) {
           tResultsEl.innerHTML = '<div class="t-result" style="cursor:default">Không có hàng nào có Δi chứa (các) số đã chọn — click lại số đó để bỏ chọn.</div>';
         }
@@ -13440,6 +13502,10 @@
         tRenderedCount = 0;
         tRenderedVisible = 0;
         tCapNoteShown = false;
+        tMergeSel.clear();
+        tMergeMark.clear();
+        tMergeSig = '';
+        tMergeResetIndex();
         tFreeMemos();
         if (tResultsEl) tResultsEl.innerHTML = '';
         updateTMergeUi();
@@ -13809,8 +13875,7 @@
           tMergeSel.clear();
           tMergeMark.clear();
           tMergeSig = '';
-          tMergeCntMap = new Map();
-          tMergeCountedIdx = 0;
+          tMergeResetIndex();
           tAppliedIdx = -1;
           tMergeLastRenderMs = 0;
           tMergeRenderPending = false;
