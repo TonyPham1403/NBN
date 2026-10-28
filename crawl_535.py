@@ -1,8 +1,11 @@
 """
 Dong bo tat ca ky xo so Lotto 5/35 moi hon data.json hien co.
 
-Nguon mac dinh: Minh Chinh (cap nhat nhanh, co #ky ro).
-  https://www.minhchinh.com/truc-tiep-xo-so-tu-chon-lotto-535.html
+Thu tu nguon:
+  1) Live JS Minh Chinh (cap nhat nhanh sau khi quay):
+     https://www.minhchinh.com/livekqxs/xstt/js/LT535.js
+  2) HTML truc tiep + trang theo ngay (fallback):
+     https://www.minhchinh.com/truc-tiep-xo-so-tu-chon-lotto-535.html
 Vietlott chinh thuc bi Cloudflare chan bot — khong dung duoc bang requests.
 xskt (ben thu 3) bo: cham + de sai.
 
@@ -26,6 +29,7 @@ from bs4 import BeautifulSoup
 DEFAULT_MINHCHINH_URL = (
     "https://www.minhchinh.com/truc-tiep-xo-so-tu-chon-lotto-535.html"
 )
+DEFAULT_LIVE_JS_URL = "https://www.minhchinh.com/livekqxs/xstt/js/LT535.js"
 DAY_PAGE_TMPL = (
     "https://www.minhchinh.com/xs-lotto-535-ket-qua-lotto-535-ngay-{dd}-{mm}-{yyyy}.html"
 )
@@ -92,7 +96,15 @@ def parse_args() -> argparse.Namespace:
             os.environ.get("VIETLOTT_535_MINHCHINH_URL", "").strip()
             or DEFAULT_MINHCHINH_URL
         ),
-        help="URL trang truc tiep Lotto 5/35 Minh Chinh.",
+        help="URL trang HTML truc tiep Lotto 5/35 Minh Chinh (fallback).",
+    )
+    p.add_argument(
+        "--live-js",
+        default=(
+            os.environ.get("VIETLOTT_535_LIVE_JS_URL", "").strip()
+            or DEFAULT_LIVE_JS_URL
+        ),
+        help="URL live JS LT535 (uu tien — cap nhat nhanh hon HTML).",
     )
     return p.parse_args()
 
@@ -381,6 +393,44 @@ def _day_page_url(date_text: str) -> str:
     return DAY_PAGE_TMPL.format(dd=dd, mm=mm, yyyy=yyyy)
 
 
+def parse_live_lt535_js(text: str) -> dict | None:
+    """
+    Parse livekqxs/xstt/js/LT535.js:
+      xsdt[11]={..., "period":973, "date":"28-10-2026", "time":"13",
+                "numbers":["02","17","20","24","32","06"], ...}
+    Tra ve {date, id, result} neu co du 6 so; None neu chua quay / thieu data.
+    """
+    raw = str(text or "")
+    # Chi lay object trong xsdt[11]={...}
+    m = re.search(r"xsdt\s*\[\s*11\s*\]\s*=\s*(\{.*?\})\s*;?", raw, re.S)
+    blob = m.group(1) if m else raw
+    pm = re.search(r'"period"\s*:\s*(\d+)', blob)
+    dm = re.search(r'"date"\s*:\s*"([^"]+)"', blob)
+    nm = re.search(r'"numbers"\s*:\s*\[(.*?)\]', blob, re.S)
+    if not pm or not dm or not nm:
+        return None
+    draw_id = int(pm.group(1))
+    date_text = normalize_date_text(dm.group(1).replace("-", "/"))
+    nums = [int(x) for x in re.findall(r'"?(\d{1,2})"?', nm.group(1))]
+    if draw_id < 1 or not date_text or len(nums) < 6:
+        return None
+    return {
+        "date": date_text,
+        "id": draw_id,
+        "result": _format_result(nums[:5], nums[5]),
+    }
+
+
+def fetch_live_lt535_row(live_js_url: str, referer: str | None = None) -> dict | None:
+    """Hard-refresh live JS — thuong co ky moi truoc khi HTML truc tiep cap nhat."""
+    try:
+        html = fetch_html(live_js_url, referer=referer or DEFAULT_MINHCHINH_URL)
+    except Exception as e:
+        print(f"Canh bao: live JS loi ({e}).", flush=True)
+        return None
+    return parse_live_lt535_js(html)
+
+
 def _fetch_all_from_minhchinh(page_url: str, min_id_exclusive: int) -> list[dict]:
     """
     Hard-refresh trang truc tiep + (neu thieu) trang theo ngay lui dan
@@ -458,16 +508,66 @@ def _fetch_all_from_minhchinh(page_url: str, min_id_exclusive: int) -> list[dict
     return sorted(by_id.values(), key=lambda r: r["id"])
 
 
-def _fetch_new_rows(min_id_exclusive: int, page_url: str) -> list[dict]:
-    try:
-        rows = _fetch_all_from_minhchinh(page_url, min_id_exclusive)
-    except Exception as e:
+def _fetch_new_rows(
+    min_id_exclusive: int,
+    page_url: str,
+    live_js_url: str,
+) -> tuple[list[dict], str]:
+    """
+    Uu tien live JS; thieu / loi → HTML Minh Chinh.
+    Tra (rows, source_label_for_log).
+    """
+    by_id: dict[int, dict] = {}
+    sources: list[str] = []
+
+    live = fetch_live_lt535_row(live_js_url, referer=page_url)
+    if live and live["id"] > min_id_exclusive:
+        by_id[live["id"]] = dict(live)
+        sources.append("live-js")
         print(
-            f"Canh bao: khong lay duoc ky moi tu Minh Chinh (se thu lai o lan sau). {e}",
+            f"Live JS: ky #{live['id']:05d} {live['date']} {live['result']}",
             flush=True,
         )
-        return []
-    return [r for r in rows if r["id"] > min_id_exclusive]
+    elif live:
+        print(
+            f"Live JS: ky #{live['id']:05d} (khong moi hon max {min_id_exclusive:05d}).",
+            flush=True,
+        )
+    else:
+        print("Live JS: chua co numbers / khong parse duoc.", flush=True)
+
+    # HTML fallback: luon thu neu con thieu ky (lech >1) hoac live chua co.
+    need_html = False
+    if not by_id:
+        need_html = True
+    else:
+        latest = max(by_id)
+        missing = [
+            i for i in range(min_id_exclusive + 1, latest + 1) if i not in by_id
+        ]
+        need_html = bool(missing)
+
+    if need_html:
+        try:
+            html_rows = _fetch_all_from_minhchinh(page_url, min_id_exclusive)
+            for r in html_rows:
+                rid = int(r["id"])
+                if rid <= min_id_exclusive:
+                    continue
+                # Live JS uu tien hon HTML neu trung id.
+                if rid not in by_id:
+                    by_id[rid] = dict(r)
+            if html_rows:
+                sources.append("html-minhchinh")
+        except Exception as e:
+            print(
+                f"Canh bao: HTML Minh Chinh loi (se thu lai o lan sau). {e}",
+                flush=True,
+            )
+
+    rows = sorted(by_id.values(), key=lambda r: r["id"])
+    label = "+".join(sources) if sources else live_js_url
+    return rows, label
 
 
 def main() -> int:
@@ -478,9 +578,10 @@ def main() -> int:
 
     existing, max_id = read_real_rows_from_data_json(json_path)
 
-    new_rows = _fetch_new_rows(max_id, args.url)
+    new_rows, src_label = _fetch_new_rows(max_id, args.url, args.live_js)
     if not new_rows:
         print(f"Khong co ky moi (max_id hien tai: {max_id:05d}).")
+        print(args.live_js, flush=True)
         print(args.url, flush=True)
         return 0
 
@@ -494,8 +595,10 @@ def main() -> int:
     ids_added = ", ".join(f"{r['id']:05d}" for r in new_rows)
     print(
         f"Them {len(new_rows)} ky: {ids_added}. "
-        f"Ghi {json_path} ({len(final_out)} dong, co hang cuoi result rong)."
+        f"Ghi {json_path} ({len(final_out)} dong, co hang cuoi result rong). "
+        f"Nguon: {src_label}."
     )
+    print(args.live_js, flush=True)
     print(args.url, flush=True)
     return 0
 
