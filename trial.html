@@ -12338,7 +12338,8 @@
           + '<span class="t-merge-label"'
           + ' title="Click: copy cả chuỗi · Chuột phải: copy số có point▼ &gt; 1.5×point▲ (trên các hàng chứa số đó)">'
           + 'Δimerge</span>'
-          + '<span class="t-merge-count" title="Click: copy mỗi số một hàng (số:số hàng chứa) — sort giảm dần theo số hàng">[0]</span>={'
+          + '<span class="t-merge-count"'
+          + ' title="Click: copy mỗi số một hàng số:số_hàng (★ nếu ∈ đáp án) — sort giảm dần theo số hàng">[0]</span>={'
           + chips
           + '}</span>'
           + '<span class="t-merge-info"></span>';
@@ -14807,12 +14808,16 @@
           if (cntEl) {
             const numsNow = tMergeSyncCounts();
             if (numsNow.length) {
-              /* Sort giảm dần theo số hàng chứa; hòa thì số nhỏ trước. */
+              /* Sort giảm dần theo số hàng chứa; hòa thì số nhỏ trước; ★ nếu ∈ đáp án. */
+              const ansSet = tMergeAnswerSet();
               const ranked = numsNow.slice().sort((a, b) => {
                 const d = (tMergeCntMap.get(b) || 0) - (tMergeCntMap.get(a) || 0);
                 return d !== 0 ? d : a - b;
               });
-              copyTextToClipboard(ranked.map((n) => n + ':' + (tMergeCntMap.get(n) || 0)).join('\n'));
+              copyTextToClipboard(ranked.map((n) => {
+                const line = n + ':' + (tMergeCntMap.get(n) || 0);
+                return (ansSet && ansSet.has(n)) ? (line + ' ★') : line;
+              }).join('\n'));
               cntEl.classList.add('is-ok');
               setTimeout(() => cntEl.classList.remove('is-ok'), 700);
             }
