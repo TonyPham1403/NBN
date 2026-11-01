@@ -10945,6 +10945,7 @@
 
       /** Slot lịch đang hiện trên UI lúc lọc (−1 = idle / icon). */
       let tSchedUiSlot = -1;
+      let tSchedLiveTailShown = null;
       let tActiveSchedSlots = null;
 
       function tSchedSetRunningClass(on) {
@@ -10961,15 +10962,35 @@
         if (!slots || !slots.length) return;
         const i = slotIdx | 0;
         if (i < 0 || i >= slots.length) return;
-        if (i === tSchedUiSlot) return;
-        tSchedUiSlot = i;
         const s = slots[i];
-        tState.ranges.tail.lo = s.tailLo;
-        tState.ranges.tail.hi = s.tailHi;
+        const slotChanged = i !== tSchedUiSlot;
+        tSchedUiSlot = i;
+        /* Đổi slot → cập nhật [a;b] mul; tail hiển thị live theo combo bên dưới. */
+        if (slotChanged) {
+          tState.tailMulLo = s.mulLo;
+          tState.tailMulHi = s.mulHi;
+          tState.xtOn = true;
+          if (tTMulLoEl) tTMulLoEl.value = String(s.mulLo);
+          if (tTMulHiEl) tTMulHiEl.value = String(s.mulHi);
+        }
+        tSchedSetRunningClass(true);
+      }
+
+      /** Trong lúc lọc: hiện tail đang chạy (lo=hi=combo.tail) + mul của slot hiện tại. */
+      function showTSchedLiveCombo(combo) {
+        if (!tSchedOn || !tJobActive || !combo) return;
+        const slotRaw = combo.schedSlot != null ? combo.schedSlot : combo._schedSlot;
+        const slotN = (slotRaw != null && Number.isFinite(Number(slotRaw)))
+          ? (Number(slotRaw) | 0) : null;
+        if (slotN != null) showTSchedSlotOnUi(slotN);
+        const t = Number(combo.tail);
+        if (!Number.isFinite(t)) return;
+        const ti = t | 0;
+        if (ti === tSchedLiveTailShown && (slotN == null || slotN === tSchedUiSlot)) return;
+        tSchedLiveTailShown = ti;
+        tState.ranges.tail.lo = ti;
+        tState.ranges.tail.hi = ti;
         tState.ranges.tail.on = true;
-        tState.tailMulLo = s.mulLo;
-        tState.tailMulHi = s.mulHi;
-        tState.xtOn = true;
         if (tRangesEl) {
           const setBound = (bound, v) => {
             const inp = tRangesEl.querySelector(
@@ -10977,21 +10998,20 @@
             );
             if (inp) inp.value = String(v);
           };
-          setBound('lo', s.tailLo);
-          setBound('hi', s.tailHi);
+          setBound('lo', ti);
+          setBound('hi', ti);
         }
-        if (tTMulLoEl) tTMulLoEl.value = String(s.mulLo);
-        if (tTMulHiEl) tTMulHiEl.value = String(s.mulHi);
         tSchedSetRunningClass(true);
       }
 
       function noteTSchedComboUi(combo) {
-        if (!combo || combo._schedSlot == null) return;
-        showTSchedSlotOnUi(combo._schedSlot);
+        if (!combo) return;
+        showTSchedLiveCombo(combo);
       }
 
       function clearTSchedRunningUi() {
         tSchedUiSlot = -1;
+        tSchedLiveTailShown = null;
         tActiveSchedSlots = null;
         tSchedSetRunningClass(false);
         if (tSchedOn) {
@@ -12339,7 +12359,7 @@
           + ' title="Click: copy cả chuỗi · Chuột phải: copy số có point▼ &gt; 1.5×point▲ (trên các hàng chứa số đó)">'
           + 'Δimerge</span>'
           + '<span class="t-merge-count"'
-          + ' title="Click: copy mỗi số một hàng số:số_hàng (★ nếu ∈ đáp án) — sort giảm dần theo số hàng">[0]</span>={'
+          + ' title="Click: copy số:số_hàng (★ ∈ đáp án); số chưa vào: n:0 ★ nếu ∈ đáp án, còn lại gom a,b,c:0">[0]</span>={'
           + chips
           + '}</span>'
           + '<span class="t-merge-info"></span>';
@@ -13440,6 +13460,658 @@
         if (changed) syncTSchedUi();
       }
 
+      /* —— local-t: Python ProcessPool não lọc T (WS /ws/t-job) —— */
+      let tLocalT = false;
+      let tPyWs = null;
+      let tPyJobId = null;
+      let tPyViewer = null; /* { jobId } khi tab phụ chỉ nhận hits qua BC */
+      let tPyPoolWs = null;
+      let tPyPoolRetryTimer = null;
+      let tPyHeardJobSinceLoad = false; /* chỉ chime nếu từng có job sau khi mở tab */
+      let tPyAudioCtx = null;
+      let tPyChimeLastMs = 0; /* tránh kêu 2 lần (pool WS + job WS) */
+
+      function tPyUnlockAudio() {
+        try {
+          const AC = window.AudioContext || window.webkitAudioContext;
+          if (!AC) return;
+          if (!tPyAudioCtx) tPyAudioCtx = new AC();
+          if (tPyAudioCtx.state === 'suspended') tPyAudioCtx.resume();
+        } catch (e) { /* ignore */ }
+      }
+
+      function tPyPlayAllDoneChime() {
+        const nowMs = Date.now();
+        if (nowMs - tPyChimeLastMs < 1500) return;
+        tPyChimeLastMs = nowMs;
+        const run = () => {
+          try {
+            const ctx = tPyAudioCtx;
+            if (!ctx) return;
+            const now = ctx.currentTime;
+            const tones = [523.25, 659.25, 783.99]; /* C5 E5 G5 */
+            /* Gain cao + square (to hơn sine); master ~0.85 tránh clip cứng. */
+            const master = ctx.createGain();
+            master.gain.value = 0.85;
+            master.connect(ctx.destination);
+            for (let i = 0; i < tones.length; i++) {
+              const o = ctx.createOscillator();
+              const g = ctx.createGain();
+              o.type = 'square';
+              o.frequency.value = tones[i];
+              const t0 = now + i * 0.14;
+              g.gain.setValueAtTime(0.0001, t0);
+              g.gain.exponentialRampToValueAtTime(0.55, t0 + 0.025);
+              g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.45);
+              o.connect(g);
+              g.connect(master);
+              o.start(t0);
+              o.stop(t0 + 0.5);
+            }
+          } catch (e) { /* ignore */ }
+        };
+        try {
+          tPyUnlockAudio();
+          if (!tPyAudioCtx) return;
+          if (tPyAudioCtx.state === 'suspended') {
+            tPyAudioCtx.resume().then(run).catch(() => { /* ignore */ });
+          } else {
+            run();
+          }
+        } catch (e) { /* ignore */ }
+      }
+
+      function tPyOnAllJobsDoneMsg() {
+        if (!tPyHeardJobSinceLoad) return;
+        tPyPlayAllDoneChime();
+      }
+
+      function tPyPoolWsUrl() {
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return proto + '//' + location.host + '/ws/t-pool';
+      }
+
+      function tPyEnsurePoolWatch() {
+        if (!tLocalT || location.protocol === 'file:') return;
+        if (tPyPoolWs && (tPyPoolWs.readyState === 0 || tPyPoolWs.readyState === 1)) return;
+        let ws;
+        try { ws = new WebSocket(tPyPoolWsUrl()); } catch (e) { return; }
+        tPyPoolWs = ws;
+        ws.onmessage = (ev) => {
+          let msg;
+          try { msg = JSON.parse(ev.data); } catch (e) { return; }
+          if (msg && msg.type === 'all-jobs-done') tPyOnAllJobsDoneMsg();
+        };
+        ws.onopen = () => {
+          if (tPyPoolRetryTimer) { clearTimeout(tPyPoolRetryTimer); tPyPoolRetryTimer = null; }
+        };
+        ws.onclose = () => {
+          if (tPyPoolWs === ws) tPyPoolWs = null;
+          if (!tLocalT) return;
+          if (tPyPoolRetryTimer) clearTimeout(tPyPoolRetryTimer);
+          tPyPoolRetryTimer = setTimeout(tPyEnsurePoolWatch, 2500);
+        };
+        ws.onerror = () => { /* onclose sẽ reconnect */ };
+      }
+
+      function probeLocalT() {
+        try {
+          if (location.protocol === 'file:') {
+            tLocalT = false;
+            return Promise.resolve(false);
+          }
+          return fetch('/api/local-t', { cache: 'no-store' })
+            .then((r) => (r.ok ? r.json() : null))
+            .then((j) => {
+              tLocalT = !!(j && j.localT);
+              if (tLocalT && tStatusEl && !tJobActive) {
+                /* nhẹ: chỉ gắn title nút Lọc */
+                if (tRunBtn) tRunBtn.title = (tRunBtn.title || 'Lọc') + ' · Python local-t';
+              }
+              if (tLocalT) {
+                tPyEnsurePoolWatch();
+                /* Mở khóa audio sớm (autoplay policy) — lần click/phím đầu trên trang. */
+                const unlockOnce = () => {
+                  tPyUnlockAudio();
+                  document.removeEventListener('pointerdown', unlockOnce, true);
+                  document.removeEventListener('keydown', unlockOnce, true);
+                };
+                document.addEventListener('pointerdown', unlockOnce, true);
+                document.addEventListener('keydown', unlockOnce, true);
+              }
+              return tLocalT;
+            })
+            .catch(() => { tLocalT = false; return false; });
+        } catch (e) {
+          tLocalT = false;
+          return Promise.resolve(false);
+        }
+      }
+      probeLocalT();
+
+      function tPyWsUrl() {
+        const proto = location.protocol === 'https:' ? 'wss:' : 'ws:';
+        return proto + '//' + location.host + '/ws/t-job';
+      }
+
+      function tPyCloseWs() {
+        if (tPyWs) {
+          try { tPyWs.close(); } catch (e) { /* ignore */ }
+          tPyWs = null;
+        }
+      }
+
+      function tPyPublish(msg) {
+        if (!simRoomTag) return;
+        initScanBc();
+        publishScanBc(msg);
+      }
+
+      function tPyTakeHit(hit) {
+        const key = tHitKey(hit);
+        if (tSeenHitKeys.has(key)) return false;
+        tSeenHitKeys.add(key);
+        tHitsTotal++;
+        if (tResults.length < T_STORE_CAP) tResults.push(hit);
+        return true;
+      }
+
+      /** Python: 1 não — chỉ lọc thuận (không chia tab thuận/nghịch như JS multi-shard). */
+      function tPyDirNote(isViewer) {
+        const dir = tShardDirNote(false);
+        if (isViewer) {
+          return dir + ' · đồng bộ (não tab kia)'
+            + (simRoomTag ? ' · phòng «' + simRoomTag + '»' : '');
+        }
+        return dir + (simRoomTag ? ' · sync phòng «' + simRoomTag + '»' : '');
+      }
+
+      function tPyFinishUi(reason, done, total) {
+        tJobActive = false;
+        const wasViewer = !!tPyViewer;
+        tPyViewer = null;
+        tPyJobId = null;
+        clearTSchedRunningUi();
+        syncTParamsLock();
+        const totalNote = (total || 0).toLocaleString('en-US');
+        const doneN = done | 0;
+        if (tLastJobInfo) {
+          tLastJobInfo.done = doneN;
+          tLastJobInfo.stopped = reason === 'stopped' || reason === 'cancelled';
+        }
+        tJobDoneN = doneN;
+        tSoloProgress = doneN;
+        syncTProgress();
+        if (reason === 'stopped' || reason === 'cancelled') {
+          if (doneN < (total | 0)) {
+            /* resumeGc gắn vào cfg đã lưu trong tResumeState */
+          }
+        }
+        syncTActionButtons();
+        if (tStatusEl) {
+          if (reason === 'stopped' || reason === 'cancelled') {
+            tStatusEl.textContent = 'Đã dừng · ' + tHitsNote() + ' · đã quét '
+              + doneN.toLocaleString('en-US') + '/' + totalNote + ' combo'
+              + ' · Python' + tPyDirNote(wasViewer) + tElapsedSuffix()
+              + (tResumeState ? ' · bấm Tiếp tục để chạy nốt' : '');
+          } else if (reason === 'error') {
+            /* giữ nguyên dòng Lỗi Python nếu đã set; không ghi đè thành «xong» */
+            if (!/^Lỗi Python/i.test(String(tStatusEl.textContent || ''))) {
+              tStatusEl.textContent = 'Lỗi Python · ' + tHitsNote() + ' · '
+                + doneN.toLocaleString('en-US') + '/' + totalNote + ' combo'
+                + tElapsedSuffix();
+            }
+          } else {
+            tStatusEl.textContent = 'xong · ' + tHitsNote() + ' · ' + totalNote + ' combo · Python'
+              + tPyDirNote(wasViewer)
+              + ' · trend ' + (tLastJobInfo && tLastJobInfo.trendNote ? tLastJobInfo.trendNote : '')
+              + tElapsedSuffix();
+          }
+        }
+        renderTResults();
+        if (pendingScanTlHighlight) refreshOpenPopupAfterThreshold();
+      }
+
+      /**
+       * Chạy lọc T qua Python local-t. Solo luôn; có mã phòng thì broadcast hits
+       * (tab khác viewer — không chạy combo JS/Python).
+       */
+      function runTJobPython(cfg, opts) {
+        const resume = (opts && opts.resume) || null;
+        const focus = cfg.focus;
+        const plan = tCfgCursor(cfg);
+        const total = plan.total;
+        if (!resume) {
+          tResults = [];
+          tHitsTotal = 0;
+          tJobStartedAt = Date.now();
+          tFreeMemos();
+        } else {
+          tJobStartedAt = resume.startedAt || tJobStartedAt || Date.now();
+          tFreeMemos();
+        }
+        if (!total) {
+          tJobActive = false;
+          tResumeState = null;
+          hideTProgress();
+          if (tStatusEl) tStatusEl.textContent = 'Khoảng tail/wtail/wfreq không có combo hợp lệ nào.';
+          renderTResults();
+          syncTParamsLock();
+          syncTActionButtons();
+          return;
+        }
+        tStop = false;
+        tJobActive = true;
+        tResumeState = null;
+        tPyViewer = null;
+        tSchedUiSlot = -1;
+        tSchedLiveTailShown = null;
+        tActiveSchedSlots = (cfg.schedSlots && cfg.schedSlots.length)
+          ? cfg.schedSlots.slice() : null;
+        syncTParamsLock();
+        if (tActiveSchedSlots && tActiveSchedSlots.length) {
+          const s0 = tActiveSchedSlots[0];
+          showTSchedLiveCombo({ tail: s0.tailLo, schedSlot: 0, _schedSlot: 0 });
+        }
+        const seq = ++tSeq;
+        tJobSize = total;
+        const schedTails = (cfg.schedSlots && cfg.schedSlots.length)
+          ? tSchedTailList(cfg.schedSlots) : null;
+        tLastJobInfo = {
+          focusId: focus.focusId,
+          tailLo: schedTails && schedTails.length
+            ? schedTails[0] : cfg.resolvedRanges.tail.lo,
+          tailHi: schedTails && schedTails.length
+            ? schedTails[schedTails.length - 1] : cfg.resolvedRanges.tail.hi,
+          tailList: schedTails,
+          schedN: cfg.schedSlots ? cfg.schedSlots.length : 0,
+          total: total,
+          stopped: false,
+          trendNote: (cfg.trendWant === 'up' || cfg.trendWant === 'down') ? cfg.trendWant : 'off',
+          python: true
+        };
+        if (tStopBtn) { tStopBtn.hidden = false; tStopBtn.disabled = false; }
+        if (tRunBtn) tRunBtn.hidden = true;
+        if (tContBtn) tContBtn.hidden = true;
+        if (!resume) {
+          if (tResultsEl) tResultsEl.innerHTML = '';
+          tRenderedCount = 0;
+          tRenderedVisible = 0;
+          tCapNoteShown = false;
+          tMergeSel.clear();
+          tMergeMark.clear();
+          tMergeSig = '';
+          tMergeResetIndex();
+          tAppliedIdx = -1;
+          tMergeLastRenderMs = 0;
+          tMergeRenderPending = false;
+          if (tMergeRenderTimer) { clearTimeout(tMergeRenderTimer); tMergeRenderTimer = null; }
+          tSeenHitKeys = new Set();
+        }
+        const resumeGc = resume ? (resume.gc | 0) : 0;
+        setupTProgress(total, 1, cfg.thThuanSnap);
+        tSoloProgress = resumeGc;
+        tJobDoneN = resumeGc;
+        syncTProgress();
+        if (tStatusEl) {
+          tStatusEl.textContent = (resumeGc > 0 ? 'Tiếp tục · ' : 'đang lọc · ')
+            + tHitsNote() + ' · Python · '
+            + resumeGc.toLocaleString('en-US') + '/' + total.toLocaleString('en-US') + ' combo'
+            + tPyDirNote(false) + tElapsedSuffix();
+        }
+
+        const jobId = cfg.jobId || ('py-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7));
+        cfg.jobId = jobId;
+        tPyJobId = jobId;
+        tPyHeardJobSinceLoad = true;
+        tPyUnlockAudio(); /* gesture Lọc → mở khóa chime (Chrome autoplay) */
+        tPyEnsurePoolWatch();
+
+        if (simRoomTag) {
+          tPyPublish({
+            type: 't-py-start',
+            jobId: jobId,
+            focus: cfg.focus,
+            ranges: cfg.resolvedRanges,
+            rb: cfg.rb, rd: cfg.rd, rdi: cfg.rdi, rni: cfg.rni, rpn: cfg.rpn,
+            xLo: cfg.xLo, xHi: cfg.xHi, mulLo: cfg.mulLo, mulHi: cfg.mulHi,
+            xOn: cfg.xOn, xtOn: cfg.xtOn,
+            trend: cfg.trendWant, point: cfg.pointWant,
+            thThuan: cfg.thThuanSnap,
+            schedSlots: cfg.schedSlots || null,
+            total: total,
+            keepHits: !!resume,
+            from: ensureSimTabId()
+          });
+        }
+
+        tPyCloseWs();
+        let ws;
+        try {
+          ws = new WebSocket(tPyWsUrl());
+        } catch (err) {
+          tJobActive = false;
+          syncTActionButtons();
+          syncTParamsLock();
+          if (tStatusEl) tStatusEl.textContent = 'Không mở được WS local-t: ' + (err && err.message ? err.message : err);
+          return;
+        }
+        tPyWs = ws;
+        let lastFlush = 0;
+        let pendingDom = false;
+
+        function flushDom() {
+          pendingDom = false;
+          requestTResultsDomFlush();
+        }
+
+        ws.onopen = () => {
+          if (seq !== tSeq || tPyJobId !== jobId) { try { ws.close(); } catch (e) {} return; }
+          const payload = {
+            type: 'start',
+            jobId: jobId,
+            cfg: {
+              jobId: jobId,
+              focus: cfg.focus,
+              resolvedRanges: cfg.resolvedRanges,
+              rb: cfg.rb, rd: cfg.rd, rdi: cfg.rdi, rni: cfg.rni, rpn: cfg.rpn,
+              xLo: cfg.xLo, xHi: cfg.xHi, mulLo: cfg.mulLo, mulHi: cfg.mulHi,
+              xOn: cfg.xOn, xtOn: cfg.xtOn,
+              trendWant: cfg.trendWant, pointWant: cfg.pointWant,
+              thThuanSnap: cfg.thThuanSnap,
+              schedSlots: cfg.schedSlots || null,
+              resumeGc: resumeGc
+            }
+          };
+          ws.send(JSON.stringify(payload));
+        };
+        ws.onmessage = (ev) => {
+          if (seq !== tSeq || tPyJobId !== jobId) return;
+          let msg;
+          try { msg = JSON.parse(ev.data); } catch (e) { return; }
+          const typ = msg.type;
+          if ((typ === 'hit' && msg.hit) || (typ === 'hits' && msg.hits && msg.hits.length)) {
+            const batch = typ === 'hits' ? msg.hits : [msg.hit];
+            const synced = [];
+            let liveCombo = null;
+            for (let i = 0; i < batch.length; i++) {
+              const h = batch[i];
+              if (!h) continue;
+              liveCombo = h;
+              if (tPyTakeHit(h)) synced.push(h);
+            }
+            if (liveCombo) showTSchedLiveCombo(liveCombo);
+            if (synced.length) {
+              if (simRoomTag) {
+                tPyPublish({ type: 't-py-hits', jobId: jobId, hits: synced });
+              }
+              const now = performance.now();
+              if (!pendingDom || now - lastFlush > 80) {
+                lastFlush = now;
+                pendingDom = true;
+                scheduleTWork(flushDom, 0);
+              } else {
+                pendingDom = true;
+                scheduleTWork(flushDom, 40);
+              }
+            }
+            return;
+          }
+          if (typ === 'status') {
+            if (tStatusEl && tJobActive && !tStop) {
+              tStatusEl.textContent = (msg.message || 'đang chờ…') + ' · '
+                + tHitsNote() + ' · '
+                + (msg.done | 0).toLocaleString('en-US') + '/'
+                + total.toLocaleString('en-US') + ' combo'
+                + tPyDirNote(false) + tElapsedSuffix();
+            }
+            if (simRoomTag) {
+              tPyPublish({
+                type: 't-py-status', jobId: jobId,
+                message: msg.message || '', done: msg.done | 0, total: total, hits: tHitsTotal
+              });
+            }
+            return;
+          }
+          if (typ === 'progress') {
+            if (tStop) return; /* đang dừng — bỏ progress mới */
+            const done = msg.done | 0;
+            tSoloProgress = done;
+            tJobDoneN = done;
+            syncTProgress();
+            if (msg.liveTail != null || msg.schedSlot != null) {
+              showTSchedLiveCombo({
+                tail: msg.liveTail,
+                schedSlot: msg.schedSlot,
+                _schedSlot: msg.schedSlot
+              });
+            }
+            if (simRoomTag) {
+              tPyPublish({
+                type: 't-py-progress', jobId: jobId, done: done, total: total, hits: tHitsTotal,
+                schedSlot: msg.schedSlot, liveTail: msg.liveTail
+              });
+            }
+            if (tStatusEl && tJobActive) {
+              tStatusEl.textContent = 'đang lọc · ' + tHitsNote() + ' · Python · '
+                + done.toLocaleString('en-US') + '/' + total.toLocaleString('en-US') + ' combo'
+                + tPyDirNote(false) + tElapsedSuffix();
+            }
+            return;
+          }
+          if (typ === 'all-jobs-done') {
+            tPyOnAllJobsDoneMsg();
+            return;
+          }
+          if (typ === 'cancel-ack') {
+            if (tStatusEl) tStatusEl.textContent = 'Đang dừng Python…';
+            return;
+          }
+          if (typ === 'done' || typ === 'cancelled' || typ === 'error') {
+            if (typ === 'error' && tStatusEl) {
+              tStatusEl.textContent = 'Lỗi Python: ' + (msg.message || 'unknown');
+            }
+            const done = (msg.done != null ? msg.done : tSoloProgress) | 0;
+            const reason = typ === 'cancelled' || tStop ? 'stopped' : (typ === 'error' ? 'error' : 'done');
+            if (reason === 'stopped' && done < total) {
+              tResumeState = {
+                cfg: cfg,
+                gc: done,
+                ci: 0,
+                localDone: done,
+                total: total,
+                startedAt: tJobStartedAt,
+                python: true
+              };
+            } else {
+              tResumeState = null;
+            }
+            tPyPublish({
+              type: 't-py-done', jobId: jobId, reason: reason, done: done, total: total, hits: tHitsTotal
+            });
+            tPyCloseWs();
+            tPyFinishUi(reason, done, total);
+            return;
+          }
+        };
+        /* Kẹt mãi ở đúng resumeGc → não chưa chạy (server chết / taskkill nhầm pythonw). */
+        const stallTimer = setTimeout(() => {
+          if (seq !== tSeq || tPyJobId !== jobId || !tJobActive) return;
+          if ((tSoloProgress | 0) > resumeGc) return;
+          if (tStatusEl) {
+            tStatusEl.textContent = 'Python không chạy combo — chạy lại start-local-t.bat'
+              + ' · taskkill phải gồm pythonw (xem taskkill.txt).';
+          }
+        }, 15000);
+
+        ws.onerror = () => {
+          if (seq !== tSeq || tPyJobId !== jobId) return;
+          try { clearTimeout(stallTimer); } catch (e) {}
+          if (tStatusEl) {
+            tStatusEl.textContent = 'Mất kết nối Python local-t — chạy lại start-local-t.bat.';
+          }
+        };
+        ws.onclose = () => {
+          if (tPyWs === ws) tPyWs = null;
+          if (seq !== tSeq || tPyJobId !== jobId) return;
+          try { clearTimeout(stallTimer); } catch (e) {}
+          if (tJobActive) {
+            const done = tSoloProgress | 0;
+            if (done < total) {
+              tResumeState = {
+                cfg: cfg, gc: done, ci: 0, localDone: done, total: total,
+                startedAt: tJobStartedAt, python: true
+              };
+            }
+            tPyPublish({
+              type: 't-py-done', jobId: jobId, reason: 'stopped', done: done, total: total, hits: tHitsTotal
+            });
+            tPyFinishUi('stopped', done, total);
+          }
+        };
+        /* clear stall khi đã có combo thật sự chạy */
+        const _origMsg = ws.onmessage;
+        ws.onmessage = (ev) => {
+          try {
+            const m = JSON.parse(ev.data);
+            if (m && (m.type === 'progress' || m.type === 'hit' || m.type === 'hits')
+              && ((m.done | 0) > resumeGc || m.type === 'hit' || m.type === 'hits')) {
+              clearTimeout(stallTimer);
+            }
+            if (m && (m.type === 'done' || m.type === 'cancelled' || m.type === 'error')) {
+              clearTimeout(stallTimer);
+            }
+          } catch (e) { /* ignore */ }
+          if (typeof _origMsg === 'function') _origMsg.call(ws, ev);
+        };
+      }
+
+      function tPyRequestStop() {
+        tStop = true;
+        if (tPyJobId && tPyWs && tPyWs.readyState === 1) {
+          try {
+            tPyWs.send(JSON.stringify({ type: 'cancel', jobId: tPyJobId }));
+          } catch (e) { /* ignore */ }
+        } else if (tPyJobId) {
+          cancel_job_via_fetch_noop();
+        }
+        tPyPublish({ type: 't-py-stop', jobId: tPyJobId });
+      }
+      function cancel_job_via_fetch_noop() { /* cancel chỉ qua WS đang mở */ }
+
+      function startTPyViewer(msg) {
+        if (!dataCtx || tJobActive) return;
+        if (msg.from && msg.from === ensureSimTabId()) return;
+        tPyViewer = { jobId: msg.jobId };
+        tPyHeardJobSinceLoad = true;
+        tPyEnsurePoolWatch();
+        tJobActive = true;
+        tStop = false;
+        tResumeState = null;
+        if (!msg.keepHits) {
+          tResults = [];
+          tHitsTotal = 0;
+          tSeenHitKeys = new Set();
+          if (tResultsEl) tResultsEl.innerHTML = '';
+          tRenderedCount = 0;
+          tRenderedVisible = 0;
+          tCapNoteShown = false;
+          tMergeSel.clear();
+          tMergeMark.clear();
+          tMergeSig = '';
+          tMergeResetIndex();
+        }
+        tJobStartedAt = Date.now();
+        tJobSize = msg.total | 0;
+        setupTProgress(msg.total | 0, 1, !!msg.thThuan);
+        tSoloProgress = 0;
+        tJobDoneN = 0;
+        if (tStopBtn) { tStopBtn.hidden = false; tStopBtn.disabled = false; }
+        if (tRunBtn) tRunBtn.hidden = true;
+        if (tContBtn) tContBtn.hidden = true;
+        syncTParamsLock();
+        syncTProgress();
+        if (tStatusEl) {
+          tStatusEl.textContent = 'đồng bộ Python · 0/'
+            + (msg.total || 0).toLocaleString('en-US') + ' combo'
+            + tPyDirNote(true) + tElapsedSuffix();
+        }
+      }
+
+      function handleTPyMsg(msg) {
+        if (!msg) return;
+        if (msg.type === 't-py-start') {
+          startTPyViewer(msg);
+          return;
+        }
+        /* Tab chủ đang chạy Python: nhận lệnh dừng từ tab cùng phòng. */
+        if (msg.type === 't-py-stop' && tPyJobId && msg.jobId === tPyJobId && !tPyViewer) {
+          tStop = true;
+          if (tStopBtn) tStopBtn.disabled = true;
+          if (tStatusEl) tStatusEl.textContent = 'Đang dừng…';
+          if (tPyWs && tPyWs.readyState === 1) {
+            try { tPyWs.send(JSON.stringify({ type: 'cancel', jobId: tPyJobId })); } catch (e) {}
+          }
+          return;
+        }
+        if (!tPyViewer || tPyViewer.jobId !== msg.jobId) return;
+        if (msg.type === 't-py-hit' && msg.hit) {
+          showTSchedLiveCombo(msg.hit);
+          if (tPyTakeHit(msg.hit)) requestTResultsDomFlush();
+          return;
+        }
+        if (msg.type === 't-py-hits' && msg.hits && msg.hits.length) {
+          let any = false;
+          for (let i = 0; i < msg.hits.length; i++) {
+            if (!msg.hits[i]) continue;
+            showTSchedLiveCombo(msg.hits[i]);
+            if (tPyTakeHit(msg.hits[i])) any = true;
+          }
+          if (any) requestTResultsDomFlush();
+          return;
+        }
+        if (msg.type === 't-py-status') {
+          if (tStatusEl && tJobActive) {
+            tStatusEl.textContent = (msg.message || 'đang chờ…') + ' · đồng bộ · '
+              + tHitsNote() + ' · '
+              + (msg.done | 0).toLocaleString('en-US') + '/'
+              + (msg.total | 0).toLocaleString('en-US') + ' combo'
+              + tPyDirNote(true) + tElapsedSuffix();
+          }
+          return;
+        }
+        if (msg.type === 't-py-progress') {
+          tSoloProgress = msg.done | 0;
+          tJobDoneN = msg.done | 0;
+          syncTProgress();
+          if (msg.liveTail != null || msg.schedSlot != null) {
+            showTSchedLiveCombo({
+              tail: msg.liveTail,
+              schedSlot: msg.schedSlot,
+              _schedSlot: msg.schedSlot
+            });
+          }
+          if (tStatusEl && tJobActive) {
+            tStatusEl.textContent = 'đồng bộ Python · ' + tHitsNote() + ' · '
+              + (msg.done | 0).toLocaleString('en-US') + '/'
+              + (msg.total | 0).toLocaleString('en-US') + ' combo'
+              + tPyDirNote(true) + tElapsedSuffix();
+          }
+          return;
+        }
+        if (msg.type === 't-py-stop') {
+          tStop = true;
+          if (tStopBtn) tStopBtn.disabled = true;
+          if (tStatusEl) tStatusEl.textContent = 'Đang dừng (tab kia)…';
+          return;
+        }
+        if (msg.type === 't-py-done') {
+          const done = msg.done | 0;
+          const total = msg.total | 0;
+          tPyFinishUi(msg.reason || 'done', done, total);
+        }
+      }
+
       function startTFilter() {
         if (!dataCtx) return;
         if (tJobActive) {
@@ -13519,6 +14191,13 @@
           }
           tResults = [];
           renderTResults();
+          return;
+        }
+        /* local-t: Python não — không chia shard tab; có mã phòng chỉ sync hits. */
+        if (tLocalT) {
+          runTJobPython(Object.assign({}, cfgBase, {
+            role: 'solo', jobId: null, shardIndex: 0, shardCount: 1, roster: []
+          }));
           return;
         }
         if (!simRoomTag) {
@@ -13835,11 +14514,15 @@
         tJobActive = true;
         tResumeState = null;
         tSchedUiSlot = -1;
+        tSchedLiveTailShown = null;
         tActiveSchedSlots = (cfg.schedSlots && cfg.schedSlots.length)
           ? cfg.schedSlots.slice() : null;
         syncTParamsLock();
         /* Hiện sẵn số slot đầu trước khi combo đầu kịp eval. */
-        if (tActiveSchedSlots && tActiveSchedSlots.length) showTSchedSlotOnUi(0);
+        if (tActiveSchedSlots && tActiveSchedSlots.length) {
+          const s0 = tActiveSchedSlots[0];
+          showTSchedLiveCombo({ tail: s0.tailLo, schedSlot: 0, _schedSlot: 0 });
+        }
         const seq = ++tSeq;
         const live = tLiveSnapshot();
         tJobSize = total;
@@ -14462,16 +15145,23 @@
             + snap.gc.toLocaleString('en-US') + '/'
             + snap.total.toLocaleString('en-US') + ' combo…';
         }
-        runTJobLocal(Object.assign({}, snap.cfg, {
-          role: 'solo', jobId: null, shardIndex: 0, shardCount: 1, roster: []
-        }), {
+        const resumeOpts = {
           resume: {
             gc: snap.gc,
             ci: snap.ci | 0,
             localDone: snap.localDone | 0,
             startedAt: snap.startedAt
           }
-        });
+        };
+        if (tLocalT || snap.python) {
+          runTJobPython(Object.assign({}, snap.cfg, {
+            role: 'solo', jobId: null, shardIndex: 0, shardCount: 1, roster: []
+          }), resumeOpts);
+          return;
+        }
+        runTJobLocal(Object.assign({}, snap.cfg, {
+          role: 'solo', jobId: null, shardIndex: 0, shardCount: 1, roster: []
+        }), resumeOpts);
       }
 
       /** Tiếp tục job chia tab: ghép đủ đúng shardCount tab rồi start kèm progress cũ. */
@@ -14585,6 +15275,11 @@
           /* Phản hồi NGAY trên nút + status để biết đã nhận lệnh; job tự chốt ở nhịp kế. */
           tStopBtn.disabled = true;
           if (tStatusEl && tJobActive) tStatusEl.textContent = 'Đang dừng…';
+          if (tLocalT || tPyJobId || tPyViewer) {
+            tPyRequestStop();
+            /* Tab chủ chờ cancelled từ WS; viewer chờ t-py-done từ tab chủ. */
+            return;
+          }
           if (tShared) {
             const jobId = tShared.jobId;
             publishScanBc({ type: 't-job-stop', jobId: jobId });
@@ -14776,7 +15471,7 @@
 
       /* Δimerge: click chữ Δimerge → copy chuỗi a,b,c tăng dần;
          chuột phải chữ Δimerge → copy số thỏa point▼ > 1.5×point▲ (trên hàng chứa số đó);
-         click [N] → copy mỗi số một hàng "số:số hàng chứa";
+         click [N] → copy số:số_hàng (có trong Δimerge) + dòng trống + a,b,c:0 (số 1..35 chưa vào);
          click số → chọn ĐÚNG 1 số (click lại = bỏ chọn; click số khác = đổi sang số đó);
          chuột phải số đã append → bật/tắt nền đỏ (đánh dấu, không lọc). */
       if (tMergeEl) {
@@ -14807,17 +15502,36 @@
           const cntEl = e.target && e.target.closest ? e.target.closest('.t-merge-count') : null;
           if (cntEl) {
             const numsNow = tMergeSyncCounts();
-            if (numsNow.length) {
-              /* Sort giảm dần theo số hàng chứa; hòa thì số nhỏ trước; ★ nếu ∈ đáp án. */
-              const ansSet = tMergeAnswerSet();
-              const ranked = numsNow.slice().sort((a, b) => {
-                const d = (tMergeCntMap.get(b) || 0) - (tMergeCntMap.get(a) || 0);
-                return d !== 0 ? d : a - b;
-              });
-              copyTextToClipboard(ranked.map((n) => {
-                const line = n + ':' + (tMergeCntMap.get(n) || 0);
-                return (ansSet && ansSet.has(n)) ? (line + ' ★') : line;
-              }).join('\n'));
+            /* Sort giảm dần theo số hàng chứa; hòa thì số nhỏ trước; ★ nếu ∈ đáp án.
+               Số 1..35 chưa vào Δimerge → gom 1 hàng "a,b,c:0" sau 1 dòng trống. */
+            const ansSet = tMergeAnswerSet();
+            const ranked = numsNow.slice().sort((a, b) => {
+              const d = (tMergeCntMap.get(b) || 0) - (tMergeCntMap.get(a) || 0);
+              return d !== 0 ? d : a - b;
+            });
+            const lines = ranked.map((n) => {
+              const line = n + ':' + (tMergeCntMap.get(n) || 0);
+              return (ansSet && ansSet.has(n)) ? (line + ' ★') : line;
+            });
+            const missAns = [];
+            const missOther = [];
+            for (let n = 1; n <= 35; n++) {
+              if (tMergeCntMap.has(n)) continue;
+              if (ansSet && ansSet.has(n)) missAns.push(n);
+              else missOther.push(n);
+            }
+            if (missAns.length || missOther.length) {
+              if (lines.length) lines.push('');
+              /* Số chưa vào Δimerge nhưng ∈ đáp án → mỗi số 1 hàng "n:0 ★". */
+              for (let i = 0; i < missAns.length; i++) {
+                lines.push(missAns[i] + ':0 ★');
+              }
+              if (missOther.length) {
+                lines.push(missOther.join(',') + ':0');
+              }
+            }
+            if (lines.length) {
+              copyTextToClipboard(lines.join('\n'));
               cntEl.classList.add('is-ok');
               setTimeout(() => cntEl.classList.remove('is-ok'), 700);
             }
@@ -19315,6 +20029,13 @@
       }
 
       function onScanBcMessage(msg) {
+        /* local-t Python: sync hits/progress giữa tab cùng mã (não chỉ chạy 1 tab). */
+        if (msg.type === 't-py-start' || msg.type === 't-py-hit' || msg.type === 't-py-hits'
+          || msg.type === 't-py-progress' || msg.type === 't-py-status'
+          || msg.type === 't-py-done' || msg.type === 't-py-stop') {
+          handleTPyMsg(msg);
+          return;
+        }
         /* Job lọc T chia shard cho n tab cùng mã phòng. */
         if (msg.type === 't-params'
           || msg.type === 't-job-recruit' || msg.type === 't-job-ready'
