@@ -1898,7 +1898,7 @@
     }
 
     .t-modal .tp-val.t-x-val {
-      width: 40px;
+      width: 48px; /* đủ chỗ 0.xxx (3 chữ số thập phân) */
     }
 
     .t-modal .tp-val.t-xt-val {
@@ -5001,25 +5001,25 @@
           </span>
           <span class="t-x-wrap scan-param" id="tXBandWrap">
             <span class="t-lbl tp-label scan-param-tog" data-t-ctog="x" role="button" tabindex="0" style="min-width:0"
-              title="Click: bật/tắt ràng buộc a·wtail ≤ wfreq ≤ b·wtail · a,b ∈ [0;1] (ô a trống = 0, ô b trống = 1) — không phụ thuộc khoảng wfreq">wfreq∈[</span>
+              title="Click: bật/tắt ràng buộc a·wtail ≤ wfreq ≤ b·wtail · a,b ∈ [0;1] · b gõ tới 3 chữ số thập phân, ▴▾ ±0.01 (làm tròn 0.01) — ô a trống = 0, ô b trống = 1">wfreq∈[</span>
             <span class="tp-item">
               <input class="tp-val t-x-val" id="tXLo" type="text" inputmode="decimal" autocomplete="off"
-                spellcheck="false" placeholder="0.00">
+                spellcheck="false" placeholder="0" title="a · gõ tới 3 chữ số thập phân">
               <span class="tp-spin" role="group" aria-label="Tăng giảm a">
-                <button type="button" class="tp-spin-btn" data-t-xlo-d="1" title="Tăng a (+0.01)"
+                <button type="button" class="tp-spin-btn" data-t-xlo-d="1" title="Tăng a (+0.01, làm tròn 0.01)"
                   aria-label="tăng a">▴</button>
-                <button type="button" class="tp-spin-btn" data-t-xlo-d="-1" title="Giảm a (−0.01)"
+                <button type="button" class="tp-spin-btn" data-t-xlo-d="-1" title="Giảm a (−0.01, làm tròn 0.01)"
                   aria-label="giảm a">▾</button>
               </span>
             </span>
             <span class="t-lbl" style="min-width:0">;</span>
             <span class="tp-item">
               <input class="tp-val t-x-val" id="tXHi" type="text" inputmode="decimal" autocomplete="off"
-                spellcheck="false" placeholder="0.50">
+                spellcheck="false" placeholder="0.50" title="trần b · gõ tới 3 chữ số thập phân (vd 0.505); ▴▾ ±0.01 làm tròn về 0.01">
               <span class="tp-spin" role="group" aria-label="Tăng giảm b">
-                <button type="button" class="tp-spin-btn" data-t-xhi-d="1" title="Tăng b (+0.01)"
+                <button type="button" class="tp-spin-btn" data-t-xhi-d="1" title="Tăng b (+0.01, làm tròn 0.01)"
                   aria-label="tăng b">▴</button>
-                <button type="button" class="tp-spin-btn" data-t-xhi-d="-1" title="Giảm b (−0.01)"
+                <button type="button" class="tp-spin-btn" data-t-xhi-d="-1" title="Giảm b (−0.01, làm tròn 0.01)"
                   aria-label="giảm b">▾</button>
               </span>
             </span>
@@ -10420,7 +10420,7 @@
         point: 'up',
         pointOn: false,
         id: '',
-        /* Ràng buộc tỉ lệ: a·wtail ≤ wfreq ≤ b·wtail (a,b ∈ [0;1], làm tròn 2 chữ số thập phân). */
+        /* Ràng buộc tỉ lệ: a·wtail ≤ wfreq ≤ b·wtail (a,b ∈ [0;1]; gõ tới 3 chữ số, ▴▾ ±0.01). */
         xLo: 0,
         xHi: 0.5,
         /* Ràng buộc a·tail ≤ wtail ≤ b·tail, a/b nguyên dương; null = không giới hạn đầu đó. */
@@ -10641,9 +10641,9 @@
           else if (p.point === null || p.point === '' || p.point === 'off' || p.point === false) tState.pointOn = false;
           if (typeof p.id === 'string') tState.id = p.id;
           /* x cũ (1 số) = cận trên b, cận dưới a = 0. */
-          if (Number.isFinite(p.x) && p.x > 0) tState.xHi = Math.min(1, Math.round(p.x * 100) / 100);
-          if (Number.isFinite(p.xLo)) tState.xLo = Math.max(0, Math.min(1, Math.round(p.xLo * 100) / 100));
-          if (Number.isFinite(p.xHi) && p.xHi > 0) tState.xHi = Math.min(1, Math.round(p.xHi * 100) / 100);
+          if (Number.isFinite(p.x) && p.x > 0) tState.xHi = Math.min(1, Math.round(p.x * 1000) / 1000);
+          if (Number.isFinite(p.xLo)) tState.xLo = Math.max(0, Math.min(1, Math.round(p.xLo * 1000) / 1000));
+          if (Number.isFinite(p.xHi) && p.xHi > 0) tState.xHi = Math.min(1, Math.round(p.xHi * 1000) / 1000);
           if (tState.xLo > tState.xHi) tState.xLo = tState.xHi;
           tState.tailMulLo = (Number.isFinite(p.tailMulLo) && p.tailMulLo >= 1)
             ? Math.floor(p.tailMulLo) : null;
@@ -11329,7 +11329,7 @@
         saveTFilterPrefs();
       }
 
-      /** x chấp nhận thập phân (0.56) lẫn phân số (1/2) → làm tròn 2 chữ số thập phân. */
+      /** x: thập phân / phân số → giữ tối đa 3 chữ số thập phân (gõ tay). */
       function parseTX(raw) {
         const s = String(raw == null ? '' : raw).trim();
         if (!s) return NaN;
@@ -11345,11 +11345,25 @@
           v = Number(s.replace(',', '.'));
         }
         if (!Number.isFinite(v)) return NaN;
-        return Math.round(v * 100) / 100;
+        return Math.round(v * 1000) / 1000;
       }
 
+      /** Hiển thị tới 3 chữ số (bỏ 0 thừa: 0.500→0.5, 0.505→0.505). */
       function formatTX(v) {
-        return (Math.round(v * 100) / 100).toFixed(2);
+        if (!Number.isFinite(v)) return '';
+        const r = Math.round(v * 1000) / 1000;
+        if (Math.abs(r * 100 - Math.round(r * 100)) < 1e-9) {
+          return (Math.round(r * 100) / 100).toFixed(2);
+        }
+        return r.toFixed(3);
+      }
+
+      /** Sau ▴▾ ±0.01: luôn làm tròn / hiện 2 chữ số. */
+      function roundTX01(v) {
+        return Math.round(v * 100) / 100;
+      }
+      function formatTX01(v) {
+        return roundTX01(v).toFixed(2);
       }
 
       function isTXValid(v) {
@@ -11524,7 +11538,7 @@
         return makeTComboCursor(cfg.resolvedRanges, xLo, xHi, mulLo, mulHi);
       }
 
-      /** Spin 1 cận của [a;b]: a ∈ [0;b], b ∈ [a;1], bước 0.01 — không kẹp theo khoảng wfreq. */
+      /** Spin 1 cận của [a;b]: a ∈ [0;b], b ∈ [a;1], bước 0.01 — kết quả làm tròn về 0.01. */
       function stepTXBound(which, d) {
         const el = which === 'lo' ? tXLoEl : tXHiEl;
         if (!el || !d) return;
@@ -11534,26 +11548,35 @@
             ? (Number.isFinite(tState.xLo) ? tState.xLo : 0)
             : (isTXValid(tState.xHi) ? tState.xHi : 0.5);
         }
-        let next = Math.round((cur + d * 0.01) * 100) / 100;
-        let flashed = false;
+        /* Từ giá trị gõ 3 chữ số (vd 0.505) → ±0.01 rồi làm tròn về bậc 0.01. */
+        let next = roundTX01(cur + d * 0.01);
         if (which === 'lo') {
           const hiCap = isTXValid(tState.xHi) ? tState.xHi : 1;
-          /* a lỡ tăng quá b → nháy đỏ cảnh báo thoáng chốc, giữ a = b. */
-          if (next > hiCap) { flashTBad(el); flashed = true; next = hiCap; }
-          next = Math.max(0, Math.min(1, next));
+          /* a lỡ tăng quá b → nháy đỏ, kẹp a = b (giữ 3 chữ số của b). */
+          if (next > hiCap) {
+            flashTBad(el);
+            next = Math.max(0, Math.min(1, hiCap));
+            tState.xLo = next;
+            el.value = formatTX(next);
+            saveTFilterPrefs();
+            return;
+          }
+          next = roundTX01(Math.max(0, Math.min(1, next)));
           tState.xLo = next;
+          el.value = formatTX01(next);
+          clearTBad(el);
         } else {
-          next = Math.max(0.01, Math.min(1, next));
+          next = roundTX01(Math.max(0.01, Math.min(1, next)));
           tState.xHi = next;
           /* Giảm b xuống dưới a → a tụt theo b (giữ a ≤ b). */
           const loNow = Number.isFinite(tState.xLo) ? tState.xLo : 0;
           if (next < loNow) {
             tState.xLo = next;
-            if (tXLoEl) { tXLoEl.value = formatTX(next); clearTBad(tXLoEl); }
+            if (tXLoEl) { tXLoEl.value = formatTX01(next); clearTBad(tXLoEl); }
           }
+          el.value = formatTX01(next);
+          clearTBad(el);
         }
-        el.value = formatTX(next);
-        if (!flashed) clearTBad(el);
         saveTFilterPrefs();
       }
 
