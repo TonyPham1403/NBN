@@ -2532,6 +2532,7 @@
 
     /* Δimerge: hợp nhất các số trong mọi chuỗi Δi — click số để lọc phụ (đa chọn, click lại để tắt). */
     .t-merge {
+      position: relative;
       font-family: ui-monospace, Consolas, Menlo, monospace;
       font-size: 11px;
       font-weight: 700;
@@ -2602,16 +2603,31 @@
       background: #15803d;
     }
 
-    /* Chuột phải đánh dấu (đã append): nền đỏ chữ trắng — không ảnh hưởng lọc. */
-    .t-merge-num.is-mark {
+    /* Chuột phải: mặc định → đỏ → vàng → mặc định. Giữ cả khi số tạm ra khỏi Δimerge. */
+    .t-merge-num.is-mark,
+    .t-merge-num.is-hit.is-mark {
       opacity: 1;
       background: #dc2626;
       border-color: #b91c1c;
       color: #fff;
     }
 
-    .t-merge-num.is-mark:hover {
+    .t-merge-num.is-mark:hover,
+    .t-merge-num.is-hit.is-mark:hover {
       background: #b91c1c;
+    }
+
+    .t-merge-num.is-mark-y,
+    .t-merge-num.is-hit.is-mark-y {
+      opacity: 1;
+      background: #ffff00;
+      border-color: #ca8a04;
+      color: #111;
+    }
+
+    .t-merge-num.is-mark-y:hover,
+    .t-merge-num.is-hit.is-mark-y:hover {
+      background: #ffff00;
     }
 
     /* Đang chọn lọc (không phải ĐA): xanh dương + scale 1.5 nổi trên. */
@@ -2647,6 +2663,14 @@
       border-color: #b91c1c;
       color: #fff;
       box-shadow: 0 2px 10px rgba(220, 38, 38, .5);
+    }
+
+    /* Chọn lọc + đánh dấu vàng: vàng chữ đen + vẫn scale nổi. */
+    .t-merge-num.is-on.is-mark-y {
+      background: #ffff00;
+      border-color: #ca8a04;
+      color: #111;
+      box-shadow: 0 2px 10px rgba(202, 138, 4, .5);
     }
 
     .t-merge-info {
@@ -2717,6 +2741,74 @@
       color: #16a34a;
     }
 
+    /* Click "={" → xếp lại ô theo thứ tự vào Δimerge (sớm → đầu, trễ → cuối). */
+    .t-merge-eqbrace {
+      cursor: pointer;
+      user-select: none;
+      display: inline-block;
+      padding: 0 3px;
+      margin: 0 1px;
+      border-radius: 4px;
+      border: 1px solid transparent;
+      line-height: 1.25;
+      transition: color .12s ease, background .12s ease, border-color .12s ease, box-shadow .12s ease;
+    }
+
+    .t-merge-eqbrace:hover {
+      color: #0f766e;
+      text-decoration: underline;
+    }
+
+    .t-merge-eqbrace.is-ok {
+      color: #16a34a;
+    }
+
+    /* Đang áp sort theo thứ tự vào — nổi bật rõ. */
+    .t-merge-eqbrace.is-entry-on {
+      color: #9a3412;
+      font-weight: 800;
+      text-decoration: none;
+      background: #ffedd5;
+      border-color: #fb923c;
+      box-shadow: 0 0 0 1px rgba(251, 146, 60, .35), 0 1px 3px rgba(154, 52, 18, .18);
+    }
+
+    .t-merge-eqbrace.is-entry-on:hover {
+      color: #7c2d12;
+      text-decoration: none;
+      background: #fed7aa;
+      border-color: #f97316;
+    }
+
+    /* Đang áp sort giảm dần theo số hàng (value) — tím. */
+    .t-merge-eqbrace.is-count-on {
+      color: #5b21b6;
+      font-weight: 800;
+      text-decoration: none;
+      background: #ede9fe;
+      border-color: #a78bfa;
+      box-shadow: 0 0 0 1px rgba(167, 139, 250, .35), 0 1px 3px rgba(91, 33, 182, .18);
+    }
+
+    .t-merge-eqbrace.is-count-on:hover {
+      color: #4c1d95;
+      text-decoration: none;
+      background: #ddd6fe;
+      border-color: #8b5cf6;
+    }
+
+    /* Lọc phụ |Δ%break|∈[a;b]: absolute trong .t-merge — sát mép dưới + sát phải, không chiếm chỗ / không đẩy results. */
+    .t-merge-dbreak-filt {
+      position: absolute;
+      right: 2px;
+      bottom: 0;
+      z-index: 4;
+      padding: 0 2px;
+      border-radius: 4px;
+      background: rgba(248, 250, 252, .96);
+      box-shadow: 0 0 0 1px rgba(226, 232, 240, .9);
+    }
+
     .t-result .copy-nums-btn {
       pointer-events: none;
     }
@@ -2745,6 +2837,22 @@
       color: #115e59;
       font-weight: 800;
       margin-right: 2px;
+    }
+
+    /* Số ∈ đáp án trong chuỗi Δi — chỉ đổi màu, không padding (không đẩy bố cục). */
+    .t-result .t-dseq .t-dseq-ans {
+      color: #fff;
+      background: #16a34a;
+      border-radius: 2px;
+      box-shadow: 0 0 0 1px #15803d;
+    }
+
+    /* Kỳ rỗng cuối / học tập: số đang đánh dấu vàng trên Δimerge — cùng #ffff00, không padding. */
+    .t-result .t-dseq .t-dseq-y {
+      color: #111;
+      background: #ffff00;
+      border-radius: 2px;
+      box-shadow: 0 0 0 1px #ca8a04;
     }
 
     .t-result.is-copied {
@@ -5047,7 +5155,36 @@
         <span class="t-progress-pct" id="tProgressPct" aria-hidden="true">0%</span>
       </div>
       <div class="t-elapsed" id="tElapsed" hidden></div>
-      <div class="t-merge" id="tMerge" hidden></div>
+      <div class="t-merge" id="tMerge" hidden>
+        <span class="t-merge-dbreak-filt trial-params scan-param" id="tMergeDBreakFilt" data-t-sec-dbreak="1">
+          <span class="tp-label scan-param-tog" data-t-sec-dbreak-tog role="button" tabindex="0"
+            title="Click: bật/tắt lọc phụ theo |Δ%break| trên kết quả (không chạy lại Lọc)">|Δ%break|</span>
+          <span class="scan-in" aria-hidden="true">∈</span>
+          <span class="scan-br">[</span>
+          <span class="tp-item">
+            <input class="tp-val" id="tSecDBreakLo" type="text" inputmode="decimal" autocomplete="off"
+              spellcheck="false" title="a · |Δ%break| ≥ a">
+            <span class="tp-spin" role="group" aria-label="Tăng giảm a">
+              <button type="button" class="tp-spin-btn" data-t-sec-dbreak-d="lo:1" title="Tăng a"
+                aria-label="tăng a">▴</button>
+              <button type="button" class="tp-spin-btn" data-t-sec-dbreak-d="lo:-1" title="Giảm a"
+                aria-label="giảm a">▾</button>
+            </span>
+          </span>
+          <span class="scan-sep">;</span>
+          <span class="tp-item">
+            <input class="tp-val" id="tSecDBreakHi" type="text" inputmode="decimal" autocomplete="off"
+              spellcheck="false" title="b · |Δ%break| ≤ b">
+            <span class="tp-spin" role="group" aria-label="Tăng giảm b">
+              <button type="button" class="tp-spin-btn" data-t-sec-dbreak-d="hi:1" title="Tăng b"
+                aria-label="tăng b">▴</button>
+              <button type="button" class="tp-spin-btn" data-t-sec-dbreak-d="hi:-1" title="Giảm b"
+                aria-label="giảm b">▾</button>
+            </span>
+          </span>
+          <span class="scan-br">]</span>
+        </span>
+      </div>
       <div class="t-merge-tip" id="tMergeTip" hidden></div>
       <div class="t-results" id="tResults"></div>
     </div>
@@ -6441,6 +6578,12 @@
             }
             if (studyPicksForId != null) publishStudyPicks();
           }
+        }
+        /* Học tập = không biết đáp án: gỡ nền xanh ĐA trên Δimerge và chuỗi Δi ngay, kể cả đang lọc. */
+        if (typeof renderTResults === 'function' && tResults.length && isTPopupOpen()) {
+          tMergeSig = '';
+          tDseqAnsKey = '';
+          requestAnimationFrame(() => { renderTResults(); });
         }
         if (opts && opts.skipPopup) return;
         /* Popup nặng: để frame sau khi paint mờ xong mới rebuild. */
@@ -8399,7 +8542,7 @@
             prevLblPct = pctNow;
             if (thNow != null) prevLblTh = thNow;
           }
-          html += '<div class="th-tl-row" data-tl-label="' + escapeAttr(tlLbl) + '"'
+          html += '<div class="th-tl-row" data-tl-t="' + m.t + '" data-tl-label="' + escapeAttr(tlLbl) + '"'
             + (tlLbl ? ' data-tl-i="' + escapeAttr(tlLbl) + '"' : '') + '>'
             + '<span class="tl-tr">'
             + '<span class="tl-t">' + m.t + '%</span>'
@@ -8454,9 +8597,17 @@
           el.classList.remove('is-scan-focus');
         });
         const pending = pendingScanTlHighlight;
-        if (!pending || !pending.label) return false;
-        const label = String(pending.label);
-        const row = modalTimeline.querySelector('.th-tl-row[data-tl-label="' + label.replace(/"/g, '') + '"]');
+        if (!pending) return false;
+        /* Click hàng lọc T: khớp đúng mốc theo % ngưỡng (t). Nhãn i/k/j phụ thuộc độ dài
+           timeline đang vẽ — tlPopupLabel của tiền tố cắt tại hit luôn là j1 = hàng cuối. */
+        let row = null;
+        if (pending.t != null && Number.isFinite(Number(pending.t))) {
+          row = modalTimeline.querySelector('.th-tl-row[data-tl-t="' + (Number(pending.t) | 0) + '"]');
+        }
+        if (!row && pending.label) {
+          const label = String(pending.label);
+          row = modalTimeline.querySelector('.th-tl-row[data-tl-label="' + label.replace(/"/g, '') + '"]');
+        }
         if (!row) return false;
         row.classList.add('is-scan-focus');
         try {
@@ -10460,13 +10611,30 @@
       const tResultsEl = document.getElementById('tResults');
       const tMergeEl = document.getElementById('tMerge');
       const tMergeTip = document.getElementById('tMergeTip');
+      const tMergeDBreakFilt = document.getElementById('tMergeDBreakFilt');
+      const tSecDBreakLoEl = document.getElementById('tSecDBreakLo');
+      const tSecDBreakHiEl = document.getElementById('tSecDBreakHi');
+      /** Lọc phụ |Δ%break|∈[a;b] trên kết quả đã có (không chạy lại job). Mỗi lần Lọc mới → [0;100]. */
+      const tSecDBreak = { lo: 0, hi: 100, on: true };
+      /** Chữ ký [a;b] đã dựng chỉ mục Δimerge — đổi khoảng → rebuild. */
+      let tMergeSecBandSig = '';
       /** Số đang chọn ở dòng Δimerge — hàng hiện ra phải chứa TẤT CẢ số đã chọn. */
       const tMergeSel = new Set();
-      /** Số đã chuột phải đánh dấu đỏ (chỉ trên ô đã append .is-in) — không ảnh hưởng lọc. */
-      const tMergeMark = new Set();
+      /** Chuột phải: 'r' đỏ · 'y' vàng. Giữ khi số tạm ra khỏi Δimerge và khi tắt/bật học tập.
+       *  Chỉ quên khi đổi id lọc. */
+      const tMergeMark = new Map();
+      let tMergeMarkForId = null;
+      function tMergeMarkNoteId(focusId) {
+        const id = focusId == null ? '' : String(focusId);
+        if (tMergeMarkForId === id) return;
+        tMergeMark.clear();
+        tMergeMarkForId = id;
+      }
       let tMergeSig = '';
       /** Chuỗi Δimerge hiện tại (sort tăng dần) để copy khi click chữ Δimerge. */
       let tMergeNumsCache = [];
+      /** Thứ tự lần đầu vào Δimerge (sớm → đầu mảng; dùng khi click "={"). */
+      let tMergeFirstOrder = [];
       /** Số đang được tooltip Δimerge chụp snapshot (null = không hiện). */
       let tTipNum = null;
       /* Chỉ mục Δimerge TĂNG DẦN theo tResults (không quét lại toàn bộ mỗi chunk):
@@ -10483,12 +10651,17 @@
       let tMergeRenderTimer = null;
       let tMergeHovering = false;
       let tMergeRenderPending = false;
-      /* Hàng Δimerge dựng 1 lần duy nhất đủ 35 ô (1..35) → sau đó chỉ bật/tắt sáng từng ô,
-         bố cục không bao giờ thay đổi → không lag vì append/dựng lại DOM. */
+      /* Hàng Δimerge dựng 1 lần: 35 ô; click "={" có thể xếp lại thứ tự ô theo lần vào. */
       let tMergeBuilt = false;
       let tMergeChipEls = null;
       let tMergeCountEl = null;
       let tMergeInfoEl = null;
+      let tMergeChipsEl = null;
+      let tMergeEqEl = null;
+      /** Mode xếp ô "={": 'num' = 1..35 · 'entry' = thứ tự vào · 'count' = value↓ (số hàng). */
+      let tMergeChipOrderMode = 'num';
+      /** Chữ ký thứ tự ô đang render — khi mode vào bật, đổi là xếp lại DOM ngay. */
+      let tMergeOrderSig = '';
 
       function hideTMergeTip() {
         if (tMergeTip) tMergeTip.hidden = true;
@@ -12301,18 +12474,196 @@
         return true;
       }
 
+      /** Khoảng |Δ%break| thực áp của lọc phụ (null = không lọc / toàn miền). */
+      function tSecDBreakRange() {
+        if (tSecDBreak.on === false) return null;
+        const lo = (tSecDBreak.lo == null || !Number.isFinite(tSecDBreak.lo)) ? 0 : tSecDBreak.lo;
+        const hi = (tSecDBreak.hi == null || !Number.isFinite(tSecDBreak.hi)) ? 100 : tSecDBreak.hi;
+        if (lo <= 0 && hi >= 100) return null; /* [0;100] = không lọc */
+        return { lo: lo, hi: hi };
+      }
+
+      function tSecDBreakBandSig() {
+        const band = tSecDBreakRange();
+        return band ? (band.lo + ';' + band.hi) : '';
+      }
+
+      /** Hàng có qua lọc phụ |Δ%break|∈[a;b] không. */
+      function tRowPassesSecDBreak(r) {
+        const band = tSecDBreakRange();
+        if (!band) return true;
+        const v = r && Number.isFinite(r.dBreak) ? r.dBreak : NaN;
+        if (!Number.isFinite(v)) return false;
+        return v >= band.lo && v <= band.hi;
+      }
+
+      /** Qua mọi lọc phụ (Δimerge + |Δ%break|). */
+      function tRowPassesSecondary(r) {
+        return tRowPassesMerge(r) && tRowPassesSecDBreak(r);
+      }
+
+      /** Mỗi lần Lọc mới: về [0;100] + bật. */
+      function resetTSecDBreakDefault() {
+        tSecDBreak.lo = 0;
+        tSecDBreak.hi = 100;
+        tSecDBreak.on = true;
+        tMergeSecBandSig = '';
+        syncTSecDBreakUi();
+      }
+
+      function syncTSecDBreakUi() {
+        if (!tMergeDBreakFilt) return;
+        const off = tSecDBreak.on === false;
+        tMergeDBreakFilt.classList.toggle('is-off', off);
+        if (tSecDBreakLoEl) {
+          tSecDBreakLoEl.disabled = off;
+          if (document.activeElement !== tSecDBreakLoEl) {
+            const lo = (tSecDBreak.lo == null || !Number.isFinite(tSecDBreak.lo)) ? 0 : tSecDBreak.lo;
+            tSecDBreakLoEl.value = String(lo);
+          }
+        }
+        if (tSecDBreakHiEl) {
+          tSecDBreakHiEl.disabled = off;
+          if (document.activeElement !== tSecDBreakHiEl) {
+            const hi = (tSecDBreak.hi == null || !Number.isFinite(tSecDBreak.hi)) ? 100 : tSecDBreak.hi;
+            tSecDBreakHiEl.value = String(hi);
+          }
+        }
+        tMergeDBreakFilt.querySelectorAll('.tp-spin-btn').forEach((btn) => { btn.disabled = off; });
+      }
+
+      /** Đọc [a;b] từ ô — trống a=0 / trống b=100; sai → nháy đỏ, giữ giá trị cũ. */
+      function readTSecDBreakFromUi() {
+        if (tSecDBreak.on === false) {
+          if (tSecDBreakLoEl) tSecDBreakLoEl.classList.remove('is-bad');
+          if (tSecDBreakHiEl) tSecDBreakHiEl.classList.remove('is-bad');
+          return true;
+        }
+        const rawLo = tSecDBreakLoEl ? String(tSecDBreakLoEl.value || '').trim() : '';
+        const rawHi = tSecDBreakHiEl ? String(tSecDBreakHiEl.value || '').trim() : '';
+        let lo = rawLo === '' ? 0 : Number(rawLo);
+        let hi = rawHi === '' ? 100 : Number(rawHi);
+        let ok = true;
+        if (!Number.isFinite(lo) || lo < 0 || lo > 100) {
+          flashTBad(tSecDBreakLoEl);
+          ok = false;
+          lo = tSecDBreak.lo;
+        } else if (tSecDBreakLoEl) clearTBad(tSecDBreakLoEl);
+        if (!Number.isFinite(hi) || hi < 0 || hi > 100) {
+          flashTBad(tSecDBreakHiEl);
+          ok = false;
+          hi = tSecDBreak.hi;
+        } else if (tSecDBreakHiEl) clearTBad(tSecDBreakHiEl);
+        if (ok && lo > hi) {
+          flashTBad(tSecDBreakLoEl);
+          flashTBad(tSecDBreakHiEl);
+          ok = false;
+        }
+        if (ok) {
+          tSecDBreak.lo = lo;
+          tSecDBreak.hi = hi;
+        }
+        return ok;
+      }
+
+      function stepTSecDBreak(bound, d) {
+        if (!d || tSecDBreak.on === false) return;
+        readTSecDBreakFromUi();
+        let cur = tSecDBreak[bound];
+        if (cur == null || !Number.isFinite(cur)) cur = bound === 'lo' ? 0 : 100;
+        let next = Math.max(0, Math.min(100, Math.round((cur + d) * 10) / 10));
+        const other = bound === 'lo' ? tSecDBreak.hi : tSecDBreak.lo;
+        if (bound === 'lo' && other != null && Number.isFinite(other) && next > other) {
+          flashTBad(tSecDBreakLoEl);
+          next = other;
+        }
+        tSecDBreak[bound] = next;
+        if (bound === 'hi' && other != null && Number.isFinite(other) && next < other) {
+          tSecDBreak.lo = next;
+        }
+        syncTSecDBreakUi();
+        applyTSecDBreakFilter();
+      }
+
+      function applyTSecDBreakFilter() {
+        /* Đổi [a;b] → rebuild Δimerge; giữ mode "={"; updateTMergeUi sẽ xếp lại count/entry. */
+        tMergeResetIndex();
+        tMergeSig = '';
+        tBumpUiPause(180);
+        requestAnimationFrame(() => { renderTResults(); });
+      }
+
       function tMergeResetIndex() {
         tMergeCntMap = new Map();
         tMergeRowsByNum = new Map();
         tMergePtByNum = new Map();
         tMergeCountedIdx = 0;
         tMergeNumsCache = [];
+        tMergeFirstOrder = [];
+        /* Giữ tMergeChipOrderMode — đổi lọc phụ |Δ%break| chỉ rebuild đếm, không về 1..35. */
+        tMergeOrderSig = ''; /* buộc xếp lại ô theo mode đang chọn (tránh lủng lỗ). */
+        tMergeSecBandSig = tSecDBreakBandSig();
       }
 
-      /** Cộng dồn 1 hàng vào chỉ mục Δimerge (cnt + row-list + point▲▼). */
+      /** Gắn HTML ô theo `order` (chỉ khi chữ ký đổi). count kèm value để sort lại khi đếm đổi. */
+      function tMergeApplyChipOrder(order) {
+        if (!tMergeChipsEl || !order || !order.length) return false;
+        let sig = order.join(',');
+        if (tMergeChipOrderMode === 'count') {
+          let cntPart = '';
+          for (let i = 0; i < order.length; i++) {
+            const n = order[i];
+            cntPart += (i ? ',' : '') + n + ':' + (tMergeCntMap.get(n) || 0);
+          }
+          sig = 'c|' + cntPart;
+        } else if (tMergeChipOrderMode === 'entry') {
+          sig = 'e|' + sig;
+        } else {
+          sig = 'n|' + sig;
+        }
+        if (sig === tMergeOrderSig) return false;
+        tMergeOrderSig = sig;
+        tMergeChipsEl.innerHTML = tMergeChipsHtml(order);
+        tMergeBindChipEls();
+        tMergeSig = '';
+        return true;
+      }
+
+      /** Đồng bộ style nổi bật của "={" theo 3 mode. */
+      function tMergeSyncEqBraceStyle() {
+        if (!tMergeEqEl) return;
+        const mode = tMergeChipOrderMode === 'entry' || tMergeChipOrderMode === 'count'
+          ? tMergeChipOrderMode
+          : 'num';
+        tMergeEqEl.classList.toggle('is-entry-on', mode === 'entry');
+        tMergeEqEl.classList.toggle('is-count-on', mode === 'count');
+        tMergeEqEl.setAttribute('aria-pressed', mode === 'num' ? 'false' : 'true');
+        tMergeEqEl.title = mode === 'entry'
+          ? 'Đang xếp theo thứ tự vào (tự cập nhật khi lọc) · Click: sort value↓'
+          : (mode === 'count'
+            ? 'Đang xếp giảm dần theo value = số hàng (tự cập nhật khi lọc) · Click: về 1..35'
+            : 'Click: xếp theo thứ tự vào · Click lần nữa: value↓ · Click lần nữa: về 1..35');
+      }
+
+      /** Job mới / tắt mode: trả ô Δimerge về 1..35. */
+      function tMergeRestoreNumericChipOrder() {
+        tMergeChipOrderMode = 'num';
+        if (!tMergeBuilt || !tMergeChipsEl) {
+          tMergeSyncEqBraceStyle();
+          return;
+        }
+        const order = [];
+        for (let n = 1; n <= 35; n++) order.push(n);
+        tMergeApplyChipOrder(order);
+        tMergeSyncEqBraceStyle();
+      }
+
+      /** Cộng dồn 1 hàng vào chỉ mục Δimerge (cnt + row-list + point▲▼).
+       *  Chỉ hàng thỏa lọc phụ |Δ%break| — số chỉ có ở hàng ngoài [a;b] bị tạm bỏ khỏi chuỗi. */
       function tMergeIngestRow(idx) {
         const r = tResults[idx];
         if (!r) return;
+        if (!tRowPassesSecDBreak(r)) return;
         const dn = r.deltaNums || [];
         if (!dn.length) return;
         let gen = tMergeSeenGen++;
@@ -12328,6 +12679,7 @@
           if (n < 1 || n > 35) continue;
           if (tMergeSeenStamp[n] === gen) continue;
           tMergeSeenStamp[n] = gen;
+          if (!tMergeCntMap.has(n)) tMergeFirstOrder.push(n);
           tMergeCntMap.set(n, (tMergeCntMap.get(n) || 0) + 1);
           let rows = tMergeRowsByNum.get(n);
           if (!rows) {
@@ -12345,9 +12697,13 @@
         }
       }
 
-      /** Cộng dồn các hàng tResults MỚI vào chỉ mục (rẻ — không quét lại từ đầu). */
+      /** Cộng dồn các hàng tResults MỚI vào chỉ mục (rẻ — không quét lại từ đầu).
+       *  Đổi lọc phụ |Δ%break| → rebuild để chuỗi Δimerge khớp [a;b]. */
       function tMergeSyncCounts() {
-        if (tMergeCountedIdx > tResults.length) tMergeResetIndex();
+        const bandSig = tSecDBreakBandSig();
+        if (bandSig !== tMergeSecBandSig || tMergeCountedIdx > tResults.length) {
+          tMergeResetIndex();
+        }
         let grew = false;
         while (tMergeCountedIdx < tResults.length) {
           tMergeIngestRow(tMergeCountedIdx);
@@ -12356,6 +12712,13 @@
         }
         if (grew || !tMergeNumsCache.length) {
           tMergeNumsCache = Array.from(tMergeCntMap.keys()).sort((a, b) => a - b);
+        }
+        /* Số đang chọn lọc nhưng bị lọc phụ loại khỏi chuỗi → bỏ chọn.
+           Đánh dấu đỏ/vàng thì giữ — số vào lại Δimerge vẫn đúng màu. */
+        if (tMergeSel.size) {
+          for (const n of Array.from(tMergeSel)) {
+            if (!tMergeCntMap.has(n)) tMergeSel.delete(n);
+          }
         }
         return tMergeNumsCache;
       }
@@ -12368,30 +12731,119 @@
         return tMergeRowsByNum.get(n) || [];
       }
 
-      /** Dựng 1 lần duy nhất: Δimerge[N]={35 ô số 1..35} — sau đó không bao giờ dựng lại DOM. */
+      /** HTML các ô số theo `order` (mặc định 1..35), có dấu phẩy giữa. */
+      function tMergeChipsHtml(order) {
+        let chips = '';
+        for (let i = 0; i < order.length; i++) {
+          const n = order[i];
+          if (i) chips += ',';
+          chips += '<button type="button" class="t-merge-num" data-t-merge-num="' + n + '">' + n + '</button>';
+        }
+        return chips;
+      }
+
+      function tMergeBindChipEls() {
+        tMergeChipEls = {};
+        if (!tMergeChipsEl) return;
+        tMergeChipsEl.querySelectorAll('[data-t-merge-num]').forEach((el) => {
+          tMergeChipEls[el.getAttribute('data-t-merge-num')] = el;
+        });
+      }
+
+      /**
+       * Thứ tự hiển thị mode entry: số đã vào theo lần đầu gặp (sớm→đầu),
+       * rồi các số 1..35 chưa vào (tăng dần) ở cuối.
+       */
+      function tMergeEntryDisplayOrder() {
+        tMergeSyncCounts();
+        const seen = new Set(tMergeFirstOrder);
+        const out = tMergeFirstOrder.slice();
+        for (let n = 1; n <= 35; n++) {
+          if (!seen.has(n)) out.push(n);
+        }
+        return out;
+      }
+
+      /** Thứ tự mode count: số đang có (value>0) giảm dần theo value; số value=0 xếp cuối (tránh lủng lỗ). */
+      function tMergeCountDisplayOrder() {
+        tMergeSyncCounts();
+        const active = [];
+        const rest = [];
+        for (let n = 1; n <= 35; n++) {
+          if ((tMergeCntMap.get(n) || 0) > 0) active.push(n);
+          else rest.push(n);
+        }
+        active.sort((a, b) => {
+          const d = (tMergeCntMap.get(b) || 0) - (tMergeCntMap.get(a) || 0);
+          return d !== 0 ? d : a - b;
+        });
+        return active.concat(rest);
+      }
+
+      /** Áp thứ tự ô theo mode hiện tại (live khi lọc / đổi lọc phụ). */
+      function tMergeApplyChipOrderForMode() {
+        if (tMergeChipOrderMode === 'entry') {
+          tMergeApplyChipOrder(tMergeEntryDisplayOrder());
+        } else if (tMergeChipOrderMode === 'count') {
+          tMergeApplyChipOrder(tMergeCountDisplayOrder());
+        } else {
+          const order = [];
+          for (let n = 1; n <= 35; n++) order.push(n);
+          tMergeApplyChipOrder(order);
+        }
+        tMergeSyncEqBraceStyle();
+      }
+
+      /** Toggle "={": num → entry → count(value↓) → num. */
+      function tMergeToggleEntryOrder() {
+        if (!tMergeEl) return;
+        buildTMergeOnce();
+        if (!tMergeChipsEl) return;
+        if (tMergeChipOrderMode === 'num') tMergeChipOrderMode = 'entry';
+        else if (tMergeChipOrderMode === 'entry') tMergeChipOrderMode = 'count';
+        else tMergeChipOrderMode = 'num';
+        tMergeApplyChipOrderForMode();
+        tMergeSyncEqBraceStyle();
+        updateTMergeUi();
+        tMergeSyncEqBraceStyle();
+        if (tMergeEqEl) {
+          tMergeEqEl.classList.add('is-ok');
+          setTimeout(() => { if (tMergeEqEl) tMergeEqEl.classList.remove('is-ok'); }, 700);
+        }
+      }
+
+      /** Dựng 1 lần: Δimerge[N]={35 ô} — "={" toggle num ↔ entry ↔ count.
+       *  Giữ #tMergeDBreakFilt (absolute sát mép dưới) — không bị innerHTML xóa. */
       function buildTMergeOnce() {
         if (tMergeBuilt || !tMergeEl) return;
         tMergeBuilt = true;
-        let chips = '';
-        for (let n = 1; n <= 35; n++) {
-          if (n > 1) chips += ',';
-          chips += '<button type="button" class="t-merge-num" data-t-merge-num="' + n + '">' + n + '</button>';
-        }
+        tMergeChipOrderMode = 'num';
+        tMergeOrderSig = '';
+        const order = [];
+        for (let n = 1; n <= 35; n++) order.push(n);
+        const keepFilt = tMergeDBreakFilt;
         tMergeEl.innerHTML = '<span class="t-merge-box">'
           + '<span class="t-merge-label"'
           + ' title="Click: copy cả chuỗi · Chuột phải: copy số có point▼ &gt; 1.5×point▲ (trên các hàng chứa số đó)">'
           + 'Δimerge</span>'
           + '<span class="t-merge-count"'
-          + ' title="Click: copy số:số_hàng (★ ∈ đáp án); số chưa vào: n:0 ★ nếu ∈ đáp án, còn lại gom a,b,c:0">[0]</span>={'
-          + chips
-          + '}</span>'
+          + ' title="Click: copy số:số_hàng (★ ∈ đáp án); số chưa vào: n:0 ★ nếu ∈ đáp án, còn lại gom a,b,c:0">[0]</span>'
+          + '<span class="t-merge-eqbrace" role="button" tabindex="0" aria-pressed="false"'
+          + ' title="Click: xếp theo thứ tự vào · Click lần nữa: value↓ · Click lần nữa: về 1..35">={</span>'
+          + '<span class="t-merge-chips">'
+          + tMergeChipsHtml(order)
+          + '</span>'
+          + '<span class="t-merge-closebrace">}</span></span>'
           + '<span class="t-merge-info"></span>';
-        tMergeChipEls = {};
-        tMergeEl.querySelectorAll('[data-t-merge-num]').forEach((el) => {
-          tMergeChipEls[el.getAttribute('data-t-merge-num')] = el;
-        });
+        if (keepFilt) tMergeEl.appendChild(keepFilt);
+        tMergeChipsEl = tMergeEl.querySelector('.t-merge-chips');
+        tMergeEqEl = tMergeEl.querySelector('.t-merge-eqbrace');
+        tMergeOrderSig = order.join(',');
+        tMergeBindChipEls();
         tMergeCountEl = tMergeEl.querySelector('.t-merge-count');
         tMergeInfoEl = tMergeEl.querySelector('.t-merge-info');
+        tMergeSyncEqBraceStyle();
+        syncTSecDBreakUi();
       }
 
       /**
@@ -12399,6 +12851,8 @@
        * null = không tô xanh trên Δimerge.
        */
       function tMergeAnswerSet() {
+        /* Học tập không được lộ đáp án — giống kỳ rỗng cuối: không tô xanh, toggle màu mọi số. */
+        if (studyMode) return null;
         if (!dataCtx || !dataCtx.ids || !dataCtx.rowNums) return null;
         let focusId = null;
         let mode = '';
@@ -12424,9 +12878,7 @@
         return new Set(ans);
       }
 
-      /** Dòng Δimerge dưới hàng trạng thái: 35 ô CỐ ĐỊNH — số vào chuỗi thì ô sáng lên,
-          chưa vào thì mờ đậm; trùng ĐA id → .is-hit (xanh lá). Mỗi lần cập nhật chỉ
-          toggle class + đổi [N], bố cục đứng yên. */
+      /** Dòng Δimerge: mặc định ô 1..35; mode "={" xếp theo thứ tự vào và cập nhật live khi lọc. */
       function updateTMergeUi() {
         if (!tMergeEl) return;
         if (!tResults.length) {
@@ -12438,12 +12890,17 @@
         const nums = tMergeSyncCounts();
         buildTMergeOnce();
         if (!tMergeChipEls) return;
+        /* Mode entry/count: mỗi lần có số mới / đổi đếm → xếp lại ô ngay. */
+        if (tMergeChipOrderMode === 'entry' || tMergeChipOrderMode === 'count') {
+          tMergeApplyChipOrderForMode();
+        }
+        if (!tMergeChipEls) return;
         tMergeEl.hidden = false;
         const ansSet = tMergeAnswerSet();
         const ansSig = ansSet ? Array.from(ansSet).sort((a, b) => a - b).join(',') : '';
         const sig = nums.join(',') + '|' + tResults.length
           + '|' + Array.from(tMergeSel).sort((a, b) => a - b).join(',')
-          + '|m:' + Array.from(tMergeMark).sort((a, b) => a - b).join(',')
+          + '|m:' + Array.from(tMergeMark.entries()).sort((a, b) => a[0] - b[0]).map((p) => p[0] + p[1]).join(',')
           + '|a:' + ansSig;
         if (tMergeInfoEl) {
           if (!tMergeSel.size) {
@@ -12485,24 +12942,33 @@
           /* Trùng ĐA (id có result): luôn .is-hit — chưa vào Δimerge = xanh siêu mờ; đã vào = xanh đậm. */
           const isHit = !!(ansSet && ansSet.has(n));
           if (el.classList.contains('is-hit') !== isHit) el.classList.toggle('is-hit', isHit);
-          /* Đánh dấu đỏ chỉ hiện khi số đã append; rời chuỗi → gỡ khỏi set. */
-          if (!isIn && tMergeMark.has(n)) tMergeMark.delete(n);
-          const isMark = isIn && tMergeMark.has(n);
+          /* Đỏ/vàng giữ cả khi số đang mờ (không thuộc Δimerge). */
+          const mark = tMergeMark.get(n) || '';
+          const isMark = mark === 'r';
+          const isMarkY = mark === 'y';
           if (el.classList.contains('is-mark') !== isMark) el.classList.toggle('is-mark', isMark);
+          if (el.classList.contains('is-mark-y') !== isMarkY) el.classList.toggle('is-mark-y', isMarkY);
         }
       }
 
       function tMergeVisibleCount() {
         const rows = tMergeSelRowList();
-        if (rows) return rows.length;
+        if (rows) {
+          let v = 0;
+          for (let i = 0; i < rows.length; i++) {
+            const r = tResults[rows[i]];
+            if (r && tRowPassesSecDBreak(r)) v++;
+          }
+          return v;
+        }
         let v = 0;
-        for (let i = 0; i < tResults.length; i++) if (tRowPassesMerge(tResults[i])) v++;
+        for (let i = 0; i < tResults.length; i++) if (tRowPassesSecondary(tResults[i])) v++;
         return v;
       }
 
-      /** Trong các hàng đang hiện (qua lọc Δimerge): đếm point ▲ / ▼. */
+      /** Trong các hàng đang hiện (qua lọc phụ): đếm point ▲ / ▼. */
       function tMergePointStats() {
-        if (tMergeSel.size === 1) {
+        if (tMergeSel.size === 1 && !tSecDBreakRange()) {
           tMergeSyncCounts();
           const n = tMergeSel.values().next().value;
           const pt = tMergePtByNum.get(n);
@@ -12510,9 +12976,19 @@
         }
         let up = 0;
         let down = 0;
+        const rows = tMergeSelRowList();
+        if (rows) {
+          for (let i = 0; i < rows.length; i++) {
+            const r = tResults[rows[i]];
+            if (!r || !tRowPassesSecDBreak(r)) continue;
+            if (r.point === 'up') up++;
+            else if (r.point === 'down') down++;
+          }
+          return { up: up, down: down };
+        }
         for (let i = 0; i < tResults.length; i++) {
           const r = tResults[i];
-          if (!tRowPassesMerge(r)) continue;
+          if (!tRowPassesSecondary(r)) continue;
           if (r.point === 'up') up++;
           else if (r.point === 'down') down++;
         }
@@ -12539,6 +13015,38 @@
           if (st.y > 1.5 * st.x) out.push(n);
         }
         return out;
+      }
+
+      /** Kỳ rỗng cuối (sim) hoặc học tập → tô vàng Δi cho số đang đánh dấu vàng. Đỏ không tô. */
+      function tDseqWantYellow(r) {
+        if (studyMode) return true;
+        if (!r) return false;
+        if (r.mode === 'sim') return true;
+        return !!(simState && r.focusId != null && r.focusId === simState.focusId);
+      }
+
+      /** Chuỗi Δi: số ∈ đáp án bọc span nổi — không thêm ký tự, không đổi thứ tự. */
+      let tDseqAnsSnap = null;
+      let tDseqAnsKey = '';
+      function tDseqNumsHtml(nums, r) {
+        if (!nums || !nums.length) return '—';
+        const key = (studyMode ? 's' : '') + '|' + tResults.length + '|'
+          + (tResults[0] ? tResults[0].focusId : '');
+        if (key !== tDseqAnsKey) {
+          tDseqAnsKey = key;
+          tDseqAnsSnap = tMergeAnswerSet();
+        }
+        const ans = tDseqAnsSnap;
+        const yellowOn = tDseqWantYellow(r);
+        let html = '';
+        for (let i = 0; i < nums.length; i++) {
+          if (i) html += ',';
+          const n = nums[i];
+          if (yellowOn && tMergeMark.get(n) === 'y') html += '<span class="t-dseq-y">' + n + '</span>';
+          else if (ans && ans.has(n)) html += '<span class="t-dseq-ans">' + n + '</span>';
+          else html += String(n);
+        }
+        return html;
       }
 
       function buildTResultRowHtml(r, idx) {
@@ -12591,7 +13099,7 @@
           + '<span class="tl-pool">' + trendHtml + '</span>'
           + '<span class="t-dseq" title="Chuỗi pool hiện \\ pool liền trước (gap thật — khác nút Δ copy khi chỉ có newlyIn)">'
           + '<span class="t-dseq-lab">Δi</span> '
-          + (r.deltaNums.length ? r.deltaNums.join(',') : '—') + '</span>'
+          + tDseqNumsHtml(r.deltaNums, r) + '</span>'
           + '</div>'
           + '</div>';
       }
@@ -12615,7 +13123,7 @@
         tRenderMoreTimer = setTimeout(once, 50);
       }
 
-      /** Append các kết quả mới quét được (chạy đến đâu hiện đến đó, qua lọc phụ Δimerge). */
+      /** Append các kết quả mới quét được (chạy đến đâu hiện đến đó, qua lọc phụ). */
       function renderTResultsAppend() {
         if (!tResultsEl) return;
         /* Chọn 1 số: duyệt theo chỉ mục row (O(khớp)), không quét cả tResults. */
@@ -12629,7 +13137,11 @@
           tRenderedCount++;
           const r = tResults[idx];
           if (!r) continue;
-          if (!src && !tRowPassesMerge(r)) continue;
+          if (src) {
+            if (!tRowPassesSecDBreak(r)) continue;
+          } else if (!tRowPassesSecondary(r)) {
+            continue;
+          }
           html += buildTResultRowHtml(r, idx);
           tRenderedVisible++;
           renderedHere++;
@@ -12639,14 +13151,17 @@
           tCapNoteShown = true;
           tResultsEl.insertAdjacentHTML('beforeend',
             '<div class="t-result" style="cursor:default">… đã hiện ' + T_RENDER_CAP
-            + ' hàng đầu khớp — thu hẹp khoảng lọc / lọc phụ Δimerge để xem tiếp.</div>');
+            + ' hàng đầu khớp — thu hẹp khoảng lọc / lọc phụ Δimerge·|Δ%break| để xem tiếp.</div>');
         }
         updateTMergeUi();
         if (tRenderedCount < srcLen && tRenderedVisible < T_RENDER_CAP) {
           scheduleTRenderMore();
         } else if (tRenderedCount >= srcLen && !tRenderedVisible
-          && !tJobActive && tResults.length && tMergeSel.size) {
-          tResultsEl.innerHTML = '<div class="t-result" style="cursor:default">Không có hàng nào có Δi chứa (các) số đã chọn — click lại số đó để bỏ chọn.</div>';
+          && !tJobActive && tResults.length && (tMergeSel.size || tSecDBreakRange())) {
+          const msg = tMergeSel.size
+            ? 'Không có hàng nào khớp lọc phụ Δimerge / |Δ%break| — nới [a;b] hoặc bỏ chọn số.'
+            : 'Không có hàng nào có |Δ%break| ∈ [a;b] — nới khoảng hoặc tắt lọc phụ.';
+          tResultsEl.innerHTML = '<div class="t-result" style="cursor:default">' + msg + '</div>';
         }
       }
 
@@ -12755,7 +13270,8 @@
         if (tipStoreOpen) rebuildTipStoreList();
         /* Focus kỳ của row + viền xanh lá hàng timeline (cơ chế như click record scan). */
         pendingScanTlHighlight = {
-          label: r.tlPopupLabel || r.tlLabel,
+          t: r.t,
+          label: r.tlLabel,
           focusId: r.focusId,
           mode: r.mode || 'hist',
           tail: trialTail,
@@ -13762,9 +14278,11 @@
           tRenderedVisible = 0;
           tCapNoteShown = false;
           tMergeSel.clear();
-          tMergeMark.clear();
+          tMergeMarkNoteId(focus && focus.focusId);
           tMergeSig = '';
+          resetTSecDBreakDefault();
           tMergeResetIndex();
+          tMergeRestoreNumericChipOrder();
           tAppliedIdx = -1;
           tMergeLastRenderMs = 0;
           tMergeRenderPending = false;
@@ -14040,9 +14558,11 @@
           tRenderedVisible = 0;
           tCapNoteShown = false;
           tMergeSel.clear();
-          tMergeMark.clear();
+          tMergeMarkNoteId(msg.focus && msg.focus.focusId);
           tMergeSig = '';
+          resetTSecDBreakDefault();
           tMergeResetIndex();
+          tMergeRestoreNumericChipOrder();
         }
         tJobStartedAt = Date.now();
         tJobSize = msg.total | 0;
@@ -14199,9 +14719,11 @@
         tRenderedVisible = 0;
         tCapNoteShown = false;
         tMergeSel.clear();
-        tMergeMark.clear();
+        tMergeMarkNoteId(focus.focusId);
         tMergeSig = '';
+        resetTSecDBreakDefault();
         tMergeResetIndex();
+        tMergeRestoreNumericChipOrder();
         tFreeMemos();
         if (tResultsEl) tResultsEl.innerHTML = '';
         updateTMergeUi();
@@ -14573,16 +15095,18 @@
         if (tStopBtn) { tStopBtn.hidden = false; tStopBtn.disabled = false; }
         if (tRunBtn) tRunBtn.hidden = true;
         if (tContBtn) tContBtn.hidden = true;
-        /* keepHits / solo-resume: giữ kết quả; job mới mới xóa. */
+        /* keepHits / solo-resume: giữ kết quả; job mới mới xóa. Dấu đỏ/vàng chỉ quên khi đổi id. */
         if (!resume) {
           if (tResultsEl) tResultsEl.innerHTML = '';
           tRenderedCount = 0;
           tRenderedVisible = 0;
           tCapNoteShown = false;
           tMergeSel.clear();
-          tMergeMark.clear();
+          tMergeMarkNoteId(cfg.focus && cfg.focus.focusId);
           tMergeSig = '';
+          resetTSecDBreakDefault();
           tMergeResetIndex();
+          tMergeRestoreNumericChipOrder();
           tAppliedIdx = -1;
           tMergeLastRenderMs = 0;
           tMergeRenderPending = false;
@@ -15140,6 +15664,11 @@
           if (tJobActive) tBumpUiPause(180);
           if (e.key === 'Enter' && e.target && e.target.tagName === 'INPUT') {
             e.preventDefault();
+            /* Ô lọc phụ |Δ%break| → chỉ áp lại kết quả, không chạy Lọc mới. */
+            if (e.target === tSecDBreakLoEl || e.target === tSecDBreakHiEl) {
+              if (readTSecDBreakFromUi()) applyTSecDBreakFilter();
+              return;
+            }
             startTFilter();
           }
         }, true);
@@ -15495,8 +16024,9 @@
       /* Δimerge: click chữ Δimerge → copy chuỗi a,b,c tăng dần;
          chuột phải chữ Δimerge → copy số thỏa point▼ > 1.5×point▲ (trên hàng chứa số đó);
          click [N] → copy số:số_hàng (có trong Δimerge) + dòng trống + a,b,c:0 (số 1..35 chưa vào);
+         click "={" → toggle xếp theo thứ tự vào ↔ mặc định 1..35;
          click số → chọn ĐÚNG 1 số (click lại = bỏ chọn; click số khác = đổi sang số đó);
-         chuột phải số đã append → bật/tắt nền đỏ (đánh dấu, không lọc). */
+         chuột phải mọi ô (kể cả đang mờ) → mặc định → đỏ → vàng → mặc định (không lọc). */
       if (tMergeEl) {
         tMergeEl.addEventListener('contextmenu', (e) => {
           const lbl = e.target && e.target.closest ? e.target.closest('.t-merge-label') : null;
@@ -15515,13 +16045,30 @@
           e.preventDefault();
           const n = Number(btn.getAttribute('data-t-merge-num'));
           if (!Number.isFinite(n)) return;
-          if (!tMergeCntMap.has(n)) return; /* ô mờ: chưa append → không đánh dấu */
-          if (tMergeMark.has(n)) tMergeMark.delete(n);
-          else tMergeMark.add(n);
+          const cur = tMergeMark.get(n);
+          if (cur === 'r') tMergeMark.set(n, 'y');
+          else if (cur === 'y') tMergeMark.delete(n);
+          else tMergeMark.set(n, 'r');
           tMergeSig = '';
           updateTMergeUi();
+          if (tResults.length && tDseqWantYellow(tResults[0])) {
+            requestAnimationFrame(() => { renderTResults(); });
+          }
+        });
+        tMergeEl.addEventListener('keydown', (e) => {
+          const eq = e.target && e.target.closest ? e.target.closest('.t-merge-eqbrace') : null;
+          if (!eq) return;
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            tMergeToggleEntryOrder();
+          }
         });
         tMergeEl.addEventListener('click', (e) => {
+          const eqEl = e.target && e.target.closest ? e.target.closest('.t-merge-eqbrace') : null;
+          if (eqEl) {
+            tMergeToggleEntryOrder();
+            return;
+          }
           const cntEl = e.target && e.target.closest ? e.target.closest('.t-merge-count') : null;
           if (cntEl) {
             const numsNow = tMergeSyncCounts();
@@ -15588,6 +16135,38 @@
           tBumpUiPause(220);
           requestAnimationFrame(() => { renderTResults(); });
         });
+      }
+      /* Lọc phụ |Δ%break|∈[a;b]: UI giống lọc chính; mặc định [0;100]. */
+      if (tMergeDBreakFilt) {
+        resetTSecDBreakDefault();
+        const tog = tMergeDBreakFilt.querySelector('[data-t-sec-dbreak-tog]');
+        if (tog) {
+          const toggleSec = () => {
+            tSecDBreak.on = tSecDBreak.on === false;
+            syncTSecDBreakUi();
+            applyTSecDBreakFilter();
+          };
+          tog.addEventListener('click', toggleSec);
+          tog.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              toggleSec();
+            }
+          });
+        }
+        tMergeDBreakFilt.querySelectorAll('.tp-spin-btn[data-t-sec-dbreak-d]').forEach((btn) => {
+          const spec = String(btn.getAttribute('data-t-sec-dbreak-d') || '');
+          const parts = spec.split(':');
+          const bound = parts[0] === 'hi' ? 'hi' : 'lo';
+          const d = Number(parts[1]) || 0;
+          bindTrialHoldStep(btn, () => stepTSecDBreak(bound, d));
+        });
+        const onSecInput = () => {
+          if (readTSecDBreakFromUi()) applyTSecDBreakFilter();
+        };
+        /* Enter đã bắt ở #tBack (capture) — ở đây chỉ blur/change. */
+        if (tSecDBreakLoEl) tSecDBreakLoEl.addEventListener('change', onSecInput);
+        if (tSecDBreakHiEl) tSecDBreakHiEl.addEventListener('change', onSecInput);
       }
       if (tResultsEl) {
         tResultsEl.addEventListener('click', (e) => {
