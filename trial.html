@@ -10886,8 +10886,19 @@
       function tMergeMarkRefreshUi() {
         tMergeSig = '';
         updateTMergeUi();
-        if (tResults.length && tDseqWantYellow(tResults[0])) {
-          requestAnimationFrame(() => { renderTResults(); });
+        /* Chỉ sửa span Δi tại chỗ — không renderTResults() kẻo #tResults nhảy về đầu. */
+        if (!tResultsEl || !tResults.length || !tDseqWantYellow(tResults[0])) return;
+        const rows = tResultsEl.querySelectorAll('.t-result[data-t-idx]');
+        for (let i = 0; i < rows.length; i++) {
+          const row = rows[i];
+          const idx = Number(row.getAttribute('data-t-idx')) | 0;
+          const r = tResults[idx];
+          if (!r) continue;
+          const dseq = row.querySelector('.t-dseq');
+          if (!dseq) continue;
+          const html = '<span class="t-dseq-lab">Δi</span> '
+            + tDseqNumsHtml(r.deltaNums, r);
+          if (dseq.innerHTML !== html) dseq.innerHTML = html;
         }
       }
 
@@ -11014,7 +11025,9 @@
       /** Tổng số kết quả khớp (kể cả phần vượt cap lưu). */
       let tHitsTotal = 0;
       /** Chỉ lưu tối đa ngần này kết quả trong RAM (tránh phình khi khớp quá nhiều). */
-      const T_STORE_CAP = 50000;
+      const T_STORE_CAP = 200000;
+      /** Job đang chạy / vừa chạy có bật |Δi|=newlyin không (chốt lúc Lọc). */
+      let tJobDiEqNi = false;
       let tJobSize = 0;
       /** Thông tin job gần nhất (cho tên file tải xuống) — chụp theo cfg lúc job bắt đầu. */
       let tLastJobInfo = null;
@@ -14327,11 +14340,7 @@
           const pushHits = (hits) => {
             for (let h = 0; h < hits.length; h++) {
               const hit = hits[h];
-              const key = tHitKey(hit);
-              if (tSeenHitKeys.has(key)) continue;
-              tSeenHitKeys.add(key);
-              tHitsTotal++;
-              if (tResults.length < T_STORE_CAP) tResults.push(hit);
+              if (!tOfferHit(hit)) continue;
               peerOut.push(hit);
             }
           };
@@ -14494,11 +14503,7 @@
           const pushHits = (hits) => {
             for (let h = 0; h < hits.length; h++) {
               const hit = hits[h];
-              const key = tHitKey(hit);
-              if (tSeenHitKeys.has(key)) continue;
-              tSeenHitKeys.add(key);
-              tHitsTotal++;
-              if (tResults.length < T_STORE_CAP) tResults.push(hit);
+              if (!tOfferHit(hit)) continue;
               peerOut.push(hit);
             }
           };
@@ -14764,13 +14769,24 @@
         publishScanBc(msg);
       }
 
-      function tPyTakeHit(hit) {
+      function tHitPassesJobDiEqNi(hit) {
+        if (!tJobDiEqNi || !hit) return true;
+        return (hit.di | 0) === (hit.niCount | 0);
+      }
+
+      /** Đếm + lưu hit (qua cap / qua |Δi|=newlyin của job). */
+      function tOfferHit(hit) {
+        if (!hit || !tHitPassesJobDiEqNi(hit)) return false;
         const key = tHitKey(hit);
         if (tSeenHitKeys.has(key)) return false;
         tSeenHitKeys.add(key);
         tHitsTotal++;
         if (tResults.length < T_STORE_CAP) tResults.push(hit);
         return true;
+      }
+
+      function tPyTakeHit(hit) {
+        return tOfferHit(hit);
       }
 
       /** Python: 1 não — chỉ lọc thuận (không chia tab thuận/nghịch như JS multi-shard). */
@@ -14838,6 +14854,7 @@
         const focus = cfg.focus;
         const plan = tCfgCursor(cfg);
         const total = plan.total;
+        tJobDiEqNi = !!cfg.diEqNi;
         if (!resume) {
           tResults = [];
           tHitsTotal = 0;
@@ -15169,6 +15186,7 @@
         tJobActive = true;
         tStop = false;
         tResumeState = null;
+        tJobDiEqNi = !!msg.diEqNi;
         if (!msg.keepHits) {
           tResults = [];
           tHitsTotal = 0;
@@ -15334,6 +15352,7 @@
         saveTFilterPrefs();
         /* Lọc lần mới: xóa sạch kết quả + cache memo của lần trước NGAY từ lúc bấm Lọc
            (thay vì chờ job bắt đầu) → bộ nhớ được giải phóng sớm, lần lọc sau không ì. */
+        tJobDiEqNi = !!cfgBase.diEqNi;
         tResults = [];
         tHitsTotal = 0;
         tRenderedCount = 0;
@@ -15582,12 +15601,7 @@
           if (k !== sh.shardIndex && msg.hits && msg.hits.length) {
             let added = false;
             for (let i = 0; i < msg.hits.length; i++) {
-              const hit = msg.hits[i];
-              const key = tHitKey(hit);
-              if (tSeenHitKeys.has(key)) continue;
-              tSeenHitKeys.add(key);
-              tHitsTotal++;
-              if (tResults.length < T_STORE_CAP) tResults.push(hit);
+              if (!tOfferHit(msg.hits[i])) continue;
               added = true;
             }
             if (added) {
@@ -15660,6 +15674,7 @@
         const focus = cfg.focus;
         const plan = tCfgCursor(cfg);
         const total = plan.total;
+        tJobDiEqNi = !!cfg.diEqNi;
         if (!resume) {
           tResults = [];
           tHitsTotal = 0;
@@ -16026,12 +16041,8 @@
             for (let h = 0; h < hits.length; h++) {
               const hit = hits[h];
               /* Luôn khử trùng theo tHitKey (kể cả solo) — chia tab/hỗ trợ không nhân đôi hàng. */
-              const key = tHitKey(hit);
-              if (tSeenHitKeys.has(key)) continue;
-              tSeenHitKeys.add(key);
+              if (!tOfferHit(hit)) continue;
               if (shared) peerOut.push(hit);
-              tHitsTotal++;
-              if (tResults.length < T_STORE_CAP) tResults.push(hit);
             }
           };
           if (myCombos) {
