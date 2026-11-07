@@ -141,6 +141,26 @@
     .threshold .th-label {
       font-weight: 700;
       color: #374151;
+      cursor: pointer;
+      user-select: none;
+      border-radius: 4px;
+      padding: 1px 3px;
+      margin: -1px -3px;
+    }
+
+    .threshold .th-label:hover {
+      background: #f3f4f6;
+    }
+
+    /* Khóa: T-popup không được sửa op/% — chỉ chỉnh tay trên header. */
+    .threshold .th-label.is-locked {
+      color: #9a3412;
+      background: #ffedd5;
+      box-shadow: inset 0 0 0 1px #fdba74;
+    }
+
+    .threshold .th-label.is-locked:hover {
+      background: #fed7aa;
     }
 
     .threshold input {
@@ -2540,6 +2560,12 @@
       padding: 10px 2px 12px; /* chừa chỗ scale(1.5) nổi lên, không clip */
       line-height: 1.9;
       overflow: visible;
+      isolation: isolate; /* giữ z-index lọc phụ trong vùng Δimerge */
+    }
+
+    /* hidden phải thắng mọi display khác — tránh thanh lọc phụ còn hiện khi Δimerge ẩn. */
+    #tMerge[hidden] {
+      display: none !important;
     }
 
     /* Khung viền bọc Δimerge[N]={1..35} — outline/box-shadow không chiếm chỗ → không đổi bố cục. */
@@ -2842,10 +2868,17 @@
       position: absolute;
       right: 2px;
       bottom: 0;
-      z-index: 4;
+      z-index: 2;
       display: inline-flex;
       align-items: center;
       gap: 8px;
+    }
+
+    /* Chưa dựng Δimerge / đang ẩn → không cho thanh lọc phụ bay ra ngoài. */
+    #tMerge[hidden] .t-merge-sec-filts,
+    .t-merge:not(:has(.t-merge-box)) .t-merge-sec-filts,
+    .t-merge-sec-filts[hidden] {
+      display: none !important;
     }
 
     /* Ô a/b lọc phụ gọn hơn lọc chính — không đụng width .t-modal .tp-val. */
@@ -3107,7 +3140,9 @@
       line-height: 0;
     }
 
-    .modal .pool-sub .rest-hit {
+    /* Số ∈ đáp án: rest / pool / nonexist cùng style xanh đậm. */
+    .modal .pool-sub .rest-hit,
+    .modal .sub .rest-hit {
       color: #005000;
       font-weight: 800;
     }
@@ -5004,7 +5039,8 @@
           role="button" tabindex="0" aria-pressed="false">derive_chain — tick khi mệnh đề đúng (hold)</h1>
         <div class="th-trial-group">
           <div class="threshold" title="Chỉ hiện cột có T% thỏa ngưỡng">
-            <span class="th-label">threshold</span>
+            <span class="th-label" id="thLabel" role="button" tabindex="0" aria-pressed="false"
+              title="Click: khóa/mở — khóa thì row lọc T không sửa op/% (vẫn áp tail/wtail/wfreq)">threshold</span>
             <div class="op-dd" id="thOpDd">
               <button type="button" class="op-dd-btn op-ge" id="thOpBtn" aria-haspopup="listbox" aria-expanded="false"
                 aria-label="toán tử ngưỡng">&gt;=</button>
@@ -5792,6 +5828,9 @@
       const TH_LS_KEY = 'ticks.threshold';
       let thOp = '>=';
       let thVal = 70;
+      /** true = khóa threshold: row lọc T không sửa op/%; chỉnh tay trên header vẫn được. */
+      let thLocked = false;
+      const thLabelEl = document.getElementById('thLabel');
 
       function isEmptyResultRow(row) {
         return !String((row && (row.result || row.Result)) || '').trim();
@@ -6401,7 +6440,8 @@
 
       /** Có nút Δ trên mốc này? (hàng đầu pool[0] thường không). */
       function timelineMilestoneHasDelta(m, prevPool) {
-        if (!prevPool || !m) return false;
+        /* prevPool == null: mốc đầu. prevPool=[] vẫn tính Δ (khác Python `not []`). */
+        if (prevPool == null || !m) return false;
         return timelinePoolDeltaNums(m.pool || [], prevPool, m.newlyIn).length > 0;
       }
 
@@ -6530,9 +6570,10 @@
         return parts.join(joiner);
       }
 
-      function formatPoolSubHtml(arr, boldSet, deriveSet, label) {
+      function formatPoolSubHtml(arr, boldSet, deriveSet, label, answerSet) {
         const nums = arr || [];
         const tag = label || 'pool';
+        const ans = answerSet || null;
         let body;
         if (!nums.length) {
           body = tag + '[0] {}';
@@ -6543,6 +6584,7 @@
             const isBold = !!(boldSet && boldSet.has(n));
             let bit = wrapDeriveMarkHtml(String(n), n, deriveSet);
             if (isBold) bit = '<b>' + bit + '</b>';
+            if (ans && ans.has(n)) bit = '<span class="rest-hit">' + bit + '</span>';
             parts.push(bit);
           }
           body = tag + '[' + nums.length + '] {' + parts.join(',') + '}';
@@ -6585,6 +6627,38 @@
           out.push({ num: n, freq: f });
         }
         return out;
+      }
+
+      /** nonexist = số 1..35 có freq = 0 tại cửa sổ đếm của kỳ. */
+      function buildNonexistNums(counts) {
+        if (!counts) return [];
+        const out = [];
+        for (let n = 1; n <= 35; n++) {
+          if ((counts[n] | 0) > 0) continue;
+          out.push(n);
+        }
+        return out;
+      }
+
+      /** Plain text (không tô đáp án) — chỗ chỉ cần chuỗi. */
+      function formatNonexistLine(counts) {
+        const nums = buildNonexistNums(counts);
+        return 'nonexist[' + nums.length + '] {' + nums.join(',') + '}';
+      }
+
+      /** HTML nonexist — số ∈ đáp án = .rest-hit (xanh lá như rest/pool). */
+      function formatNonexistLineHtml(counts, answerSet, deriveSet) {
+        const nums = buildNonexistNums(counts);
+        if (!nums.length) return 'nonexist[0] {}';
+        const ans = answerSet || null;
+        const parts = [];
+        for (let i = 0; i < nums.length; i++) {
+          const n = nums[i];
+          let bit = wrapDeriveMarkHtml(String(n), n, deriveSet);
+          if (ans && ans.has(n)) bit = '<span class="rest-hit">' + bit + '</span>';
+          parts.push(bit);
+        }
+        return 'nonexist[' + nums.length + '] {' + parts.join(',') + '}';
       }
 
       function formatRestSubHtml(restItems, answerSet, deriveSet) {
@@ -7000,10 +7074,6 @@
               studyPicks
             );
             modalSum.hidden = false;
-          }
-          if (modalSub && histIdOnIdx != null && dataCtx) {
-            modalSub.textContent = 'Học tập · id ' + dataCtx.ids[histIdOnIdx]
-              + ' · pick ' + studyPicks.length + '/' + SIM_PHA_PICK_MAX;
           }
           syncSimAffectPhaMarks();
           requestAnimationFrame(() => applyPendingScanTlHighlight());
@@ -8886,7 +8956,16 @@
         modalTitle.textContent = showViolate ? ('Kỳ id ' + focusId) : 'Số bị loại';
         if (modalSub) modalSub.classList.remove('ibrk-tools');
         if (modalEl) modalEl.classList.remove('is-ibrk');
-        if (studyHist) {
+        const deriveSet = deriveSetEarly;
+        /* Học tập: không tô đáp án (tránh lộ) trên rest / pool / nonexist. */
+        const answerSet = studyHist
+          ? null
+          : (opts.answerSet instanceof Set ? opts.answerSet : null);
+        if (showViolate) {
+          modalSub.innerHTML = formatNonexistLineHtml(
+            wCounts, answerSet, studyHist ? null : deriveSet
+          );
+        } else if (studyHist) {
           modalSub.textContent = 'Học tập · id ' + focusId
             + ' · pick ' + studyPicks.length + '/' + SIM_PHA_PICK_MAX;
         } else {
@@ -8896,7 +8975,6 @@
           modalSub.textContent = modeLabel + ' id ' + focusId
             + ' · ' + (colBits.length ? colBits.join(' · ') : '—');
         }
-        const deriveSet = deriveSetEarly;
         const poolMaxArr = Array.isArray(opts.maxPoolNums) ? opts.maxPoolNums : poolArr;
         let tlMilestones = null;
         if (showViolate) {
@@ -8909,10 +8987,6 @@
           syncPopupPoolBold(poolArr);
         }
         if (wCounts) {
-          /* Học tập: rest không tô đáp án (tránh lộ). */
-          const answerSet = studyHist
-            ? null
-            : (opts.answerSet instanceof Set ? opts.answerSet : null);
           modalRest.innerHTML = formatRestSubHtml(
             buildRestItems(poolMaxArr, wCounts),
             answerSet,
@@ -8923,12 +8997,13 @@
           modalRest.hidden = true;
           modalRest.innerHTML = '';
         }
-        // Dòng pool cố định = pool max (cùng nguồn với rest); số ∈ derive → gạch chân.
+        // Dòng pool cố định = pool max (cùng nguồn với rest); ∈ đáp án → xanh như rest.
         modalPool.innerHTML = formatPoolSubHtml(
           poolMaxArr,
           null,
           studyHist ? null : deriveSet,
-          'pool max'
+          'pool max',
+          answerSet
         );
         modalPool.hidden = false;
         let sumHtml;
@@ -12333,6 +12408,8 @@
         }
         syncTUiFromState();
         tBack.hidden = false;
+        /* Đồng bộ lại Δimerge + lọc phụ (tránh thanh |Δi|/|Δ%break| lệch khi bật lại). */
+        if (typeof updateTMergeUi === 'function') updateTMergeUi();
         /* Job đang chạy nền → hiện nút Dừng; xong rồi → nút Lọc (+ Tiếp tục nếu dừng dở). */
         syncTActionButtons();
         syncTParamsLock();
@@ -13488,6 +13565,7 @@
         if (!tMergeEl) return;
         if (!tResults.length) {
           tMergeEl.hidden = true;
+          if (tMergeSecFilts) tMergeSecFilts.hidden = true;
           tMergeSig = '';
           hideTMergeTip();
           return;
@@ -13501,6 +13579,10 @@
         }
         if (!tMergeChipEls) return;
         tMergeEl.hidden = false;
+        if (tMergeSecFilts) {
+          if (tMergeSecFilts.parentElement !== tMergeEl) tMergeEl.appendChild(tMergeSecFilts);
+          tMergeSecFilts.hidden = false;
+        }
         const ansSet = tMergeAnswerSet();
         const ansSig = ansSet ? Array.from(ansSet).sort((a, b) => a - b).join(',') : '';
         const sig = nums.join(',') + '|' + tResults.length
@@ -13884,18 +13966,20 @@
       }
 
       /** Áp row lên header + focus kỳ đó + viền xanh hàng timeline — KHÔNG đóng popup T, KHÔNG dừng lọc.
-       * 3 trọng số + dấu threshold. % ngưỡng: nghịch≤ chỉ nâng khi row > header; thuận≥ chỉ hạ khi row < header. */
+       * 3 trọng số luôn áp. Threshold (op/%): chỉ khi chưa khóa; %: nghịch≤ nâng nếu row>header · thuận≥ hạ nếu row<header. */
       function applyTResult(r, opts) {
         if (!r) return;
         const remote = !!(opts && opts.remote);
-        if (r.op === '>=' || r.op === '<=' || r.op === '=') thOp = r.op;
-        const rowT = clampTh(r.t);
-        if (Number.isFinite(rowT)) {
-          if (thOp === '<=' && rowT > thVal) thVal = rowT;
-          else if (thOp === '>=' && rowT < thVal) thVal = rowT;
+        if (!thLocked) {
+          if (r.op === '>=' || r.op === '<=' || r.op === '=') thOp = r.op;
+          const rowT = clampTh(r.t);
+          if (Number.isFinite(rowT)) {
+            if (thOp === '<=' && rowT > thVal) thVal = rowT;
+            else if (thOp === '>=' && rowT < thVal) thVal = rowT;
+          }
+          applyThresholdToUi();
+          saveThresholdPrefs();
         }
-        applyThresholdToUi();
-        saveThresholdPrefs();
         applyTrialParamsTriple(r.tail, r.wtail, r.wfreq);
         if (tableBundle) applyThresholdColumns();
         if (tipStoreOpen) rebuildTipStoreList();
@@ -14629,7 +14713,9 @@
       let tPyViewer = null; /* { jobId } khi tab phụ chỉ nhận hits qua BC */
       let tPyPoolWs = null;
       let tPyPoolRetryTimer = null;
-      let tPyHeardJobSinceLoad = false; /* chỉ chime nếu từng có job sau khi mở tab */
+      /** Tab này có tham gia đợt lọc hiện tại → mới được kêu khi all-jobs-done.
+       *  Tab lọc xong từ trước (đã kêu / đã dừng) giữ false → không kêu theo đợt mới. */
+      let tPyWantDoneChime = false;
       let tPyAudioCtx = null;
       let tPyChimeLastMs = 0; /* tránh kêu 2 lần (pool WS + job WS) */
 
@@ -14683,8 +14769,17 @@
         } catch (e) { /* ignore */ }
       }
 
+      function tPyArmDoneChime() {
+        tPyWantDoneChime = true;
+      }
+
+      function tPyDisarmDoneChime() {
+        tPyWantDoneChime = false;
+      }
+
       function tPyOnAllJobsDoneMsg() {
-        if (!tPyHeardJobSinceLoad) return;
+        if (!tPyWantDoneChime) return;
+        tPyWantDoneChime = false;
         tPyPlayAllDoneChime();
       }
 
@@ -14820,6 +14915,9 @@
             /* resumeGc gắn vào cfg đã lưu trong tResumeState */
           }
         }
+        if (reason === 'stopped' || reason === 'cancelled' || reason === 'error') {
+          tPyDisarmDoneChime();
+        }
         syncTActionButtons();
         if (tStatusEl) {
           if (reason === 'stopped' || reason === 'cancelled') {
@@ -14939,7 +15037,7 @@
         const jobId = cfg.jobId || ('py-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7));
         cfg.jobId = jobId;
         tPyJobId = jobId;
-        tPyHeardJobSinceLoad = true;
+        tPyArmDoneChime();
         tPyUnlockAudio(); /* gesture Lọc → mở khóa chime (Chrome autoplay) */
         tPyEnsurePoolWatch();
 
@@ -15181,7 +15279,7 @@
         if (!dataCtx || tJobActive) return;
         if (msg.from && msg.from === ensureSimTabId()) return;
         tPyViewer = { jobId: msg.jobId };
-        tPyHeardJobSinceLoad = true;
+        tPyArmDoneChime();
         tPyEnsurePoolWatch();
         tJobActive = true;
         tStop = false;
@@ -22826,13 +22924,40 @@
           if (!o || typeof o !== 'object') return;
           if (o.op === '=' || o.op === '<=' || o.op === '>=') thOp = o.op;
           if (o.val != null) thVal = clampTh(o.val);
+          if (typeof o.locked === 'boolean') thLocked = o.locked;
         } catch (e) { /* ignore */ }
       }
 
       function saveThresholdPrefs() {
         try {
-          localStorage.setItem(TH_LS_KEY, JSON.stringify({ op: thOp, val: thVal }));
+          localStorage.setItem(TH_LS_KEY, JSON.stringify({
+            op: thOp, val: thVal, locked: !!thLocked
+          }));
         } catch (e) { /* ignore */ }
+      }
+
+      function syncThLockUi() {
+        if (!thLabelEl) return;
+        thLabelEl.classList.toggle('is-locked', !!thLocked);
+        thLabelEl.setAttribute('aria-pressed', thLocked ? 'true' : 'false');
+        thLabelEl.title = thLocked
+          ? 'Đang khóa · click để mở — row lọc T không sửa op/% (vẫn áp tail/wtail/wfreq) · chỉnh tay trên header vẫn được'
+          : 'Đang mở · click để khóa — row lọc T được sửa op/%';
+      }
+
+      function setThLocked(next) {
+        const on = !!next;
+        if (on === thLocked) {
+          syncThLockUi();
+          return;
+        }
+        thLocked = on;
+        syncThLockUi();
+        saveThresholdPrefs();
+      }
+
+      function toggleThLocked() {
+        setThLocked(!thLocked);
       }
 
       function syncThOpDropdown() {
@@ -22882,6 +23007,19 @@
 
       loadThresholdPrefs();
       applyThresholdToUi();
+      syncThLockUi();
+      if (thLabelEl) {
+        thLabelEl.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          toggleThLocked();
+        });
+        thLabelEl.addEventListener('keydown', (e) => {
+          if (e.key !== 'Enter' && e.key !== ' ') return;
+          e.preventDefault();
+          toggleThLocked();
+        });
+      }
 
       function pctMeets(pctNum, op, x) {
         if (!Number.isFinite(pctNum)) return false;
