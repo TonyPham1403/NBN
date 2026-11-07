@@ -2848,8 +2848,119 @@
       gap: 8px;
     }
 
+    /* Ô a/b lọc phụ gọn hơn lọc chính — không đụng width .t-modal .tp-val. */
+    .t-merge-sec-filts .tp-val {
+      width: 26px;
+      height: 18px;
+      padding: 0 1px;
+    }
+
+    .t-merge-sec-filts .tp-item {
+      gap: 1px;
+    }
+
+    .t-merge-sec-filts .tp-spin {
+      width: 12px;
+      min-width: 12px;
+    }
+
+    .t-merge-sec-filts .tp-spin-btn {
+      height: 9px;
+      font-size: 8px;
+      line-height: 1;
+    }
+
+    .t-merge-sec-filts .tp-label {
+      margin-right: 1px;
+    }
+
+    .t-merge-sec-filts .scan-in,
+    .t-merge-sec-filts .scan-br,
+    .t-merge-sec-filts .scan-sep {
+      padding: 0;
+      margin: 0;
+    }
+
+    /* = giữa |Δi| và newlyin: chiếm 0 bề ngang (nằm trong gap sẵn có), không đẩy bố cục. */
+    .t-ranges .t-di-eq-ni {
+      flex: 0 0 0;
+      width: 0;
+      height: 1.35em;
+      margin: 0;
+      padding: 0;
+      border: 0;
+      position: relative;
+      z-index: 3;
+      align-self: center;
+      cursor: pointer;
+      user-select: none;
+      background: transparent;
+      color: #94a3b8;
+      font: inherit;
+      font-weight: 800;
+      line-height: 1;
+    }
+
+    .t-ranges .t-di-eq-ni::after {
+      content: '=';
+      position: absolute;
+      left: 50%;
+      /* Hạ ô xuống một chút cho thẳng hàng input; glyph căn giữa ô. */
+      top: calc(50% + 0.12em);
+      transform: translate(-50%, -50%);
+      box-sizing: border-box;
+      width: 1.2em;
+      height: 1.2em;
+      padding: 0;
+      border-radius: 4px;
+      text-align: center;
+      line-height: 1.05em;
+      padding-top: 0.08em;
+      font-weight: 900;
+      font-size: 13px;
+    }
+
+    .t-ranges .t-di-eq-ni:hover::after {
+      color: #0f766e;
+      background: #ecfeff;
+    }
+
+    .t-ranges .t-di-eq-ni.is-on {
+      color: #fff;
+    }
+
+    .t-ranges .t-di-eq-ni.is-on::after {
+      color: #fff;
+      background: #ea580c;
+      box-shadow: 0 0 0 1px #c2410c, 0 1px 5px rgba(234, 88, 12, .55);
+    }
+
+    .t-ranges .t-di-eq-ni.is-on:hover::after {
+      color: #fff;
+      background: #c2410c;
+    }
+
+    .t-ranges .t-di-eq-ni.is-blocked {
+      cursor: not-allowed;
+      opacity: .35;
+      pointer-events: none;
+    }
+
+    .t-ranges .t-di-eq-ni.is-blocked::after {
+      background: transparent;
+      box-shadow: none;
+      color: #94a3b8;
+    }
+
     .t-merge-dbreak-filt .scan-br[data-t-sec-dbreak-a] {
       cursor: pointer;
+    }
+
+    .t-merge-dbreak-filt .scan-br[data-t-sec-dbreak-a].is-on {
+      color: #9a3412;
+      background: #ffedd5;
+      border-radius: 3px;
+      box-shadow: 0 0 0 1px #fb923c;
     }
 
     .t-merge-sec-filt,
@@ -2865,11 +2976,23 @@
     }
 
     .t-result .th-tl-row {
-      grid-template-columns: max-content max-content 1fr max-content;
+      position: relative;
+      /* tl-tr + pool trong luồng; Δi absolute sát phải — không bị pool đẩy ra ngoài. */
+      grid-template-columns: max-content minmax(0, 1fr);
+    }
+
+    .t-result .th-tl-row .tl-pool {
+      min-width: 0;
+      overflow: hidden;
     }
 
     .t-result .t-dseq {
-      margin-left: 8px;
+      position: absolute;
+      right: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      z-index: 2;
+      margin-left: 0;
       padding: 2px 8px;
       border-radius: 6px;
       font-family: ui-monospace, Consolas, Menlo, monospace;
@@ -2881,7 +3004,7 @@
       border: 1px solid #2dd4bf;
       box-shadow: 0 1px 0 rgba(13, 148, 136, .2);
       white-space: nowrap;
-      align-self: center;
+      max-width: none;
     }
 
     .t-result .t-dseq .t-dseq-lab {
@@ -2904,6 +3027,14 @@
       background: #ffff00;
       border-radius: 2px;
       box-shadow: 0 0 0 1px #ca8a04;
+    }
+
+    /* Cùng lúc: số đang đánh dấu đỏ — nền đỏ, chữ trắng, không padding. */
+    .t-result .t-dseq .t-dseq-r {
+      color: #fff;
+      background: #dc2626;
+      border-radius: 2px;
+      box-shadow: 0 0 0 1px #b91c1c;
     }
 
     .t-result.is-copied {
@@ -5240,8 +5371,8 @@
           <span class="tp-label scan-param-tog" data-t-sec-dbreak-tog role="button" tabindex="0"
             title="Click: bật/tắt lọc phụ theo |Δ%break| trên kết quả (không chạy lại Lọc)">|Δ%break|</span>
           <span class="scan-in" aria-hidden="true">∈</span>
-          <span class="scan-br" data-t-sec-dbreak-a="min" role="button" tabindex="0"
-            title="Đặt a về mức thấp nhất của khoảng lọc chính">[</span>
+          <span class="scan-br" data-t-sec-dbreak-a="min" role="button" tabindex="0" aria-pressed="false"
+            title="Bật/tắt: giữ a ở mức thấp nhất và cập nhật theo dữ liệu lọc mới">[</span>
           <span class="tp-item">
             <input class="tp-val" id="tSecDBreakLo" type="text" inputmode="decimal" autocomplete="off"
               spellcheck="false" title="a · |Δ%break| ≥ a">
@@ -5263,8 +5394,8 @@
                 aria-label="giảm b">▾</button>
             </span>
           </span>
-          <span class="scan-br" data-t-sec-dbreak-a="max" role="button" tabindex="0"
-            title="Đặt a cao nhất mà Δimerge vẫn còn số (a ≤ b)">]</span>
+          <span class="scan-br" data-t-sec-dbreak-a="max" role="button" tabindex="0" aria-pressed="false"
+            title="Bật/tắt: giữ a cao nhất mà Δimerge còn số, cập nhật theo dữ liệu lọc mới">]</span>
         </span>
         </span>
       </div>
@@ -10653,6 +10784,8 @@
         /* point = mũi tên th×%break trên timeline (so mốc Δ liền trước); pointOn=false = không lọc. */
         point: 'up',
         pointOn: false,
+        /* Bật: chỉ giữ hàng có |Δi| = newlyin. Tắt: không ràng buộc thêm. */
+        diEqNi: false,
         id: '',
         /* Ràng buộc tỉ lệ: a·wtail ≤ wfreq ≤ b·wtail (a,b ∈ [0;1]; gõ tới 3 chữ số, ▴▾ ±0.01). */
         xLo: 0,
@@ -10705,6 +10838,8 @@
        *  Mỗi lần Lọc mới → copy [a;b] lọc chính; chỉ được chỉnh trong khoảng đó. */
       const tSecDBreak = { lo: 0, hi: 100, on: true };
       const tSecDBreakDom = { lo: 0, hi: 100 };
+      /** Khóa a của lọc phụ |Δ%break|: 'min' = [, 'max' = ], null = tắt. Đổi a tay thì nhả. */
+      let tSecDBreakALock = null;
       /** Lọc phụ |Δi|∈[a;b]. Mỗi lần Lọc mới → copy [a;b] lọc chính. */
       const tSecDi = { lo: 0, hi: 35, on: true };
       const tSecDiDom = { lo: 0, hi: 35 };
@@ -10960,6 +11095,7 @@
             trendOn: tState.trendOn !== false,
             point: tState.point,
             pointOn: tState.pointOn !== false,
+            diEqNi: tState.diEqNi === true && tDiEqNiAllowed(),
             id: tState.id || '',
             xLo: tState.xLo,
             xHi: tState.xHi,
@@ -10991,6 +11127,7 @@
           if (p.point === 'up' || p.point === 'down') tState.point = p.point;
           if (typeof p.pointOn === 'boolean') tState.pointOn = p.pointOn;
           else if (p.point === null || p.point === '' || p.point === 'off' || p.point === false) tState.pointOn = false;
+          if (typeof p.diEqNi === 'boolean') tState.diEqNi = p.diEqNi;
           if (typeof p.id === 'string') tState.id = p.id;
           /* x cũ (1 số) = cận trên b, cận dưới a = 0. */
           if (Number.isFinite(p.x) && p.x > 0) tState.xHi = Math.min(1, Math.round(p.x * 1000) / 1000);
@@ -11390,6 +11527,8 @@
           trendOn: tState.trendOn !== false,
           point: tState.pointOn === false ? null : tState.point,
           pointOn: tState.pointOn !== false,
+          /* true = chỉ giữ hàng có |Δi| = newlyin (nút = giữa 2 ô; cần cả 2 đang áp dụng). */
+          diEqNi: tState.diEqNi === true && tDiEqNiAllowed(),
           x: {
             lo: Number.isFinite(tState.xLo) ? tState.xLo : 0,
             hi: isTXValid(tState.xHi) ? tState.xHi : 0.5,
@@ -11459,6 +11598,9 @@
           tState.pointOn = false;
         }
         if (typeof p.pointOn === 'boolean') tState.pointOn = p.pointOn;
+        if (typeof p.diEqNi === 'boolean') tState.diEqNi = p.diEqNi;
+        else if (typeof p['|Δi|=newlyin'] === 'boolean') tState.diEqNi = p['|Δi|=newlyin'];
+        else if (typeof p.diEqNewlyin === 'boolean') tState.diEqNi = p.diEqNewlyin;
         /* x chấp nhận: 1 số (cận trên, a=0) · [a,b] · {lo,hi} · "a/b" dạng phân số cho từng cận. */
         if (p.x != null) {
           let lo = null;
@@ -11605,6 +11747,11 @@
             + makeTBoundHtml(key, 'hi')
             + '<span class="scan-br">]</span></div>';
           if (key === 'dBreak') html += pointHtml;
+          /* = nằm trong gap giữa |Δi| và newlyin — width 0, không đẩy bố cục. */
+          if (key === 'di') {
+            html += '<button type="button" class="t-di-eq-ni" id="tDiEqNi" aria-pressed="false"'
+              + ' title="Tắt: không ràng buộc · Bật: chỉ giữ hàng có |Δi| = newlyin"></button>';
+          }
           return html;
         }).join('');
         tRangesEl.querySelectorAll('.tp-spin-btn').forEach((btn) => {
@@ -11653,6 +11800,41 @@
         }
         T_RANGE_DEFS.forEach(([key]) => syncTRangeOnUi(key));
         syncTConstraintToggleUi();
+        const diEqNiEl = document.getElementById('tDiEqNi');
+        if (diEqNiEl) {
+          const togDiEq = () => {
+            if (!tDiEqNiAllowed()) {
+              tState.diEqNi = false;
+              syncTDiEqNiUi();
+              return;
+            }
+            tState.diEqNi = tState.diEqNi !== true;
+            syncTDiEqNiUi();
+            saveTFilterPrefs();
+          };
+          diEqNiEl.addEventListener('click', togDiEq);
+        }
+        syncTDiEqNiUi();
+      }
+
+      function tDiEqNiAllowed() {
+        return !!(tState.ranges.di && tState.ranges.di.on !== false
+          && tState.ranges.newlyIn && tState.ranges.newlyIn.on !== false);
+      }
+
+      function syncTDiEqNiUi() {
+        const el = document.getElementById('tDiEqNi');
+        if (!el) return;
+        const allow = tDiEqNiAllowed();
+        if (!allow && tState.diEqNi) tState.diEqNi = false;
+        const on = allow && tState.diEqNi === true;
+        el.classList.toggle('is-on', on);
+        el.classList.toggle('is-blocked', !allow);
+        el.disabled = !allow;
+        el.setAttribute('aria-pressed', on ? 'true' : 'false');
+        el.title = allow
+          ? 'Tắt: không ràng buộc · Bật: chỉ giữ hàng có |Δi| = newlyin'
+          : 'Chỉ bật được khi cả |Δi| và newlyin đang áp dụng';
       }
 
       function syncTRangeOnUi(key) {
@@ -11678,6 +11860,10 @@
         if (tSchedLocksKey(key)) return;
         tState.ranges[key].on = tState.ranges[key].on === false;
         syncTRangeOnUi(key);
+        if ((key === 'di' || key === 'newlyIn') && tState.ranges[key].on === false) {
+          tState.diEqNi = false;
+        }
+        syncTDiEqNiUi();
         saveTFilterPrefs();
       }
 
@@ -12107,6 +12293,7 @@
           previewSchedOntoLockedRanges();
           syncTSchedParamLock();
         }
+        syncTDiEqNiUi();
       }
 
       /** Popup T bắt đầu ngay dưới hàng tiêu đề + threshold + 3 tham số (đè lên hàng % của header). */
@@ -12200,6 +12387,7 @@
             pointWant: (c.pointWant === 'up' || c.pointWant === 'down')
               ? c.pointWant
               : (sh.pointWant === 'up' || sh.pointWant === 'down' ? sh.pointWant : null),
+            diEqNi: !!(c.diEqNi != null ? c.diEqNi : sh.diEqNi),
             thThuanSnap: c.thThuanSnap != null ? c.thThuanSnap : sh.thThuanSnap,
             schedSlots: c.schedSlots || null
           },
@@ -12451,7 +12639,7 @@
       }
 
       /** Đo 1 combo: mốc có nhãn Δ, trend/point/|Δ%break| so mốc trước, |Δi|/newlyin/i[n]. */
-      function tEvalOneCombo(combo, focus, trendWant, pointWant, rb, rd, rdi, rni, rpn, live, seq, thThuan) {
+      function tEvalOneCombo(combo, focus, trendWant, pointWant, rb, rd, rdi, rni, rpn, live, seq, thThuan, diEqNi) {
         if (seq !== tSeq || !dataCtx) return [];
         noteTSchedComboUi(combo);
         const { ids } = dataCtx;
@@ -12567,6 +12755,13 @@
             }
             const niCount = (m.newlyIn || []).length;
             if (niCount < rni.lo || niCount > rni.hi) {
+              if (thNow != null && pct != null) {
+                prevLblTh = thNow;
+                prevLblPct = pct;
+              }
+              continue;
+            }
+            if (diEqNi && deltaNums.length !== niCount) {
               if (thNow != null && pct != null) {
                 prevLblTh = thNow;
                 prevLblPct = pct;
@@ -12742,8 +12937,10 @@
         tSecDi.lo = di.lo;
         tSecDi.hi = di.hi;
         tSecDi.on = true;
+        tSecDBreakALock = null;
         tMergeSecBandSig = '';
         syncTSecDBreakUi();
+        syncTSecDBreakALockUi();
         syncTSecDiUi();
       }
 
@@ -12886,6 +13083,7 @@
 
       function stepTSecDBreak(bound, d) {
         if (!d || tSecDBreak.on === false) return;
+        if (bound === 'lo') clearTSecDBreakALock();
         readTSecDBreakFromUi();
         let cur = tSecDBreak[bound];
         if (cur == null || !Number.isFinite(cur)) {
@@ -12919,22 +13117,19 @@
       }
 
       /**
-       * [ → a = mép dưới lọc chính.
-       * ] → a lớn nhất (1 chữ số thập phân, a ≤ b) sao cho Δimerge còn số.
+       * [ đang bật → a = số nguyên thấp nhất trong khoảng.
+       * ] đang bật → a = số nguyên lớn nhất (a ≤ b) sao cho Δimerge còn số.
+       * @returns {number|null} null = ] chưa có hàng để bám.
        */
-      function snapTSecDBreakA(mode) {
-        readTSecDBreakFromUi();
+      function computeTSecDBreakALocked() {
         const domLo = tSecDBreakDom.lo;
         let hi = tSecDBreak.hi;
         if (hi == null || !Number.isFinite(hi)) hi = tSecDBreakDom.hi;
-        if (mode === 'min') {
-          let lo = domLo;
-          if (lo > hi) lo = hi;
-          if (tSecDBreak.lo === lo) return;
-          tSecDBreak.lo = lo;
-          syncTSecDBreakUi();
-          applyTSecDBreakFilter();
-          return;
+        const loInt = Math.ceil(domLo - 1e-9);
+        const hiInt = Math.floor(hi + 1e-9);
+        if (tSecDBreakALock === 'min') {
+          if (loInt <= hi) return loInt;
+          return hiInt >= domLo ? hiInt : loInt;
         }
         let best = null;
         for (let i = 0; i < tResults.length; i++) {
@@ -12944,21 +13139,45 @@
           if (!Number.isFinite(v) || v > hi + 1e-6 || v < domLo - 1e-6) continue;
           if (best == null || v > best) best = v;
         }
-        if (best == null) {
-          flashTBad(tSecDBreakLoEl);
-          return;
-        }
-        let a = Math.floor((best + 1e-8) * 10) / 10;
-        if (a > hi) a = hi;
-        if (a < domLo) a = domLo;
-        if (a > best) a = best;
-        tSecDBreak.lo = a;
-        syncTSecDBreakUi();
-        applyTSecDBreakFilter();
+        if (best == null) return null;
+        let a = Math.floor(best + 1e-9);
+        if (a > hi) a = hiInt;
+        if (a < domLo) a = loInt;
+        if (a > best) a = Math.floor(best);
+        return a;
       }
+
+      function syncTSecDBreakALockUi() {
+        if (!tMergeDBreakFilt) return;
+        tMergeDBreakFilt.querySelectorAll('[data-t-sec-dbreak-a]').forEach((br) => {
+          const mode = br.getAttribute('data-t-sec-dbreak-a') === 'min' ? 'min' : 'max';
+          const on = tSecDBreakALock === mode;
+          br.classList.toggle('is-on', on);
+          br.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+      }
+
+      function clearTSecDBreakALock() {
+        if (!tSecDBreakALock) return;
+        tSecDBreakALock = null;
+        syncTSecDBreakALockUi();
+      }
+
+      /** Áp khóa [ hoặc ] lên a. true = a vừa đổi. */
+      function followTSecDBreakA() {
+        if (!tSecDBreakALock || tSecDBreak.on === false) return false;
+        const next = computeTSecDBreakALocked();
+        if (next == null || tSecDBreak.lo === next) return false;
+        tSecDBreak.lo = next;
+        syncTSecDBreakUi();
+        return true;
+      }
+
+      let tSecDBreakARestarting = false;
 
       function applyTSecDBreakFilter() {
         /* Đổi [a;b] → rebuild Δimerge; giữ mode "={"; updateTMergeUi sẽ xếp lại count/entry. */
+        if (!tSecDBreakARestarting) followTSecDBreakA();
         tMergeResetIndex();
         tMergeSig = '';
         tBumpUiPause(180);
@@ -13401,7 +13620,7 @@
         return out;
       }
 
-      /** Kỳ rỗng cuối (sim) hoặc học tập → tô vàng Δi cho số đang đánh dấu vàng. Đỏ không tô. */
+      /** Kỳ rỗng cuối (sim) hoặc học tập → tô đỏ/vàng Δi theo dấu trên Δimerge. */
       function tDseqWantYellow(r) {
         if (studyMode) return true;
         if (!r) return false;
@@ -13426,7 +13645,9 @@
         for (let i = 0; i < nums.length; i++) {
           if (i) html += ',';
           const n = nums[i];
-          if (yellowOn && tMergeMark.get(n) === 'y') html += '<span class="t-dseq-y">' + n + '</span>';
+          const mark = yellowOn ? tMergeMark.get(n) : '';
+          if (mark === 'r') html += '<span class="t-dseq-r">' + n + '</span>';
+          else if (mark === 'y') html += '<span class="t-dseq-y">' + n + '</span>';
           else if (ans && ans.has(n)) html += '<span class="t-dseq-ans">' + n + '</span>';
           else html += String(n);
         }
@@ -13510,6 +13731,18 @@
       /** Append các kết quả mới quét được (chạy đến đâu hiện đến đó, qua lọc phụ). */
       function renderTResultsAppend() {
         if (!tResultsEl) return;
+        /* [ hoặc ] đang bật: a bám dữ liệu mới. a đổi → vẽ lại từ đầu, bỏ hàng không còn khớp. */
+        if (!tSecDBreakARestarting && followTSecDBreakA()) {
+          tSecDBreakARestarting = true;
+          try {
+            tMergeResetIndex();
+            tMergeSig = '';
+            renderTResults();
+          } finally {
+            tSecDBreakARestarting = false;
+          }
+          return;
+        }
         /* Chọn 1 số: duyệt theo chỉ mục row (O(khớp)), không quét cả tResults. */
         const src = tMergeSelRowList();
         const srcLen = src ? src.length : tResults.length;
@@ -14145,7 +14378,7 @@
             while (ci < buf.length && helpDone < remainOf()
               && !tStop && performance.now() - t0 < budget) {
               if (tShouldYieldToUi()) break;
-              const hits = tEvalOneCombo(buf[ci], cfg.focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
+              const hits = tEvalOneCombo(buf[ci], cfg.focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap, !!cfg.diEqNi);
               ci++;
               helpDone++;
               if ((helpDone & 15) === 0) tTrimMemos();
@@ -14159,7 +14392,7 @@
               if (!combo) { gc = total; break; }
               gc++;
               helpDone++;
-              const hits = tEvalOneCombo(combo, cfg.focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
+              const hits = tEvalOneCombo(combo, cfg.focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap, !!cfg.diEqNi);
               if ((helpDone & 15) === 0) tTrimMemos();
               pushHits(hits);
             }
@@ -14273,7 +14506,7 @@
             while (ci < myCombos.length && !tStop && performance.now() - t0 < budget) {
               if (tShouldYieldToUi()) break;
               localDone++;
-              const hits = tEvalOneCombo(myCombos[ci++], cfg.focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
+              const hits = tEvalOneCombo(myCombos[ci++], cfg.focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap, !!cfg.diEqNi);
               if ((localDone & 15) === 0) tTrimMemos();
               pushHits(hits);
             }
@@ -14286,7 +14519,7 @@
               gc++;
               if (!mine) continue;
               localDone++;
-              const hits = tEvalOneCombo(combo, cfg.focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
+              const hits = tEvalOneCombo(combo, cfg.focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap, !!cfg.diEqNi);
               if ((localDone & 15) === 0) tTrimMemos();
               pushHits(hits);
             }
@@ -14703,6 +14936,7 @@
             xLo: cfg.xLo, xHi: cfg.xHi, mulLo: cfg.mulLo, mulHi: cfg.mulHi,
             xOn: cfg.xOn, xtOn: cfg.xtOn,
             trend: cfg.trendWant, point: cfg.pointWant,
+            diEqNi: !!cfg.diEqNi,
             thThuan: cfg.thThuanSnap,
             schedSlots: cfg.schedSlots || null,
             total: total,
@@ -14744,6 +14978,7 @@
               xLo: cfg.xLo, xHi: cfg.xHi, mulLo: cfg.mulLo, mulHi: cfg.mulHi,
               xOn: cfg.xOn, xtOn: cfg.xtOn,
               trendWant: cfg.trendWant, pointWant: cfg.pointWant,
+              diEqNi: !!cfg.diEqNi,
               thThuanSnap: cfg.thThuanSnap,
               schedSlots: cfg.schedSlots || null,
               resumeGc: resumeGc
@@ -15082,6 +15317,7 @@
           xtOn: tState.xtOn !== false,
           trendWant: tEffTrendWant(),
           pointWant: tEffPointWant(),
+          diEqNi: tState.diEqNi === true && tDiEqNiAllowed(),
           thThuanSnap: tState.thThuan,
           schedSlots: null
         };
@@ -15178,6 +15414,7 @@
               rb: cfgBase.rb, rd: cfgBase.rd, rdi: cfgBase.rdi, rni: cfgBase.rni, rpn: cfgBase.rpn,
               xLo: cfgBase.xLo, xHi: cfgBase.xHi, mulLo: cfgBase.mulLo, mulHi: cfgBase.mulHi,
               xOn: cfgBase.xOn, xtOn: cfgBase.xtOn, trend: cfgBase.trendWant, point: cfgBase.pointWant,
+              diEqNi: !!cfgBase.diEqNi,
               thThuan: cfgBase.thThuanSnap,
               schedSlots: cfgBase.schedSlots || null,
               schedOn: !!(cfgBase.schedSlots && cfgBase.schedSlots.length),
@@ -15219,6 +15456,7 @@
         } else {
           tState.pointOn = false;
         }
+        tState.diEqNi = msg.diEqNi === true;
         tState.xLo = (Number.isFinite(msg.xLo) && msg.xLo >= 0 && msg.xLo <= 1) ? msg.xLo : 0;
         tState.xHi = isTXValid(msg.xHi) ? msg.xHi : (isTXValid(msg.x) ? msg.x : 0.5);
         tState.tailMulLo = (Number.isFinite(msg.mulLo) && msg.mulLo >= 1) ? Math.floor(msg.mulLo) : null;
@@ -15275,6 +15513,7 @@
           xtOn: tState.xtOn !== false,
           trendWant: tEffTrendWant(),
           pointWant: tEffPointWant(),
+          diEqNi: tState.diEqNi === true,
           thThuanSnap: tState.thThuan,
           schedSlots: remoteSched
         }, resumeOpts ? { resume: resumeOpts } : undefined);
@@ -15521,6 +15760,7 @@
             focus: focus,
             trendWant: cfg.trendWant,
             pointWant: cfg.pointWant,
+            diEqNi: !!cfg.diEqNi,
             thThuanSnap: cfg.thThuanSnap,
             cfg: cfg,
             startedAt: (resume && resume.startedAt) || now,
@@ -15800,7 +16040,7 @@
               && !tStop && performance.now() - t0 < budget) {
               if (tShouldYieldToUi()) break;
               localDone++;
-              const hits = tEvalOneCombo(myCombos[ci++], focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
+              const hits = tEvalOneCombo(myCombos[ci++], focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap, !!cfg.diEqNi);
               if ((localDone & 15) === 0) tTrimMemos();
               takeHits(hits);
             }
@@ -15830,7 +16070,7 @@
               gc++;
               if (!mine) continue;
               localDone++;
-              const hits = tEvalOneCombo(combo, focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap);
+              const hits = tEvalOneCombo(combo, focus, cfg.trendWant, cfg.pointWant, cfg.rb, cfg.rd, cfg.rdi, cfg.rni, cfg.rpn || { lo: 0, hi: 35 }, live, seq, cfg.thThuanSnap, !!cfg.diEqNi);
               if ((localDone & 15) === 0) tTrimMemos();
               takeHits(hits);
             }
@@ -16051,6 +16291,7 @@
             e.preventDefault();
             /* Ô lọc phụ |Δ%break| / |Δi| → chỉ áp lại kết quả, không chạy Lọc mới. */
             if (e.target === tSecDBreakLoEl || e.target === tSecDBreakHiEl) {
+              if (e.target === tSecDBreakLoEl) clearTSecDBreakALock();
               if (readTSecDBreakFromUi()) applyTSecDBreakFilter();
               return;
             }
@@ -16178,6 +16419,7 @@
             rb: cfgBase.rb, rd: cfgBase.rd, rdi: cfgBase.rdi, rni: cfgBase.rni, rpn: cfgBase.rpn,
             xLo: cfgBase.xLo, xHi: cfgBase.xHi, mulLo: cfgBase.mulLo, mulHi: cfgBase.mulHi,
             xOn: cfgBase.xOn, xtOn: cfgBase.xtOn, trend: cfgBase.trendWant, point: cfgBase.pointWant,
+            diEqNi: !!cfgBase.diEqNi,
             thThuan: cfgBase.thThuanSnap,
             schedSlots: cfgBase.schedSlots || null,
             schedOn: !!(cfgBase.schedSlots && cfgBase.schedSlots.length),
@@ -16558,15 +16800,24 @@
           const d = Number(parts[1]) || 0;
           bindTrialHoldStep(btn, () => stepTSecDBreak(bound, d));
         });
-        const onSecInput = () => {
+        const onSecInput = (e) => {
+          if (e && e.target === tSecDBreakLoEl) clearTSecDBreakALock();
           if (readTSecDBreakFromUi()) applyTSecDBreakFilter();
         };
         /* Enter đã bắt ở #tBack (capture) — ở đây chỉ blur/change. */
-        if (tSecDBreakLoEl) tSecDBreakLoEl.addEventListener('change', onSecInput);
+        if (tSecDBreakLoEl) {
+          tSecDBreakLoEl.addEventListener('input', () => clearTSecDBreakALock());
+          tSecDBreakLoEl.addEventListener('change', onSecInput);
+        }
         if (tSecDBreakHiEl) tSecDBreakHiEl.addEventListener('change', onSecInput);
         tMergeDBreakFilt.querySelectorAll('[data-t-sec-dbreak-a]').forEach((br) => {
           const mode = br.getAttribute('data-t-sec-dbreak-a') === 'min' ? 'min' : 'max';
-          const go = () => { if (tSecDBreak.on !== false) snapTSecDBreakA(mode); };
+          const go = () => {
+            if (tSecDBreak.on === false) return;
+            tSecDBreakALock = tSecDBreakALock === mode ? null : mode;
+            syncTSecDBreakALockUi();
+            if (tSecDBreakALock) applyTSecDBreakFilter();
+          };
           br.addEventListener('click', go);
           br.addEventListener('keydown', (e) => {
             if (e.key === 'Enter' || e.key === ' ') {
