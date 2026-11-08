@@ -1528,6 +1528,7 @@
     }
 
     .modal {
+      position: relative; /* neo tip pin absolute — scroll theo nội dung popup kỳ */
       background: #fff;
       color: #111;
       box-sizing: border-box;
@@ -3532,8 +3533,9 @@
       background: rgba(254, 242, 242, .16);
     }
 
-    /* Bản gắn (chuột phải): kéo được · nút × góc phải */
+    /* Bản gắn (chuột phải): absolute trong .modal → dính timeline khi scroll popup */
     .delta-tip.delta-tip-pin {
+      position: absolute;
       z-index: 10060;
       display: flex;
       align-items: center;
@@ -4461,9 +4463,9 @@
       padding: 12px 8px;
     }
 
-    /* Pin kết quả calculate — xanh dương; kích thước khớp delta tip */
+    /* Pin kết quả calculate — absolute trong .modal (cùng neo với Δ pin) */
     .cal-tip.cal-tip-pin {
-      position: fixed;
+      position: absolute;
       z-index: 10080;
       display: flex;
       align-items: center;
@@ -5040,7 +5042,7 @@
         <div class="th-trial-group">
           <div class="threshold" title="Chỉ hiện cột có T% thỏa ngưỡng">
             <span class="th-label" id="thLabel" role="button" tabindex="0" aria-pressed="false"
-              title="Click: khóa/mở — khóa thì row lọc T không sửa op/% (vẫn áp tail/wtail/wfreq)">threshold</span>
+              title="Click: khóa/mở — khóa: row T không sửa op/% · không sync lọc T với phòng">threshold</span>
             <div class="op-dd" id="thOpDd">
               <button type="button" class="op-dd-btn op-ge" id="thOpBtn" aria-haspopup="listbox" aria-expanded="false"
                 aria-label="toán tử ngưỡng">&gt;=</button>
@@ -5056,7 +5058,7 @@
             <span class="unit">%</span>
           </div>
           <div class="trial-params" id="trialParamsBar"
-            title="Tham số thử nghiệm · đổi → tính lại toàn bảng · Dbclick vùng trống/nhãn (không phải ô nhập hay ▴▾) = paste a,b,c hoặc a,b,c|id (vd 3,196,14|958)">
+            title="Tham số thử nghiệm · đổi → tính lại toàn bảng · Dbclick vùng trống/nhãn = paste a,b,c(|id) · Chuột phải vùng trống/nhãn = copy a,b,c (không phải ô nhập hay ▴▾)">
             <div class="tp-item" title="Số lượng tail muốn tính (k-tail)">
               <span class="tp-label">tail</span>
               <input class="tp-val" id="trialTailVal" type="text" inputmode="numeric" autocomplete="off" spellcheck="false"
@@ -5828,9 +5830,13 @@
       const TH_LS_KEY = 'ticks.threshold';
       let thOp = '>=';
       let thVal = 70;
-      /** true = khóa threshold: row lọc T không sửa op/%; chỉnh tay trên header vẫn được. */
+      /** true = khóa threshold: row lọc T không sửa op/%; chỉnh tay trên header vẫn được.
+       *  Tab khóa cũng không sync quá trình lọc T (params/job/Python) với phòng. */
       let thLocked = false;
       const thLabelEl = document.getElementById('thLabel');
+      function tFilterSyncEnabled() {
+        return !thLocked;
+      }
 
       function isEmptyResultRow(row) {
         return !String((row && (row.result || row.Result)) || '').trim();
@@ -8874,6 +8880,20 @@
         }
       }
 
+      /** Hit lọc T (≥/≤) khớp chiều threshold header tab này? (= hoặc thiếu op → không). */
+      function tHitMatchesHeaderThDir(hit) {
+        if (!hit) return false;
+        let op = hit.op;
+        if (op !== '>=' && op !== '<=') {
+          if (hit.thThuan === true) op = '>=';
+          else if (hit.thThuan === false) op = '<=';
+          else return false;
+        }
+        if (op === '>=') return thOp === '>=';
+        if (op === '<=') return thOp === '<=';
+        return false;
+      }
+
       function applyPendingScanTlHighlight() {
         if (!modalTimeline || modalTimeline.hidden) return false;
         invalidateScanTlHighlightIfParamsDrifted();
@@ -8882,6 +8902,11 @@
         });
         const pending = pendingScanTlHighlight;
         if (!pending) return false;
+        /* Row T: chỉ tô viền khi chiều threshold tab = chiều lọc T (tab sync khác chiều → khỏi). */
+        if (pending.fromT && !tHitMatchesHeaderThDir(pending)) {
+          pendingScanTlHighlight = null;
+          return false;
+        }
         /* Click hàng lọc T: khớp đúng mốc theo % ngưỡng (t). Nhãn i/k/j phụ thuộc độ dài
            timeline đang vẽ — tlPopupLabel của tiền tố cắt tại hit luôn là j1 = hàng cuối. */
         let row = null;
@@ -13970,6 +13995,9 @@
       function applyTResult(r, opts) {
         if (!r) return;
         const remote = !!(opts && opts.remote);
+        /* Click row T → xóa tip Δ/cal pin của điểm ảnh trước (không mang bong bóng kỳ/mốc cũ). */
+        hideDeltaTip();
+        discardTipPinsForIdChange();
         if (!thLocked) {
           if (r.op === '>=' || r.op === '<=' || r.op === '=') thOp = r.op;
           const rowT = clampTh(r.t);
@@ -13983,17 +14011,25 @@
         applyTrialParamsTriple(r.tail, r.wtail, r.wfreq);
         if (tableBundle) applyThresholdColumns();
         if (tipStoreOpen) rebuildTipStoreList();
-        /* Focus kỳ của row + viền xanh lá hàng timeline (cơ chế như click record scan). */
-        pendingScanTlHighlight = {
-          t: r.t,
-          label: r.tlLabel,
-          focusId: r.focusId,
-          mode: r.mode || 'hist',
-          tail: trialTail,
-          wtail: trialWtail,
-          wfreq: trialWfreq,
-          thThuan: r.op === '>='
-        };
+        /* Viền xanh ix: chỉ khi chiều threshold tab khớp chiều lọc T (thuận≥ / nghịch≤).
+         * Tab sync khác chiều vẫn nhận params + mở kỳ, nhưng không tô viền. */
+        const paintTlGreen = tHitMatchesHeaderThDir(r);
+        if (paintTlGreen) {
+          pendingScanTlHighlight = {
+            t: r.t,
+            label: r.tlLabel,
+            focusId: r.focusId,
+            mode: r.mode || 'hist',
+            tail: trialTail,
+            wtail: trialWtail,
+            wfreq: trialWfreq,
+            op: r.op,
+            thThuan: r.op === '>=',
+            fromT: true
+          };
+        } else {
+          clearScanTlHighlight();
+        }
         if (r.mode === 'sim') {
           if (typeof openSimElim === 'function') {
             try { openSimElim(); } catch (eOpen) { /* ignore */ }
@@ -14006,10 +14042,12 @@
         }
         /* Popup kỳ mở phía dưới popup T (T luôn nằm trên — cùng z-index, T sau trong DOM). */
         /* finishTrialHeavyRebuild sẽ refresh popup + viền xanh; rAF kép để chắc chắn sau khi popup sơn xong. */
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => applyPendingScanTlHighlight());
-        });
-        /* Tab cùng mã phòng: áp y hệt (header + mở popup kỳ + viền xanh). */
+        if (paintTlGreen) {
+          requestAnimationFrame(() => {
+            requestAnimationFrame(() => applyPendingScanTlHighlight());
+          });
+        }
+        /* Tab cùng mã phòng: sync params + mở kỳ; mỗi tab tự quyết viền xanh theo chiều threshold của nó. */
         if (!remote && simRoomTag) {
           initScanBc();
           publishScanBc({
@@ -15319,6 +15357,8 @@
 
       function handleTPyMsg(msg) {
         if (!msg) return;
+        /* Khóa threshold → không nhận sync lọc Python từ tab phòng. */
+        if (!tFilterSyncEnabled()) return;
         if (msg.type === 't-py-start') {
           startTPyViewer(msg);
           return;
@@ -15476,20 +15516,21 @@
           renderTResults();
           return;
         }
-        /* local-t: Python não — không chia shard tab; có mã phòng chỉ sync hits. */
+        /* local-t: Python não — không chia shard tab; có mã phòng chỉ sync hits (trừ khi khóa threshold). */
         if (tLocalT) {
           runTJobPython(Object.assign({}, cfgBase, {
             role: 'solo', jobId: null, shardIndex: 0, shardCount: 1, roster: []
           }));
           return;
         }
-        if (!simRoomTag) {
+        /* Không mã phòng hoặc khóa threshold → lọc solo, không ghép tab. */
+        if (!simRoomTag || !tFilterSyncEnabled()) {
           runTJobLocal(Object.assign({}, cfgBase, {
             role: 'solo', jobId: null, shardIndex: 0, shardCount: 1, roster: []
           }));
           return;
         }
-        /* Có mã phòng: rủ các tab cùng mã chia việc (tab nào bận/không có data sẽ không trả lời). */
+        /* Có mã phòng: rủ các tab cùng mã chia việc (tab khóa threshold / bận / không data sẽ không trả lời). */
         initScanBc();
         const jobId = 'tj-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 7);
         tJobActive = true;
@@ -15639,6 +15680,8 @@
       /** Nhận hits/progress/done/stop của job T chia shard từ tab khác (gọi từ onScanBcMessage). */
       function handleTSharedMsg(msg) {
         if (!msg) return;
+        /* Khóa threshold → không nhận/ghép sync lọc T từ tab phòng. */
+        if (!tFilterSyncEnabled()) return;
         if (msg.type === 't-params') {
           applyTRemoteParams(msg.params);
           return;
@@ -16457,6 +16500,12 @@
 
       /** Tiếp tục job chia tab: ghép đủ đúng shardCount tab rồi start kèm progress cũ. */
       function continueTSharedFilter(snap) {
+        if (!tFilterSyncEnabled()) {
+          if (tStatusEl) {
+            tStatusEl.textContent = 'Threshold đang khóa — không sync lọc T với phòng. Mở khóa hoặc Tiếp tục solo.';
+          }
+          return;
+        }
         if (!simRoomTag) {
           if (tStatusEl) {
             tStatusEl.textContent = 'Tiếp tục chia tab cần mã phòng «'
@@ -17371,21 +17420,70 @@
         return 'x' + Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
       }
 
+      /** Host neo pin: popup kỳ đang mở → .modal; không thì body (viewport). */
+      function tipPinHost() {
+        if (modalEl && modalBack && !modalBack.hidden && popupKind === 'elim') {
+          return modalEl;
+        }
+        return document.body;
+      }
+
+      function tipPinHostIsModal(host) {
+        return !!(host && host !== document.body && host.classList
+          && host.classList.contains('modal'));
+      }
+
+      /** client (viewport) → toạ độ trong host (cộng scrollLeft/Top nếu modal). */
+      function clientToTipPinLocal(clientX, clientY, host) {
+        const h = host || tipPinHost();
+        if (!tipPinHostIsModal(h)) {
+          return { left: clientX, top: clientY, host: h };
+        }
+        const r = h.getBoundingClientRect();
+        return {
+          left: clientX - r.left + h.scrollLeft,
+          top: clientY - r.top + h.scrollTop,
+          host: h
+        };
+      }
+
       function clampTipPinPos(el, left, top) {
         const tipW = el.offsetWidth || 40;
         const tipH = el.offsetHeight || 24;
         let l = left;
         let t = top;
-        if (l < 4) l = 4;
-        if (t < 4) t = 4;
-        if (l + tipW > window.innerWidth - 4) {
-          l = Math.max(4, window.innerWidth - tipW - 4);
-        }
-        if (t + tipH > window.innerHeight - 4) {
-          t = Math.max(4, window.innerHeight - tipH - 4);
+        const host = el.parentElement;
+        if (tipPinHostIsModal(host)) {
+          const maxL = Math.max(4, (host.scrollWidth || host.clientWidth) - tipW - 4);
+          const maxT = Math.max(4, (host.scrollHeight || host.clientHeight) - tipH - 4);
+          if (l < 4) l = 4;
+          if (t < 4) t = 4;
+          if (l > maxL) l = maxL;
+          if (t > maxT) t = maxT;
+        } else {
+          if (l < 4) l = 4;
+          if (t < 4) t = 4;
+          if (l + tipW > window.innerWidth - 4) {
+            l = Math.max(4, window.innerWidth - tipW - 4);
+          }
+          if (t + tipH > window.innerHeight - 4) {
+            t = Math.max(4, window.innerHeight - tipH - 4);
+          }
         }
         el.style.left = Math.round(l) + 'px';
         el.style.top = Math.round(t) + 'px';
+      }
+
+      /** Đặt pin theo clientX/Y (kéo thả / brace) — đổi sang local host nếu đang trong modal. */
+      function placeTipPinAtClient(el, clientLeft, clientTop) {
+        if (!el) return;
+        const host = el.parentElement || tipPinHost();
+        if (tipPinHostIsModal(host)) {
+          const p = clientToTipPinLocal(clientLeft, clientTop, host);
+          clampTipPinPos(el, p.left, p.top);
+        } else {
+          clampTipPinPos(el, clientLeft, clientTop);
+        }
       }
 
       function parseTipPinPayload(raw) {
@@ -17546,13 +17644,9 @@
         if (tipPinLocalDrag && tipPinLocalDrag.xferId === payload.xferId && tipPinLocalDrag.pin) {
           const pin = tipPinLocalDrag.pin;
           pin._tipDropLocal = true;
-          if (payload.kind === 'delta') {
-            bringDeltaTipPinToFront(pin);
-            clampTipPinPos(pin, left, top);
-          } else {
-            bringCalTipPinToFront(pin);
-            clampTipPinPos(pin, left, top);
-          }
+          if (payload.kind === 'delta') bringDeltaTipPinToFront(pin);
+          else bringCalTipPinToFront(pin);
+          placeTipPinAtClient(pin, left, top);
           return;
         }
         /* Tab khác: tạo pin mới + báo tab nguồn xóa. */
@@ -17613,19 +17707,32 @@
         const delta = [];
         document.querySelectorAll('.delta-tip-pin').forEach((el) => {
           const body = el.querySelector('.delta-tip-pin-body');
-          const rect = el.getBoundingClientRect();
+          const hostLocal = tipPinHostIsModal(el.parentElement);
+          const left = hostLocal
+            ? (parseFloat(el.style.left) || 0)
+            : el.getBoundingClientRect().left;
+          const top = hostLocal
+            ? (parseFloat(el.style.top) || 0)
+            : el.getBoundingClientRect().top;
           delta.push({
             bodyHtml: body ? body.innerHTML : '',
             empty: el.classList.contains('is-empty'),
             markRed: el.classList.contains('is-mark-red'),
-            left: rect.left,
-            top: rect.top
+            left: left,
+            top: top,
+            hostLocal: hostLocal
           });
         });
         const cal = [];
         document.querySelectorAll('.cal-tip-pin').forEach((el) => {
           const body = el.querySelector('.cal-tip-pin-body');
-          const rect = el.getBoundingClientRect();
+          const hostLocal = tipPinHostIsModal(el.parentElement);
+          const left = hostLocal
+            ? (parseFloat(el.style.left) || 0)
+            : el.getBoundingClientRect().left;
+          const top = hostLocal
+            ? (parseFloat(el.style.top) || 0)
+            : el.getBoundingClientRect().top;
           const raw = el.getAttribute('data-cal-nums') || '';
           const nums = [];
           if (raw) {
@@ -17639,8 +17746,9 @@
             nums: nums,
             empty: el.classList.contains('is-empty'),
             bodyHtml: body ? body.innerHTML : '',
-            left: rect.left,
-            top: rect.top
+            left: left,
+            top: top,
+            hostLocal: hostLocal
           });
         });
         return { delta: delta, cal: cal };
@@ -18214,11 +18322,21 @@
         xBtn.textContent = '×';
         pin.appendChild(body);
         pin.appendChild(xBtn);
-        document.body.appendChild(pin);
+        const host = tipPinHost();
+        const rawLeft = opts && opts.left != null ? opts.left : 40;
+        const rawTop = opts && opts.top != null ? opts.top : 40;
+        let localLeft = rawLeft;
+        let localTop = rawTop;
+        if (opts && opts.hostLocal) {
+          /* Snapshot/stash đã lưu toạ độ trong modal. */
+        } else if (tipPinHostIsModal(host)) {
+          const p = clientToTipPinLocal(rawLeft, rawTop, host);
+          localLeft = p.left;
+          localTop = p.top;
+        }
+        host.appendChild(pin);
         bringDeltaTipPinToFront(pin);
-        const left = opts && opts.left != null ? opts.left : 40;
-        const top = opts && opts.top != null ? opts.top : 40;
-        clampTipPinPos(pin, left, top);
+        clampTipPinPos(pin, localLeft, localTop);
         xBtn.addEventListener('click', (e) => {
           e.preventDefault();
           e.stopPropagation();
@@ -18356,9 +18474,9 @@
             /* Căn giữa theo chiều cao dòng pool nếu pin cao hơn chữ. */
             const pinH = pin.offsetHeight || 24;
             const top2 = r2.top + (r2.height - pinH) / 2;
-            clampTipPinPos(pin, r2.left, top2);
+            placeTipPinAtClient(pin, r2.left, top2);
           } else {
-            clampTipPinPos(pin, left, top);
+            placeTipPinAtClient(pin, left, top);
           }
         });
         return true;
@@ -18619,10 +18737,27 @@
             pinPoolBoldTipClone(e.clientX, e.clientY, poolBtn);
           }
         });
-        modalTimeline.addEventListener('scroll', hideDeltaTip, true);
+        /* Scroll trong timeline: neo lại tip theo nút Δ (đừng ẩn / đừng kẹt viewport). */
+        modalTimeline.addEventListener('scroll', () => {
+          refreshDeltaTipAnchor();
+        }, { passive: true });
+      }
+      /** Hover tip: giữ bám nút/brace khi scroll popup kỳ. */
+      function refreshDeltaTipAnchor() {
+        if (!deltaTipBtn || deltaTip.hidden || !deltaTip.classList.contains('is-on')) return;
+        if (!document.body.contains(deltaTipBtn)) {
+          hideDeltaTip();
+          return;
+        }
+        positionDeltaTipAt(deltaTipX, deltaTipY, deltaTipBtn);
+      }
+      if (modalEl) {
+        modalEl.addEventListener('scroll', refreshDeltaTipAnchor, { passive: true });
       }
       window.addEventListener('scroll', () => {
-        if (deltaTipBtn) hideDeltaTip();
+        if (!deltaTipBtn) return;
+        if (modalBack && !modalBack.hidden) refreshDeltaTipAnchor();
+        else hideDeltaTip();
       }, true);
       window.addEventListener('resize', hideDeltaTip);
 
@@ -19028,11 +19163,21 @@
         pin.appendChild(body);
         pin.appendChild(xBtn);
         pin.setAttribute('data-cal-nums', nums.join(','));
-        document.body.appendChild(pin);
+        const host = tipPinHost();
+        const rawLeft = opts && opts.left != null ? opts.left : 60;
+        const rawTop = opts && opts.top != null ? opts.top : 60;
+        let localLeft = rawLeft;
+        let localTop = rawTop;
+        if (opts && opts.hostLocal) {
+          /* Snapshot/stash đã lưu toạ độ trong modal. */
+        } else if (tipPinHostIsModal(host)) {
+          const p = clientToTipPinLocal(rawLeft, rawTop, host);
+          localLeft = p.left;
+          localTop = p.top;
+        }
+        host.appendChild(pin);
         bringCalTipPinToFront(pin);
-        const left = opts && opts.left != null ? opts.left : 60;
-        const top = opts && opts.top != null ? opts.top : 60;
-        clampTipPinPos(pin, left, top);
+        clampTipPinPos(pin, localLeft, localTop);
         xBtn.addEventListener('click', (ev) => {
           ev.preventDefault();
           ev.stopPropagation();
@@ -20162,6 +20307,13 @@
 
       function publishScanBc(payload) {
         if (!payload) return;
+        /* Tab khóa threshold: không phát sync lọc T (vẫn cho t-apply-hit / scan / khác). */
+        const tType = payload.type != null ? String(payload.type) : '';
+        if (!tFilterSyncEnabled()
+          && (tType === 't-params' || tType === 't-peer-hits'
+            || tType.indexOf('t-job-') === 0 || tType.indexOf('t-py-') === 0)) {
+          return;
+        }
         const tag = simRoomTag;
         if (!tag) return;
         const full = Object.assign({
@@ -22941,8 +23093,8 @@
         thLabelEl.classList.toggle('is-locked', !!thLocked);
         thLabelEl.setAttribute('aria-pressed', thLocked ? 'true' : 'false');
         thLabelEl.title = thLocked
-          ? 'Đang khóa · click để mở — row lọc T không sửa op/% (vẫn áp tail/wtail/wfreq) · chỉnh tay trên header vẫn được'
-          : 'Đang mở · click để khóa — row lọc T được sửa op/%';
+          ? 'Đang khóa · click để mở — row T không sửa op/% · không sync lọc T với phòng · chỉnh tay header vẫn được'
+          : 'Đang mở · click để khóa — row T được sửa op/% · có sync lọc T với phòng';
       }
 
       function setThLocked(next) {
@@ -22954,6 +23106,19 @@
         thLocked = on;
         syncThLockUi();
         saveThresholdPrefs();
+        if (thLocked) detachTFilterSyncOnLock();
+      }
+
+      /** Vừa khóa threshold: rời viewer/ghép lọc T đang sync từ phòng. */
+      function detachTFilterSyncOnLock() {
+        if (tRecruitState) {
+          tRecruitState.cancelled = true;
+          tRecruitState = null;
+        }
+        if (tPyViewer && tJobActive) {
+          const total = (tLastJobInfo && tLastJobInfo.total) || 0;
+          tPyFinishUi('stopped', tJobDoneN | 0, total);
+        }
       }
 
       function toggleThLocked() {
@@ -24321,7 +24486,7 @@
       }
 
       /** Dbclick vùng trống/nhãn trên thanh 3 trọng số → paste a,b,c hoặc a,b,c|id.
-          Không paste khi đụng ô nhập / ▴▾ / tỉ số; spam spin không bị hiểu nhầm dblclick. */
+          RMB cùng vùng → copy a,b,c hiện tại. Không đụng ô nhập / ▴▾ / tỉ số. */
       if (trialParamsBarEl && !trialParamsBarEl._trialPasteBound) {
         trialParamsBarEl._trialPasteBound = true;
         let trialParamsControlAt = 0;
@@ -24358,6 +24523,15 @@
             return;
           }
           promptPaste();
+        });
+        trialParamsBarEl.addEventListener('contextmenu', (e) => {
+          if (isTrialParamsControlTarget(e.target)) return;
+          e.preventDefault();
+          e.stopPropagation();
+          const csv = String(trialTail) + ',' + String(trialWtail) + ',' + String(trialWfreq);
+          copyTextToClipboard(csv);
+          trialParamsBarEl.classList.add('is-paste-flash');
+          setTimeout(() => trialParamsBarEl.classList.remove('is-paste-flash'), 500);
         });
       }
 
