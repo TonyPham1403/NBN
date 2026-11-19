@@ -10145,11 +10145,11 @@
                     <div id="filterPopupTail3FreqPicker" class="filter-popup-tail3-freq hidden" role="group"
                         aria-label="3-tail: follow freq → derive freq"
                         aria-hidden="true"
-                        title="Trái: follow freq (trống=any). Nút ≥/=/≤ : dư / đúng / tối đa số khối. Phải: derive freq (trống=any).">
+                        title="Trái: follow freq (trống=any). Số khối = số ô follow (+). ≥/=/≤ so với số partner. ≥1 khối trống = baseline có follow; ≥2+ khối trống siết tối thiểu số partner. Phải: derive freq (trống=any).">
                         <div class="filter-popup-tail3-follow-side">
                             <button type="button" id="filterPopupTail3FollowOp"
                                 class="filter-popup-tail3-follow-op" data-op=">="
-                                title="≥ : ít nhất (được dư). = : đúng số khối. ≤ : tối đa số khối."
+                                title="≥ : partner ≥ số khối (được dư). = : đúng số khối. ≤ : tối đa số khối. Thêm ô (+) để tăng số khối."
                                 aria-label="Toán tử số lượng follow: ≥ / = / ≤">≥</button>
                             <div id="filterPopupTail3FollowList" class="filter-popup-tail3-follow-list"></div>
                             <button type="button" id="filterPopupTail3FollowAdd"
@@ -13334,7 +13334,7 @@
                 return '2-tail: [2-tail]op n = đáp án lấy ≥n cặp từ pool 2-tail[N] (W20)';
             }
             if (isTail3FilterMode(mode)) {
-                return '3-tail: ★ + follow (nút ≥/= số khối) → derive freq; trống = any; vd 1,3 → 1';
+                return '3-tail: ★ + follow (≥/=/≤ × số ô +) → derive freq; trống=any; ≥2 ô trống = tối thiểu N partner';
             }
             if (isPosnfreqFilterMode(mode)) {
                 return 'posnfreq (position + frequency)';
@@ -21750,9 +21750,10 @@ function getFilterNoteTRefMaxSelections(mode) {
                 } else if (typeof sheetManager.rowHasDeterminedFollow === 'function') {
                     isMatch = sheetManager.rowHasDeterminedFollow(rows, idx);
                 }
-                // = / ≤: đỏ chỉ khi text area có ≥1 nhóm đúng arity trái; thiếu → blur (vd toàn đơn khi =2).
+                // ≥2+ / = / ≤: đỏ chỉ khi có nhóm đủ arity trái; thiếu → blur.
+                const nFollow = Array.isArray(followFreqs) ? followFreqs.length : 0;
                 const hasArity = !freqActive
-                    || followOp === '>='
+                    || (followOp === '>=' && nFollow < 2)
                     || (typeof sheetManager.rowHasTail3FollowLeftArity === 'function'
                         && sheetManager.rowHasTail3FollowLeftArity(rows, idx, followFreqs, followOp));
                 const isMiss = freqActive && !isMatch && !isQuestion && hasArity;
@@ -33483,8 +33484,9 @@ function getFilterNoteTRefMaxSelections(mode) {
                     if (isMatch) {
                         matchSet.add(idx);
                     } else if (freqActive && !isQuestion) {
-                        // = / ≤: chỉ đỏ khi text area có nhóm đủ số Y trái; thiếu → blur (không vào miss%).
-                        const hasArity = followOp === '>='
+                        // ≥1 khối: mọi evaluable đều đỏ/xanh được. ≥2+ / = / ≤: thiếu arity → blur.
+                        const nFollow = Array.isArray(followFreqs) ? followFreqs.length : 0;
+                        const hasArity = (followOp === '>=' && nFollow < 2)
                             || (typeof sheetManager.rowHasTail3FollowLeftArity === 'function'
                                 && sheetManager.rowHasTail3FollowLeftArity(
                                     rows, idx, followFreqs, followOp

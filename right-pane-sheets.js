@@ -4422,6 +4422,7 @@ class RightPaneSheetManager {
     /**
      * Text area Y→X: có ≥1 phần tử (mọi derive cand) có số Y trái khớp op vs số khối.
      * `=` N → cần ≥1 nhóm đúng N follow trái; không có → kỳ không applicable (blur, không đỏ).
+     * `>=` N → cần ≥1 nhóm có ≥ N follow trái.
      * @param {object[]} rows
      * @param {number} rowIndex
      * @param {Array<number|null>} followFreqs
@@ -4435,8 +4436,8 @@ class RightPaneSheetManager {
         if (nBlocks < 1) {
             return false;
         }
-        // ≥ không siết arity nhóm — mọi ★ evaluable vẫn applicable.
-        if (op === '>=') {
+        /* ≥1 khối: không siết arity (baseline). ≥2+ khối: cần ≥ N partner. */
+        if (op === '>=' && nBlocks < 2) {
             return true;
         }
         const candidates = this.enumerateTail3CandidateNumsForRow(rows, rowIndex, {
@@ -4447,6 +4448,9 @@ class RightPaneSheetManager {
             const pc = c && Array.isArray(c.partners) ? c.partners.length : 0;
             if (pc < 1) {
                 continue;
+            }
+            if (op === '>=' && pc >= nBlocks) {
+                return true;
             }
             if (op === '=' && pc === nBlocks) {
                 return true;
@@ -4460,7 +4464,7 @@ class RightPaneSheetManager {
 
     /**
      * ★ + follow freqs (Y) → derive freq (X):
-     * - Trái `>=`: partners **ít nhất** phủ freq đã chỉ định (được dư).
+     * - Trái `>=`: số partner ≥ số khối follow + phủ freq đã chỉ định (được dư).
      * - Trái `=`: số partner = đúng số khối follow + phủ freq cụ thể.
      * - Trái `<=`: số partner ≤ số khối follow + phủ freq cụ thể.
      * - Phải: xFreq = deriveFreq (null = any).
@@ -4502,6 +4506,10 @@ class RightPaneSheetManager {
                 }
             } else if (op === '<=') {
                 if (gotY.length > wantY.length) {
+                    continue;
+                }
+            } else if (op === '>=') {
+                if (gotY.length < wantY.length) {
                     continue;
                 }
             }
@@ -14705,7 +14713,9 @@ class RightPaneSheetManager {
 
     /**
      * Active khi: derive cụ thể; hoặc follow có freq cụ thể;
-     * hoặc followOp `=` / `<=` (siết số khối, kể cả khối trống).
+     * hoặc followOp `=` / `<=` (siết số khối, kể cả khối trống);
+     * hoặc `>=` với ≥2 khối (kể cả trống) — siết tối thiểu số partner.
+     * (≥ + đúng 1 khối trống = baseline «có follow», không bật constraint freq.)
      * @param {Array<number|null>} followFreqs
      * @param {number|null} deriveFreq
      * @param {'>='|'='|'<='} [followOp='>=']
@@ -14719,6 +14729,10 @@ class RightPaneSheetManager {
         const follow = RightPaneSheetManager.normalizeTail3FollowFreqs(followFreqs);
         const op = RightPaneSheetManager.normalizeTail3FollowOp(followOp);
         if ((op === '=' || op === '<=') && follow.length >= 1) {
+            return true;
+        }
+        /* ≥2 khối trống với ≥ : khác ≥1 — phải đòi đủ số partner. */
+        if (op === '>=' && follow.length >= 2) {
             return true;
         }
         for (let i = 0; i < follow.length; i++) {
@@ -14754,8 +14768,8 @@ class RightPaneSheetManager {
             }
             remaining.splice(idx, 1);
         }
-        // Không có freq cụ thể bên trái → chỉ cần có partner (derive đã check riêng).
-        return concrete === 0 ? got.length > 0 : true;
+        // Không có freq cụ thể → cần đủ số slot (kể cả null/any); caller `>=` còn siết got.length.
+        return concrete === 0 ? got.length >= want.length : true;
     }
 
     /** @deprecated dùng tail3FreqMultisetCoversAtLeast */
