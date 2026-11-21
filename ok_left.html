@@ -360,6 +360,13 @@
         }
 
         /* Ô đếm block trong header "Các số": RMB = thay bằng clipboard; dblclick = xóa hết. */
+        .manual-block-count-wrap {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            flex-shrink: 0;
+        }
+
         #manualBlockCountLabel {
             font-weight: bold;
             text-align: right;
@@ -371,6 +378,36 @@
         #manualBlockCountLabel.is-bad {
             color: #ff0000 !important;
             animation: manual-block-count-bad-flash 0.28s ease-in-out 4;
+        }
+
+        .manual-block-copy {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0;
+            padding: 0;
+            border: none;
+            background: transparent;
+            color: #94a3b8;
+            cursor: pointer;
+            line-height: 1;
+            opacity: .7;
+        }
+
+        .manual-block-copy svg {
+            width: 0.95em;
+            height: 0.95em;
+            display: block;
+        }
+
+        .manual-block-copy:hover {
+            color: #64748b;
+            opacity: 1;
+        }
+
+        .manual-block-copy.is-ok {
+            color: #16a34a;
+            opacity: 1;
         }
 
         @keyframes manual-block-count-bad-flash {
@@ -8272,6 +8309,45 @@
             refreshManualUiBlockedUi();
         }
 
+        /** Copy số đang tô đen (manual block) dạng a,b,c tăng dần. */
+        function copyManualUiBlockedCsv(btn) {
+            const nums = Array.from(manualUiBlockedSet).sort((a, b) => a - b);
+            if (!nums.length) {
+                flashManualBlockCountBad();
+                return;
+            }
+            const text = nums.join(',');
+            const done = () => {
+                if (!btn) return;
+                btn.innerHTML = REFERENCE_HINT_COPY_OK_ICON;
+                btn.classList.add('is-ok');
+                setTimeout(() => {
+                    btn.innerHTML = REFERENCE_HINT_COPY_ICON;
+                    btn.classList.remove('is-ok');
+                }, 900);
+            };
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(done).catch(() => {
+                    flashManualBlockCountBad();
+                });
+                return;
+            }
+            try {
+                const ta = document.createElement('textarea');
+                ta.value = text;
+                ta.setAttribute('readonly', '');
+                ta.style.position = 'fixed';
+                ta.style.left = '-9999px';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                done();
+            } catch (e) {
+                flashManualBlockCountBad();
+            }
+        }
+
         /** Chuột phải số: bật/tắt UI blocked (nền đen). */
         function toggleManualUiBlocked(n) {
             if (submitActive) return false;
@@ -10477,8 +10553,13 @@
             let blockCount = manualUiBlockedSet.size;
             let blockLabel = '<div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">'
                 + '<span>Các số</span>'
+                + '<span class="manual-block-count-wrap">'
                 + '<span id="manualBlockCountLabel" title="Chuột phải: block theo clipboard · Double-click: bỏ hết block">'
-                + blockCount + '</span></div>';
+                + blockCount + '</span>'
+                + '<button type="button" id="manualBlockCopyBtn" class="manual-block-copy"'
+                + ' title="Copy số đang block (a,b,c)" aria-label="Copy số block">'
+                + REFERENCE_HINT_COPY_ICON + '</button>'
+                + '</span></div>';
             let html = `<table><tr><th>Số lần</th><th>${blockLabel}</th><th>Tổng</th></tr>`;
             let groups = {};
             Object.entries(freq).forEach(([n, f]) => { if (!groups[f]) groups[f] = []; groups[f].push(parseInt(n)); });
@@ -15255,6 +15336,13 @@
                     });
                     leftRoot.addEventListener('click', function (ev) {
                         try {
+                            var copyBtn = findClosestCell(ev.target, '#manualBlockCopyBtn, .manual-block-copy');
+                            if (copyBtn) {
+                                ev.preventDefault();
+                                ev.stopPropagation();
+                                copyManualUiBlockedCsv(copyBtn);
+                                return;
+                            }
                             var el = findClosestCell(ev.target, '.cell.num[data-num]');
                             if (!el) return;
                             // If element already has inline onclick, let it handle the event to avoid double-calls

@@ -895,7 +895,8 @@
       color: #e2e8f0;
     }
 
-    .rest-rate .vr-label-tog {
+    .rest-rate .vr-label-tog,
+    .viol-rate .vr-label-tog {
       margin: 0;
       padding: 0 2px;
       border: 1px solid transparent;
@@ -909,7 +910,8 @@
       line-height: 1.2;
     }
 
-    .rest-rate .vr-label-tog:hover {
+    .rest-rate .vr-label-tog:hover,
+    .viol-rate .vr-label-tog:hover {
       background: rgba(255, 255, 255, .12);
       border-color: rgba(255, 255, 255, .28);
     }
@@ -917,6 +919,11 @@
     .rest-rate.is-skip-empty .vr-label-tog {
       color: #86efac;
       border-color: rgba(134, 239, 172, .45);
+      opacity: 1;
+    }
+
+    .viol-rate .vr-label-tog {
+      color: #fca5a5;
       opacity: 1;
     }
 
@@ -1973,6 +1980,31 @@
       width: min(720px, calc(100vw - 32px));
       max-width: min(720px, calc(100vw - 32px));
       min-width: min(640px, calc(100vw - 32px));
+    }
+
+    /* Tiêu đề %iNbreak: rate + JSON/Lịch (không chữ %iNbreak) */
+    .modal.is-ibrk h2 {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 6px 8px;
+      line-height: 26px;
+      min-height: 26px;
+    }
+
+    .modal.is-ibrk h2 .stats-rate {
+      margin-left: 0;
+    }
+
+    .modal.is-ibrk h2 .t-json-btn,
+    .modal.is-ibrk h2 .t-sched-group {
+      flex: 0 0 auto;
+      vertical-align: middle;
+    }
+
+    .modal.is-ibrk .ibrk-json-wrap,
+    .modal.is-ibrk .ibrk-sched-wrap {
+      margin: 0 0 8px;
     }
 
     .modal.is-stats .id-list {
@@ -6998,8 +7030,9 @@
           <span class="vr-frac" id="sumTailFrac"></span>
         </div>
         <div class="viol-rate" id="chipViolRate"
-          title="quá khứ→hiện tại (MIN_ID→ĐA cuối) · mẫu = kỳ ≥1 luật sống · tử = kỳ ≥1 luật sống mà ≥1 luật không tick · % = tử / mẫu">
-          <span class="vr-label">%break</span>
+          title="quá khứ→hiện tại (MIN_ID→ĐA cuối) · click %breakˣ để đổi công thức ¹/²/³">
+          <button type="button" class="vr-label vr-label-tog" id="btnBreakFormula"
+            title="Click: đổi công thức %break¹ → ² → ³ → ¹">%break³</button>
           <span class="vr-pct" id="sumViolPct">—</span>
           <span class="vr-frac" id="sumViolFrac"></span>
         </div>
@@ -7012,7 +7045,7 @@
           <span class="vr-frac" id="sumRestFrac"></span>
         </div>
         <div class="i1break-rate" id="chipI1BreakRate"
-          title="mẫu = kỳ ≥1 luật sống (cùng %break) · tử = kỳ en>0 mà append break ≥1 số tại iN · theo tail/wtail/wfreq + threshold header · click số % = xem danh sách">
+          title="mẫu cùng %breakˣ trên header · tử = kỳ en>0 mà append break ≥1 số tại iN · theo tail/wtail/wfreq + threshold header · click số % = xem danh sách">
           <span class="vr-label">%</span>
           <select id="iBreakSelect" class="i-break-select" aria-label="Chọn i cho %iNbreak"
             title="Chọn mốc i (i1, i2, …)">
@@ -7109,6 +7142,20 @@
   <div class="modal-back" id="modalBack" hidden>
     <div class="modal" role="dialog" aria-modal="true">
       <h2 id="modalTitle">Số bị loại</h2>
+      <div class="t-json-wrap ibrk-json-wrap" id="ibrkJsonWrap" hidden>
+        <textarea class="t-json-text" id="ibrkJsonText" spellcheck="false" autocomplete="off"
+          placeholder="JSON tham số %iNbreak…"></textarea>
+        <button type="button" class="t-json-copy" id="ibrkJsonCopy" title="Copy nhanh JSON trong ô" aria-label="Copy JSON">
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path fill="currentColor"
+              d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z" />
+          </svg>
+        </button>
+      </div>
+      <div class="t-sched-wrap ibrk-sched-wrap" id="ibrkSchedWrap" hidden>
+        <textarea class="t-sched-text" id="ibrkSchedText" spellcheck="false" autocomplete="off"
+          placeholder="3&#10;w54-980&#10;------------------------&#10;4&#10;13-29"></textarea>
+      </div>
       <div class="sub" id="modalSub"></div>
       <p class="sub pool-sub rest-sub" id="modalRest" hidden></p>
       <p class="sub pool-sub pool-line" id="modalPool" hidden></p>
@@ -7130,7 +7177,7 @@
               d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z" />
           </svg>
         </button>
-        <span class="t-sched-group" title="Lịch: đè tail + wtail theo từng slot; tham số khác lấy từ JSON/bảng">
+        <span class="t-sched-group" title="Lịch: đè tail + mul a-b hoặc wtail tuyệt đối (w54-980); tham số khác lấy JSON/bảng">
           <button type="button" class="t-sched-tog" id="tSchedTog"
             title="Bật/tắt áp dụng lịch khi Lọc" aria-pressed="false" aria-label="Áp dụng lịch">
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -7193,7 +7240,7 @@
       </div>
       <div class="t-sched-wrap" id="tSchedWrap" hidden>
         <textarea class="t-sched-text" id="tSchedText" spellcheck="false" autocomplete="off"
-          placeholder="15&#10;27-38&#10;------------------------&#10;16&#10;28-39"></textarea>
+          placeholder="3&#10;w54-980&#10;------------------------&#10;4&#10;13-29"></textarea>
       </div>
       <div class="t-form">
         <div class="t-row trial-params">
@@ -7496,7 +7543,7 @@
           </svg>
         </button>
         <span class="t-sched-group" id="dpSchedGroup"
-          title="Lịch: mỗi slot đè tail + hệ số mul a–b (a·tail ≤ wtail ≤ b·tail). Khoảng wtail/wfreq vẫn lấy từ bảng — wtail hẹp sẽ làm slot sau = 0 combo.">
+          title="Lịch: mỗi slot đè tail + dòng 2 = mul a-b (a·tail≤wtail≤b·tail) hoặc wtail tuyệt đối w54-980. wfreq/x lấy bảng.">
           <button type="button" class="t-sched-tog" id="dpSchedTog"
             title="Bật/tắt áp dụng lịch khi Calc" aria-pressed="false" aria-label="Áp dụng lịch">
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
@@ -7772,10 +7819,86 @@
       const sumViolPct = document.getElementById('sumViolPct');
       const sumViolFrac = document.getElementById('sumViolFrac');
       const chipViolRate = document.getElementById('chipViolRate');
+      const btnBreakFormula = document.getElementById('btnBreakFormula');
       const sumRestPct = document.getElementById('sumRestPct');
       const sumRestFrac = document.getElementById('sumRestFrac');
       const chipRestRate = document.getElementById('chipRestRate');
       const btnRestToggle = document.getElementById('btnRestToggle');
+      /** Công thức %break: 1=id-range+en0 break · 2=id-range tử siết · 3=mẫu en>0 (mặc định). */
+      const BREAK_FORMULA_LS_KEY = 'trial.breakFormula';
+      const BREAK_FORMULA_SUP = ['', '¹', '²', '³'];
+      let breakFormula = 3;
+      try {
+        const rawBf = localStorage.getItem(BREAK_FORMULA_LS_KEY);
+        const nBf = rawBf != null ? parseInt(rawBf, 10) : 3;
+        if (nBf === 1 || nBf === 2 || nBf === 3) breakFormula = nBf;
+      } catch (eBf) { /* ignore */ }
+      function saveBreakFormula() {
+        try { localStorage.setItem(BREAK_FORMULA_LS_KEY, String(breakFormula)); } catch (e) { /* ignore */ }
+      }
+      function breakFormulaLabel() {
+        return '%break' + (BREAK_FORMULA_SUP[breakFormula] || '³');
+      }
+      function breakFormulaTipBody() {
+        if (breakFormula === 1) {
+          return '¹ mẫu = id cuối ĐA − MIN_ID + 1 · tử = mẫu − kỳ tick đủ (en=0 cũng break)';
+        }
+        if (breakFormula === 2) {
+          return '² mẫu = id cuối ĐA − MIN_ID + 1 · tử = kỳ en>0 ∧ h<en (en=0 không vào tử)';
+        }
+        return '³ mẫu = kỳ ≥1 luật sống (en>0) · tử = en>0 ∧ h<en';
+      }
+      function syncBreakFormulaUi() {
+        if (btnBreakFormula) {
+          btnBreakFormula.textContent = breakFormulaLabel();
+          btnBreakFormula.title = 'Click: đổi công thức ' + breakFormulaLabel()
+            + ' → tiếp theo · ' + breakFormulaTipBody();
+        }
+        if (chipViolRate) {
+          chipViolRate.title = breakFormulaLabel()
+            + ' · quá khứ→hiện tại (MIN_ID→ĐA cuối) · '
+            + breakFormulaTipBody()
+            + ' · click nhãn để đổi ¹/²/³';
+        }
+        if (chipI1BreakRate) {
+          chipI1BreakRate.title = 'mẫu cùng ' + breakFormulaLabel()
+            + ' · tử = kỳ en>0 mà append break ≥1 số tại iN · theo tail/wtail/wfreq + threshold header · click số % = xem danh sách';
+        }
+        syncTBreakPctLabel();
+      }
+      /** Nhãn lọc T %breakˣ — cập nhật khi đổi công thức (sau khi render controls). */
+      function syncTBreakPctLabel() {
+        if (!tRangesEl) return;
+        const lab = tRangesEl.querySelector('[data-t-range="breakPct"] .tp-label');
+        if (lab) lab.textContent = breakFormulaLabel();
+      }
+      function applyBreakFormulaChange() {
+        saveBreakFormula();
+        syncBreakFormulaUi();
+        try {
+          if (tableBundle) {
+            updateSummaryForActive(activePairIndicesAt(thOp, thVal));
+          }
+        } catch (eSum) { /* ignore */ }
+        try { refreshOpenPopupAfterThreshold(); } catch (ePop) { /* ignore */ }
+        try { syncSetPickPctLabels(); } catch (ePick) { /* ignore */ }
+        /* JSON T-popup: đổi tên key %breakˣ cho khớp công thức. */
+        try {
+          if (typeof refreshTJsonText === 'function') refreshTJsonText();
+          if (typeof scheduleTParamsSync === 'function') scheduleTParamsSync();
+        } catch (eJson) { /* ignore */ }
+        /* Họ mã (A≡A3…): sync công thức; trống mã = chỉ local. */
+        try {
+          if (typeof breakFormulaSyncApplying === 'boolean' && !breakFormulaSyncApplying
+            && typeof publishBreakFormula === 'function') {
+            publishBreakFormula();
+          }
+        } catch (ePub) { /* ignore */ }
+      }
+      function cycleBreakFormula() {
+        breakFormula = breakFormula >= 3 ? 1 : ((breakFormula | 0) + 1);
+        applyBreakFormulaChange();
+      }
       const chipI1BreakRate = document.getElementById('chipI1BreakRate');
       const sumI1BreakPct = document.getElementById('sumI1BreakPct');
       const iBreakSelect = document.getElementById('iBreakSelect');
@@ -7900,8 +8023,8 @@
       /** @type {number|null} id đang gắn studyPicks; đổi id → xóa picks. */
       let studyPicksForId = null;
       /**
-       * Hai id hist gần nhất đã click (khác rỗng cuối) — Ctrl+Z xoay vòng A↔B.
-       * focusUndoB = kỳ hiện tại · focusUndoA = kỳ trước đó.
+       * Hai id focus gần nhất (hist hoặc kỳ rỗng/sim) — Ctrl+Z xoay vòng A↔B.
+       * Vào web: B = id rỗng cuối; click/paste id khác → A = rỗng, B = id đó.
        * @type {number|null}
        */
       let focusUndoA = null;
@@ -7949,6 +8072,8 @@
       /** @type {null | { displayIdx: number[], ids: number[], splits: object[], stats: object[], pairLabels: string[], msHint: string }} */
       let tableBundle = null;
       const TH_LS_KEY = 'ticks.threshold';
+      /** Per-tab (sessionStorage): hard refresh giữ chiều/op của đúng tab — không bị tab kia đè qua localStorage chung. */
+      const TH_SS_KEY = 'ticks.threshold.tab';
       const LAW_COLS_LS_KEY = 'trial.lawColsVisible';
       let thOp = '>=';
       let thVal = 70;
@@ -9278,18 +9403,21 @@
         const lastAnsId = lastAnsweredIdForRate();
         const mau = lastAnsId != null ? (lastAnsId - MIN_ID + 1) : 0;
         if (kind === 'poolmax') {
-          /* Cùng %break: mẫu = kỳ en>0 · tử = en>0 ∧ không tick đủ. */
+          /* Cùng %breakˣ trên header. */
           const hit = Array.isArray(breakTickList) ? breakTickList.length : 0;
           const fullN = Array.isArray(fullTickList) ? fullTickList.length : 0;
-          const den = hit + fullN;
-          const pct = den > 0 ? ((100 * hit) / den).toFixed(1) + '%' : '—';
+          const idMau = mau > 0 ? mau : 0;
+          const parts = finalizeBreakPct(hit + fullN, fullN, idMau);
+          const den = parts ? parts.mau : 0;
+          const tu = parts ? parts.tu : 0;
+          const pct = parts ? parts.pct.toFixed(1) + '%' : '—';
           return {
             kind: kind,
-            hit: hit,
+            hit: tu,
             den: den,
             pct: pct,
-            title: '%pick pool max = %break · ' + hit + '/' + den
-              + ' (mẫu = ≥1 luật sống · tử = ≥1 luật không tick)'
+            title: '%pick pool max = ' + breakFormulaLabel() + ' · ' + tu + '/' + den
+              + ' · ' + breakFormulaTipBody()
           };
         }
         if (kind === 'rest') {
@@ -10069,6 +10197,8 @@
       const STUDY_FAMILY_LS_PICKS = 'sua:studyPicks:fam:';
       /** Focus kỳ id theo họ mã — chỉ khi đang học tập. */
       const STUDY_FAMILY_LS_FOCUS = 'sua:focusId:fam:';
+      /** %breakˣ sync theo họ mã (A≡A3…) — không exact-mã, không T-job. */
+      const BREAK_FORMULA_FAMILY_LS = 'sua:breakFormula:fam:';
       const STUDY_FAMILY_BC_NAME = 'sua-study-family-v1';
       /** @type {BroadcastChannel|null} */
       let studyFamilyBc = null;
@@ -10109,6 +10239,8 @@
       let studyPicksLastT = 0;
       let studyFocusSyncApplying = false;
       let studyFocusLastT = 0;
+      let breakFormulaSyncApplying = false;
+      let breakFormulaLastT = 0;
       let scrollSyncApplying = false;
       let roomScrollLastT = 0;
       let scrollPublishTimer = null;
@@ -10683,6 +10815,7 @@
           modalEl.classList.add('is-stats');
           modalEl.classList.toggle('is-ibrk', kind === 'iBreak');
         }
+        if (kind !== 'iBreak') closeIbrkJsonSchedPanels();
         modalBack.hidden = false;
         document.body.classList.add('modal-open');
         applyStatsListFocusHighlight(kind);
@@ -10861,6 +10994,65 @@
         });
       }
 
+      function breakFormulaFamilyStorageKey(tag) {
+        const fam = studyFamilyOf(tag);
+        return fam ? (BREAK_FORMULA_FAMILY_LS + fam) : '';
+      }
+
+      /** Sync %breakˣ theo họ mã (A≡A3…) — trống mã = không sync. */
+      function publishBreakFormula() {
+        if (breakFormulaSyncApplying) return;
+        const tag = simRoomTag;
+        const fam = studyFamilyOf(tag);
+        if (!tag || !fam) return;
+        const payload = {
+          type: 'break-formula',
+          tag: tag,
+          family: fam,
+          formula: breakFormula,
+          t: Date.now(),
+          from: ensureSimTabId()
+        };
+        try {
+          const key = breakFormulaFamilyStorageKey(tag);
+          if (key) localStorage.setItem(key, JSON.stringify(payload));
+        } catch (e) { /* ignore */ }
+        try {
+          if (studyFamilyBc) studyFamilyBc.postMessage(payload);
+        } catch (e2) { /* ignore */ }
+        try {
+          if (simPhaBc) simPhaBc.postMessage(payload);
+        } catch (e3) { /* ignore */ }
+      }
+
+      function applyRemoteBreakFormula(formula, meta) {
+        const n = formula | 0;
+        if (n !== 1 && n !== 2 && n !== 3) return;
+        const t = meta && meta.t != null ? Number(meta.t) : 0;
+        if (t && breakFormulaLastT && t < breakFormulaLastT && !(meta && meta.force)) return;
+        if (t) breakFormulaLastT = t;
+        if (n === breakFormula) return;
+        breakFormulaSyncApplying = true;
+        try {
+          breakFormula = n;
+          applyBreakFormulaChange();
+        } finally {
+          requestAnimationFrame(() => { breakFormulaSyncApplying = false; });
+        }
+      }
+
+      function loadBreakFormulaForFamily(tag) {
+        const key = breakFormulaFamilyStorageKey(tag);
+        if (!key) return;
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw) return;
+          const o = JSON.parse(raw);
+          if (!o || (o.formula !== 1 && o.formula !== 2 && o.formula !== 3)) return;
+          applyRemoteBreakFormula(o.formula, { force: true, t: Number(o.t) || Date.now() });
+        } catch (e) { /* ignore */ }
+      }
+
       /** Sync bật/tắt học tập theo họ mã (A,A3,A14…) — trống mã = không sync. */
       function publishStudyMode() {
         if (studyModeSyncApplying) return;
@@ -10939,6 +11131,7 @@
             if (st) publishStudyFamilyFocus(st, { force: true });
           }
         } catch (e3) { /* ignore */ }
+        try { publishBreakFormula(); } catch (e4) { /* ignore */ }
       }
 
       function handleStudyFamilyMessage(msg) {
@@ -10994,6 +11187,13 @@
           if (Number.isFinite(myId) && Number.isFinite(wantId) && myId === wantId) {
             flashDeltaInferCopyOk();
           }
+          return true;
+        }
+        if (msg.type === 'break-formula') {
+          applyRemoteBreakFormula(msg.formula, {
+            force: true,
+            t: Number(msg.t) || Date.now()
+          });
           return true;
         }
         return false;
@@ -11452,10 +11652,11 @@
           t: stored.t || Date.now()
         });
         }
-        /* Họ mã (A*) → học tập + khoanh + focus (khi đang học); exact mã → scroll/cal/params. */
+        /* Họ mã (A*) → học tập + khoanh + focus (khi đang học) + %breakˣ; exact mã → scroll/cal/params. */
         loadStudyModeForTag(tag);
         loadStudyPicksForTag(tag);
         loadStudyFocusForTag(tag);
+        loadBreakFormulaForFamily(tag);
         publishStudyFamilyJoinPing();
         loadRoomScrollForTag(tag);
         loadCalStateForTag(tag);
@@ -11594,6 +11795,7 @@
               if (msg.type === 'study-mode' || msg.type === 'study-picks'
                 || msg.type === 'study-focus'
                 || msg.type === 'study-family-join'
+                || msg.type === 'break-formula'
                 || msg.type === 'delta-infer-copy-req'
                 || msg.type === 'delta-infer-copy-reply'
                 || msg.type === 'delta-infer-copy-done') {
@@ -12117,9 +12319,7 @@
       }
 
       /** % phá luật tại một bộ cột active (popup/timeline: mẫu đến focus).
-       *  mẫu = kỳ có ≥1 luật sống (en>0)
-       *  tử  = kỳ en>0 và ≥1 luật không tick (h < en)
-       *  Kỳ en=0 không vào mẫu/tử.
+       *  Công thức theo breakFormula ¹/²/³ trên header.
        *  @returns {{ pct: number, tu: number, mau: number }|null} */
       /** Luật sống tại kỳ i = hold∪violate (khớp pool). Không dùng !disabled —
        *  kỳ mới gắn ĐA mà splits chưa rebuild sẽ !disabled nhưng chưa hold/viol
@@ -12128,19 +12328,56 @@
         return !!(s && (s.hold.has(i) || s.violate.has(i)));
       }
 
-      function violPctPartsAtActive(active, focusIdx, focusId) {
-        if (!tableBundle) return null;
-        const { splits } = tableBundle;
-        const sampleIdx = breakSampleIdxUpToFocus(focusIdx, focusId);
+      /** Mẫu id-range (¹/²): maxId trong sampleIdx − MIN_ID + 1. */
+      function breakIdRangeMauFromSample(sampleIdx) {
+        if (!tableBundle || !dataCtx || !sampleIdx || !sampleIdx.length) return 0;
+        const ids = tableBundle.ids || dataCtx.ids;
+        let last = -1;
+        for (let j = 0; j < sampleIdx.length; j++) {
+          const id = ids[sampleIdx[j]] | 0;
+          if (id > last) last = id;
+        }
+        if (last < MIN_ID) return 0;
+        return last - MIN_ID + 1;
+      }
+
+      /**
+       * Gộp eligible/full → {pct,tu,mau} theo breakFormula (hoặc formulaOverride).
+       * ¹ mẫu=id-range · tử=mẫu−full (en=0 cũng break)
+       * ² mẫu=id-range · tử=eligible−full
+       * ³ mẫu=eligible · tử=eligible−full
+       */
+      function finalizeBreakPct(eligible, full, idRangeMau, formulaOverride) {
+        const f = (formulaOverride === 1 || formulaOverride === 2 || formulaOverride === 3)
+          ? formulaOverride
+          : breakFormula;
+        const breakN = Math.max(0, (eligible | 0) - (full | 0));
+        if (f === 1) {
+          const mau = idRangeMau | 0;
+          if (mau <= 0) return null;
+          const tu = mau - (full | 0);
+          return { pct: (100 * tu) / mau, tu: tu, mau: mau };
+        }
+        if (f === 2) {
+          const mau = idRangeMau | 0;
+          if (mau <= 0) return null;
+          return { pct: (100 * breakN) / mau, tu: breakN, mau: mau };
+        }
+        if (eligible <= 0) return null;
+        return { pct: (100 * breakN) / eligible, tu: breakN, mau: eligible | 0 };
+      }
+
+      function scanBreakEligibleFull(active, sampleIdx) {
+        const splits = tableBundle && tableBundle.splits;
         let eligible = 0;
         let full = 0;
+        if (!splits || !active || !sampleIdx) return { eligible: 0, full: 0 };
         for (let j = 0; j < sampleIdx.length; j++) {
           const i = sampleIdx[j];
           let en = 0;
           let h = 0;
           for (let ai = 0; ai < active.length; ai++) {
-            const pi = active[ai];
-            const s = splits[pi];
+            const s = splits[active[ai]];
             if (!splitLawAliveAt(s, i)) continue;
             en++;
             if (s.hold.has(i)) h++;
@@ -12149,16 +12386,23 @@
           eligible++;
           if (h === en) full++;
         }
-        if (eligible <= 0) return null;
-        return {
-          pct: (100 * (eligible - full)) / eligible,
-          tu: eligible - full,
-          mau: eligible
-        };
+        return { eligible: eligible, full: full };
       }
 
-      function violPctAtActive(active, focusIdx, focusId) {
-        const p = violPctPartsAtActive(active, focusIdx, focusId);
+      function violPctPartsAtActive(active, focusIdx, focusId, formulaOverride) {
+        if (!tableBundle) return null;
+        const sampleIdx = breakSampleIdxUpToFocus(focusIdx, focusId);
+        const sc = scanBreakEligibleFull(active, sampleIdx);
+        return finalizeBreakPct(
+          sc.eligible,
+          sc.full,
+          breakIdRangeMauFromSample(sampleIdx),
+          formulaOverride
+        );
+      }
+
+      function violPctAtActive(active, focusIdx, focusId, formulaOverride) {
+        const p = violPctPartsAtActive(active, focusIdx, focusId, formulaOverride);
         return p ? p.pct : null;
       }
 
@@ -12181,6 +12425,14 @@
           : null;
         /* %break trên timeline popup: đến id focus (gồm kỳ đó). */
         const breakSample = breakSampleIdxUpToFocus(tlFocusIdx, tlFocusId);
+        const rateMau = breakIdRangeMauFromSample(breakSample);
+        const formulaSnap = (opts && (opts.breakFormula === 1 || opts.breakFormula === 2 || opts.breakFormula === 3))
+          ? opts.breakFormula
+          : ((typeof tJobBreakFormula === 'number'
+            && (tJobBreakFormula === 1 || tJobBreakFormula === 2 || tJobBreakFormula === 3)
+            && tJobActive)
+            ? tJobBreakFormula
+            : breakFormula);
         const steps = [];
         if (op === '>=') {
           for (let t = 100; t >= end; t--) steps.push(t);
@@ -12195,8 +12447,9 @@
         let prevMilestoneActive = null;
         /*
          * Tối ưu tính tăng dần: khi t tiến dần về end, tập active chỉ THÊM cặp (cả >= lẫn <=)
-         * nên %break (mẫu=en>0, tử=en>0∧h<en) và pool (hist) duy trì bằng bộ đếm/tập cộng dồn —
+         * nên %break + pool (hist) duy trì bằng bộ đếm/tập cộng dồn —
          * chỉ xử lý cặp mới. Nếu active bị co lại thì tắt và tính lại bằng violPctAtActive.
+         * Công thức ¹/²/³ lấy từ breakFormula header.
          */
         let rateEn = null;
         let rateHold = null;
@@ -12256,12 +12509,7 @@
           }
         }
         function rateParts() {
-          if (rateEligible <= 0) return null;
-          return {
-            pct: (100 * (rateEligible - rateFull)) / rateEligible,
-            tu: rateEligible - rateFull,
-            mau: rateEligible
-          };
+          return finalizeBreakPct(rateEligible, rateFull, rateMau, formulaSnap);
         }
         function histPoolApplyAdded(added) {
           if (!histPoolOk) return;
@@ -12365,7 +12613,7 @@
           if (!poolChanged && !pháGrew && !boldNums.length) continue;
           const parts = rateOk
             ? rateParts()
-            : violPctPartsAtActive(active, tlFocusIdx, tlFocusId);
+            : violPctPartsAtActive(active, tlFocusIdx, tlFocusId, formulaSnap);
           milestones.push({
             t: t,
             pool: poolArr,
@@ -13377,18 +13625,20 @@
       }
 
       /**
-       * Mẫu %break / %iNbreak: kỳ có ≥1 luật sống (en>0) theo active.
+       * Mẫu %break / %iNbreak theo breakFormula ¹/²/³.
+       * Hit vẫn chỉ kỳ en>0; mau ¹/² = id-range, mau ³ = |en>0|.
        * beforeId === null → toàn cục (i×break); omitted → filterBeforeId().
-       * @returns {{ mau: number, ids: Set<number> }}
+       * @returns {{ mau: number, ids: Set<number>, idxs: number[] }}
        */
       function eligibleBreakSample(active, beforeId) {
-        const empty = { mau: 0, ids: new Set() };
+        const empty = { mau: 0, ids: new Set(), idxs: [] };
         if (!tableBundle || !dataCtx || !active) return empty;
         const { splits } = tableBundle;
         const ids = tableBundle.ids || dataCtx.ids;
         const before = (beforeId === undefined) ? filterBeforeId() : beforeId;
         const sampleIdx = buildDisplayIdx(ids, dataCtx.rowNums, MIN_ID, before);
         const eligIds = new Set();
+        const eligIdxs = [];
         for (let j = 0; j < sampleIdx.length; j++) {
           const i = sampleIdx[j];
           let en = 0;
@@ -13397,9 +13647,15 @@
             if (!splitLawAliveAt(s, i)) continue;
             en++;
           }
-          if (en > 0) eligIds.add(ids[i]);
+          if (en > 0) {
+            eligIds.add(ids[i]);
+            eligIdxs.push(i);
+          }
         }
-        return { mau: eligIds.size, ids: eligIds };
+        if (breakFormula === 1 || breakFormula === 2) {
+          return { mau: breakIdRangeMauFromSample(sampleIdx), ids: eligIds, idxs: eligIdxs };
+        }
+        return { mau: eligIds.size, ids: eligIds, idxs: eligIdxs };
       }
 
       /** Active cuối walk threshold — mẫu %iNbreak khớp %break tại cùng op/val. */
@@ -13432,10 +13688,18 @@
           titleLabel = '1/ Tick đủ mọi cột còn mở';
           titleX = fullTickList.length;
           useRateTitle = true;
-          /* Bổ của %break: mẫu = fullTick + breakTick (en>0), không dùng id-range. */
-          const breakMau = fullTickList.length + breakTickList.length;
-          subExtra = ' · (en = số cột không bị disable) · mẫu = kỳ ≥1 luật sống = ' + breakMau
-            + ' · % = tick đủ / mẫu (= 100 − %break)';
+          /* Mẫu bổ của %break theo công thức đang chọn. */
+          const scFull = { eligible: fullTickList.length + breakTickList.length, full: fullTickList.length };
+          const idMauFull = (() => {
+            const lastAnsId = lastAnsweredIdForRate(null);
+            return lastAnsId != null ? (lastAnsId - MIN_ID + 1) : 0;
+          })();
+          const brParts = finalizeBreakPct(scFull.eligible, scFull.full, idMauFull);
+          const breakMau = brParts ? brParts.mau : (scFull.eligible || 0);
+          subExtra = ' · ' + breakFormulaLabel() + ' · mẫu = ' + breakMau
+            + (breakFormula === 3
+              ? ' (kỳ ≥1 luật sống) · % = tick đủ / mẫu (= 100 − %break)'
+              : ' (id-range) · % = tick đủ liên quan công thức');
           listLen = titleX;
           listHtml = fullTickList.length
             ? ('<div class="id-list">'
@@ -13633,6 +13897,7 @@
 
       /**
        * Timeline hist gọn cho %iNbreak: bỏ violPct / pháArr thừa.
+       * Active chỉ lớn dần theo walk → pool cộng dồn từ cặp mới (không quét lại toàn active).
        * @returns {{ pool: number[], newlyIn: number[], pháAppend: number[], t: number }[]}
        */
       function buildHistIBreakMilestones(focusIdx, stepActives) {
@@ -13650,45 +13915,40 @@
         }
         /** @type {number[]|null} */
         let prevPoolArr = null;
-        /** @type {Set<number>|null} */
-        let prevMilestoneActive = null;
+        const seenActive = new Set();
+        const poolSet = new Set();
         const pháSeen = new Set();
         const milestones = [];
-        function samePoolArr(a, b) {
-          if (a === b) return true;
-          if (!a || !b || a.length !== b.length) return false;
-          for (let i = 0; i < a.length; i++) {
-            if (a[i] !== b[i]) return false;
-          }
-          return true;
-        }
         for (let si = 0; si < stepActives.length; si++) {
           const t = stepActives[si].t;
           const active = stepActives[si].active;
-          const poolArr = poolNumsArrForRow(focusIdx, active);
-          let pháGrew = false;
-          const pháAppend = [];
-          for (let i = 0; i < poolArr.length; i++) {
-            const n = poolArr[i];
-            if (!finalViol.has(n) || pháSeen.has(n)) continue;
-            pháSeen.add(n);
-            pháAppend.push(n);
-            pháGrew = true;
-          }
           const newPairs = [];
           for (let ai = 0; ai < active.length; ai++) {
             const pi = active[ai];
-            if (!prevMilestoneActive || !prevMilestoneActive.has(pi)) newPairs.push(pi);
+            if (seenActive.has(pi)) continue;
+            seenActive.add(pi);
+            newPairs.push(pi);
           }
-          const related = poolNumsArrForPairs(focusIdx, newPairs);
-          const poolSet = new Set(poolArr);
+          const related = newPairs.length ? poolNumsArrForPairs(focusIdx, newPairs) : [];
+          let poolGrew = false;
+          const pháAppend = [];
           const boldNums = [];
           for (let i = 0; i < related.length; i++) {
             const n = related[i];
-            if (poolSet.has(n)) boldNums.push(n);
+            boldNums.push(n);
+            if (poolSet.has(n)) continue;
+            poolSet.add(n);
+            poolGrew = true;
+            if (finalViol.has(n) && !pháSeen.has(n)) {
+              pháSeen.add(n);
+              pháAppend.push(n);
+            }
           }
-          const poolChanged = prevPoolArr === null || !samePoolArr(poolArr, prevPoolArr);
-          if (!poolChanged && !pháGrew && !boldNums.length) continue;
+          const poolChanged = prevPoolArr === null || poolGrew;
+          if (!poolChanged && !boldNums.length) continue;
+          const poolArr = poolGrew || prevPoolArr === null
+            ? sortedNumsFromSet(poolSet)
+            : prevPoolArr;
           milestones.push({
             t: t,
             pool: poolArr,
@@ -13696,7 +13956,6 @@
             pháAppend: pháAppend
           });
           prevPoolArr = poolArr;
-          prevMilestoneActive = new Set(active);
         }
         return milestones;
       }
@@ -13717,55 +13976,39 @@
         if (!packed) return [];
         const details = packed.details || [];
         const disabled = packed.disabled || [];
-        function poolAt(active) {
-          const set = new Set();
-          for (let ai = 0; ai < active.length; ai++) {
-            const pi = active[ai];
-            if (disabled[pi]) continue;
-            const d = details[pi];
-            if (!d || !d.elim) continue;
-            d.elim.forEach((x) => set.add(x));
-          }
-          return sortedNumsFromSet(set);
-        }
-        function newlyAt(active, prevActive, poolSet) {
-          const bold = [];
-          const seen = new Set();
-          for (let ai = 0; ai < active.length; ai++) {
-            const pi = active[ai];
-            if (prevActive && prevActive.has(pi)) continue;
-            if (disabled[pi]) continue;
-            const d = details[pi];
-            if (!d || !d.elim) continue;
-            d.elim.forEach((x) => {
-              if (!poolSet.has(x) || seen.has(x)) return;
-              seen.add(x);
-              bold.push(x);
-            });
-          }
-          return bold;
-        }
-        function samePoolArr(a, b) {
-          if (a === b) return true;
-          if (!a || !b || a.length !== b.length) return false;
-          for (let i = 0; i < a.length; i++) {
-            if (a[i] !== b[i]) return false;
-          }
-          return true;
-        }
         /** @type {number[]|null} */
         let prevPoolArr = null;
-        /** @type {Set<number>|null} */
-        let prevMilestoneActive = null;
+        const seenActive = new Set();
+        const poolSet = new Set();
         const milestones = [];
         for (let si = 0; si < stepActives.length; si++) {
           const t = stepActives[si].t;
           const active = stepActives[si].active;
-          const poolArr = poolAt(active);
-          const poolSet = new Set(poolArr);
-          const boldNums = newlyAt(active, prevMilestoneActive, poolSet);
-          const poolChanged = prevPoolArr === null || !samePoolArr(poolArr, prevPoolArr);
+          const boldNums = [];
+          const boldSeen = new Set();
+          let poolGrew = false;
+          for (let ai = 0; ai < active.length; ai++) {
+            const pi = active[ai];
+            if (seenActive.has(pi)) continue;
+            seenActive.add(pi);
+            if (disabled[pi]) continue;
+            const d = details[pi];
+            if (!d || !d.elim) continue;
+            d.elim.forEach((x) => {
+              if (!boldSeen.has(x)) {
+                boldSeen.add(x);
+                boldNums.push(x);
+              }
+              if (poolSet.has(x)) return;
+              poolSet.add(x);
+              poolGrew = true;
+            });
+          }
+          const poolChanged = prevPoolArr === null || poolGrew;
           if (!poolChanged && !boldNums.length) continue;
+          const poolArr = poolGrew || prevPoolArr === null
+            ? sortedNumsFromSet(poolSet)
+            : prevPoolArr;
           milestones.push({
             t: t,
             pool: poolArr,
@@ -13773,9 +14016,25 @@
             pháAppend: []
           });
           prevPoolArr = poolArr;
-          prevMilestoneActive = new Set(active);
         }
         return milestones;
+      }
+
+      /**
+       * Chỉ số mốc Δ thứ `wantI` phía i (i1…iHalf) — không dựng chuỗi nhãn.
+       * @returns {number} index trong milestones, hoặc -1.
+       */
+      function iBreakDeltaMilestoneIndex(milestones, wantI) {
+        const want = Math.max(1, wantI | 0);
+        if (!milestones || !milestones.length || want < 1) return -1;
+        const deltaIdx = [];
+        for (let i = 0; i < milestones.length; i++) {
+          const prev = i > 0 ? milestones[i - 1].pool : null;
+          if (timelineMilestoneHasDelta(milestones[i], prev)) deltaIdx.push(i);
+        }
+        const half = Math.floor(deltaIdx.length / 2);
+        if (want > half) return -1;
+        return deltaIdx[want - 1];
       }
 
       /**
@@ -13785,14 +14044,16 @@
       function measureAllIBreakHitsAtFocus(focusIdx, stepActives) {
         const milestones = buildHistIBreakMilestones(focusIdx, stepActives);
         if (!milestones.length) return {};
-        const labels = buildTimelineDeltaLabels(milestones);
+        const deltaIdx = [];
+        for (let i = 0; i < milestones.length; i++) {
+          const prev = i > 0 ? milestones[i - 1].pool : null;
+          if (timelineMilestoneHasDelta(milestones[i], prev)) deltaIdx.push(i);
+        }
+        const half = Math.floor(deltaIdx.length / 2);
         /** @type {Record<number, { appendCount: number, appended: number[], t: number }>} */
         const hits = {};
-        for (let mi = 0; mi < milestones.length; mi++) {
-          const lbl = labels[mi];
-          if (!lbl || lbl.charAt(0) !== 'i') continue;
-          const ord = parseInt(lbl.slice(1), 10);
-          if (!(ord >= 1)) continue;
+        for (let ord = 1; ord <= half; ord++) {
+          const mi = deltaIdx[ord - 1];
           const appended = milestones[mi].pháAppend || [];
           if (appended.length < 1) continue;
           hits[ord] = {
@@ -13812,14 +14073,16 @@
         const empty = { key: iBreakCacheKey(useOp, useVal), byOrd: {} };
         if (!tableBundle || !dataCtx) return empty;
         const ids = tableBundle.ids || dataCtx.ids;
-        /* Toàn cục: không dùng displayIdx đã cắt theo focus. */
-        const displayIdx = buildDisplayIdx(ids, dataCtx.rowNums, MIN_ID, null);
         const stepActives = thresholdStepActives(useOp, useVal);
+        const endActive = stepActives.length
+          ? (stepActives[stepActives.length - 1].active || [])
+          : [];
+        /* Chỉ kỳ en>0 — cùng mẫu %iNbreak / %breakˣ. */
+        const eligIdxs = eligibleBreakSample(endActive, null).idxs || [];
         /** @type {Record<number, { id: number, appendCount: number, appended: number[], t: number }[]>} */
         const byOrd = {};
-        for (let j = 0; j < displayIdx.length; j++) {
-          const focusIdx = displayIdx[j];
-          if (!dataCtx.rowNums[focusIdx] || !dataCtx.rowNums[focusIdx].length) continue;
+        for (let j = 0; j < eligIdxs.length; j++) {
+          const focusIdx = eligIdxs[j];
           const hits = measureAllIBreakHitsAtFocus(focusIdx, stepActives);
           const id = ids[focusIdx];
           for (const ordStr of Object.keys(hits)) {
@@ -13878,6 +14141,17 @@
         xLo: 0,
         xHi: 0.5
       };
+      /* JSON + lịch %iNbreak (riêng T-popup) */
+      const ibrkJsonWrap = document.getElementById('ibrkJsonWrap');
+      const ibrkJsonText = document.getElementById('ibrkJsonText');
+      const ibrkJsonCopy = document.getElementById('ibrkJsonCopy');
+      const ibrkSchedWrap = document.getElementById('ibrkSchedWrap');
+      const ibrkSchedText = document.getElementById('ibrkSchedText');
+      let ibrkSchedOn = false;
+      let ibrkJsonPanelOpen = false;
+      let ibrkSchedPanelOpen = false;
+      /** true = đang áp JSON → paint không đọc lại ô DOM (tránh đè state vừa gán). */
+      let iMaxApplyingParams = false;
       /** Kỳ id · bật → ixmerge = pool tại iN; tắt/rỗng → không hiện ixmerge. */
       let iMaxFocusId = null;
       let iMaxFocusIdOn = true;
@@ -14215,6 +14489,10 @@
               xOn: iMaxConstr.xOn !== false,
               xLo: iMaxConstr.xLo,
               xHi: iMaxConstr.xHi
+            },
+            schedule: {
+              on: !!ibrkSchedOn,
+              text: ibrkSchedText ? String(ibrkSchedText.value || '') : ''
             }
           }));
         } catch (e) { /* ignore */ }
@@ -14277,6 +14555,13 @@
             if (xl != null) iMaxConstr.xLo = xl;
             if (xh != null) iMaxConstr.xHi = xh;
             if (iMaxConstr.xLo > iMaxConstr.xHi) iMaxConstr.xLo = iMaxConstr.xHi;
+            ok = true;
+          }
+          if (o.schedule && typeof o.schedule === 'object') {
+            if (typeof o.schedule.on === 'boolean') ibrkSchedOn = o.schedule.on;
+            if (typeof o.schedule.text === 'string' && ibrkSchedText) {
+              ibrkSchedText.value = o.schedule.text;
+            }
             ok = true;
           }
           return ok;
@@ -14486,17 +14771,25 @@
         return { lo: lo, hi: hi };
       }
 
-      /** Áp ràng buộc mul/x giống makeTComboCursor. */
-      function expandIMaxCombosFromRanges(ranges) {
+      /**
+       * Áp ràng buộc mul/x giống makeTComboCursor.
+       * @param {object} ranges
+       * @param {{ xtOn?: boolean, mulLo?: number|null, mulHi?: number|null }|null} [mulOver]
+       */
+      function expandIMaxCombosFromRanges(ranges, mulOver) {
         const rt = ranges.tail;
         const rw = ranges.wtail;
         const rf = ranges.wfreq;
-        const xtOn = iMaxConstr.xtOn !== false;
+        const xtOn = mulOver
+          ? (mulOver.xtOn !== false)
+          : (iMaxConstr.xtOn !== false);
         const xOn = iMaxConstr.xOn !== false;
-        const mLo = (xtOn && Number.isFinite(iMaxConstr.mulLo) && iMaxConstr.mulLo >= 1)
-          ? Math.floor(iMaxConstr.mulLo) : null;
-        const mHi = (xtOn && Number.isFinite(iMaxConstr.mulHi) && iMaxConstr.mulHi >= 1)
-          ? Math.floor(iMaxConstr.mulHi) : null;
+        const srcMulLo = mulOver ? mulOver.mulLo : iMaxConstr.mulLo;
+        const srcMulHi = mulOver ? mulOver.mulHi : iMaxConstr.mulHi;
+        const mLo = (xtOn && Number.isFinite(srcMulLo) && srcMulLo >= 1)
+          ? Math.floor(srcMulLo) : null;
+        const mHi = (xtOn && Number.isFinite(srcMulHi) && srcMulHi >= 1)
+          ? Math.floor(srcMulHi) : null;
         const a = xOn
           ? (Number.isFinite(iMaxConstr.xLo) ? iMaxConstr.xLo : 0)
           : 0;
@@ -14528,6 +14821,60 @@
           wtail: resolveIMaxRange('wtail'),
           wfreq: resolveIMaxRange('wfreq')
         };
+      }
+
+      /**
+       * Pool Calc: bảng thường, hoặc hợp các slot lịch.
+       * Slot w tuyệt đối: lấy đúng w của lịch (kẹp domain toàn cục), KHÔNG giao với ô wtail bảng
+       * — tránh wtail bảng [210;210] nuốt mất w143/w179/w273.
+       * Slot mul: vẫn quét wtail bảng + mul slot.
+       * @returns {{ ok: boolean, combos: object[], error?: string }}
+       */
+      function expandIMaxCombosForCalc(rangesSnap) {
+        if (!ibrkSchedOn) {
+          return { ok: true, combos: expandIMaxCombosFromRanges(rangesSnap) };
+        }
+        if (!ibrkSchedText) {
+          return { ok: false, combos: [], error: 'Lịch trống.' };
+        }
+        const parsed = parseTScheduleText(ibrkSchedText.value);
+        if (parsed.error) {
+          return { ok: false, combos: [], error: parsed.error };
+        }
+        const seen = new Set();
+        const out = [];
+        const rw = rangesSnap.wtail;
+        const rf = rangesSnap.wfreq;
+        const wDomLo = TRIAL_WTAIL_MIN;
+        const wDomHi = trialWtailMax();
+        for (let i = 0; i < parsed.slots.length; i++) {
+          const s = parsed.slots[i];
+          let part;
+          if (s.wtailLo != null && s.wtailHi != null) {
+            const wLo = Math.max(wDomLo, s.wtailLo | 0);
+            const wHi = Math.min(wDomHi, s.wtailHi | 0);
+            if (wHi < wLo) continue;
+            part = expandIMaxCombosFromRanges({
+              tail: { lo: s.tailLo, hi: s.tailHi },
+              wtail: { lo: wLo, hi: wHi },
+              wfreq: rf
+            }, { xtOn: false, mulLo: null, mulHi: null });
+          } else {
+            part = expandIMaxCombosFromRanges({
+              tail: { lo: s.tailLo, hi: s.tailHi },
+              wtail: rw,
+              wfreq: rf
+            }, { xtOn: true, mulLo: s.mulLo, mulHi: s.mulHi });
+          }
+          for (let j = 0; j < part.length; j++) {
+            const c = part[j];
+            const k = c.tail + ',' + c.wtail + ',' + c.wfreq;
+            if (seen.has(k)) continue;
+            seen.add(k);
+            out.push(c);
+          }
+        }
+        return { ok: true, combos: out };
       }
 
       function expandIMaxCombos() {
@@ -14587,9 +14934,14 @@
        * đủ `count` khớp %pick thì dừng (nhanh hơn quét tuyến tính hết pool).
        */
       function iMaxBuildSharedPool(rangesSnap, seed) {
-        const all = expandIMaxCombosFromRanges(rangesSnap);
+        const built = expandIMaxCombosForCalc(rangesSnap);
+        const all = built.ok ? built.combos : [];
         const poolCombos = iMaxShuffleSampleSeeded(all, all.length, seed || 'imax');
-        return { totalPool: all.length, poolCombos: poolCombos };
+        return {
+          totalPool: all.length,
+          poolCombos: poolCombos,
+          error: built.ok ? null : (built.error || 'Lịch lỗi.')
+        };
       }
 
       function iMaxHasEnoughKept(job) {
@@ -15068,6 +15420,9 @@
         paintIMaxListBubble();
         /* Dừng/xong → force hiện ixmerge; đang chạy → ẩn. */
         refreshIxMergeFromCalc(!busy);
+        if (popupKind === 'stats' && statsPopupKind === 'iBreak') {
+          syncIbrkJsonSchedUi();
+        }
       }
 
       function ixMergeEl() {
@@ -15449,12 +15804,15 @@
       }
       function paintIBreakTools() {
         seedIMaxRangesFromLive();
-        /* Trước khi wipe DOM: giữ giá trị/%pick/count/trạng thái vừa gõ. */
-        if (modalTitle && modalTitle.querySelector('[data-ibrk-pick], [data-ibrk-count]')) {
-          readIMaxPctPickFromTitle();
-        }
-        if (modalSub && modalSub.classList.contains('ibrk-tools')) {
-          readIMaxRangeInputs();
+        /* Trước khi wipe DOM: giữ giá trị/%pick/count/trạng thái vừa gõ.
+         * Bỏ qua khi đang áp JSON — nếu không, ô cũ ghi đè state vừa gán. */
+        if (!iMaxApplyingParams) {
+          if (modalTitle && modalTitle.querySelector('[data-ibrk-pick], [data-ibrk-count]')) {
+            readIMaxPctPickFromTitle();
+          }
+          if (modalSub && modalSub.classList.contains('ibrk-tools')) {
+            readIMaxRangeInputs();
+          }
         }
         saveIMaxRangesPrefs();
         modalSub.classList.add('ibrk-tools');
@@ -16020,20 +16378,19 @@
       /** Số pháAppend tại nhãn iN (mảng rỗng = miss) — chỉ kỳ có ĐA (%iNbreak). */
       function measureIBreakWantAppend(focusIdx, wantI, stepActives) {
         const milestones = buildHistIBreakMilestones(focusIdx, stepActives);
-        if (!milestones.length) return [];
-        const labels = buildTimelineDeltaLabels(milestones);
-        const wantLbl = 'i' + Math.max(1, wantI | 0);
-        for (let mi = 0; mi < milestones.length; mi++) {
-          if (labels[mi] !== wantLbl) continue;
-          const app = milestones[mi].pháAppend || [];
-          return app.length ? app.slice() : [];
-        }
-        return [];
+        const mi = iBreakDeltaMilestoneIndex(milestones, wantI);
+        if (mi < 0) return [];
+        const app = milestones[mi].pháAppend || [];
+        return app.length ? app.slice() : [];
       }
 
       /** Chỉ cần hit/miss tại nhãn iN — nhẹ hơn đo mọi i. */
       function measureIBreakWantHit(focusIdx, wantI, stepActives) {
-        return measureIBreakWantAppend(focusIdx, wantI, stepActives).length >= 1;
+        const milestones = buildHistIBreakMilestones(focusIdx, stepActives);
+        const mi = iBreakDeltaMilestoneIndex(milestones, wantI);
+        if (mi < 0) return false;
+        const app = milestones[mi].pháAppend;
+        return !!(app && app.length);
       }
 
       /**
@@ -16049,15 +16406,10 @@
         const milestones = answered
           ? buildHistIBreakMilestones(focusIdx, stepActives)
           : buildEmptyIBreakMilestones(focusIdx, focusId, stepActives);
-        if (!milestones.length) return [];
-        const labels = buildTimelineDeltaLabels(milestones);
-        const wantLbl = 'i' + Math.max(1, wantI | 0);
-        for (let mi = 0; mi < milestones.length; mi++) {
-          if (labels[mi] !== wantLbl) continue;
-          const pool = milestones[mi].pool || [];
-          return pool.length ? pool.slice() : [];
-        }
-        return [];
+        const mi = iBreakDeltaMilestoneIndex(milestones, wantI);
+        if (mi < 0) return [];
+        const pool = milestones[mi].pool || [];
+        return pool.length ? pool.slice() : [];
       }
 
       /**
@@ -16078,18 +16430,11 @@
           ? (stepActives[stepActives.length - 1].active || [])
           : []);
         const elig = eligibleBreakSample(endActive, null);
-        const eligIds = elig.ids;
-        /* i×break: duyệt toàn kỳ có ĐA — không cắt theo focus; chỉ đếm kỳ en>0. */
-        const focusIdxs = buildDisplayIdx(
-          tableBundle.ids || dataCtx.ids, dataCtx.rowNums, MIN_ID, null
-        );
-        const ids = tableBundle.ids || dataCtx.ids;
+        /* i×break: chỉ duyệt kỳ en>0 (idxs từ mẫu) — không quét lại toàn displayIdx. */
+        const focusIdxs = elig.idxs || [];
         let hitN = 0;
         for (let j = 0; j < focusIdxs.length; j++) {
-          const focusIdx = focusIdxs[j];
-          if (!dataCtx.rowNums[focusIdx] || !dataCtx.rowNums[focusIdx].length) continue;
-          if (!eligIds.has(ids[focusIdx])) continue;
-          if (!measureIBreakWantHit(focusIdx, wantI, stepActives)) continue;
+          if (!measureIBreakWantHit(focusIdxs[j], wantI, stepActives)) continue;
           hitN++;
         }
         const den = elig.mau > 0 ? elig.mau : 0;
@@ -16761,8 +17106,17 @@
           }
         }
         const rangesSnap = snapshotIMaxRangesResolved();
-        const probe = expandIMaxCombosFromRanges(rangesSnap);
-        if (!probe.length) {
+        const probeBuilt = expandIMaxCombosForCalc(rangesSnap);
+        if (!probeBuilt.ok) {
+          syncIBreakToolsUi();
+          if (ibrkSchedText) flashTBad(ibrkSchedText);
+          if (modalSub && modalSub.classList.contains('ibrk-tools')) {
+            const st = modalSub.querySelector('.ibrk-status');
+            if (st) st.textContent = probeBuilt.error || 'Lịch lỗi.';
+          }
+          return;
+        }
+        if (!probeBuilt.combos.length) {
           syncIBreakToolsUi();
           if (modalSub && modalSub.classList.contains('ibrk-tools')) {
             const st = modalSub.querySelector('.ibrk-status');
@@ -17241,6 +17595,7 @@
         if (!Number.isFinite(n) || n <= 0) return false;
         /* Ưu tiên đúng id trong CSV — |sim| cũ không được mở kỳ rỗng mới. */
         const isCurrentSim = !!(simState && Number(simState.focusId) === n);
+        rememberHistFocusClick(n);
         if (parsed.mode === 'sim' && isCurrentSim) {
           pendingTrialFocusAfterRebuild = { id: n, mode: 'sim' };
           openSimElim();
@@ -17260,7 +17615,6 @@
           return false;
         }
         pendingTrialFocusAfterRebuild = { id: n, mode: 'hist' };
-        rememberHistFocusClick(n);
         openHistElim(idx);
         publishSharedFocus(n, { popup: true, mode: 'hist', force: true });
         alignRowIntoView(n, { instant: true });
@@ -17402,6 +17756,8 @@
        *  Chỉ quên khi đổi id lọc. */
       const tMergeMark = new Map();
       let tMergeMarkForId = null;
+      /** Snapshot số đang 'r' trước lần Ctrl+click } tắt tô đỏ — Ctrl+click lại hoàn trả. */
+      let tMergeRedUndo = null;
       /** Dấu đỏ/vàng theo id kỳ — tab cùng origin, không qua tên tab / phòng. */
       const T_MERGE_MARK_LS = 'trial.tMergeMark';
       const T_MERGE_MARK_BC = 'trial-t-merge-mark';
@@ -17487,6 +17843,7 @@
         const id = focusId == null ? '' : String(focusId);
         if (tMergeMarkForId === id) return;
         tMergeMark.clear();
+        tMergeRedUndo = null;
         tMergeMarkForId = id;
         tMergeMarkLastSig = '';
         if (!id) return;
@@ -17588,6 +17945,12 @@
       let tJobSymmetry = false;
       /** Chốt chế độ i0 lúc bấm Lọc. */
       let tJobI0Mode = false;
+      /** Chốt công thức %break ¹/²/³ lúc bấm Lọc (tránh đổi giữa chừng). */
+      let tJobBreakFormula = 3;
+      function snapTJobBreakFormula(cfgOrMsg) {
+        const n = cfgOrMsg && cfgOrMsg.breakFormula;
+        tJobBreakFormula = (n === 1 || n === 2 || n === 3) ? n : breakFormula;
+      }
       /** Backup %break khi vào i0 (khôi phục lúc tắt). */
       let tI0BreakPctBackup = null;
       /** Chốt %tail ∈[lo;hi] lúc bấm Lọc (null = không lọc). Chặn hit phía client kể cả não Python cũ. */
@@ -17888,6 +18251,7 @@
           });
           localStorage.setItem(T_LS_KEY, JSON.stringify({
             thThuan: tState.thThuan,
+            breakFormula: breakFormula,
             i0Mode: !!tState.i0Mode,
             symmetry: !!tState.symmetry,
             trend: tState.trend,
@@ -17920,6 +18284,15 @@
           const p = JSON.parse(raw);
           if (!p || typeof p !== 'object') return false;
           if (typeof p.thThuan === 'boolean') tState.thThuan = p.thThuan;
+          if (p.breakFormula === 1 || p.breakFormula === 2 || p.breakFormula === 3) {
+            if (p.breakFormula !== breakFormula) {
+              breakFormula = p.breakFormula;
+              try {
+                saveBreakFormula();
+                syncBreakFormulaUi();
+              } catch (eBfLs) { /* ignore */ }
+            }
+          }
           if (typeof p.i0Mode === 'boolean') tState.i0Mode = p.i0Mode;
           if (typeof p.symmetry === 'boolean') tState.symmetry = p.symmetry;
           if (tState.i0Mode) tState.symmetry = false;
@@ -17975,19 +18348,36 @@
         } catch (e) { return false; }
       }
 
-      /** Lịch đè: tail (khoảng) + ràng buộc wtail∈[a;b]·tail — không đè khoảng wtail hoạt động. */
+      /** Lịch đè: luôn khóa tail. Slot mul → khóa wtail∈[a;b]·tail. Slot w tuyệt đối → khóa khoảng wtail. */
       const T_SCHED_LOCK_KEYS = ['tail'];
       const T_SCHED_LOCK_IC_SVG =
         '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
         + '<path fill="currentColor" d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>'
         + '</svg>';
 
+      /** Phân loại slot lịch đang bật (để khóa đúng ô UI). */
+      function tSchedSlotKinds() {
+        const out = { hasMul: false, hasAbs: false };
+        if (!tSchedOn || !tSchedText) return out;
+        const parsed = parseTScheduleText(tSchedText.value);
+        if (parsed.error || !parsed.slots || !parsed.slots.length) return out;
+        for (let i = 0; i < parsed.slots.length; i++) {
+          const s = parsed.slots[i];
+          if (s.wtailLo != null && s.wtailHi != null) out.hasAbs = true;
+          else if (s.mulLo != null && s.mulHi != null) out.hasMul = true;
+        }
+        return out;
+      }
+
       function tSchedLocksKey(key) {
-        return !!tSchedOn && T_SCHED_LOCK_KEYS.indexOf(key) >= 0;
+        if (!tSchedOn) return false;
+        if (key === 'tail') return true;
+        if (key === 'wtail') return tSchedSlotKinds().hasAbs;
+        return T_SCHED_LOCK_KEYS.indexOf(key) >= 0;
       }
 
       function tSchedLocksMul() {
-        return !!tSchedOn;
+        return !!tSchedOn && tSchedSlotKinds().hasMul;
       }
 
       function tSchedPutLockIcons(wrap) {
@@ -18023,7 +18413,7 @@
         });
       }
 
-      /** Preview hợp tail + hợp [a;b] ràng buộc wtail lên UI (số bị ẩn; job chạy từng slot). */
+      /** Preview hợp tail + mul / wtail tuyệt đối lên UI (số bị ẩn; job chạy từng slot). */
       function previewSchedOntoLockedRanges() {
         if (!tSchedOn || !tSchedText) return false;
         const parsed = parseTScheduleText(tSchedText.value);
@@ -18032,20 +18422,29 @@
         let tHi = -Infinity;
         let mLo = Infinity;
         let mHi = -Infinity;
+        let wLo = Infinity;
+        let wHi = -Infinity;
+        let hasMul = false;
+        let hasAbs = false;
         for (let i = 0; i < parsed.slots.length; i++) {
           const s = parsed.slots[i];
           if (s.tailLo < tLo) tLo = s.tailLo;
           if (s.tailHi > tHi) tHi = s.tailHi;
-          if (s.mulLo < mLo) mLo = s.mulLo;
-          if (s.mulHi > mHi) mHi = s.mulHi;
+          if (s.wtailLo != null && s.wtailHi != null) {
+            hasAbs = true;
+            if (s.wtailLo < wLo) wLo = s.wtailLo;
+            if (s.wtailHi > wHi) wHi = s.wtailHi;
+          } else if (s.mulLo != null && s.mulHi != null) {
+            hasMul = true;
+            if (s.mulLo < mLo) mLo = s.mulLo;
+            if (s.mulHi > mHi) mHi = s.mulHi;
+          }
         }
-        if (!(tLo <= tHi) || !(mLo <= mHi)) return false;
+        if (!(tLo <= tHi)) return false;
+        if (!hasMul && !hasAbs) return false;
         tState.ranges.tail.lo = tLo;
         tState.ranges.tail.hi = tHi;
         tState.ranges.tail.on = true;
-        tState.tailMulLo = mLo;
-        tState.tailMulHi = mHi;
-        tState.xtOn = true;
         if (tRangesEl) {
           const setBound = (key, bound, v) => {
             const inp = tRangesEl.querySelector('[data-t-rng="' + key + '"][data-t-bound="' + bound + '"]');
@@ -18056,49 +18455,62 @@
           };
           setBound('tail', 'lo', tLo);
           setBound('tail', 'hi', tHi);
+          if (hasAbs && wLo <= wHi) {
+            tState.ranges.wtail.lo = wLo;
+            tState.ranges.wtail.hi = wHi;
+            tState.ranges.wtail.on = true;
+            setBound('wtail', 'lo', wLo);
+            setBound('wtail', 'hi', wHi);
+          }
         }
-        if (tTMulLoEl) {
-          tTMulLoEl.value = String(mLo);
-          tTMulLoEl.classList.remove('is-bad');
-        }
-        if (tTMulHiEl) {
-          tTMulHiEl.value = String(mHi);
-          tTMulHiEl.classList.remove('is-bad');
+        if (hasMul && mLo <= mHi) {
+          tState.tailMulLo = mLo;
+          tState.tailMulHi = mHi;
+          tState.xtOn = true;
+          if (tTMulLoEl) {
+            tTMulLoEl.value = String(mLo);
+            tTMulLoEl.classList.remove('is-bad');
+          }
+          if (tTMulHiEl) {
+            tTMulHiEl.value = String(mHi);
+            tTMulHiEl.classList.remove('is-bad');
+          }
+        } else if (hasAbs && !hasMul) {
+          /* Chỉ slot w tuyệt đối → không ép mul UI. */
+          tState.xtOn = false;
         }
         return true;
       }
 
       function syncTSchedParamLock() {
-        /* tail ∈ [a;b] */
+        const kinds = tSchedSlotKinds();
+        const lockTail = !!tSchedOn;
+        const lockWtail = !!tSchedOn && kinds.hasAbs;
+        const lockMul = !!tSchedOn && kinds.hasMul;
+        /* tail ∈ [a;b] — luôn khóa khi lịch ON */
         if (tRangesEl) {
-          T_SCHED_LOCK_KEYS.forEach((key) => {
+          ['tail', 'wtail'].forEach((key) => {
             const wrap = tRangesEl.querySelector('[data-t-range="' + key + '"]');
             if (!wrap) return;
-            wrap.classList.toggle('is-sched-locked', !!tSchedOn);
+            const lock = key === 'tail' ? lockTail : lockWtail;
+            wrap.classList.toggle('is-sched-locked', lock);
             wrap.querySelectorAll('.t-sched-lock-ic').forEach((el) => el.remove());
-            if (tSchedOn) {
+            if (lock) {
               wrap.classList.remove('is-off');
               tSchedPutLockIcons(wrap);
               wrap.querySelectorAll('input, .tp-spin-btn').forEach((el) => {
                 el.disabled = true;
               });
-            } else {
+            } else if (!tJobActive) {
               syncTRangeOnUi(key);
             }
           });
-          /* Đảm bảo khoảng wtail hoạt động không còn khóa lịch cũ */
-          const wWrap = tRangesEl.querySelector('[data-t-range="wtail"]');
-          if (wWrap) {
-            wWrap.classList.remove('is-sched-locked');
-            wWrap.querySelectorAll('.t-sched-lock-ic').forEach((el) => el.remove());
-            if (!tJobActive) syncTRangeOnUi('wtail');
-          }
         }
-        /* ràng buộc wtail∈[a;b]·tail */
+        /* ràng buộc mul wtail∈[a;b]·tail — chỉ khi lịch có slot mul */
         if (tXTailWrap) {
-          tXTailWrap.classList.toggle('is-sched-locked', !!tSchedOn);
+          tXTailWrap.classList.toggle('is-sched-locked', lockMul);
           tXTailWrap.querySelectorAll('.t-sched-lock-ic').forEach((el) => el.remove());
-          if (tSchedOn) {
+          if (lockMul) {
             tXTailWrap.classList.remove('is-off');
             tState.xtOn = true;
             tSchedPutLockIcons(tXTailWrap);
@@ -18106,6 +18518,9 @@
               el.disabled = true;
             });
           } else if (!tJobActive) {
+            if (tSchedOn && kinds.hasAbs && !kinds.hasMul) {
+              tState.xtOn = false;
+            }
             syncTConstraintToggleUi();
           }
         }
@@ -18154,8 +18569,26 @@
       }
 
       /**
-       * Text lịch: mỗi slot 2 dòng (tail, ràng buộc wtail∈[a;b]·tail), ngăn bằng --------.
-       * @returns {{slots: {tailLo:number,tailHi:number,mulLo:number,mulHi:number}[], error?: string}}
+       * Dòng 2 lịch: mul "13-29" | tuyệt đối "w54-980" / "w54" / "wtail 54-54" / "=54".
+       * @returns {{mode:'mul'|'w', lo:number, hi:number}|null}
+       */
+      function parseTSchedWLine(line) {
+        const s = String(line || '').trim();
+        if (!s) return null;
+        const abs = s.match(/^(?:w|wtail|=)\s*(.+)$/i);
+        if (abs) {
+          const b = parseTSchedBound(abs[1]);
+          if (!b || b.lo < 1) return null;
+          return { mode: 'w', lo: b.lo, hi: b.hi };
+        }
+        const b = parseTSchedBound(s);
+        if (!b || b.lo < 1) return null;
+        return { mode: 'mul', lo: b.lo, hi: b.hi };
+      }
+
+      /**
+       * Text lịch: mỗi slot 2 dòng (tail, mul a-b | w tuyệt đối), ngăn bằng --------.
+       * @returns {{slots: object[], error?: string}}
        */
       function parseTScheduleText(text) {
         const raw = String(text == null ? '' : text).replace(/^\uFEFF/, '');
@@ -18170,24 +18603,34 @@
           if (lines.length < 2) {
             return {
               slots: [],
-              error: 'Slot ' + (slots.length + 1) + ': cần 2 dòng (tail, wtail∈[a;b]).'
+              error: 'Slot ' + (slots.length + 1) + ': cần 2 dòng (tail, mul a-b hoặc w54-980).'
             };
           }
           const tail = parseTSchedBound(lines[0]);
-          const mul = parseTSchedBound(lines[1]);
+          const wline = parseTSchedWLine(lines[1]);
           if (!tail) {
             return { slots: [], error: 'Slot ' + (slots.length + 1) + ': tail không hợp lệ «' + lines[0] + '».' };
           }
-          if (!mul || mul.lo < 1) {
+          if (!wline) {
             return {
               slots: [],
-              error: 'Slot ' + (slots.length + 1) + ': ràng buộc wtail∈ không hợp lệ «' + lines[1] + '».'
+              error: 'Slot ' + (slots.length + 1)
+                + ': dòng 2 không hợp lệ «' + lines[1] + '» (mul 13-29 hoặc w54-980).'
             };
           }
-          slots.push({
-            tailLo: tail.lo, tailHi: tail.hi,
-            mulLo: mul.lo, mulHi: mul.hi
-          });
+          if (wline.mode === 'w') {
+            slots.push({
+              tailLo: tail.lo, tailHi: tail.hi,
+              wtailLo: wline.lo, wtailHi: wline.hi,
+              mulLo: null, mulHi: null
+            });
+          } else {
+            slots.push({
+              tailLo: tail.lo, tailHi: tail.hi,
+              mulLo: wline.lo, mulHi: wline.hi,
+              wtailLo: null, wtailHi: null
+            });
+          }
         }
         if (!slots.length) return { slots: [], error: 'Lịch không có slot nào.' };
         return { slots: slots };
@@ -18216,17 +18659,22 @@
       }
 
       /**
-       * Cursor hợp các slot lịch: mỗi slot đè tail + mul a/b;
-       * khoảng wtail/wfreq/x lấy base (JSON/bảng).
+       * Cursor hợp các slot lịch: mỗi slot đè tail + mul a/b hoặc wtail tuyệt đối;
+       * wfreq/x lấy base (JSON/bảng). Slot w: kẹp trong khoảng wtail bảng.
        */
       function makeTScheduleCursor(slots, baseResolved, xLo, xHi) {
         const rw = baseResolved.wtail;
         const rf = baseResolved.wfreq;
-        const plans = (slots || []).map((s) => makeTComboCursor({
-          tail: { lo: s.tailLo, hi: s.tailHi },
-          wtail: { lo: rw.lo, hi: rw.hi },
-          wfreq: { lo: rf.lo, hi: rf.hi }
-        }, xLo, xHi, s.mulLo, s.mulHi));
+        const plans = (slots || []).map((s) => {
+          const abs = s.wtailLo != null && s.wtailHi != null;
+          const wLo = abs ? Math.max(rw.lo, s.wtailLo | 0) : rw.lo;
+          const wHi = abs ? Math.min(rw.hi, s.wtailHi | 0) : rw.hi;
+          return makeTComboCursor({
+            tail: { lo: s.tailLo, hi: s.tailHi },
+            wtail: { lo: wLo, hi: wHi },
+            wfreq: { lo: rf.lo, hi: rf.hi }
+          }, xLo, xHi, abs ? null : s.mulLo, abs ? null : s.mulHi);
+        });
         let total = 0;
         for (let i = 0; i < plans.length; i++) total += plans[i].total;
         let si = 0;
@@ -18330,20 +18778,55 @@
         }
       }
 
+      /** Key JSON thân thiện cho khoảng %break — mang mũ ¹/²/³ theo công thức header. */
+      function breakPctJsonKey(formula) {
+        const f = (formula === 1 || formula === 2 || formula === 3) ? formula : breakFormula;
+        return '%break' + (BREAK_FORMULA_SUP[f] || '³');
+      }
+
+      /** Đọc công thức từ JSON: breakFormula số, hoặc tên key %break¹/²/³ trong ranges. */
+      function parseBreakFormulaFromParams(p) {
+        if (!p || typeof p !== 'object') return null;
+        const n = p.breakFormula != null ? Number(p.breakFormula) : NaN;
+        if (n === 1 || n === 2 || n === 3) return n;
+        const ranges = p.ranges;
+        if (!ranges || typeof ranges !== 'object') return null;
+        const keys = Object.keys(ranges);
+        for (let i = 0; i < keys.length; i++) {
+          const k = keys[i];
+          if (k === '%break¹' || k === '%break1' || k === 'breakPct1') return 1;
+          if (k === '%break²' || k === '%break2' || k === 'breakPct2') return 2;
+          if (k === '%break³' || k === '%break3' || k === 'breakPct3') return 3;
+        }
+        return null;
+      }
+
+      /** Lấy object khoảng breakPct từ ranges JSON (chấp nhận tên cũ + %breakˣ). */
+      function pickBreakPctRangeFromParams(ranges) {
+        if (!ranges || typeof ranges !== 'object') return null;
+        return ranges[breakPctJsonKey()]
+          || ranges['%break¹'] || ranges['%break²'] || ranges['%break³']
+          || ranges['%break1'] || ranges['%break2'] || ranges['%break3']
+          || ranges['%break'] || ranges.breakPct
+          || null;
+      }
+
       /** Snapshot tham số dạng JSON thân thiện (đây cũng là payload sync sang tab cùng mã). */
       function tParamsSnapshotObj() {
         const ranges = {};
         Object.keys(tState.ranges).forEach((k) => {
           const r = tState.ranges[k];
+          /* breakPct → %break¹/²/³ theo công thức đang chọn. */
+          const outKey = (k === 'breakPct') ? breakPctJsonKey() : k;
           if (k === 'tailPct') {
-            ranges[k] = {
+            ranges[outKey] = {
               lo: Number.isFinite(r.lo) ? r.lo : 0,
               hi: Number.isFinite(r.hi) ? r.hi : 100,
               on: r.on === true
             };
             return;
           }
-          ranges[k] = {
+          ranges[outKey] = {
             lo: (r.lo == null || !Number.isFinite(r.lo)) ? null : r.lo,
             hi: (r.hi == null || !Number.isFinite(r.hi)) ? null : r.hi,
             on: r.on !== false
@@ -18352,6 +18835,7 @@
         /* Không ghi id: id là focus do người dùng chọn, không phải trọng số/cfg lọc. */
         return {
           threshold: tState.thThuan ? '>=' : '<=',
+          breakFormula: breakFormula,
           i0Mode: !!tState.i0Mode,
           symmetry: !tState.i0Mode && !!tState.symmetry,
           trend: tState.trendOn === false ? null : tState.trend,
@@ -18414,6 +18898,32 @@
           const s = String(p.threshold).toLowerCase();
           tState.thThuan = !(s.indexOf('<') >= 0 || s.indexOf('nghịch') >= 0
             || s === 'nghich' || s === '0' || s === 'false');
+        }
+        /* Công thức %breakˣ: breakFormula số hoặc tên key ranges %break¹/²/³. */
+        const bfIn = parseBreakFormulaFromParams(p);
+        if (bfIn === 1 || bfIn === 2 || bfIn === 3) {
+          if (bfIn !== breakFormula) {
+            breakFormula = bfIn;
+            if (tParamsApplyingRemote) {
+              breakFormulaSyncApplying = true;
+              try {
+                saveBreakFormula();
+                syncBreakFormulaUi();
+                try {
+                  if (tableBundle) {
+                    updateSummaryForActive(activePairIndicesAt(thOp, thVal));
+                  }
+                } catch (eSumBf) { /* ignore */ }
+                try { refreshOpenPopupAfterThreshold(); } catch (ePopBf) { /* ignore */ }
+              } finally {
+                requestAnimationFrame(() => { breakFormulaSyncApplying = false; });
+              }
+            } else {
+              applyBreakFormulaChange();
+            }
+          } else {
+            syncBreakFormulaUi();
+          }
         }
         if (typeof p.i0Mode === 'boolean') tState.i0Mode = p.i0Mode;
         if (typeof p.symmetry === 'boolean') tState.symmetry = p.symmetry;
@@ -18486,7 +18996,9 @@
           Object.keys(tState.ranges).forEach((k) => {
             /* Lịch ON → tail/wtail do lịch quyết; JSON/remote không đè. */
             if (tSchedLocksKey(k)) return;
-            const r = p.ranges[k];
+            const r = (k === 'breakPct')
+              ? pickBreakPctRangeFromParams(p.ranges)
+              : p.ranges[k];
             if (!r || typeof r !== 'object') return;
             const lo = (r.lo === '' || r.lo == null) ? null : Number(r.lo);
             const hi = (r.hi === '' || r.hi == null) ? null : Number(r.hi);
@@ -18590,8 +19102,9 @@
           + '<button type="button" data-t-point="down" class="is-down" title="Lọc ▼down">▼ down</button>'
           + '</span></span>';
         tRangesEl.innerHTML = T_RANGE_DEFS.map(([key, label]) => {
+          const labTxt = key === 'breakPct' ? breakFormulaLabel() : label;
           let html = '<div class="scan-param" data-t-range="' + key + '">'
-            + '<span class="tp-label scan-param-tog" role="button" tabindex="0" title="Click: bật/tắt lọc theo tham số này">' + label + '</span>'
+            + '<span class="tp-label scan-param-tog" role="button" tabindex="0" title="Click: bật/tắt lọc theo tham số này">' + labTxt + '</span>'
             + '<span class="scan-in" aria-hidden="true">∈</span>'
             + '<span class="scan-br">[</span>'
             + makeTBoundHtml(key, 'lo')
@@ -20282,6 +20795,15 @@
         }
         const idx = findHistIdxById(id);
         if (idx < 0) return { error: 'id ' + id + ' không có trong lịch sử.' };
+        /* Kỳ chưa có ĐA: hist pool/Δ trống → Lọc luôn 0 hit; bắt buộc sim. */
+        const nums = dataCtx.rowNums && dataCtx.rowNums[idx];
+        if (!(nums && nums.length)) {
+          if (simState && Number(simState.focusId) === id
+            && simState.focusIdx != null && simState.focusIdx >= 0) {
+            return { mode: 'sim', focusIdx: simState.focusIdx, focusId: id };
+          }
+          return { mode: 'sim', focusIdx: idx, focusId: id };
+        }
         return { mode: 'hist', focusIdx: idx, focusId: id };
       }
 
@@ -21365,6 +21887,15 @@
           tSecIx.lo = next;
         }
         syncTSecIxUi();
+        /* sync bỏ qua ô đang focus — ghi tay để ↑↓ thấy số đổi. */
+        if (tSecIxLoEl) {
+          const lo = (tSecIx.lo == null || !Number.isFinite(tSecIx.lo)) ? tSecIxDom.lo : tSecIx.lo;
+          tSecIxLoEl.value = String(lo | 0);
+        }
+        if (tSecIxHiEl) {
+          const hi = (tSecIx.hi == null || !Number.isFinite(tSecIx.hi)) ? tSecIxDom.hi : tSecIx.hi;
+          tSecIxHiEl.value = String(hi | 0);
+        }
         applyTSecDBreakFilter();
       }
 
@@ -21420,6 +21951,14 @@
           tSecDi.lo = next;
         }
         syncTSecDiUi();
+        if (tSecDiLoEl) {
+          const lo = (tSecDi.lo == null || !Number.isFinite(tSecDi.lo)) ? tSecDiDom.lo : tSecDi.lo;
+          tSecDiLoEl.value = String(lo);
+        }
+        if (tSecDiHiEl) {
+          const hi = (tSecDi.hi == null || !Number.isFinite(tSecDi.hi)) ? tSecDiDom.hi : tSecDi.hi;
+          tSecDiHiEl.value = String(hi);
+        }
         applyTSecDBreakFilter();
       }
 
@@ -21479,6 +22018,16 @@
           tSecDBreak.lo = next;
         }
         syncTSecDBreakUi();
+        if (tSecDBreakLoEl) {
+          const lo = (tSecDBreak.lo == null || !Number.isFinite(tSecDBreak.lo))
+            ? tSecDBreakDom.lo : tSecDBreak.lo;
+          tSecDBreakLoEl.value = String(lo);
+        }
+        if (tSecDBreakHiEl) {
+          const hi = (tSecDBreak.hi == null || !Number.isFinite(tSecDBreak.hi))
+            ? tSecDBreakDom.hi : tSecDBreak.hi;
+          tSecDBreakHiEl.value = String(hi);
+        }
         applyTSecDBreakFilter();
       }
 
@@ -21536,6 +22085,14 @@
           tSecTh.lo = next;
         }
         syncTSecThUi();
+        if (tSecThLoEl) {
+          const lo = (tSecTh.lo == null || !Number.isFinite(tSecTh.lo)) ? tSecThDom.lo : tSecTh.lo;
+          tSecThLoEl.value = String(lo);
+        }
+        if (tSecThHiEl) {
+          const hi = (tSecTh.hi == null || !Number.isFinite(tSecTh.hi)) ? tSecThDom.hi : tSecTh.hi;
+          tSecThHiEl.value = String(hi);
+        }
         applyTSecDBreakFilter();
       }
 
@@ -21593,6 +22150,14 @@
           tSecDTh.lo = next;
         }
         syncTSecDThUi();
+        if (tSecDThLoEl) {
+          const lo = (tSecDTh.lo == null || !Number.isFinite(tSecDTh.lo)) ? tSecDThDom.lo : tSecDTh.lo;
+          tSecDThLoEl.value = String(lo);
+        }
+        if (tSecDThHiEl) {
+          const hi = (tSecDTh.hi == null || !Number.isFinite(tSecDTh.hi)) ? tSecDThDom.hi : tSecDTh.hi;
+          tSecDThHiEl.value = String(hi);
+        }
         applyTSecDBreakFilter();
       }
 
@@ -21918,7 +22483,7 @@
           + tMergeChipsHtml(order)
           + '</span>'
           + '<span class="t-merge-closebrace" role="button" tabindex="0"'
-          + ' title="Click: copy các số đang tô đỏ thành a,b,c">}</span></span>'
+          + ' title="Click: copy số tô đỏ · Ctrl+click: tắt / bật lại tô đỏ gần nhất">}</span></span>'
           + '<span class="t-merge-info"></span>';
         if (keepFilt) tMergeEl.appendChild(keepFilt);
         tMergeChipsEl = tMergeEl.querySelector('.t-merge-chips');
@@ -22110,6 +22675,39 @@
         copyTextToClipboard(reds.join(','));
         el.classList.add('is-ok');
         setTimeout(() => { el.classList.remove('is-ok'); }, 700);
+      }
+
+      /** Danh sách số đang tô đỏ (tăng dần). */
+      function tMergeRedNumsList() {
+        const reds = [];
+        tMergeMark.forEach((v, n) => { if (v === 'r') reds.push(n); });
+        reds.sort((a, b) => a - b);
+        return reds;
+      }
+
+      /**
+       * Ctrl+click }: có tô đỏ → lưu snapshot rồi tắt hết 'r' (giữ vàng);
+       * không còn đỏ → hoàn trả snapshot gần nhất.
+       */
+      function toggleTMergeRedViaBrace(el) {
+        const reds = tMergeRedNumsList();
+        if (reds.length) {
+          tMergeRedUndo = reds.slice();
+          for (let i = 0; i < reds.length; i++) tMergeMark.delete(reds[i]);
+        } else if (tMergeRedUndo && tMergeRedUndo.length) {
+          for (let i = 0; i < tMergeRedUndo.length; i++) {
+            const n = tMergeRedUndo[i] | 0;
+            if (n >= 1 && n <= 35) tMergeMark.set(n, 'r');
+          }
+        } else {
+          return;
+        }
+        tMergeMarkPublish();
+        tMergeMarkRefreshUi();
+        if (el) {
+          el.classList.add('is-ok');
+          setTimeout(() => { el.classList.remove('is-ok'); }, 700);
+        }
       }
 
       /** Chuỗi RMB Δimerge: số thỏa y > 1.5x (x=point▲, y=point▼; x=0 & y>0 cũng lọt). */
@@ -22655,6 +23253,7 @@
           const isCurrentSim = !!(simState && hasId && Number(simState.focusId) === n);
           try {
             if (hasId) {
+              rememberHistFocusClick(n);
               if (r.mode === 'sim' && isCurrentSim) {
                 if (typeof openSimElim === 'function') openSimElim();
                 return;
@@ -23737,6 +24336,7 @@
         tJobDiEqNi = !!cfg.diEqNi;
         tJobI0Mode = !!cfg.i0Mode;
         tJobSymmetry = !cfg.i0Mode && !!cfg.symmetry;
+        snapTJobBreakFormula(cfg);
         if (!resume) {
           tResults = [];
           tHitsTotal = 0;
@@ -23846,6 +24446,9 @@
             thThuan: cfg.thThuanSnap,
             i0Mode: !!cfg.i0Mode,
             symmetry: !cfg.i0Mode && !!cfg.symmetry,
+            breakFormula: (cfg.breakFormula === 1 || cfg.breakFormula === 2 || cfg.breakFormula === 3)
+              ? cfg.breakFormula
+              : breakFormula,
             schedSlots: cfg.schedSlots || null,
             total: total,
             keepHits: !!resume,
@@ -23894,6 +24497,9 @@
               thThuanSnap: cfg.thThuanSnap,
               i0Mode: !!cfg.i0Mode,
               symmetry: !cfg.i0Mode && !!cfg.symmetry,
+              breakFormula: (cfg.breakFormula === 1 || cfg.breakFormula === 2 || cfg.breakFormula === 3)
+                ? cfg.breakFormula
+                : breakFormula,
               schedSlots: cfg.schedSlots || null,
               resumeGc: resumeGc
             }
@@ -24092,6 +24698,11 @@
         tJobDiEqNi = !!msg.diEqNi;
         tJobI0Mode = !!msg.i0Mode;
         tJobSymmetry = !msg.i0Mode && !!msg.symmetry;
+        snapTJobBreakFormula(msg);
+        if (msg.breakFormula === 1 || msg.breakFormula === 2 || msg.breakFormula === 3) {
+          breakFormula = msg.breakFormula;
+          syncBreakFormulaUi();
+        }
         tArmJobRtp({ rtp: msg.rtp || null, focus: msg.focus || null });
         if (!msg.keepHits) {
           tResults = [];
@@ -24257,6 +24868,7 @@
           thThuanSnap: tState.thThuan,
           i0Mode: i0,
           symmetry: i0 ? false : !!tState.symmetry,
+          breakFormula: breakFormula,
           schedSlots: null
         };
         if (tSchedOn) {
@@ -24275,6 +24887,7 @@
         tJobDiEqNi = !!cfgBase.diEqNi;
         tJobI0Mode = !!cfgBase.i0Mode;
         tJobSymmetry = !!cfgBase.symmetry;
+        snapTJobBreakFormula(cfgBase);
         tArmJobRtp(cfgBase);
         tResults = [];
         tHitsTotal = 0;
@@ -24366,6 +24979,7 @@
               thThuan: cfgBase.thThuanSnap,
               i0Mode: !!cfgBase.i0Mode,
               symmetry: !cfgBase.i0Mode && !!cfgBase.symmetry,
+              breakFormula: cfgBase.breakFormula || breakFormula,
               schedSlots: cfgBase.schedSlots || null,
               schedOn: !!(cfgBase.schedSlots && cfgBase.schedSlots.length),
               schedText: tSchedText ? String(tSchedText.value || '') : ''
@@ -24396,6 +25010,11 @@
         tState.thThuan = !!msg.thThuan;
         tState.i0Mode = !!msg.i0Mode;
         tState.symmetry = !msg.i0Mode && !!msg.symmetry;
+        if (msg.breakFormula === 1 || msg.breakFormula === 2 || msg.breakFormula === 3) {
+          breakFormula = msg.breakFormula;
+          saveBreakFormula();
+          syncBreakFormulaUi();
+        }
         if (msg.i0Mode) {
           tState.trendOn = false;
           tState.pointOn = false;
@@ -24480,6 +25099,9 @@
           thThuanSnap: tState.thThuan,
           i0Mode: !!msg.i0Mode,
           symmetry: !msg.i0Mode && !!msg.symmetry,
+          breakFormula: (msg.breakFormula === 1 || msg.breakFormula === 2 || msg.breakFormula === 3)
+            ? msg.breakFormula
+            : breakFormula,
           schedSlots: remoteSched
         }, resumeOpts ? { resume: resumeOpts } : undefined);
       }
@@ -24630,6 +25252,7 @@
         tJobDiEqNi = !!cfg.diEqNi;
         tJobI0Mode = !!cfg.i0Mode;
         tJobSymmetry = !cfg.i0Mode && !!cfg.symmetry;
+        snapTJobBreakFormula(cfg);
         if (!resume) {
           tResults = [];
           tHitsTotal = 0;
@@ -25452,6 +26075,7 @@
             thThuan: cfgBase.thThuanSnap,
             i0Mode: !!cfgBase.i0Mode,
             symmetry: !cfgBase.i0Mode && !!cfgBase.symmetry,
+            breakFormula: cfgBase.breakFormula || breakFormula,
             schedSlots: cfgBase.schedSlots || null,
             schedOn: !!(cfgBase.schedSlots && cfgBase.schedSlots.length),
             schedText: snap.schedText != null ? snap.schedText : (tSchedText ? String(tSchedText.value || '') : ''),
@@ -25562,6 +26186,35 @@
         tJsonText.addEventListener('blur', applyTJsonText);
         /* Enter trong các ô tham số = chạy Lọc; riêng ô JSON thì giữ nguyên hành vi xuống dòng. */
         tJsonText.addEventListener('keydown', (e) => { e.stopPropagation(); });
+      }
+      /* %iNbreak: JSON + lịch (cùng cú pháp T, tham số riêng). */
+      if (ibrkJsonText) {
+        let ibrkJsonApplyTimer = 0;
+        ibrkJsonText.addEventListener('input', () => {
+          if (ibrkJsonApplyTimer) clearTimeout(ibrkJsonApplyTimer);
+          ibrkJsonApplyTimer = setTimeout(applyIbrkJsonText, 400);
+        });
+        ibrkJsonText.addEventListener('blur', applyIbrkJsonText);
+        ibrkJsonText.addEventListener('keydown', (e) => { e.stopPropagation(); });
+      }
+      if (ibrkJsonCopy && ibrkJsonText) {
+        ibrkJsonCopy.addEventListener('click', () => {
+          const raw = String(ibrkJsonText.value || '');
+          if (!raw) return;
+          copyTextToClipboard(raw, ibrkJsonCopy);
+        });
+      }
+      if (ibrkSchedText && !String(ibrkSchedText.value || '').trim()) {
+        ibrkSchedText.value = T_SCHED_DEFAULT;
+      }
+      if (ibrkSchedText) {
+        ibrkSchedText.addEventListener('input', () => {
+          scheduleSaveIMaxRangesPrefs();
+          if (popupKind === 'stats' && statsPopupKind === 'iBreak') {
+            syncIbrkJsonSchedUi();
+          }
+        });
+        ibrkSchedText.addEventListener('keydown', (e) => { e.stopPropagation(); });
       }
       if (tSchedText && !String(tSchedText.value || '').trim()) {
         tSchedText.value = T_SCHED_DEFAULT;
@@ -25720,7 +26373,8 @@
           const closeBr = e.target && e.target.closest ? e.target.closest('.t-merge-closebrace') : null;
           if (closeBr && (e.key === 'Enter' || e.key === ' ')) {
             e.preventDefault();
-            copyTMergeRedNums(closeBr);
+            if (e.ctrlKey || e.metaKey) toggleTMergeRedViaBrace(closeBr);
+            else copyTMergeRedNums(closeBr);
             return;
           }
           const eq = e.target && e.target.closest ? e.target.closest('.t-merge-eqbrace') : null;
@@ -25733,7 +26387,9 @@
         tMergeEl.addEventListener('click', (e) => {
           const closeBr = e.target && e.target.closest ? e.target.closest('.t-merge-closebrace') : null;
           if (closeBr) {
-            copyTMergeRedNums(closeBr);
+            e.preventDefault();
+            if (e.ctrlKey || e.metaKey) toggleTMergeRedViaBrace(closeBr);
+            else copyTMergeRedNums(closeBr);
             return;
           }
           const eqEl = e.target && e.target.closest ? e.target.closest('.t-merge-eqbrace') : null;
@@ -25834,6 +26490,7 @@
           bindTrialHoldStep(btn, () => stepTSecDBreak(bound, d));
         });
         const onSecInput = (e) => {
+          if (e && e.target) clearTrialParamTyping(e.target);
           if (e && e.target === tSecDBreakLoEl) clearTSecDBreakALock();
           if (readTSecDBreakFromUi()) applyTSecDBreakFilter();
         };
@@ -25841,8 +26498,12 @@
         if (tSecDBreakLoEl) {
           tSecDBreakLoEl.addEventListener('input', () => clearTSecDBreakALock());
           tSecDBreakLoEl.addEventListener('change', onSecInput);
+          tSecDBreakLoEl.addEventListener('blur', () => clearTrialParamTyping(tSecDBreakLoEl));
         }
-        if (tSecDBreakHiEl) tSecDBreakHiEl.addEventListener('change', onSecInput);
+        if (tSecDBreakHiEl) {
+          tSecDBreakHiEl.addEventListener('change', onSecInput);
+          tSecDBreakHiEl.addEventListener('blur', () => clearTrialParamTyping(tSecDBreakHiEl));
+        }
         tMergeDBreakFilt.querySelectorAll('[data-t-sec-dbreak-a]').forEach((br) => {
           const mode = br.getAttribute('data-t-sec-dbreak-a') === 'min' ? 'min' : 'max';
           const go = () => {
@@ -25884,11 +26545,18 @@
           const d = Number(parts[1]) || 0;
           bindTrialHoldStep(btn, () => stepTSecDi(bound, d));
         });
-        const onDiInput = () => {
+        const onDiInput = (e) => {
+          if (e && e.target) clearTrialParamTyping(e.target);
           if (readTSecDiFromUi()) applyTSecDBreakFilter();
         };
-        if (tSecDiLoEl) tSecDiLoEl.addEventListener('change', onDiInput);
-        if (tSecDiHiEl) tSecDiHiEl.addEventListener('change', onDiInput);
+        if (tSecDiLoEl) {
+          tSecDiLoEl.addEventListener('change', onDiInput);
+          tSecDiLoEl.addEventListener('blur', () => clearTrialParamTyping(tSecDiLoEl));
+        }
+        if (tSecDiHiEl) {
+          tSecDiHiEl.addEventListener('change', onDiInput);
+          tSecDiHiEl.addEventListener('blur', () => clearTrialParamTyping(tSecDiHiEl));
+        }
       }
       if (tMergeThFilt) {
         syncTSecThUi();
@@ -25914,11 +26582,18 @@
           const d = Number(parts[1]) || 0;
           bindTrialHoldStep(btn, () => stepTSecTh(bound, d));
         });
-        const onThInput = () => {
+        const onThInput = (e) => {
+          if (e && e.target) clearTrialParamTyping(e.target);
           if (readTSecThFromUi()) applyTSecDBreakFilter();
         };
-        if (tSecThLoEl) tSecThLoEl.addEventListener('change', onThInput);
-        if (tSecThHiEl) tSecThHiEl.addEventListener('change', onThInput);
+        if (tSecThLoEl) {
+          tSecThLoEl.addEventListener('change', onThInput);
+          tSecThLoEl.addEventListener('blur', () => clearTrialParamTyping(tSecThLoEl));
+        }
+        if (tSecThHiEl) {
+          tSecThHiEl.addEventListener('change', onThInput);
+          tSecThHiEl.addEventListener('blur', () => clearTrialParamTyping(tSecThHiEl));
+        }
       }
       if (tMergeDThFilt) {
         syncTSecDThUi();
@@ -25944,11 +26619,18 @@
           const d = Number(parts[1]) || 0;
           bindTrialHoldStep(btn, () => stepTSecDTh(bound, d));
         });
-        const onDThInput = () => {
+        const onDThInput = (e) => {
+          if (e && e.target) clearTrialParamTyping(e.target);
           if (readTSecDThFromUi()) applyTSecDBreakFilter();
         };
-        if (tSecDThLoEl) tSecDThLoEl.addEventListener('change', onDThInput);
-        if (tSecDThHiEl) tSecDThHiEl.addEventListener('change', onDThInput);
+        if (tSecDThLoEl) {
+          tSecDThLoEl.addEventListener('change', onDThInput);
+          tSecDThLoEl.addEventListener('blur', () => clearTrialParamTyping(tSecDThLoEl));
+        }
+        if (tSecDThHiEl) {
+          tSecDThHiEl.addEventListener('change', onDThInput);
+          tSecDThHiEl.addEventListener('blur', () => clearTrialParamTyping(tSecDThHiEl));
+        }
       }
       /* ix: ủy quyền trên cụm lọc phụ — luôn bật/tắt được (kể cả DOM bị append lại). */
       if (tMergeSecFilts && !tMergeSecFilts._tSecIxBound) {
@@ -25995,11 +26677,18 @@
           const d = Number(parts[1]) || 0;
           bindTrialHoldStep(btn, () => stepTSecIx(bound, d));
         });
-        const onIxInput = () => {
+        const onIxInput = (e) => {
+          if (e && e.target) clearTrialParamTyping(e.target);
           if (readTSecIxFromUi()) applyTSecDBreakFilter();
         };
-        if (tSecIxLoEl) tSecIxLoEl.addEventListener('change', onIxInput);
-        if (tSecIxHiEl) tSecIxHiEl.addEventListener('change', onIxInput);
+        if (tSecIxLoEl) {
+          tSecIxLoEl.addEventListener('change', onIxInput);
+          tSecIxLoEl.addEventListener('blur', () => clearTrialParamTyping(tSecIxLoEl));
+        }
+        if (tSecIxHiEl) {
+          tSecIxHiEl.addEventListener('change', onIxInput);
+          tSecIxHiEl.addEventListener('blur', () => clearTrialParamTyping(tSecIxHiEl));
+        }
       } else if (tMergeIxFilt) {
         syncTSecIxUi();
       }
@@ -26062,6 +26751,226 @@
         if (e.key === 'Escape' && isTPopupOpen()) hideTPopup();
       });
 
+      /** Snapshot JSON %iNbreak — không gồm focusId (ô mở trên bảng, chỉnh tay). */
+      function iMaxParamsSnapshotObj() {
+        flushIMaxPrefsFromDom();
+        return {
+          wantI: Math.max(1, iBreakOrd | 0),
+          threshold: iBreakThThuan ? '>=' : '<=',
+          pctPick: {
+            lo: clampIMaxPct(iMaxPctLo),
+            hi: clampIMaxPct(iMaxPctHi)
+          },
+          count: clampIMaxCount(iMaxCount),
+          ranges: {
+            tail: {
+              lo: iMaxRanges.tail.lo,
+              hi: iMaxRanges.tail.hi
+            },
+            wtail: {
+              lo: iMaxRanges.wtail.lo,
+              hi: iMaxRanges.wtail.hi
+            },
+            wfreq: {
+              lo: iMaxRanges.wfreq.lo,
+              hi: iMaxRanges.wfreq.hi
+            }
+          },
+          wtailMul: {
+            lo: iMaxConstr.mulLo,
+            hi: iMaxConstr.mulHi,
+            on: iMaxConstr.xtOn !== false
+          },
+          x: {
+            lo: iMaxConstr.xLo,
+            hi: iMaxConstr.xHi,
+            on: iMaxConstr.xOn !== false
+          },
+          schedule: {
+            on: !!ibrkSchedOn,
+            text: ibrkSchedText ? String(ibrkSchedText.value || '') : ''
+          }
+        };
+      }
+
+      function applyIMaxParamsObj(p) {
+        if (!p || typeof p !== 'object') return false;
+        seedIMaxRangesFromLive();
+        if (p.schedule && typeof p.schedule === 'object') {
+          if (typeof p.schedule.on === 'boolean') ibrkSchedOn = p.schedule.on;
+          if (typeof p.schedule.text === 'string' && ibrkSchedText) {
+            ibrkSchedText.value = p.schedule.text;
+          }
+        } else if (typeof p.schedOn === 'boolean' || typeof p.schedText === 'string') {
+          if (typeof p.schedOn === 'boolean') ibrkSchedOn = p.schedOn;
+          if (typeof p.schedText === 'string' && ibrkSchedText) {
+            ibrkSchedText.value = p.schedText;
+          }
+        }
+        if (p.threshold === '<=' || p.threshold === 'nghich') iBreakThThuan = false;
+        else if (p.threshold === '>=' || p.threshold === 'thuan') iBreakThThuan = true;
+        if (p.wantI != null) {
+          const wi = Math.max(1, Number(p.wantI) | 0);
+          if (wi >= 1 && wi <= 99) {
+            iBreakOrd = wi;
+            saveIBreakOrd();
+            syncIBreakSelectUi();
+          }
+        }
+        if (p.pctPick && typeof p.pctPick === 'object') {
+          if (p.pctPick.lo != null) iMaxPctLo = clampIMaxPct(p.pctPick.lo);
+          if (p.pctPick.hi != null) iMaxPctHi = clampIMaxPct(p.pctPick.hi);
+          normalizeIMaxPctPick();
+        }
+        if (p.count != null) iMaxCount = clampIMaxCount(p.count);
+        /* focusId / focusIdOn: không đụng — ô mở trên bảng, JSON cũ có cũng bỏ qua. */
+        const keys = ['tail', 'wtail', 'wfreq'];
+        const ranges = p.ranges && typeof p.ranges === 'object' ? p.ranges : p;
+        for (let i = 0; i < keys.length; i++) {
+          const k = keys[i];
+          const r = ranges[k];
+          if (!r || typeof r !== 'object') continue;
+          iMaxRanges[k] = {
+            lo: parseIMaxBoundVal(r.lo),
+            hi: parseIMaxBoundVal(r.hi)
+          };
+        }
+        if (p.wtailMul && typeof p.wtailMul === 'object') {
+          if (typeof p.wtailMul.on === 'boolean') iMaxConstr.xtOn = p.wtailMul.on;
+          iMaxConstr.mulLo = parseIMaxBoundVal(p.wtailMul.lo);
+          iMaxConstr.mulHi = parseIMaxBoundVal(p.wtailMul.hi);
+        }
+        if (p.x && typeof p.x === 'object') {
+          if (typeof p.x.on === 'boolean') iMaxConstr.xOn = p.x.on;
+          const xl = parseIMaxXVal(p.x.lo);
+          const xh = parseIMaxXVal(p.x.hi);
+          if (xl != null) iMaxConstr.xLo = xl;
+          if (xh != null) iMaxConstr.xHi = xh;
+          if (iMaxConstr.xLo > iMaxConstr.xHi) iMaxConstr.xLo = iMaxConstr.xHi;
+        }
+        saveIBreakThThuan();
+        saveIMaxRangesPrefs();
+        return true;
+      }
+
+      function closeIbrkJsonSchedPanels() {
+        ibrkJsonPanelOpen = false;
+        ibrkSchedPanelOpen = false;
+        if (ibrkJsonWrap) ibrkJsonWrap.hidden = true;
+        if (ibrkSchedWrap) ibrkSchedWrap.hidden = true;
+      }
+
+      function syncIbrkJsonSchedUi() {
+        const isIbrk = popupKind === 'stats' && statsPopupKind === 'iBreak';
+        if (!isIbrk) {
+          closeIbrkJsonSchedPanels();
+          return;
+        }
+        if (ibrkJsonWrap) {
+          ibrkJsonWrap.hidden = !ibrkJsonPanelOpen;
+          if (ibrkJsonPanelOpen && ibrkJsonText && document.activeElement !== ibrkJsonText) {
+            ibrkJsonText.value = JSON.stringify(iMaxParamsSnapshotObj(), null, 2);
+            ibrkJsonText.classList.remove('is-bad');
+          }
+        }
+        if (ibrkSchedWrap) ibrkSchedWrap.hidden = !ibrkSchedPanelOpen;
+        const jsonBtn = document.getElementById('ibrkJsonBtn');
+        if (jsonBtn) {
+          jsonBtn.classList.toggle('is-on', !!ibrkJsonPanelOpen);
+          jsonBtn.setAttribute('aria-pressed', ibrkJsonPanelOpen ? 'true' : 'false');
+        }
+        const schedBtn = document.getElementById('ibrkSchedBtn');
+        if (schedBtn) {
+          schedBtn.classList.toggle('is-on', !!ibrkSchedPanelOpen);
+          schedBtn.setAttribute('aria-pressed', ibrkSchedPanelOpen ? 'true' : 'false');
+        }
+        const schedTog = document.getElementById('ibrkSchedTog');
+        if (schedTog) {
+          schedTog.classList.toggle('is-on', !!ibrkSchedOn);
+          schedTog.setAttribute('aria-pressed', ibrkSchedOn ? 'true' : 'false');
+        }
+        const group = modalTitle && modalTitle.querySelector
+          ? modalTitle.querySelector('.t-sched-group')
+          : null;
+        if (group) {
+          group.classList.toggle('is-sched-on', !!ibrkSchedOn);
+          group.classList.toggle('is-panel-on', !!ibrkSchedPanelOpen);
+        }
+        /* Khóa tail / mul / wtail tuyệt đối trên bảng khi lịch bật — giống T. */
+        if (modalSub && modalSub.classList.contains('ibrk-tools')) {
+          const kinds = { hasMul: false, hasAbs: false };
+          if (ibrkSchedOn && ibrkSchedText) {
+            const parsed = parseTScheduleText(ibrkSchedText.value);
+            if (!parsed.error && parsed.slots) {
+              for (let i = 0; i < parsed.slots.length; i++) {
+                const s = parsed.slots[i];
+                if (s.wtailLo != null && s.wtailHi != null) kinds.hasAbs = true;
+                else if (s.mulLo != null && s.mulHi != null) kinds.hasMul = true;
+              }
+            }
+          }
+          const lockTail = !!ibrkSchedOn;
+          const lockWtail = !!ibrkSchedOn && kinds.hasAbs;
+          const lockMul = !!ibrkSchedOn && kinds.hasMul;
+          const tailWrap = modalSub.querySelector('[data-imax-range="tail"]');
+          const wtailWrap = modalSub.querySelector('[data-imax-range="wtail"]');
+          const xtWrap = modalSub.querySelector('[data-imax-constr="xt"]');
+          [tailWrap, wtailWrap, xtWrap].forEach((w) => {
+            if (!w) return;
+            w.classList.remove('is-sched-locked', 'is-sched-running');
+            w.querySelectorAll('.t-sched-lock-ic').forEach((el) => el.remove());
+          });
+          if (lockTail && tailWrap) {
+            tailWrap.classList.add('is-sched-locked');
+            if (typeof tSchedPutLockIcons === 'function') tSchedPutLockIcons(tailWrap);
+          }
+          if (lockWtail && wtailWrap) {
+            wtailWrap.classList.add('is-sched-locked');
+            if (typeof tSchedPutLockIcons === 'function') tSchedPutLockIcons(wtailWrap);
+          }
+          if (lockMul && xtWrap) {
+            xtWrap.classList.add('is-sched-locked');
+            if (typeof tSchedPutLockIcons === 'function') tSchedPutLockIcons(xtWrap);
+          }
+        }
+      }
+
+      function setIbrkJsonPanelOpen(open) {
+        ibrkJsonPanelOpen = !!open;
+        if (ibrkJsonPanelOpen) ibrkSchedPanelOpen = false;
+        syncIbrkJsonSchedUi();
+      }
+
+      function setIbrkSchedPanelOpen(open) {
+        ibrkSchedPanelOpen = !!open;
+        if (ibrkSchedPanelOpen) ibrkJsonPanelOpen = false;
+        syncIbrkJsonSchedUi();
+      }
+
+      function applyIbrkJsonText() {
+        if (!ibrkJsonText) return;
+        let p;
+        try {
+          p = JSON.parse(ibrkJsonText.value);
+        } catch (e) {
+          flashTBad(ibrkJsonText);
+          return;
+        }
+        iMaxApplyingParams = true;
+        try {
+          if (!applyIMaxParamsObj(p)) {
+            flashTBad(ibrkJsonText);
+            return;
+          }
+          ibrkJsonText.classList.remove('is-bad');
+          iBreakListCache = null;
+          /* Sơn lại title + bảng tham số từ state JSON (không đọc lại ô cũ). */
+          refreshOpenPopupAfterThreshold();
+        } finally {
+          iMaxApplyingParams = false;
+        }
+      }
+
       function paintIBreakListPopup(wantI, list, mau) {
         const den = mau > 0 ? mau : 0;
         const hitN = list.length;
@@ -26075,16 +26984,40 @@
           ixMergeSig = '';
         }
         seedIMaxRangesFromLive();
-        /* Đọc %pick/count đang gõ trước khi rebuild title — nhớ giá trị gần nhất. */
-        if (modalTitle && modalTitle.querySelector('[data-ibrk-pick], [data-ibrk-count]')) {
+        /* Đọc %pick/count đang gõ trước khi rebuild title — nhớ giá trị gần nhất.
+         * Bỏ qua khi áp JSON (giữ state vừa gán). */
+        if (!iMaxApplyingParams
+          && modalTitle && modalTitle.querySelector('[data-ibrk-pick], [data-ibrk-count]')) {
           readIMaxPctPickFromTitle();
         }
         normalizeIMaxPctPick();
         saveIMaxRangesPrefs();
-        modalTitle.innerHTML = '%i' + wantI + 'break'
-          + ' <span class="stats-rate">' + hitN + '/' + den
+        const jsonOn = !!ibrkJsonPanelOpen;
+        const schedPanelOn = !!ibrkSchedPanelOpen;
+        modalTitle.innerHTML = '<span class="stats-rate">' + hitN + '/' + den
           + '\u0020\u0020\u0020\u0020' + pct + '</span>'
-          + ' <span class="ibrk-th-seg" role="group" aria-label="Thuận hoặc nghịch"'
+          + '<button type="button" class="scan-cfg-btn t-json-btn' + (jsonOn ? ' is-on' : '')
+          + '" id="ibrkJsonBtn"'
+          + ' title="JSON tham số %iNbreak · sửa JSON ↔ bảng · lịch đè tail/mul hoặc w tuyệt đối"'
+          + ' aria-label="Cấu hình JSON" aria-pressed="' + (jsonOn ? 'true' : 'false') + '">'
+          + '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+          + '<path fill="currentColor" d="M9.4 16.6L4.8 12l4.6-4.6L8 6l-6 6 6 6 1.4-1.4zm5.2 0l4.6-4.6-4.6-4.6L16 6l6 6-6 6-1.4-1.4z"/>'
+          + '</svg></button>'
+          + '<span class="t-sched-group' + (ibrkSchedOn ? ' is-sched-on' : '')
+          + (schedPanelOn ? ' is-panel-on' : '') + '"'
+          + ' title="Lịch Calc: đè tail; mul a-b (quét wtail bảng) hoặc wN-N tuyệt đối (không kẹp ô wtail bảng); wfreq/x lấy bảng">'
+          + '<button type="button" class="t-sched-tog" id="ibrkSchedTog"'
+          + ' title="Bật/tắt áp dụng lịch khi Calc" aria-pressed="'
+          + (ibrkSchedOn ? 'true' : 'false') + '" aria-label="Áp dụng lịch">'
+          + '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">'
+          + '<path fill="currentColor" d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/>'
+          + '</svg></button>'
+          + '<button type="button" class="t-sched-btn' + (schedPanelOn ? ' is-on' : '')
+          + '" id="ibrkSchedBtn"'
+          + ' title="Soạn lịch %iNbreak: mỗi slot = tail rồi wtail (khoảng a-b hoặc wN-N); ngăn --------"'
+          + ' aria-label="Soạn lịch" aria-pressed="' + (schedPanelOn ? 'true' : 'false') + '">Lịch</button>'
+          + '</span>'
+          + '<span class="ibrk-th-seg" role="group" aria-label="Thuận hoặc nghịch"'
           + ' title="Chỉ cho %iNbreak (không đổi threshold header) · Thuận ≥@1% · Nghịch ≤@100%">'
           + '<button type="button" data-ibrk-th="1"'
           + (thuanOn ? ' class="is-on"' : '')
@@ -26095,7 +27028,7 @@
           + (thBusy ? ' disabled' : '')
           + '>nghịch ≤</button>'
           + '</span>'
-          + ' <span class="ibrk-pick-pct"'
+          + '<span class="ibrk-pick-pct"'
           + ' title="%pick luôn bật · %iNbreak ∈ [a;b]% · count = số kết quả lấy (List + ixmerge)">'
           + '<span class="ibrk-pick-lab">%pick</span>'
           + '<span class="scan-br">[</span>'
@@ -26107,6 +27040,7 @@
           + '</span>';
         bindIMaxPctPickSpinHolds();
         paintIBreakTools();
+        syncIbrkJsonSchedUi();
         paintIBreakIdList(wantI, list || []);
         /* Sơn lại list tools → đừng để timeline kỳ cũ lòi ra. */
         if (modalTimeline) {
@@ -26122,6 +27056,35 @@
         modalTitle._ibrkThBound = true;
         modalTitle.addEventListener('click', (e) => {
           if (!(popupKind === 'stats' && statsPopupKind === 'iBreak')) return;
+          const jsonBtn = e.target && e.target.closest
+            ? e.target.closest('#ibrkJsonBtn')
+            : null;
+          if (jsonBtn && modalTitle.contains(jsonBtn)) {
+            e.preventDefault();
+            e.stopPropagation();
+            setIbrkJsonPanelOpen(!ibrkJsonPanelOpen);
+            return;
+          }
+          const schedTog = e.target && e.target.closest
+            ? e.target.closest('#ibrkSchedTog')
+            : null;
+          if (schedTog && modalTitle.contains(schedTog)) {
+            e.preventDefault();
+            e.stopPropagation();
+            ibrkSchedOn = !ibrkSchedOn;
+            saveIMaxRangesPrefs();
+            syncIbrkJsonSchedUi();
+            return;
+          }
+          const schedBtn = e.target && e.target.closest
+            ? e.target.closest('#ibrkSchedBtn')
+            : null;
+          if (schedBtn && modalTitle.contains(schedBtn)) {
+            e.preventDefault();
+            e.stopPropagation();
+            setIbrkSchedPanelOpen(!ibrkSchedPanelOpen);
+            return;
+          }
           const btn = e.target && e.target.closest
             ? e.target.closest('[data-ibrk-th]')
             : null;
@@ -26309,7 +27272,10 @@
         syncHistIdDom();
       }
 
-      /** Ghi nhận id hist vừa click (cho Ctrl+Z xoay vòng). */
+      /**
+       * Ghi nhận id vừa click / paste / nhảy có chủ đích (hist hoặc sim).
+       * Không gọi từ mũi tên — tránh cặp A↔B bị đè thành hai kỳ liền kề.
+       */
       function rememberHistFocusClick(id) {
         const n = Number(id);
         if (!Number.isFinite(n) || n <= 0) return;
@@ -26318,16 +27284,21 @@
         focusUndoB = n;
       }
 
-      /** Ctrl+Z: xoay focus giữa hai kỳ hist vừa click. */
+      /** Ctrl+Z: xoay focus giữa hai id vừa nhớ (hist ↔ hist, hoặc hist ↔ kỳ rỗng). */
       function cycleHistFocusUndo() {
         if (focusUndoA == null || focusUndoB == null) return false;
         if (focusUndoA === focusUndoB) return false;
         const nextId = focusUndoA;
         focusUndoA = focusUndoB;
         focusUndoB = nextId;
+        alignRowIntoView(nextId, { instant: false });
+        if (simState && Number(simState.focusId) === Number(nextId)) {
+          openSimElim();
+          publishSharedFocus(nextId, { popup: true, mode: 'sim', force: true });
+          return true;
+        }
         const idx = findHistIdxById(nextId);
         if (idx < 0) return false;
-        alignRowIntoView(nextId, { instant: false });
         openHistElim(idx);
         publishSharedFocus(nextId, { popup: true, mode: 'hist', force: true });
         return true;
@@ -26390,7 +27361,7 @@
         const idx = displayIdx[pos];
         const id = ids[idx];
         if (id == null) return false;
-        rememberHistFocusClick(id);
+        /* Không nhớ vào Ctrl+Z — mũi tên duyệt gần sẽ đè cặp click (vd 988↔1018 → 992↔993). */
         alignRowIntoView(id, { instant: false });
         openHistElim(idx);
         publishSharedFocus(id, { popup: true, mode: 'hist', force: true });
@@ -26420,6 +27391,7 @@
         document.body.classList.remove('modal-open');
         if (modalEl) modalEl.classList.remove('is-stats', 'is-ibrk', 'is-tl-pick');
         if (modalSub) modalSub.classList.remove('ibrk-tools', 'pool-sub');
+        closeIbrkJsonSchedPanels();
         /* Hist + kỳ rỗng cuối: giữ focus (nền cam) khi đóng popup — giống nhau. */
         popupKind = null;
         statsPopupKind = null;
@@ -30275,10 +31247,20 @@
           return { mode: 'sim', focusIdx: simState.focusIdx, focusId: simState.focusId };
         }
         if (histIdOnIdx != null && histIdOnIdx >= 0 && histIdOnIdx < dataCtx.ids.length) {
+          const hi = histIdOnIdx;
+          const hid = dataCtx.ids[hi];
+          const hnums = dataCtx.rowNums && dataCtx.rowNums[hi];
+          /* Hàng rỗng trong bảng (vd 1018) — không lọc hist. */
+          if (!(hnums && hnums.length)) {
+            if (simState && Number(simState.focusId) === Number(hid)) {
+              return { mode: 'sim', focusIdx: simState.focusIdx, focusId: hid };
+            }
+            return { mode: 'sim', focusIdx: hi, focusId: hid };
+          }
           return {
             mode: 'hist',
-            focusIdx: histIdOnIdx,
-            focusId: dataCtx.ids[histIdOnIdx]
+            focusIdx: hi,
+            focusId: hid
           };
         }
 
@@ -30304,6 +31286,15 @@
         }
         const focusIdx = findHistIdxById(id);
         if (focusIdx < 0) return null;
+        /* Kỳ chưa có ĐA → sim (hist trên hàng rỗng không có Δ/timeline lọc được). */
+        const nums = dataCtx.rowNums && dataCtx.rowNums[focusIdx];
+        if (!(nums && nums.length)) {
+          if (simState && Number(simState.focusId) === id
+            && simState.focusIdx != null && simState.focusIdx >= 0) {
+            return { mode: 'sim', focusIdx: simState.focusIdx, focusId: id };
+          }
+          return { mode: 'sim', focusIdx: focusIdx, focusId: id };
+        }
         return { mode: 'hist', focusIdx: focusIdx, focusId: id };
       }
 
@@ -32704,6 +33695,14 @@
           showIdListPopup('iBreak');
         });
       }
+      if (btnBreakFormula) {
+        btnBreakFormula.addEventListener('click', (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          cycleBreakFormula();
+        });
+        syncBreakFormulaUi();
+      }
       if (btnRestToggle) {
         btnRestToggle.addEventListener('click', (e) => {
           e.preventDefault();
@@ -33010,6 +34009,7 @@
             hidePopup();
             return;
           }
+          if (simState) rememberHistFocusClick(simState.focusId);
           openSimElim();
           if (simState) publishSharedFocus(simState.focusId, { popup: true, mode: 'sim' });
         });
@@ -33045,7 +34045,11 @@
 
       function loadThresholdPrefs() {
         try {
-          const raw = localStorage.getItem(TH_LS_KEY);
+          let raw = null;
+          try { raw = sessionStorage.getItem(TH_SS_KEY); } catch (eSs) { /* ignore */ }
+          if (!raw) {
+            try { raw = localStorage.getItem(TH_LS_KEY); } catch (eLs) { /* ignore */ }
+          }
           if (!raw) return;
           const o = JSON.parse(raw);
           if (!o || typeof o !== 'object') return;
@@ -33056,11 +34060,11 @@
       }
 
       function saveThresholdPrefs() {
-        try {
-          localStorage.setItem(TH_LS_KEY, JSON.stringify({
-            op: thOp, val: thVal, locked: !!thLocked
-          }));
-        } catch (e) { /* ignore */ }
+        const payload = JSON.stringify({
+          op: thOp, val: thVal, locked: !!thLocked
+        });
+        try { sessionStorage.setItem(TH_SS_KEY, payload); } catch (eSs) { /* ignore */ }
+        try { localStorage.setItem(TH_LS_KEY, payload); } catch (e) { /* ignore */ }
       }
 
       function syncThLockUi() {
@@ -33240,22 +34244,24 @@
 
         updateTailHitRateDisplay();
 
-        // %break: mẫu = kỳ en>0 · tử = kỳ en>0 ∧ h<en (en=0 không tính)
+        // %breakˣ: theo breakFormula ¹/²/³
         const lastAnsId = lastAnsweredIdForRate(null);
-        const mau = fullTickList.length + breakTickList.length;
-        const tu = breakTickList.length;
-        if (mau > 0) {
-          const pct = (100 * tu) / mau;
-          sumViolPct.textContent = pct.toFixed(1) + '%';
-          sumViolFrac.textContent = tu + '/' + mau;
+        const idMau = lastAnsId != null ? (lastAnsId - MIN_ID + 1) : 0;
+        const eligibleN = fullTickList.length + breakTickList.length;
+        const fullN = fullTickList.length;
+        const parts = finalizeBreakPct(eligibleN, fullN, idMau);
+        if (parts && parts.mau > 0) {
+          sumViolPct.textContent = parts.pct.toFixed(1) + '%';
+          sumViolFrac.textContent = parts.tu + '/' + parts.mau;
           chipViolRate.title =
-            'mẫu = kỳ ≥1 luật sống từ MIN_ID→ĐA cuối = ' + mau
-            + ' · tử = ≥1 luật sống mà ≥1 luật không tick = ' + tu
-            + ' · % = tử/mẫu (quá khứ→hiện tại · threshold hiện tại)';
+            breakFormulaLabel() + ' · ' + breakFormulaTipBody()
+            + ' · tử/mẫu = ' + parts.tu + '/' + parts.mau
+            + ' · quá khứ→hiện tại · threshold hiện tại · click nhãn để đổi ¹/²/³';
         } else {
           sumViolPct.textContent = '—';
           sumViolFrac.textContent = '';
-          chipViolRate.title = 'Chưa có kỳ có ≥1 luật sống (MIN_ID→ĐA cuối)';
+          chipViolRate.title = breakFormulaLabel() + ' · chưa đủ mẫu (MIN_ID→ĐA cuối)'
+            + ' · click nhãn để đổi ¹/²/³';
         }
 
         /* %rest vẫn dùng mẫu id (ĐA), không đổi theo %break. */
@@ -34510,6 +35516,11 @@
         if (!modalBack.hidden && popupKind === 'elim' && !simIdOn) return;
         histIdOnIdx = null;
         simIdOn = true;
+        /* Neo Ctrl+Z: B = kỳ rỗng — click/paste id khác mới có A↔B. */
+        const sid = Number(simState.focusId);
+        if (Number.isFinite(sid) && sid > 0 && focusUndoB == null) {
+          focusUndoB = sid;
+        }
         syncSimRowDom();
         syncHistIdDom();
         updateI1BreakDisplay();
@@ -35181,11 +36192,18 @@
         if (sumZeroLabelEl) sumZeroLabelEl.textContent = '2/ Không tick cột nào (id>' + idGt + ')';
         if (sumTailLabel) sumTailLabel.textContent = '%' + trialTail + '-tail';
         document.title = trialTail + '-tail';
-        const mauTip = 'quá khứ→hiện tại (MIN_ID→ĐA cuối) · mẫu = kỳ ≥1 luật sống · tử = kỳ ≥1 luật sống mà ≥1 luật không tick · % = tử / mẫu';
+        const mauTip = breakFormulaLabel() + ' · quá khứ→hiện tại (MIN_ID→ĐA cuối) · '
+          + breakFormulaTipBody() + ' · click nhãn để đổi ¹/²/³';
         const restTip = 'mẫu = id cuối có đáp án' + mauMinusLabel()
           + ' · tử = số kỳ đáp án ∩ rest ≠ ∅ · rest cố định theo pool tối đa · click %rest = bỏ/tính kỳ rest rỗng';
         if (chipViolRateEl) chipViolRateEl.title = mauTip;
+        if (btnBreakFormula) {
+          btnBreakFormula.textContent = breakFormulaLabel();
+          btnBreakFormula.title = 'Click: đổi công thức ' + breakFormulaLabel()
+            + ' → tiếp theo · ' + breakFormulaTipBody();
+        }
         if (chipRestRateEl) chipRestRateEl.title = restTip;
+        syncTBreakPctLabel();
         try { refreshThWfreqFreqTipIfOpen(); } catch (eTip) { /* ignore */ }
       }
 
@@ -39110,6 +40128,17 @@
         if (id === 'tXHi') { stepTXBound('hi', dir); return true; }
         if (id === 'tTMulLo') { stepTMulBound('lo', dir); return true; }
         if (id === 'tTMulHi') { stepTMulBound('hi', dir); return true; }
+        /* 5 lọc phụ Δimerge: ix · |Δi| · |Δ%break| · %th · |Δ%th| */
+        if (id === 'tSecIxLo') { stepTSecIx('lo', dir); return true; }
+        if (id === 'tSecIxHi') { stepTSecIx('hi', dir); return true; }
+        if (id === 'tSecDiLo') { stepTSecDi('lo', dir); return true; }
+        if (id === 'tSecDiHi') { stepTSecDi('hi', dir); return true; }
+        if (id === 'tSecDBreakLo') { stepTSecDBreak('lo', dir); return true; }
+        if (id === 'tSecDBreakHi') { stepTSecDBreak('hi', dir); return true; }
+        if (id === 'tSecThLo') { stepTSecTh('lo', dir); return true; }
+        if (id === 'tSecThHi') { stepTSecTh('hi', dir); return true; }
+        if (id === 'tSecDThLo') { stepTSecDTh('lo', dir); return true; }
+        if (id === 'tSecDThHi') { stepTSecDTh('hi', dir); return true; }
         if (el.hasAttribute('data-t-rng')) {
           stepTBound(el.getAttribute('data-t-rng'), el.getAttribute('data-t-bound'), dir);
           return true;
@@ -39215,8 +40244,15 @@
         if (!dir) return false;
         const el = e.target;
         if (!isNumericSteppableInput(el)) return false;
-        /* Đang gõ tay số mới → tuyệt đối không ± / không restore số cũ. */
-        if (isTrialParamTyping(el)) return false;
+        /* ↑↓ / W·S: thoát chế độ gõ tay → ± giá trị (ô lọc phụ Δimerge cũng vậy). */
+        if (isTrialParamTyping(el)
+          && (e.key === 'ArrowUp' || e.key === 'ArrowDown'
+            || e.code === 'ArrowUp' || e.code === 'ArrowDown')) {
+          clearTrialParamTyping(el);
+        } else if (isTrialParamTyping(el)) {
+          /* Đang gõ tay số mới → tuyệt đối không ± / không restore số cũ. */
+          return false;
+        }
         const now = performance.now();
         const dup = now < fieldStepGuardUntil;
         if (!dup) {
