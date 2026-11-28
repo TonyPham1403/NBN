@@ -927,6 +927,130 @@
       opacity: 1;
     }
 
+    .bf-tip {
+      position: fixed;
+      z-index: 200;
+      width: max-content;
+      max-width: min(520px, calc(100vw - 16px));
+      padding: 8px;
+      border-radius: 10px;
+      background: #0b1220;
+      color: #e2e8f0;
+      border: 1px solid rgba(148, 163, 184, .35);
+      box-shadow: 0 14px 36px rgba(0, 0, 0, .45);
+      font-size: 12.5px;
+      line-height: 1.3;
+      pointer-events: none;
+    }
+
+    .bf-tip[hidden] {
+      display: none !important;
+    }
+
+    .bf-tip::before {
+      content: "";
+      position: absolute;
+      top: -5px;
+      left: 18px;
+      border: 5px solid transparent;
+      border-top: 0;
+      border-bottom-color: #0b1220;
+    }
+
+    .bf-tip.is-above::before {
+      top: auto;
+      bottom: -5px;
+      border-bottom: 0;
+      border-top-color: #0b1220;
+    }
+
+    .bf-eq {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 5px 8px;
+      border-radius: 8px;
+      border: 1px solid transparent;
+    }
+
+    .bf-eq + .bf-eq {
+      margin-top: 2px;
+    }
+
+    .bf-n {
+      flex: 0 0 auto;
+      color: #e2e8f0;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .bf-n sup {
+      font-size: 0.68em;
+      font-weight: 800;
+      margin-left: 1px;
+      line-height: 0;
+    }
+
+    .bf-frac {
+      display: inline-flex;
+      flex-direction: column;
+      align-items: stretch;
+      width: max-content;
+      text-align: center;
+      color: #f8fafc;
+    }
+
+    .bf-num,
+    .bf-den {
+      padding: 0 8px;
+    }
+
+    .bf-num {
+      padding-bottom: 3px;
+      border-bottom: 1px solid rgba(226, 232, 240, .7);
+    }
+
+    .bf-den {
+      padding-top: 3px;
+      color: #cbd5e1;
+    }
+
+    .bf-eq.is-on {
+      background: rgba(248, 113, 113, .16);
+      border-color: rgba(252, 165, 165, .75);
+    }
+
+    .bf-eq.is-on .bf-n {
+      color: #fecaca;
+    }
+
+    .bf-eq.is-on .bf-num {
+      border-bottom-color: #fecaca;
+    }
+
+    .bf-foot {
+      margin-top: 6px;
+      padding: 6px 8px 2px;
+      border-top: 1px solid rgba(148, 163, 184, .28);
+      color: #94a3b8;
+      font-size: 11px;
+      line-height: 1.45;
+    }
+
+    .bf-note {
+      margin: 0;
+    }
+
+    .bf-note b {
+      color: #cbd5e1;
+      font-weight: 700;
+    }
+
+    .bf-meta {
+      margin: 4px 0 0;
+      color: #64748b;
+    }
+
     .tail-rate .vr-pct {
       font-weight: 800;
       color: #38bdf8;
@@ -3239,7 +3363,7 @@
       font-size: 11px;
       font-weight: 700;
       color: #334155;
-      padding: 10px 2px 36px; /* chừa 2 hàng lọc phụ (ix/|Δi|/|Δ%break| · %th/delta%th) */
+      padding: 10px 2px 36px; /* chừa 2 hàng lọc phụ (ix/|Δi|/|Δ%break| · wfreq/%th/delta%th) */
       line-height: 1.9;
       overflow: visible;
       isolation: isolate; /* giữ z-index lọc phụ trong vùng Δimerge */
@@ -3545,7 +3669,7 @@
       color: #16a34a;
     }
 
-    /* Lọc phụ: cụm absolute sát mép dưới + sát phải — 2 hàng (ix/|Δi|/|Δ%break| · %th/delta%th). */
+    /* Lọc phụ: cụm absolute sát mép dưới + sát phải — 2 hàng (ix/|Δi|/|Δ%break| · wfreq/%th/delta%th). */
     .t-merge-sec-filts {
       position: absolute;
       right: 2px;
@@ -5654,6 +5778,10 @@
       opacity: 0.35;
     }
 
+    .cal-tip.cal-tip-pin.is-dragging .cal-tip-num {
+      cursor: grabbing;
+    }
+
     .cal-tip.cal-tip-pin.is-copy-ok {
       outline: 2px solid #16a34a;
       outline-offset: 1px;
@@ -5667,11 +5795,23 @@
       text-decoration-color: currentColor;
     }
 
-    /* Viền vàng gián tiếp: số ∈ pick (từ tip Δ / timeline) — không click khoanh tại đây. */
+    /* Click: khoanh vàng · chuột phải: block. Kéo cả khối không tính là click. */
     .cal-tip .cal-tip-num {
       border-radius: 2px;
       color: inherit;
       font-weight: inherit;
+      cursor: pointer;
+    }
+
+    .cal-tip .cal-tip-num.is-tl-block {
+      background: #f1f5f9;
+      color: #0f172a;
+      box-shadow: inset 0 0 0 1px #94a3b8;
+    }
+
+    .cal-tip .cal-tip-num.is-tl-block .derive-mark {
+      color: #0f172a;
+      text-decoration-color: #0f172a;
     }
 
     .cal-tip .cal-tip-num.is-picked {
@@ -7029,10 +7169,37 @@
           <span class="vr-pct" id="sumTailPct">—</span>
           <span class="vr-frac" id="sumTailFrac"></span>
         </div>
-        <div class="viol-rate" id="chipViolRate"
-          title="quá khứ→hiện tại (MIN_ID→ĐA cuối) · click %breakˣ để đổi công thức ¹/²/³">
+        <div class="viol-rate" id="chipViolRate">
           <button type="button" class="vr-label vr-label-tog" id="btnBreakFormula"
-            title="Click: đổi công thức %break¹ → ² → ³ → ¹">%break³</button>
+            aria-describedby="breakFormulaTip">%break³</button>
+          <div id="breakFormulaTip" class="bf-tip" role="tooltip" hidden>
+            <div class="bf-eq" data-bf="1">
+              <span class="bf-n">%break<sup>1</sup> =</span>
+              <span class="bf-frac">
+                <span class="bf-num">mẫu − kỳ tick đủ</span>
+                <span class="bf-den">id cuối ĐA − MIN_ID + 1</span>
+              </span>
+            </div>
+            <div class="bf-eq" data-bf="2">
+              <span class="bf-n">%break<sup>2</sup> =</span>
+              <span class="bf-frac">
+                <span class="bf-num">kỳ en&gt;0 ∧ h&lt;en</span>
+                <span class="bf-den">id cuối ĐA − MIN_ID + 1</span>
+              </span>
+            </div>
+            <div class="bf-eq" data-bf="3">
+              <span class="bf-n">%break<sup>3</sup> =</span>
+              <span class="bf-frac">
+                <span class="bf-num">en&gt;0 ∧ h&lt;en</span>
+                <span class="bf-den">kỳ ≥1 luật sống (en&gt;0)</span>
+              </span>
+            </div>
+            <div class="bf-foot">
+              <p class="bf-note"><b>%break<sup>1</sup></b> en = 0 cũng tính là break</p>
+              <p class="bf-note"><b>%break<sup>2</sup></b> en = 0 không vào tử</p>
+              <p class="bf-meta" id="breakFormulaTipMeta"></p>
+            </div>
+          </div>
           <span class="vr-pct" id="sumViolPct">—</span>
           <span class="vr-frac" id="sumViolFrac"></span>
         </div>
@@ -7427,10 +7594,38 @@
                 </span>
               </span>
               <span class="scan-br" data-t-sec-dbreak-a="max" role="button" tabindex="0" aria-pressed="false"
-                title="Bật/tắt: giữ a cao nhất mà Δimerge còn số, cập nhật theo dữ liệu lọc mới">]</span>
+                title="Bật/tắt: giữ a cao nhất mà Δimerge còn số, sau các lọc phụ khác; cập nhật khi lọc phụ hoặc dữ liệu đổi">]</span>
             </span>
           </span>
           <span class="t-merge-sec-filts-row">
+            <span class="t-merge-sec-filt trial-params scan-param" id="tMergeWfreqFilt" data-t-sec-wfreq="1">
+              <span class="tp-label scan-param-tog" data-t-sec-wfreq-tog role="button" tabindex="0"
+                title="Click: bật/tắt lọc phụ wfreq trên kết quả (không chạy lại Lọc)">wfreq</span>
+              <span class="scan-in" aria-hidden="true">∈</span>
+              <span class="scan-br">[</span>
+              <span class="tp-item">
+                <input class="tp-val" id="tSecWfreqLo" type="text" inputmode="numeric" autocomplete="off"
+                  spellcheck="false" title="a · wfreq ≥ a">
+                <span class="tp-spin" role="group" aria-label="Tăng giảm a">
+                  <button type="button" class="tp-spin-btn" data-t-sec-wfreq-d="lo:1" title="Tăng a"
+                    aria-label="tăng a">▴</button>
+                  <button type="button" class="tp-spin-btn" data-t-sec-wfreq-d="lo:-1" title="Giảm a"
+                    aria-label="giảm a">▾</button>
+                </span>
+              </span>
+              <span class="scan-sep">;</span>
+              <span class="tp-item">
+                <input class="tp-val" id="tSecWfreqHi" type="text" inputmode="numeric" autocomplete="off"
+                  spellcheck="false" title="b · wfreq ≤ b">
+                <span class="tp-spin" role="group" aria-label="Tăng giảm b">
+                  <button type="button" class="tp-spin-btn" data-t-sec-wfreq-d="hi:1" title="Tăng b"
+                    aria-label="tăng b">▴</button>
+                  <button type="button" class="tp-spin-btn" data-t-sec-wfreq-d="hi:-1" title="Giảm b"
+                    aria-label="giảm b">▾</button>
+                </span>
+              </span>
+              <span class="scan-br">]</span>
+            </span>
             <span class="t-merge-sec-filt trial-params scan-param" id="tMergeThFilt" data-t-sec-th="1">
               <span class="tp-label scan-param-tog" data-t-sec-th-tog role="button" tabindex="0"
                 title="Click: bật/tắt lọc phụ %th (ngưỡng % tại mốc) trên kết quả (không chạy lại Lọc)">%th</span>
@@ -7848,18 +8043,62 @@
         }
         return '³ mẫu = kỳ ≥1 luật sống (en>0) · tử = en>0 ∧ h<en';
       }
+      /** {tu, mau} lần tính %break gần nhất; null = chưa đủ mẫu. */
+      let breakRateParts = null;
+      function syncBreakFormulaTip() {
+        const tip = document.getElementById('breakFormulaTip');
+        if (tip) {
+          tip.querySelectorAll('[data-bf]').forEach((row) => {
+            row.classList.toggle('is-on', Number(row.getAttribute('data-bf')) === breakFormula);
+          });
+        }
+        const meta = document.getElementById('breakFormulaTipMeta');
+        if (meta) {
+          const rate = (breakRateParts && breakRateParts.mau > 0)
+            ? (breakRateParts.tu + '/' + breakRateParts.mau + ' · ')
+            : 'chưa đủ mẫu · ';
+          meta.textContent = rate + 'quá khứ→hiện tại · threshold hiện tại · click nhãn để đổi ¹/²/³';
+        }
+      }
+      function placeBreakFormulaTip() {
+        const tip = document.getElementById('breakFormulaTip');
+        if (!tip || !btnBreakFormula || tip.hidden) return;
+        const r = btnBreakFormula.getBoundingClientRect();
+        const w = tip.offsetWidth;
+        const h = tip.offsetHeight;
+        let left = r.left;
+        let top = r.bottom + 8;
+        if (left + w > window.innerWidth - 8) left = Math.max(8, window.innerWidth - 8 - w);
+        if (left < 8) left = 8;
+        const above = top + h > window.innerHeight - 8 && r.top > h + 16;
+        if (above) top = r.top - h - 8;
+        tip.classList.toggle('is-above', above);
+        tip.style.left = left + 'px';
+        tip.style.top = top + 'px';
+      }
+      function showBreakFormulaTip() {
+        const tip = document.getElementById('breakFormulaTip');
+        if (!tip) return;
+        syncBreakFormulaTip();
+        tip.hidden = false;
+        placeBreakFormulaTip();
+      }
+      function hideBreakFormulaTip() {
+        const tip = document.getElementById('breakFormulaTip');
+        if (tip) tip.hidden = true;
+      }
+      function applyBreakFormulaTitle() {
+        syncBreakFormulaTip();
+        const tip = document.getElementById('breakFormulaTip');
+        if (tip && !tip.hidden) placeBreakFormulaTip();
+        if (btnBreakFormula) btnBreakFormula.removeAttribute('title');
+        if (chipViolRate) chipViolRate.removeAttribute('title');
+        if (sumViolPct) sumViolPct.removeAttribute('title');
+        if (sumViolFrac) sumViolFrac.removeAttribute('title');
+      }
       function syncBreakFormulaUi() {
-        if (btnBreakFormula) {
-          btnBreakFormula.textContent = breakFormulaLabel();
-          btnBreakFormula.title = 'Click: đổi công thức ' + breakFormulaLabel()
-            + ' → tiếp theo · ' + breakFormulaTipBody();
-        }
-        if (chipViolRate) {
-          chipViolRate.title = breakFormulaLabel()
-            + ' · quá khứ→hiện tại (MIN_ID→ĐA cuối) · '
-            + breakFormulaTipBody()
-            + ' · click nhãn để đổi ¹/²/³';
-        }
+        if (btnBreakFormula) btnBreakFormula.textContent = breakFormulaLabel();
+        applyBreakFormulaTitle();
         if (chipI1BreakRate) {
           chipI1BreakRate.title = 'mẫu cùng ' + breakFormulaLabel()
             + ' · tử = kỳ en>0 mà append break ≥1 số tại iN · theo tail/wtail/wfreq + threshold header · click số % = xem danh sách';
@@ -17717,6 +17956,7 @@
       const tMergeSecFilts = document.getElementById('tMergeSecFilts');
       const tMergeDiFilt = document.getElementById('tMergeDiFilt');
       const tMergeIxFilt = document.getElementById('tMergeIxFilt');
+      const tMergeWfreqFilt = document.getElementById('tMergeWfreqFilt');
       const tMergeThFilt = document.getElementById('tMergeThFilt');
       const tMergeDThFilt = document.getElementById('tMergeDThFilt');
       const tSecIxRangeEl = document.getElementById('tSecIxRange');
@@ -17726,6 +17966,8 @@
       const tSecDiHiEl = document.getElementById('tSecDiHi');
       const tSecIxLoEl = document.getElementById('tSecIxLo');
       const tSecIxHiEl = document.getElementById('tSecIxHi');
+      const tSecWfreqLoEl = document.getElementById('tSecWfreqLo');
+      const tSecWfreqHiEl = document.getElementById('tSecWfreqHi');
       const tSecThLoEl = document.getElementById('tSecThLo');
       const tSecThHiEl = document.getElementById('tSecThHi');
       const tSecDThLoEl = document.getElementById('tSecDThLo');
@@ -17742,6 +17984,9 @@
       /** Lọc phụ ix: bật/tắt (mặc định tắt) · side i|k|j · [a;b] chỉ khi i/j. */
       const tSecIx = { side: 'i', lo: 1, hi: 35, on: false };
       const tSecIxDom = { lo: 1, hi: 35 };
+      /** Lọc phụ wfreq∈[a;b] trên kết quả. Mỗi Lọc mới → copy [a;b] wfreq lọc chính. */
+      const tSecWfreq = { lo: 1, hi: 450, on: true };
+      const tSecWfreqDom = { lo: 1, hi: 450 };
       /** Lọc phụ %th=(th×%break)/100 ∈[a;b]. Mỗi Lọc mới → [0;100]. */
       const tSecTh = { lo: 0, hi: 100, on: true };
       const tSecThDom = { lo: 0, hi: 100 };
@@ -21503,6 +21748,7 @@
         const di = tSecDiRange();
         const th = tSecThRange();
         const dth = tSecDThRange();
+        const wf = tSecWfreqRange();
         const ix = tSecIx.on
           ? (tSecIx.side + ':' + (tSecIx.lo | 0) + ';' + (tSecIx.hi | 0))
           : '';
@@ -21510,7 +21756,8 @@
           + '|di:' + (di ? (di.lo + ';' + di.hi) : '')
           + '|ix:' + ix
           + '|th:' + (th ? (th.lo + ';' + th.hi) : '')
-          + '|dth:' + (dth ? (dth.lo + ';' + dth.hi) : '');
+          + '|dth:' + (dth ? (dth.lo + ';' + dth.hi) : '')
+          + '|wf:' + (wf ? (wf.lo + ';' + wf.hi) : '');
       }
 
       /** Hàng có qua lọc phụ |Δ%break|∈[a;b] không. */
@@ -21581,15 +21828,34 @@
         return parsed.n >= lo && parsed.n <= hi;
       }
 
-      /** Qua lọc phụ số (|Δ%break| · |Δi| · ix · %th · delta%th), chưa tính chọn ô Δimerge. */
+      /** Qua lọc phụ số (|Δ%break| · |Δi| · ix · wfreq · %th · delta%th), chưa tính chọn ô Δimerge. */
       function tRowPassesSecBands(r) {
         return tRowPassesSecDBreak(r) && tRowPassesSecDi(r) && tRowPassesSecIx(r)
-          && tRowPassesSecTh(r) && tRowPassesSecDTh(r);
+          && tRowPassesSecWfreq(r) && tRowPassesSecTh(r) && tRowPassesSecDTh(r);
       }
 
       /** Qua mọi lọc phụ (Δimerge + bands). */
       function tRowPassesSecondary(r) {
         return tRowPassesMerge(r) && tRowPassesSecBands(r);
+      }
+
+      /** Khoảng wfreq phụ (null = tắt hoặc đúng miền lọc chính). */
+      function tSecWfreqRange() {
+        if (tSecWfreq.on === false) return null;
+        const lo = (tSecWfreq.lo == null || !Number.isFinite(tSecWfreq.lo))
+          ? tSecWfreqDom.lo : tSecWfreq.lo;
+        const hi = (tSecWfreq.hi == null || !Number.isFinite(tSecWfreq.hi))
+          ? tSecWfreqDom.hi : tSecWfreq.hi;
+        if (lo <= tSecWfreqDom.lo && hi >= tSecWfreqDom.hi) return null;
+        return { lo: lo, hi: hi };
+      }
+
+      function tRowPassesSecWfreq(r) {
+        const band = tSecWfreqRange();
+        if (!band) return true;
+        const v = r && Number.isFinite(Number(r.wfreq)) ? Number(r.wfreq) : NaN;
+        if (!Number.isFinite(v)) return false;
+        return v >= band.lo && v <= band.hi;
       }
 
       /** Khoảng %th phụ (null = tắt hoặc [0;100]). */
@@ -21668,6 +21934,18 @@
         tSecIx.hi = 35;
         tSecIx.side = 'i';
         tSecIx.on = false;
+        const wfSrc = (src && src.wfreq)
+          || (src && src.resolvedRanges && src.resolvedRanges.wfreq)
+          || (src && src.ranges && src.ranges.wfreq)
+          || tRangeResolve('wfreq');
+        const wf = tSecClampBand(wfSrc, { lo: 1, hi: 450 });
+        wf.lo = Math.round(wf.lo);
+        wf.hi = Math.round(wf.hi);
+        tSecWfreqDom.lo = wf.lo;
+        tSecWfreqDom.hi = wf.hi;
+        tSecWfreq.lo = wf.lo;
+        tSecWfreq.hi = wf.hi;
+        tSecWfreq.on = true;
         tSecThDom.lo = 0;
         tSecThDom.hi = 100;
         tSecTh.lo = 0;
@@ -21684,6 +21962,7 @@
         syncTSecDBreakALockUi();
         syncTSecDiUi();
         syncTSecIxUi();
+        syncTSecWfreqUi();
         syncTSecThUi();
         syncTSecDThUi();
       }
@@ -21781,6 +22060,29 @@
               ? 'Đang k (một mốc) · [a;b] tắt · Click: i → k → j → i'
               : ('Đang ' + side + ' · Click: i → k → j → i · [a;b] lọc số thứ tự'));
         }
+      }
+
+      function syncTSecWfreqUi() {
+        if (!tMergeWfreqFilt) return;
+        const off = tSecWfreq.on === false;
+        tMergeWfreqFilt.classList.toggle('is-off', off);
+        if (tSecWfreqLoEl) {
+          tSecWfreqLoEl.disabled = off;
+          if (document.activeElement !== tSecWfreqLoEl) {
+            const lo = (tSecWfreq.lo == null || !Number.isFinite(tSecWfreq.lo))
+              ? tSecWfreqDom.lo : tSecWfreq.lo;
+            tSecWfreqLoEl.value = String(lo | 0);
+          }
+        }
+        if (tSecWfreqHiEl) {
+          tSecWfreqHiEl.disabled = off;
+          if (document.activeElement !== tSecWfreqHiEl) {
+            const hi = (tSecWfreq.hi == null || !Number.isFinite(tSecWfreq.hi))
+              ? tSecWfreqDom.hi : tSecWfreq.hi;
+            tSecWfreqHiEl.value = String(hi | 0);
+          }
+        }
+        tMergeWfreqFilt.querySelectorAll('.tp-spin-btn').forEach((btn) => { btn.disabled = off; });
       }
 
       function syncTSecThUi() {
@@ -22031,6 +22333,72 @@
         applyTSecDBreakFilter();
       }
 
+      function readTSecWfreqFromUi() {
+        if (tSecWfreq.on === false) {
+          if (tSecWfreqLoEl) tSecWfreqLoEl.classList.remove('is-bad');
+          if (tSecWfreqHiEl) tSecWfreqHiEl.classList.remove('is-bad');
+          return true;
+        }
+        const domLo = tSecWfreqDom.lo;
+        const domHi = tSecWfreqDom.hi;
+        const rawLo = tSecWfreqLoEl ? String(tSecWfreqLoEl.value || '').trim() : '';
+        const rawHi = tSecWfreqHiEl ? String(tSecWfreqHiEl.value || '').trim() : '';
+        let lo = rawLo === '' ? domLo : Number(rawLo);
+        let hi = rawHi === '' ? domHi : Number(rawHi);
+        let ok = true;
+        if (!Number.isFinite(lo) || lo < domLo || lo > domHi) {
+          flashTBad(tSecWfreqLoEl);
+          ok = false;
+          lo = tSecWfreq.lo;
+        } else if (tSecWfreqLoEl) clearTBad(tSecWfreqLoEl);
+        if (!Number.isFinite(hi) || hi < domLo || hi > domHi) {
+          flashTBad(tSecWfreqHiEl);
+          ok = false;
+          hi = tSecWfreq.hi;
+        } else if (tSecWfreqHiEl) clearTBad(tSecWfreqHiEl);
+        if (ok && lo > hi) {
+          flashTBad(tSecWfreqLoEl);
+          flashTBad(tSecWfreqHiEl);
+          ok = false;
+        }
+        if (ok) {
+          tSecWfreq.lo = Math.round(lo);
+          tSecWfreq.hi = Math.round(hi);
+        }
+        return ok;
+      }
+
+      function stepTSecWfreq(bound, d) {
+        if (!d || tSecWfreq.on === false) return;
+        readTSecWfreqFromUi();
+        let cur = tSecWfreq[bound];
+        if (cur == null || !Number.isFinite(cur)) {
+          cur = bound === 'lo' ? tSecWfreqDom.lo : tSecWfreqDom.hi;
+        }
+        let next = Math.max(tSecWfreqDom.lo, Math.min(tSecWfreqDom.hi, Math.round(cur + d)));
+        const other = bound === 'lo' ? tSecWfreq.hi : tSecWfreq.lo;
+        if (bound === 'lo' && other != null && Number.isFinite(other) && next > other) {
+          flashTBad(tSecWfreqLoEl);
+          next = other;
+        }
+        tSecWfreq[bound] = next;
+        if (bound === 'hi' && other != null && Number.isFinite(other) && next < other) {
+          tSecWfreq.lo = next;
+        }
+        syncTSecWfreqUi();
+        if (tSecWfreqLoEl) {
+          const lo = (tSecWfreq.lo == null || !Number.isFinite(tSecWfreq.lo))
+            ? tSecWfreqDom.lo : tSecWfreq.lo;
+          tSecWfreqLoEl.value = String(lo | 0);
+        }
+        if (tSecWfreqHiEl) {
+          const hi = (tSecWfreq.hi == null || !Number.isFinite(tSecWfreq.hi))
+            ? tSecWfreqDom.hi : tSecWfreq.hi;
+          tSecWfreqHiEl.value = String(hi | 0);
+        }
+        applyTSecDBreakFilter();
+      }
+
       function readTSecThFromUi() {
         if (tSecTh.on === false) {
           if (tSecThLoEl) tSecThLoEl.classList.remove('is-bad');
@@ -22161,9 +22529,10 @@
         applyTSecDBreakFilter();
       }
 
-      /** Hàng này có đưa được số vào Δimerge (đã qua |Δi| + ix, chưa tính |Δ%break|). */
+      /** Hàng này có đưa được số vào Δimerge (đã qua mọi lọc phụ khác, chưa tính |Δ%break|). */
       function tRowFeedsMerge(r) {
         if (!r || !tRowPassesSecDi(r) || !tRowPassesSecIx(r)) return false;
+        if (!tRowPassesSecWfreq(r) || !tRowPassesSecTh(r) || !tRowPassesSecDTh(r)) return false;
         const dn = tHitMergeNums(r);
         if (!dn.length) return false;
         for (let j = 0; j < dn.length; j++) {
@@ -22175,7 +22544,8 @@
 
       /**
        * [ đang bật → a = số nguyên thấp nhất trong khoảng.
-       * ] đang bật → a = số nguyên lớn nhất (a ≤ b) sao cho Δimerge còn số.
+       * ] đang bật → a = số nguyên lớn nhất (a ≤ b) sao cho Δimerge còn số,
+       * sau khi hàng đã qua |Δi|, ix, wfreq, %th và |Δ%th|.
        * @returns {number|null} null = ] chưa có hàng để bám.
        */
       function computeTSecDBreakALocked() {
@@ -26558,6 +26928,43 @@
           tSecDiHiEl.addEventListener('blur', () => clearTrialParamTyping(tSecDiHiEl));
         }
       }
+      if (tMergeWfreqFilt) {
+        syncTSecWfreqUi();
+        const togWf = tMergeWfreqFilt.querySelector('[data-t-sec-wfreq-tog]');
+        if (togWf) {
+          const toggleWf = () => {
+            tSecWfreq.on = tSecWfreq.on === false;
+            syncTSecWfreqUi();
+            applyTSecDBreakFilter();
+          };
+          togWf.addEventListener('click', toggleWf);
+          togWf.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              toggleWf();
+            }
+          });
+        }
+        tMergeWfreqFilt.querySelectorAll('.tp-spin-btn[data-t-sec-wfreq-d]').forEach((btn) => {
+          const spec = String(btn.getAttribute('data-t-sec-wfreq-d') || '');
+          const parts = spec.split(':');
+          const bound = parts[0] === 'hi' ? 'hi' : 'lo';
+          const d = Number(parts[1]) || 0;
+          bindTrialHoldStep(btn, () => stepTSecWfreq(bound, d));
+        });
+        const onWfInput = (e) => {
+          if (e && e.target) clearTrialParamTyping(e.target);
+          if (readTSecWfreqFromUi()) applyTSecDBreakFilter();
+        };
+        if (tSecWfreqLoEl) {
+          tSecWfreqLoEl.addEventListener('change', onWfInput);
+          tSecWfreqLoEl.addEventListener('blur', () => clearTrialParamTyping(tSecWfreqLoEl));
+        }
+        if (tSecWfreqHiEl) {
+          tSecWfreqHiEl.addEventListener('change', onWfInput);
+          tSecWfreqHiEl.addEventListener('blur', () => clearTrialParamTyping(tSecWfreqHiEl));
+        }
+      }
       if (tMergeThFilt) {
         syncTSecThUi();
         const togTh = tMergeThFilt.querySelector('[data-t-sec-th-tog]');
@@ -27632,6 +28039,7 @@
           }
         }
         try { refreshDeltaTipBlockDom(); } catch (e3) { /* ignore */ }
+        try { refreshCalTipBlockDom(); } catch (eCal) { /* ignore */ }
         try { refreshThWfreqFreqTipIfOpen(); } catch (eTip) { /* ignore */ }
       }
 
@@ -28031,6 +28439,7 @@
           } catch (err) { /* ignore */ }
           pin._tipDropLocal = false;
           tipPinLocalDrag = { pin: pin, xferId: xferId, kind: kind };
+          pin._tipDragged = true;
           pin.classList.add('is-dragging');
           if (kind === 'delta') bringDeltaTipPinToFront(pin);
           else bringCalTipPinToFront(pin);
@@ -28044,6 +28453,7 @@
             pin.remove();
           }
           pin._tipDropLocal = false;
+          setTimeout(() => { pin._tipDragged = false; }, 80);
         }
         /* Δ: draggable trên nhãn i5[n] (Chrome không kéo được nếu chỉ parent.draggable
            mà mousedown bắt đầu trên child). Cal: kéo cả khối như cũ. */
@@ -29946,8 +30356,8 @@
       }
 
       /**
-       * HTML số trên pin Calculate: derive gạch chân + viền vàng gián tiếp nếu ∈ pick.
-       * Không gắn data-tl-pick → không click khoanh tại đây.
+       * HTML số trên pin Calculate: click khoanh, chuột phải block.
+       * Kéo tooltip không đổi pick — click chỉ tính khi thả tại chỗ.
        */
       function formatCalTipNumsHtml(nums) {
         const list = nums || [];
@@ -29956,15 +30366,40 @@
         for (let i = 0; i < list.length; i++) {
           const n = list[i];
           const inner = wrapDeriveMarkHtml(String(n), n, popupTimelineDeriveSet);
+          const blocked = !!(tlBlockSet && tlBlockSet.has(n));
+          if (blocked) {
+            bits.push(
+              '<span class="cal-tip-num is-tl-block" data-cal-num="' + n
+              + '" data-tl-num="' + n
+              + '" title="block — Chuột phải: gỡ block">'
+              + inner + '</span>'
+            );
+            continue;
+          }
           bits.push(
             '<span class="cal-tip-num'
             + (picked.has(n) ? ' is-picked' : '')
-            + '" data-cal-num="' + n + '">'
-            + inner
-            + '</span>'
+            + '" data-cal-num="' + n + '" data-tl-pick="' + n
+            + '" title="Click: khoanh vàng · Chuột phải: bật/tắt block">'
+            + inner + '</span>'
           );
         }
         return bits.join(',');
+      }
+
+      /** Vẽ lại số trên pin Calculate sau khi đổi block (class nằm trong HTML). */
+      function refreshCalTipBlockDom() {
+        document.querySelectorAll('.cal-tip.cal-tip-pin').forEach((pin) => {
+          const body = pin.querySelector('.cal-tip-pin-body');
+          if (!body || pin.classList.contains('is-empty')) return;
+          const nums = [];
+          String(pin.getAttribute('data-cal-nums') || '').split(',').forEach((p) => {
+            const n = Number(p);
+            if (Number.isFinite(n)) nums.push(n);
+          });
+          if (!nums.length) return;
+          body.innerHTML = formatCalTipNumsHtml(nums);
+        });
       }
 
       function createCalTipPin(opts) {
@@ -30068,10 +30503,40 @@
           ev.stopPropagation();
           copyBody();
         });
-        /* Ctrl/Cmd+click → clone pin lệch nhẹ. */
-        pin.addEventListener('click', (ev) => {
-          if (!(ev.ctrlKey || ev.metaKey)) return;
+        /* Kéo (dịch con trỏ) không được tính là click khoanh. */
+        let calPress = null;
+        pin.addEventListener('pointerdown', (ev) => {
+          if (ev.button !== 0) return;
           if (ev.target && ev.target.closest && ev.target.closest('.cal-tip-pin-x')) return;
+          calPress = { x: ev.clientX, y: ev.clientY, moved: false };
+        });
+        pin.addEventListener('pointermove', (ev) => {
+          if (!calPress || calPress.moved) return;
+          if (Math.abs(ev.clientX - calPress.x) > 5 || Math.abs(ev.clientY - calPress.y) > 5) {
+            calPress.moved = true;
+          }
+        });
+        pin.addEventListener('pointerup', () => {
+          setTimeout(() => { calPress = null; }, 0);
+        });
+        pin.addEventListener('pointercancel', () => { calPress = null; });
+        pin.addEventListener('contextmenu', (ev) => {
+          if (handleTlBlockContextMenu(ev, pin)) return;
+          ev.preventDefault();
+          ev.stopPropagation();
+        });
+        /* Click số → khoanh. Ctrl/Cmd+click nền → clone pin. Kéo thì bỏ qua. */
+        pin.addEventListener('click', (ev) => {
+          const dragged = !!(pin._tipDragged || (calPress && calPress.moved));
+          calPress = null;
+          if (dragged) {
+            ev.preventDefault();
+            ev.stopPropagation();
+            return;
+          }
+          if (ev.target && ev.target.closest && ev.target.closest('.cal-tip-pin-x')) return;
+          if (!(ev.ctrlKey || ev.metaKey) && handleTlPickClick(ev, pin)) return;
+          if (!(ev.ctrlKey || ev.metaKey)) return;
           ev.preventDefault();
           ev.stopPropagation();
           const rect = pin.getBoundingClientRect();
@@ -33701,6 +34166,10 @@
           e.stopPropagation();
           cycleBreakFormula();
         });
+        btnBreakFormula.addEventListener('mouseenter', showBreakFormulaTip);
+        btnBreakFormula.addEventListener('mouseleave', hideBreakFormulaTip);
+        btnBreakFormula.addEventListener('focus', showBreakFormulaTip);
+        btnBreakFormula.addEventListener('blur', hideBreakFormulaTip);
         syncBreakFormulaUi();
       }
       if (btnRestToggle) {
@@ -34253,16 +34722,13 @@
         if (parts && parts.mau > 0) {
           sumViolPct.textContent = parts.pct.toFixed(1) + '%';
           sumViolFrac.textContent = parts.tu + '/' + parts.mau;
-          chipViolRate.title =
-            breakFormulaLabel() + ' · ' + breakFormulaTipBody()
-            + ' · tử/mẫu = ' + parts.tu + '/' + parts.mau
-            + ' · quá khứ→hiện tại · threshold hiện tại · click nhãn để đổi ¹/²/³';
+          breakRateParts = { tu: parts.tu, mau: parts.mau };
         } else {
           sumViolPct.textContent = '—';
           sumViolFrac.textContent = '';
-          chipViolRate.title = breakFormulaLabel() + ' · chưa đủ mẫu (MIN_ID→ĐA cuối)'
-            + ' · click nhãn để đổi ¹/²/³';
+          breakRateParts = null;
         }
+        applyBreakFormulaTitle();
 
         /* %rest vẫn dùng mẫu id (ĐA), không đổi theo %break. */
         const restMau = lastAnsId != null ? (lastAnsId - MIN_ID + 1) : 0;
@@ -36192,16 +36658,10 @@
         if (sumZeroLabelEl) sumZeroLabelEl.textContent = '2/ Không tick cột nào (id>' + idGt + ')';
         if (sumTailLabel) sumTailLabel.textContent = '%' + trialTail + '-tail';
         document.title = trialTail + '-tail';
-        const mauTip = breakFormulaLabel() + ' · quá khứ→hiện tại (MIN_ID→ĐA cuối) · '
-          + breakFormulaTipBody() + ' · click nhãn để đổi ¹/²/³';
         const restTip = 'mẫu = id cuối có đáp án' + mauMinusLabel()
           + ' · tử = số kỳ đáp án ∩ rest ≠ ∅ · rest cố định theo pool tối đa · click %rest = bỏ/tính kỳ rest rỗng';
-        if (chipViolRateEl) chipViolRateEl.title = mauTip;
-        if (btnBreakFormula) {
-          btnBreakFormula.textContent = breakFormulaLabel();
-          btnBreakFormula.title = 'Click: đổi công thức ' + breakFormulaLabel()
-            + ' → tiếp theo · ' + breakFormulaTipBody();
-        }
+        if (btnBreakFormula) btnBreakFormula.textContent = breakFormulaLabel();
+        applyBreakFormulaTitle();
         if (chipRestRateEl) chipRestRateEl.title = restTip;
         syncTBreakPctLabel();
         try { refreshThWfreqFreqTipIfOpen(); } catch (eTip) { /* ignore */ }
@@ -40128,13 +40588,15 @@
         if (id === 'tXHi') { stepTXBound('hi', dir); return true; }
         if (id === 'tTMulLo') { stepTMulBound('lo', dir); return true; }
         if (id === 'tTMulHi') { stepTMulBound('hi', dir); return true; }
-        /* 5 lọc phụ Δimerge: ix · |Δi| · |Δ%break| · %th · |Δ%th| */
+        /* Lọc phụ Δimerge: ix · |Δi| · |Δ%break| · wfreq · %th · |Δ%th| */
         if (id === 'tSecIxLo') { stepTSecIx('lo', dir); return true; }
         if (id === 'tSecIxHi') { stepTSecIx('hi', dir); return true; }
         if (id === 'tSecDiLo') { stepTSecDi('lo', dir); return true; }
         if (id === 'tSecDiHi') { stepTSecDi('hi', dir); return true; }
         if (id === 'tSecDBreakLo') { stepTSecDBreak('lo', dir); return true; }
         if (id === 'tSecDBreakHi') { stepTSecDBreak('hi', dir); return true; }
+        if (id === 'tSecWfreqLo') { stepTSecWfreq('lo', dir); return true; }
+        if (id === 'tSecWfreqHi') { stepTSecWfreq('hi', dir); return true; }
         if (id === 'tSecThLo') { stepTSecTh('lo', dir); return true; }
         if (id === 'tSecThHi') { stepTSecTh('hi', dir); return true; }
         if (id === 'tSecDThLo') { stepTSecDTh('lo', dir); return true; }
